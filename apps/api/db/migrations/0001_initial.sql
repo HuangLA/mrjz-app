@@ -1,0 +1,245 @@
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS leagues (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  opendota_league_id INTEGER NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS seasons (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  starts_at TEXT,
+  ends_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tournaments (
+  id TEXT PRIMARY KEY,
+  season_id TEXT NOT NULL REFERENCES seasons(id),
+  league_id TEXT NOT NULL REFERENCES leagues(id),
+  current_stage_id TEXT,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL CHECK (status IN ('draft', 'running', 'completed', 'archived')),
+  visibility TEXT NOT NULL CHECK (visibility IN ('public', 'private')),
+  starts_at TEXT,
+  ends_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS teams (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  short_name TEXT NOT NULL,
+  logo_url TEXT,
+  color TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tournament_teams (
+  tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  seed INTEGER,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'withdrawn', 'eliminated')),
+  PRIMARY KEY (tournament_id, team_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS players (
+  id TEXT PRIMARY KEY,
+  account_id INTEGER UNIQUE,
+  display_name TEXT NOT NULL,
+  current_team_id TEXT REFERENCES teams(id),
+  avatar_url TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS team_members (
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'player',
+  joined_at TEXT,
+  left_at TEXT,
+  PRIMARY KEY (team_id, player_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS stages (
+  id TEXT PRIMARY KEY,
+  tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('group', 'swiss', 'knockout')),
+  name TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('draft', 'published', 'running', 'completed', 'locked')),
+  sort_order INTEGER NOT NULL,
+  advancement_rule TEXT NOT NULL,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS rounds (
+  id TEXT PRIMARY KEY,
+  stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  round_number INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('draft', 'published', 'running', 'completed', 'locked')),
+  pairing_status TEXT NOT NULL DEFAULT 'draft' CHECK (pairing_status IN ('draft', 'published', 'confirmed')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (stage_id, round_number)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS series (
+  id TEXT PRIMARY KEY,
+  round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+  stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  bo_type TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('draft', 'scheduled', 'live', 'result_pending', 'completed', 'conflict', 'postponed')),
+  scheduled_at TEXT,
+  radiant_team_id TEXT NOT NULL REFERENCES teams(id),
+  dire_team_id TEXT NOT NULL REFERENCES teams(id),
+  radiant_score INTEGER NOT NULL DEFAULT 0,
+  dire_score INTEGER NOT NULL DEFAULT 0,
+  winner_team_id TEXT REFERENCES teams(id),
+  created_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS series_games (
+  id TEXT PRIMARY KEY,
+  series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+  game_index INTEGER NOT NULL,
+  match_id INTEGER UNIQUE,
+  radiant_score INTEGER,
+  dire_score INTEGER,
+  winner_team_id TEXT REFERENCES teams(id),
+  parse_status TEXT NOT NULL DEFAULT 'missing' CHECK (parse_status IN ('missing', 'requested', 'parsed', 'failed')),
+  conflict_status TEXT NOT NULL DEFAULT 'none' CHECK (conflict_status IN ('none', 'pending', 'resolved')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (series_id, game_index)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS standings (
+  id TEXT PRIMARY KEY,
+  stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  rank INTEGER NOT NULL,
+  group_name TEXT,
+  series_played INTEGER NOT NULL DEFAULT 0,
+  series_wins INTEGER NOT NULL DEFAULT 0,
+  series_draws INTEGER NOT NULL DEFAULT 0,
+  series_losses INTEGER NOT NULL DEFAULT 0,
+  game_wins INTEGER NOT NULL DEFAULT 0,
+  game_losses INTEGER NOT NULL DEFAULT 0,
+  points INTEGER NOT NULL DEFAULT 0,
+  opponent_score REAL NOT NULL DEFAULT 0,
+  head_to_head_score REAL NOT NULL DEFAULT 0,
+  manual_rank INTEGER,
+  status TEXT NOT NULL CHECK (status IN ('advance', 'safe', 'eliminated')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (stage_id, team_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS bracket_nodes (
+  id TEXT PRIMARY KEY,
+  stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  round_number INTEGER NOT NULL,
+  round_name TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'scheduled', 'completed')),
+  series_id TEXT REFERENCES series(id),
+  next_node_id TEXT,
+  next_slot TEXT CHECK (next_slot IN ('radiant', 'dire') OR next_slot IS NULL),
+  winner_team_id TEXT REFERENCES teams(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (stage_id, round_number, position)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS opendota_matches (
+  match_id INTEGER PRIMARY KEY,
+  league_id INTEGER,
+  raw_json TEXT NOT NULL,
+  parse_status TEXT NOT NULL CHECK (parse_status IN ('requested', 'parsed', 'failed')),
+  requested_at TEXT,
+  parsed_at TEXT,
+  last_error TEXT,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS app_users (
+  id TEXT PRIMARY KEY,
+  open_id TEXT UNIQUE,
+  nickname TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'player', 'admin')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tags (
+  id TEXT PRIMARY KEY,
+  target_type TEXT NOT NULL CHECK (target_type IN ('player', 'team')),
+  target_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES app_users(id),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden')),
+  hidden_reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tag_likes (
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (tag_id, user_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tag_reports (
+  id TEXT PRIMARY KEY,
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  reporter_user_id TEXT NOT NULL REFERENCES app_users(id),
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'dismissed', 'accepted')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS sync_tasks (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('discover_match', 'request_parse', 'schedule_link')),
+  status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'needs_review')),
+  league_id INTEGER,
+  target_type TEXT,
+  target_id TEXT,
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  next_run_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_tournaments_league ON tournaments(league_id);
+CREATE INDEX IF NOT EXISTS idx_stages_tournament ON stages(tournament_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_rounds_stage ON rounds(stage_id, round_number);
+CREATE INDEX IF NOT EXISTS idx_series_round ON series(round_id, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_series_games_match ON series_games(match_id);
+CREATE INDEX IF NOT EXISTS idx_standings_stage_rank ON standings(stage_id, rank);
+CREATE INDEX IF NOT EXISTS idx_opendota_matches_league ON opendota_matches(league_id, match_id);
+CREATE INDEX IF NOT EXISTS idx_tags_target ON tags(target_type, target_id, status);
+CREATE INDEX IF NOT EXISTS idx_sync_tasks_status ON sync_tasks(status, next_run_at);
+
+INSERT OR IGNORE INTO schema_migrations(version) VALUES ('0001_initial');

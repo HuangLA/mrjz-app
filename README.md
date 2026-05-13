@@ -14,6 +14,7 @@
 
 - [产品需求文档](./docs/PRD.md)
 - [技术方案](./docs/TECHNICAL_DESIGN.md)
+- [数据库设计草案](./docs/DATABASE_SCHEMA.md)
 - [比赛管理系统方案](./docs/TOURNAMENT_MANAGEMENT_SPEC.md)
 - [OpenDota 字段映射](./docs/OPEN_DOTA_FIELDS.md)
 - [Web 管理后台方案](./docs/ADMIN_WEB_SPEC.md)
@@ -39,6 +40,8 @@ docs/             PRD、技术文档、设计稿和进度追踪
 ## 当前初始化状态
 
 项目已初始化为 npm workspace + TypeScript monorepo，并已生成 `package-lock.json`。当前已有可构建的 API、Web Admin 和 H5 原型：API 提供赛事、赛程、积分、淘汰赛和比赛详情 mock 接口；Web Admin 提供赛制、赛程和 OpenDota 同步任务的管理方向；H5 提供赛事首页、阶段赛程、比赛详情和标签互动的页面原型。微信小程序仍是占位入口，后续会按同一接口契约接入。
+
+本地数据库可通过 `npm run db:init` 初始化，默认路径为 `apps/api/var/mrjz.sqlite`。运行态数据库文件不会提交到仓库。
 
 ## 参考来源
 

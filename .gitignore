@@ -7,6 +7,12 @@ build/
 .turbo/
 .cache/
 
+# Runtime data
+apps/api/var/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
 # Env files
 .env
 .env.*
@@ -26,4 +32,3 @@ pnpm-debug.log*
 
 # Mini program
 project.private.config.json
-

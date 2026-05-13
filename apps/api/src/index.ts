@@ -1,10 +1,13 @@
 import { createServer } from "node:http";
+import { getRepositoryInfo } from "./data/repository.js";
 import { createApiRouter, type HealthStatus } from "./server/apiRouter.js";
 
 const serviceName = "mrjz-api";
 const startedAt = Date.now();
 
 export function getHealthStatus(now = new Date()): HealthStatus {
+  const repositoryInfo = getRepositoryInfo();
+
   return {
     ok: true,
     service: serviceName,
@@ -12,7 +15,9 @@ export function getHealthStatus(now = new Date()): HealthStatus {
     uptimeSeconds: Math.round((now.getTime() - startedAt) / 1000),
     prototype: {
       runtime: "node:http",
-      dataSource: "mock",
+      dataSource: repositoryInfo.dataSource,
+      databasePath: repositoryInfo.databasePath,
+      ...(repositoryInfo.dataSource === "mock" ? { fallbackReason: repositoryInfo.reason } : {}),
       externalDependencies: false,
     },
     routes: router.patterns(),

@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run build && node dist/index.js",
-    "start": "node dist/index.js",
+    "dev": "npm run build && node --no-warnings=ExperimentalWarning dist/index.js",
+    "start": "node --no-warnings=ExperimentalWarning dist/index.js",
     "build": "tsc -p tsconfig.json",
+    "db:init": "npm run build && node --no-warnings=ExperimentalWarning dist/db/bootstrap.js",
+    "db:reset": "npm run build && node --no-warnings=ExperimentalWarning dist/db/bootstrap.js --reset",
+    "db:status": "npm run build && node --no-warnings=ExperimentalWarning dist/db/bootstrap.js --status",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add API lint\"",
     "test": "echo \"TODO: add API tests\""

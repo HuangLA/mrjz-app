@@ -16,7 +16,9 @@ export type HealthStatus = {
   uptimeSeconds: number;
   prototype: {
     runtime: "node:http";
-    dataSource: "mock";
+    dataSource: "sqlite" | "mock";
+    databasePath: string;
+    fallbackReason?: string;
     externalDependencies: false;
   };
   routes: string[];
