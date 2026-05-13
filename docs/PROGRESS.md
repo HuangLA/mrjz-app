@@ -45,9 +45,9 @@
 
 | Commit | 内容 |
 | --- | --- |
+| `6cb020f` | Add SQLite database baseline |
 | `ce89101` | Build API admin and H5 prototypes |
 | `90b659a` | Initialize project workspace |
-| `7e53317` | Add tournament management system spec |
 
 ## 当前目录状态
 
