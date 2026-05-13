@@ -8,10 +8,13 @@
 
 比赛数据来源以 OpenDota 为主，赛程和人工赛果由管理员维护。所有选手个人数据必须限定在本项目配置的联赛、赛季和赛事范围内，不做泛 Dota 账号数据查询。小程序和手机网页端原则上只承载用户侧展示和必要互动，不承载复杂管理操作。
 
+平台后端需要内置比赛管理系统，统一支持普通小组赛、瑞士轮和淘汰赛。Web Admin 负责配置赛事和阶段、生成或维护对阵、确认赛果和处理异常；小程序与 H5 通过统一 API 展示不同赛制下的赛程、积分榜、轮次和淘汰赛 bracket。
+
 ## 文档索引
 
 - [产品需求文档](./docs/PRD.md)
 - [技术方案](./docs/TECHNICAL_DESIGN.md)
+- [比赛管理系统方案](./docs/TOURNAMENT_MANAGEMENT_SPEC.md)
 - [Web 管理后台方案](./docs/ADMIN_WEB_SPEC.md)
 - [手机网页端方案](./docs/MOBILE_WEB_SPEC.md)
 - [比赛详情页参考分析](./docs/MATCH_DETAIL_REFERENCE.md)

@@ -546,6 +546,60 @@
 
     .bottom-nav b { color: #fff; font-weight: 650; }
 
+    .standings {
+      display: grid;
+      gap: 4px;
+    }
+
+    .standing-row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto auto;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      font-size: 9.5px;
+    }
+
+    .standing-row:last-child { border-bottom: 0; }
+
+    .rank {
+      width: 16px;
+      height: 16px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 5px;
+      background: rgba(255,255,255,.07);
+      color: var(--soft);
+      font-size: 8px;
+    }
+
+    .bracket-mini {
+      display: grid;
+      grid-template-columns: 1fr 14px 1fr;
+      gap: 5px;
+      align-items: center;
+      font-size: 9px;
+    }
+
+    .bracket-col {
+      display: grid;
+      gap: 5px;
+    }
+
+    .bracket-node {
+      min-height: 24px;
+      padding: 5px;
+      border-radius: 6px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    .bracket-line {
+      height: 1px;
+      background: rgba(255,255,255,.16);
+    }
+
     .admin-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
@@ -761,6 +815,40 @@
                 </div>
               </div>
               <div class="bottom-nav"><b>首页</b><span>赛程</span><span>比赛</span><span>我的</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>赛事阶段</strong><span class="badge">赛制展示</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>返回</span><span>每日节奏 S8</span></div>
+              <div class="title-row"><h3>赛事进度</h3><span class="status green">瑞士轮 R3</span></div>
+              <div class="tabs"><span class="tab">小组</span><span class="tab active">瑞士轮</span><span class="tab">淘汰</span></div>
+              <div class="panel">
+                <h4>瑞士轮积分榜</h4>
+                <div class="standings">
+                  <div class="standing-row"><span class="rank">1</span><span class="team-name"><span>死亡之拳</span></span><span class="kda">3-0</span><span class="status green">晋级区</span></div>
+                  <div class="standing-row"><span class="rank">2</span><span class="team-name"><span>ATK2</span></span><span class="kda">2-1</span><span class="mini">6 分</span></div>
+                  <div class="standing-row"><span class="rank">3</span><span class="team-name"><span>野马</span></span><span class="kda">2-1</span><span class="mini">5 分</span></div>
+                  <div class="standing-row"><span class="rank">4</span><span class="team-name"><span>空白格队</span></span><span class="kda">1-2</span><span class="mini">BYE</span></div>
+                </div>
+              </div>
+              <div class="panel">
+                <h4>当前轮对阵</h4>
+                <div class="schedule-card"><div class="row"><span>死亡之拳 vs ATK2</span><span class="status">BO3</span></div><span class="mini">5月13日 21:00 · 自动配对草稿已发布</span></div>
+                <div class="schedule-card" style="margin-top:5px"><div class="row"><span>野马 vs 空白格队</span><span class="status ghost">待开赛</span></div></div>
+              </div>
+              <div class="panel">
+                <h4>淘汰赛预览</h4>
+                <div class="bracket-mini">
+                  <div class="bracket-col"><div class="bracket-node">Seed 1</div><div class="bracket-node">Seed 4</div></div>
+                  <div class="bracket-line"></div>
+                  <div class="bracket-col"><div class="bracket-node">决赛席位</div></div>
+                </div>
+              </div>
+              <div class="bottom-nav"><span>首页</span><b>赛程</b><span>比赛</span><span>我的</span></div>
             </div>
           </div>
         </article>
@@ -1009,6 +1097,29 @@
                   <tr><td>自动发现</td><td>league 19483</td><td><span class="admin-pill good">正常</span></td><td>22:00 再次运行</td></tr>
                   <tr><td>赛程关联</td><td>8781123456</td><td><span class="admin-pill warn">待确认</span></td><td>选择 BO3 第 2 局</td></tr>
                   <tr><td>赛果冲突</td><td>ATK2 vs 死亡之拳</td><td><span class="admin-pill bad">需处理</span></td><td>确认展示结果</td></tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+        </article>
+
+        <article class="desktop">
+          <div class="desktop-shell">
+            <aside class="side"><h4>MRJZ Admin</h4><span>工作台</span><span class="active">赛事阶段</span><span>赛程赛果</span><span>自动同步</span><span>标签审核</span></aside>
+            <section class="admin-main">
+              <div class="admin-head"><div><h3>赛事阶段</h3><p>配置小组赛、瑞士轮、淘汰赛和晋级规则</p></div><button class="button">生成草稿</button></div>
+              <div class="admin-stats">
+                <div class="admin-stat"><b>3</b><span>阶段</span></div>
+                <div class="admin-stat"><b>R3</b><span>瑞士轮</span></div>
+                <div class="admin-stat"><b>8</b><span>淘汰名额</span></div>
+                <div class="admin-stat"><b>2</b><span>待发布草稿</span></div>
+              </div>
+              <table>
+                <thead><tr><th>阶段</th><th>赛制</th><th>状态</th><th>下一步</th></tr></thead>
+                <tbody>
+                  <tr><td>小组赛</td><td>双组单循环</td><td><span class="admin-pill good">已锁定</span></td><td>生成晋级队伍</td></tr>
+                  <tr><td>瑞士轮</td><td>5 轮</td><td><span class="admin-pill warn">R3 进行中</span></td><td>确认下一轮配对</td></tr>
+                  <tr><td>淘汰赛</td><td>8 队单败</td><td><span class="admin-pill">草稿</span></td><td>设置种子位</td></tr>
                 </tbody>
               </table>
             </section>

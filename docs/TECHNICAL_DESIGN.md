@@ -142,8 +142,9 @@ OpenDota 当前 OpenAPI 版本查询为 `31.1.0`。关键端点：
 5. 如果 `version`、`objectives`、`picks_bans`、`players.gold_t` 等高级字段缺失，则标记 `parse_status = not_parsed`。
 6. 如果该联赛开启自动解析，`parse-request` 任务按限流策略调用 `POST /request/{match_id}`。
 7. `parse-polling` 定时任务轮询 `/matches/{match_id}` 或 `/request/{jobId}`，解析完成后刷新结构化数据。
-8. 管理员可以手动重试失败任务、请求解析、重新关联赛程或处理赛果冲突。
-9. 所有 OpenDota 响应写入 `raw_match_json`，避免字段遗漏导致返工。
+8. `series_games` 结果确认后触发 `TournamentService` 重算阶段积分、瑞士轮排名或淘汰赛晋级。
+9. 管理员可以手动重试失败任务、请求解析、重新关联赛程或处理赛果冲突。
+10. 所有 OpenDota 响应写入 `raw_match_json`，避免字段遗漏导致返工。
 
 ### 3.2 限流和缓存
 
@@ -161,6 +162,8 @@ OpenDota 当前 OpenAPI 版本查询为 `31.1.0`。关键端点：
 | `parse-request` | 队列 + 手动 | 对未解析比赛请求 OpenDota 解析 |
 | `parse-polling` | 定时 | 刷新解析中的比赛，补全高级数据 |
 | `schedule-linker` | 同步后触发 + 手动 | 尝试把 OpenDota match 与 Web Admin 赛程关联 |
+| `standings-recalc` | 赛果确认后触发 + 手动 | 重算小组赛和瑞士轮积分榜 |
+| `bracket-advance` | 淘汰赛赛果确认后触发 + 手动 | 推进淘汰赛胜者到下一节点 |
 | `sync-health-check` | 定时 | 发现长期失败或卡住的同步任务并告警 |
 
 自动关联策略：
@@ -252,15 +255,30 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | --- | --- |
 | `seasons` | id, name, edition_number, start_date, end_date, is_active |
 | `leagues` | id, season_id, opendota_league_id, name, status |
+| `tournaments` | id, season_id, league_id, name, slug, status, current_stage_id, visibility, starts_at, ends_at |
+| `tournament_stages` | id, tournament_id, type, name, sort_order, status, config_json, starts_at, ends_at, published_at |
+| `stage_teams` | id, stage_id, team_id, seed, source_stage_id, source_rank, status |
+| `stage_groups` | id, stage_id, name, sort_order, advance_count |
+| `stage_group_teams` | id, group_id, stage_team_id, seed |
+| `stage_rounds` | id, stage_id, group_id, round_number, name, status, pairing_status, published_at |
+| `stage_standings` | id, stage_id, group_id, team_id, rank, points, series_wins, series_draws, series_losses, game_wins, game_losses, opponent_score, head_to_head_score, manual_rank, tiebreaker_json |
+| `bracket_nodes` | id, stage_id, round_number, position, series_id, next_node_id, next_slot, team_a_id, team_b_id, winner_team_id, status |
 | `teams` | id, season_id, name, short_name, logo_url, color |
 | `team_members` | team_id, player_id, role, joined_at, left_at |
 | `players` | id, dota_account_id, steam_id64, display_name, avatar_url |
+
+说明：
+
+- `tournament_stages.type` 取值为 `group`、`swiss`、`knockout`。
+- `config_json` 保存阶段规则，例如积分规则、排名规则、瑞士轮总轮数、是否允许重复交手、淘汰赛规模、是否有三四名决赛。
+- `stage_standings` 是后端重算后的当前排名快照，用户端直接读取，不在前端临时计算。
+- `bracket_nodes` 表达淘汰赛节点；MVP 先支持单败淘汰，后续可扩展双败。
 
 ### 5.3 赛程和赛果
 
 | 表 | 关键字段 |
 | --- | --- |
-| `series` | id, season_id, league_id, radiant_team_id, dire_team_id, bo_type, stage, scheduled_at, status |
+| `series` | id, season_id, league_id, tournament_id, stage_id, round_id, group_id, bracket_node_id, radiant_team_id, dire_team_id, bo_type, scheduled_at, status, publish_status |
 | `series_games` | id, series_id, game_index, match_id, radiant_score, dire_score, winner_team_id, manual_result_status |
 | `schedule_notes` | series_id, note, visible_to_public, created_by |
 
@@ -269,6 +287,8 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 - `series` 表达一轮 BO1、BO2、BO3。
 - `series_games` 表达单局 Dota match。
 - 人工赛果和 OpenDota 赛果都保留，冲突时显示“待管理员确认”。
+- 小组赛、瑞士轮和淘汰赛都通过 `series.stage_id + series.round_id` 归入对应阶段。
+- 对阵生成先写入 `publish_status=draft`，管理员确认后变为 `published`。
 
 ### 5.4 比赛数据
 
@@ -362,6 +382,12 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | --- | --- | --- |
 | GET | `/api/seasons` | 赛季列表 |
 | GET | `/api/leagues` | 联赛列表 |
+| GET | `/api/tournaments` | 赛事列表 |
+| GET | `/api/tournaments/:id` | 赛事总览，包含当前阶段摘要 |
+| GET | `/api/tournaments/:id/stages` | 赛事阶段列表 |
+| GET | `/api/stages/:id/standings` | 小组赛或瑞士轮积分榜 |
+| GET | `/api/stages/:id/rounds` | 阶段轮次和对阵 |
+| GET | `/api/stages/:id/bracket` | 淘汰赛 bracket |
 | GET | `/api/schedules` | 赛程列表 |
 | GET | `/api/schedules/:id` | 赛程详情 |
 | GET | `/api/matches` | 比赛记录列表 |
@@ -416,6 +442,18 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | --- | --- | --- |
 | POST | `/api/admin/seasons` | 创建赛季 |
 | PATCH | `/api/admin/seasons/:id` | 修改赛季 |
+| POST | `/api/admin/tournaments` | 创建赛事 |
+| PATCH | `/api/admin/tournaments/:id` | 修改赛事 |
+| POST | `/api/admin/tournaments/:id/stages` | 创建赛事阶段 |
+| PATCH | `/api/admin/stages/:id` | 修改阶段规则、状态和可见性 |
+| POST | `/api/admin/stages/:id/teams` | 配置阶段参赛队 |
+| POST | `/api/admin/stages/:id/generate-series` | 生成小组赛赛程草稿 |
+| POST | `/api/admin/stages/:id/generate-swiss-round` | 生成瑞士轮下一轮配对草稿 |
+| POST | `/api/admin/stages/:id/generate-bracket` | 生成淘汰赛 bracket 草稿 |
+| POST | `/api/admin/stages/:id/publish` | 发布阶段和草稿对阵 |
+| POST | `/api/admin/stages/:id/recalculate-standings` | 重算阶段积分榜 |
+| PATCH | `/api/admin/stage-standings/:id` | 手动修正排名或晋级标记 |
+| PATCH | `/api/admin/bracket-nodes/:id` | 手动修正 bracket 节点或晋级结果 |
 | POST | `/api/admin/teams` | 创建队伍 |
 | PATCH | `/api/admin/teams/:id` | 修改队伍 |
 | POST | `/api/admin/players` | 创建选手 |
@@ -434,6 +472,27 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | PATCH | `/api/admin/tags/:tagId` | 隐藏、恢复或修改标签状态 |
 | GET | `/api/admin/sync-jobs` | 同步任务列表 |
 | GET | `/api/admin/audit-logs` | 审计日志 |
+
+### 6.6 比赛管理服务
+
+后端建议拆出 `TournamentService`，封装以下能力：
+
+- `createStage`：创建小组赛、瑞士轮或淘汰赛阶段。
+- `generateGroupSeriesDraft`：根据分组和循环规则生成小组赛 series 草稿。
+- `generateSwissRoundDraft`：根据当前排名生成下一轮瑞士轮配对草稿。
+- `generateKnockoutBracketDraft`：根据种子位生成单败淘汰 bracket 草稿。
+- `publishDraftSeries`：发布草稿，对用户端可见。
+- `recordSeriesResult`：汇总单局结果，确认 BO 胜方。
+- `recalculateStandings`：重算小组赛或瑞士轮积分榜。
+- `advanceBracketWinner`：淘汰赛节点完成后推进胜者。
+- `lockStage`：锁定阶段结果，用于生成下一阶段参赛队。
+
+服务边界：
+
+- 赛事规则计算只在后端执行。
+- 前端可请求生成草稿，但必须由管理员确认发布。
+- OpenDota 同步只补全单局 match 数据；积分、晋级和排名以平台 series 结果为准。
+- 任意自动计算结果被管理员覆盖时，必须写入 `admin_audit_logs`。
 
 ## 7. 比赛详情数据装配
 
