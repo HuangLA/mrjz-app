@@ -112,37 +112,37 @@
 
     .mobile-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 22px;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
       align-items: start;
     }
 
     .phone-wrap {
       display: grid;
-      gap: 10px;
+      gap: 8px;
       justify-items: center;
     }
 
     .phone-title {
-      width: 260px;
+      width: 300px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       color: var(--soft);
-      font-size: 13px;
+      font-size: 12px;
     }
 
     .badge {
       border: 1px solid var(--line);
       color: var(--muted);
-      padding: 3px 7px;
+      padding: 2px 6px;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: 9px;
     }
 
     .phone {
-      width: 260px;
-      height: 560px;
+      width: 300px;
+      height: 640px;
       overflow: hidden;
       border-radius: 28px;
       background: #0f1520;
@@ -167,19 +167,21 @@
     .screen {
       height: 100%;
       overflow: hidden;
-      padding: 22px 12px 12px;
+      padding: 20px 10px 10px;
       background:
         linear-gradient(135deg, rgba(120,214,108,.09), transparent 30%),
         linear-gradient(215deg, rgba(239,100,103,.12), transparent 38%),
         #101722;
+      font-size: 11px;
+      line-height: 1.34;
     }
 
     .nav {
-      height: 28px;
+      height: 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      font-size: 11px;
+      font-size: 9px;
       color: var(--muted);
     }
 
@@ -187,26 +189,29 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 10px;
-      margin: 10px 0;
+      gap: 8px;
+      margin: 7px 0;
     }
 
     .screen h3 {
       margin: 0;
       color: #fff;
-      font-size: 18px;
-      line-height: 1.18;
-      font-weight: 760;
+      font-size: 14px;
+      line-height: 1.2;
+      font-weight: 720;
     }
 
     .screen h4 {
-      margin: 0 0 8px;
-      font-size: 13px;
+      margin: 0 0 6px;
+      font-size: 10px;
+      line-height: 1.2;
       color: #f5f7ff;
+      font-weight: 680;
     }
 
     .mini {
-      font-size: 10px;
+      font-size: 8.5px;
+      line-height: 1.35;
       color: var(--muted);
     }
 
@@ -214,25 +219,26 @@
       background: rgba(20,27,39,.82);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 10px;
-      margin-bottom: 9px;
+      padding: 7px;
+      margin-bottom: 6px;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
     }
 
     .hero-panel {
-      min-height: 120px;
+      min-height: 88px;
       background:
         linear-gradient(110deg, rgba(16,23,34,.95) 0%, rgba(16,23,34,.82) 48%, rgba(16,23,34,.2) 100%),
         url("https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/necrolyte.png");
-      background-size: auto 118%, auto 125%;
+      background-size: auto 112%, auto 118%;
       background-position: center, right center;
       border: 1px solid rgba(120,214,108,.16);
     }
 
     .hero-panel strong {
       display: block;
-      margin-top: 4px;
-      font-size: 24px;
+      margin-top: 3px;
+      font-size: 16px;
+      line-height: 1.16;
       color: #fff;
     }
 
@@ -246,37 +252,39 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 6px;
     }
 
-    .stack { display: grid; gap: 8px; }
+    .stack { display: grid; gap: 6px; }
 
     .metric-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
+      gap: 5px;
+      margin-bottom: 6px;
     }
 
     .metric {
-      padding: 8px 6px;
+      padding: 6px 5px;
       background: rgba(255,255,255,.04);
-      border-radius: 7px;
+      border-radius: 6px;
       border: 1px solid rgba(255,255,255,.05);
     }
 
     .metric b {
       display: block;
-      font-size: 16px;
+      font-size: 14px;
+      line-height: 1.05;
       color: #fff;
     }
 
     .metric span {
-      font-size: 10px;
+      font-size: 8.5px;
       color: var(--muted);
     }
 
     .team-row, .match-card, .schedule-card {
-      padding: 9px;
+      padding: 6px;
       border-radius: var(--radius);
       background: rgba(255,255,255,.04);
       border: 1px solid rgba(255,255,255,.05);
@@ -284,7 +292,7 @@
 
     .schedule-card {
       display: grid;
-      gap: 7px;
+      gap: 4px;
     }
 
     .team-name {
@@ -294,7 +302,7 @@
       min-width: 0;
       font-weight: 650;
       color: #f8fbff;
-      font-size: 12px;
+      font-size: 10.5px;
     }
 
     .team-name span {
@@ -304,18 +312,54 @@
     }
 
     .score {
-      font-size: 18px;
-      font-weight: 780;
+      font-size: 15px;
+      line-height: 1;
+      font-weight: 740;
       color: #fff;
+    }
+
+    .score-card {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 7px;
+      margin-bottom: 6px;
+      border-radius: var(--radius);
+      background: rgba(20,27,39,.82);
+      border: 1px solid var(--line);
+    }
+
+    .score-card > div {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+      color: var(--soft);
+      font-size: 8.5px;
+    }
+
+    .score-card > div:last-child {
+      text-align: right;
+    }
+
+    .score-card b {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 680;
     }
 
     .status {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 3px 7px;
+      padding: 2px 5px;
       border-radius: 999px;
-      font-size: 10px;
+      font-size: 8.5px;
+      line-height: 1.2;
       color: #101722;
       background: var(--gold);
       white-space: nowrap;
@@ -326,31 +370,31 @@
     .status.ghost { background: rgba(255,255,255,.08); color: var(--soft); }
 
     .avatar {
-      width: 26px;
-      height: 26px;
-      border-radius: 7px;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
       object-fit: cover;
       background: rgba(255,255,255,.08);
       flex: 0 0 auto;
     }
 
     .hero-avatar {
-      width: 34px;
-      height: 34px;
-      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
       object-fit: cover;
       background: rgba(255,255,255,.08);
     }
 
     .items {
       display: grid;
-      grid-template-columns: repeat(3, 14px);
-      gap: 3px;
+      grid-template-columns: repeat(3, 12px);
+      gap: 2px;
     }
 
     .item {
-      width: 14px;
-      height: 14px;
+      width: 12px;
+      height: 12px;
       border-radius: 3px;
       background: linear-gradient(135deg, #6ed0ff, #6549ca);
       border: 1px solid rgba(255,255,255,.12);
@@ -361,10 +405,10 @@
 
     .player-line {
       display: grid;
-      grid-template-columns: 34px 1fr auto;
-      gap: 8px;
+      grid-template-columns: 28px 1fr auto;
+      gap: 6px;
       align-items: center;
-      padding: 7px 0;
+      padding: 5px 0;
       border-bottom: 1px solid rgba(255,255,255,.06);
     }
 
@@ -372,8 +416,9 @@
 
     .player-name {
       min-width: 0;
-      font-size: 12px;
-      font-weight: 680;
+      font-size: 10.5px;
+      line-height: 1.2;
+      font-weight: 660;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -381,22 +426,22 @@
 
     .kda {
       color: var(--soft);
-      font-size: 11px;
+      font-size: 9.5px;
       white-space: nowrap;
     }
 
     .tabs {
       display: flex;
-      gap: 6px;
-      margin-bottom: 10px;
+      gap: 4px;
+      margin-bottom: 7px;
     }
 
     .tab {
-      padding: 6px 9px;
+      padding: 4px 7px;
       border-radius: 999px;
       color: var(--muted);
       background: rgba(255,255,255,.05);
-      font-size: 11px;
+      font-size: 9.5px;
     }
 
     .tab.active {
@@ -405,8 +450,8 @@
     }
 
     .chart {
-      height: 80px;
-      border-radius: 8px;
+      height: 70px;
+      border-radius: 7px;
       background:
         linear-gradient(180deg, rgba(255,255,255,.05), transparent),
         repeating-linear-gradient(0deg, transparent 0 19px, rgba(255,255,255,.06) 20px),
@@ -418,16 +463,16 @@
     .tag-cloud {
       display: flex;
       flex-wrap: wrap;
-      gap: 7px;
+      gap: 5px;
       align-items: center;
     }
 
     .tag {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       max-width: 100%;
-      padding: 5px 8px;
+      padding: 3px 6px;
       border-radius: 999px;
       background: rgba(120,214,108,.10);
       border: 1px solid rgba(120,214,108,.22);
@@ -436,16 +481,16 @@
       font-weight: 650;
     }
 
-    .tag.small { font-size: 10px; }
-    .tag.mid { font-size: 13px; }
-    .tag.big { font-size: 18px; color: #fff; }
+    .tag.small { font-size: 8.5px; }
+    .tag.mid { font-size: 10.5px; }
+    .tag.big { font-size: 13px; color: #fff; }
     .tag.red { background: rgba(239,100,103,.12); border-color: rgba(239,100,103,.25); }
 
     .timeline {
       position: relative;
       display: grid;
-      gap: 8px;
-      padding-left: 16px;
+      gap: 5px;
+      padding-left: 12px;
     }
 
     .timeline::before {
@@ -462,31 +507,31 @@
       position: relative;
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
-      padding: 6px 7px;
+      padding: 4px 6px;
       border: 1px solid rgba(255,255,255,.07);
-      border-radius: 7px;
+      border-radius: 6px;
       background: rgba(255,255,255,.04);
-      font-size: 11px;
+      font-size: 9.5px;
     }
 
     .draft::before {
       content: "";
       position: absolute;
-      left: 2px;
-      width: 7px;
-      height: 7px;
+      left: -10px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--radiant);
     }
 
     .bottom-nav {
       position: absolute;
-      left: 12px;
-      right: 12px;
+      left: 10px;
+      right: 10px;
       bottom: 10px;
-      height: 42px;
+      height: 36px;
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       align-items: center;
@@ -495,7 +540,7 @@
       border: 1px solid rgba(255,255,255,.08);
       backdrop-filter: blur(12px);
       color: var(--muted);
-      font-size: 10px;
+      font-size: 9px;
       text-align: center;
     }
 
@@ -785,7 +830,7 @@
               <div class="nav"><span>返回</span><span>8781793789</span></div>
               <div class="panel">
                 <div class="row"><span class="status green">死亡之拳 胜利</span><span class="mini">47:05</span></div>
-                <div class="row" style="margin-top:8px"><span class="team-name"><span>天辉</span></span><span class="score">33 : 27</span><span class="team-name"><span>夜魇</span></span></div>
+                <div class="row" style="margin-top:5px"><span class="team-name"><span>天辉</span></span><span class="score">33 : 27</span><span class="team-name"><span>夜魇</span></span></div>
               </div>
               <div class="panel hero-panel">
                 <span class="status">MVP</span>
@@ -851,7 +896,7 @@
               <div class="nav"><span>返回</span><span>队伍</span></div>
               <div class="panel">
                 <div class="row"><span class="status red">夜魇侧偏好</span><span class="mini">S8</span></div>
-                <h3 style="margin-top:10px">死亡之拳</h3>
+                <h3 style="margin-top:6px">死亡之拳</h3>
                 <p class="mini">12 胜 6 负 · 小组第 2</p>
               </div>
               <div class="panel">
@@ -896,7 +941,7 @@
               <div class="panel">
                 <h4>我的近期比赛</h4>
                 <div class="schedule-card"><div class="row"><span>石鳞剑士</span><span class="status green">胜</span></div><span class="mini">8 / 11 / 13 · 47:05</span></div>
-                <div class="schedule-card" style="margin-top:7px"><div class="row"><span>斧王</span><span class="status red">负</span></div><span class="mini">6 / 9 / 21 · 39:18</span></div>
+                <div class="schedule-card" style="margin-top:5px"><div class="row"><span>斧王</span><span class="status red">负</span></div><span class="mini">6 / 9 / 21 · 39:18</span></div>
               </div>
               <div class="bottom-nav"><span>首页</span><span>赛程</span><span>比赛</span><b>我的</b></div>
             </div>
@@ -927,8 +972,8 @@
               <div class="panel">
                 <h4>分享预览</h4>
                 <div class="schedule-card"><div class="row"><span>赛事赛程</span><span class="mini">今晚 21:00</span></div></div>
-                <div class="schedule-card" style="margin-top:7px"><div class="row"><span>比赛详情</span><span class="status green">已解析</span></div></div>
-                <div class="schedule-card" style="margin-top:7px"><div class="row"><span>选手主页</span><span class="mini">标签云开放</span></div></div>
+                <div class="schedule-card" style="margin-top:5px"><div class="row"><span>比赛详情</span><span class="status green">已解析</span></div></div>
+                <div class="schedule-card" style="margin-top:5px"><div class="row"><span>选手主页</span><span class="mini">标签云开放</span></div></div>
               </div>
               <div class="panel">
                 <h4>打开方式</h4>
