@@ -1,0 +1,33 @@
+{
+  "name": "mrjz-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MRJZ Dota 2 community tournament platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm -r --parallel --if-present dev",
+    "dev:api": "pnpm --filter @mrjz/api dev",
+    "dev:admin": "pnpm --filter @mrjz/admin dev",
+    "dev:mobile-web": "pnpm --filter @mrjz/mobile-web dev",
+    "dev:miniprogram": "pnpm --filter @mrjz/miniprogram dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "check:docs": "python3 -m html.parser docs/design/page-direction.html",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  }
+}

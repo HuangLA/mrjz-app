@@ -19,6 +19,25 @@
 - [手机网页端方案](./docs/MOBILE_WEB_SPEC.md)
 - [比赛详情页参考分析](./docs/MATCH_DETAIL_REFERENCE.md)
 - [开发计划](./docs/DEVELOPMENT_PLAN.md)
+- [开发规则](./docs/DEVELOPMENT_RULES.md)
+- [项目进度追踪](./docs/PROGRESS.md)
+
+## 项目结构
+
+```text
+apps/
+  api/            云服务器后端 API 和 worker
+  admin/          Web Admin 管理后台
+  mobile-web/     手机网页 H5
+  miniprogram/    微信小程序
+packages/
+  shared/         共享类型、常量和浏览器安全工具
+docs/             PRD、技术文档、设计稿和进度追踪
+```
+
+## 当前初始化状态
+
+项目已初始化为 TypeScript monorepo 骨架。当前尚未安装框架依赖，也没有生成 lockfile；下一步进入 M1 时需要安装并锁定 API、Admin、H5 和小程序的实际技术栈。
 
 ## 参考来源
 
