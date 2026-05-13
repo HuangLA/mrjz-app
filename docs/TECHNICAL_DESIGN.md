@@ -36,7 +36,23 @@
 - 管理端运行在电脑浏览器，适合承载赛程、队伍、选手、赛果、同步任务等复杂操作。
 - 可以复用现有网页端项目的 React 经验，但不强行复用用户侧 UI。
 
-### 1.3 后端
+### 1.3 手机网页 H5 前端
+
+建议使用：
+
+- 框架：React + TypeScript + Vite
+- UI 基础：轻量移动端组件或 NutUI React
+- 数据请求：TanStack Query + Axios
+- 图表：ECharts
+- 部署目标：Nginx 静态站点
+
+原因：
+
+- H5 是小程序上线延迟时的用户侧兜底入口，需要能独立部署和快速发布。
+- H5 更适合作为比赛详情外链和分享落地页。
+- 与 Web Admin 同为 React + Vite，可以共享构建工具；与小程序共享接口类型和展示逻辑。
+
+### 1.4 后端
 
 建议使用：
 
@@ -53,12 +69,13 @@
 - Sequelize 与现有表结构和迁移文件更接近。
 - Redis 用于 token、同步队列、OpenDota 限流和热点详情缓存。
 
-### 1.4 仓库结构
+### 1.5 仓库结构
 
 ```text
 mrjz-app/
   apps/
     miniprogram/          # Taro 微信小程序
+    mobile-web/           # React 手机网页 H5
     admin/                # React Web Admin
     api/                  # Express API 服务
   packages/
@@ -77,6 +94,7 @@ mrjz-app/
 ```mermaid
 flowchart TD
   A["微信小程序"] --> B["API Gateway / Express"]
+  H5["手机网页 H5"] --> B
   W["Web Admin"] --> B
   B --> C["Auth 模块"]
   B --> D["赛事业务模块"]
@@ -95,8 +113,8 @@ flowchart TD
 
 核心原则：
 
-- 小程序不直接请求 OpenDota，统一通过后端代理和缓存。
-- Web Admin 是唯一推荐的数据维护入口，小程序端只展示公开数据和个人数据。
+- 小程序和手机网页 H5 不直接请求 OpenDota，统一通过后端代理和缓存。
+- Web Admin 是唯一推荐的数据维护入口，小程序和 H5 只展示公开数据、个人数据和必要互动。
 - 后端保存原始 OpenDota JSON，结构化字段用于列表、详情和统计。
 - 管理员维护赛程和人工赛果，OpenDota 补全赛后详细数据。
 - 用户个人数据按平台联赛范围聚合，禁止直接返回全局战绩。
@@ -175,6 +193,16 @@ sequenceDiagram
 - 管理员角色存数据库，接口层统一校验，不能依赖前端隐藏菜单。
 - Web Admin token 与小程序 token 分开管理，便于设置更短有效期和更严格权限。
 - 绑定 Dota 账号需要审核或白名单，防止冒领选手数据。
+
+### 4.3 H5 登录策略
+
+H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分享。后续需要互动能力时可选择：
+
+- 微信网页授权：适合在微信内打开，依赖公众号网页授权能力。
+- 手机号验证码：适合浏览器通用登录，但需要短信服务和风控。
+- 一次性口令：适合小规模社区赛，由管理员给选手发放绑定码。
+
+在 H5 登录未完成前，添加标签、点赞、我的数据等需要登录的能力优先引导用户打开小程序。
 
 角色枚举：
 
@@ -384,7 +412,7 @@ sequenceDiagram
 
 ## 7. 比赛详情数据装配
 
-后端推荐提供聚合接口 `GET /api/matches/:matchId`，避免小程序多次请求。
+后端推荐提供聚合接口 `GET /api/matches/:matchId`，避免小程序和 H5 多次请求。
 
 返回结构：
 
@@ -433,7 +461,7 @@ sequenceDiagram
 
 需要调整：
 
-- 比赛列表和详情必须按小程序交互重做。
+- 比赛列表和详情必须按小程序/H5 的移动端交互重做。
 - 用户体系从网页匿名访问升级为小程序微信登录、Web Admin 管理员登录和 RBAC。
 - 赛程和赛果从 OpenDota 数据外扩展为平台手动维护。
 - OpenDota 联赛同步优先使用 `/leagues/{league_id}/matchIds`，以兼容业余联赛。
@@ -446,6 +474,7 @@ MVP 推荐：
 - Nginx：负责 HTTPS、静态资源、API 反向代理。
 - API：Node.js 服务部署在云服务器或容器中，域名需配置到微信小程序 request 合法域名。
 - Web Admin：Vite 构建后作为静态站点部署到 Nginx，建议使用独立子域名。
+- H5：Vite 构建后作为静态站点部署到 Nginx，用作公开展示和分享入口。
 - DB：MySQL 8.0，MVP 可同机部署，正式期建议独立云数据库或至少每日备份。
 - Redis：可选，若同步任务量不大可第二阶段加入；使用 BullMQ 时建议启用。
 - 对象存储：队伍 Logo、静态图片、后续分享海报。
@@ -454,14 +483,16 @@ MVP 推荐：
 域名建议：
 
 ```text
-api.example.com      # 小程序和 Web Admin 共用 API
+api.example.com      # 小程序、H5 和 Web Admin 共用 API
 admin.example.com    # 管理后台
+m.example.com        # 手机网页 H5
 ```
 
 Nginx 路由建议：
 
 ```text
 admin.example.com       -> apps/admin/dist
+m.example.com           -> apps/mobile-web/dist
 api.example.com/api/*   -> Node.js API
 ```
 
@@ -517,6 +548,12 @@ Web Admin：
 - 权限测试：不同管理员角色只能访问授权范围。
 - 浏览器测试：Chrome、Safari、Edge。
 
+手机网页 H5：
+
+- 移动端浏览器测试：微信内置浏览器、Safari、Chrome。
+- 深链接测试：比赛详情、选手主页、队伍主页可直接刷新访问。
+- 分享测试：标题、描述、封面图和 URL 正确。
+
 数据：
 
 - 使用 2 到 3 场真实 match_id 做种子数据。
@@ -528,7 +565,7 @@ Web Admin：
 | --- | --- | --- |
 | OpenDota 解析不稳定 | 高级复盘缺字段 | 保留基础详情和待解析状态 |
 | 业余联赛接口差异 | 联赛比赛拉取不全 | 使用 `/matchIds`，支持手动补录 match_id |
-| 微信审核与域名配置 | 上线延迟 | 提前准备 HTTPS 域名和隐私说明 |
+| 微信审核与域名配置 | 小程序上线延迟 | 同步发布 H5 兜底入口，提前准备 HTTPS 域名和隐私说明 |
 | 账号冒领 | 个人数据错误 | 绑定审核和管理员白名单 |
 | Web Admin 暴露在公网 | 数据被误改或攻击 | 强密码、限流、审计日志、HTTPS、后续二次验证 |
 | 比赛详情页过长 | 加载慢 | 分段渲染，图表懒加载，缓存聚合结果 |
