@@ -8,26 +8,28 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm -r --parallel --if-present dev",
-    "dev:api": "pnpm --filter @mrjz/api dev",
-    "dev:admin": "pnpm --filter @mrjz/admin dev",
-    "dev:mobile-web": "pnpm --filter @mrjz/mobile-web dev",
-    "dev:miniprogram": "pnpm --filter @mrjz/miniprogram dev",
-    "build": "pnpm -r --if-present build",
-    "typecheck": "pnpm -r --if-present typecheck",
-    "lint": "pnpm -r --if-present lint",
-    "test": "pnpm -r --if-present test",
+    "dev": "echo \"Run one target: npm run dev:api | dev:admin | dev:mobile-web | dev:miniprogram\"",
+    "dev:api": "npm --workspace @mrjz/api run dev",
+    "dev:admin": "npm --workspace @mrjz/admin run dev",
+    "dev:mobile-web": "npm --workspace @mrjz/mobile-web run dev",
+    "dev:miniprogram": "npm --workspace @mrjz/miniprogram run dev",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
     "check:docs": "python3 -m html.parser docs/design/page-direction.html",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "engines": {
     "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "npm": ">=10.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "prettier": "^3.0.0",
-    "typescript": "^5.0.0"
+    "tsx": "^4.20.6",
+    "typescript": "^5.0.0",
+    "vite": "^7.0.0"
   }
 }

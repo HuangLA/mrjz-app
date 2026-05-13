@@ -1,33 +1,31 @@
 import { createServer } from "node:http";
-import { serviceNames } from "@mrjz/shared";
+import { createApiRouter, type HealthStatus } from "./server/apiRouter.js";
 
-export type HealthStatus = {
-  ok: true;
-  service: string;
-  timestamp: string;
-};
+const serviceName = "mrjz-api";
+const startedAt = Date.now();
 
 export function getHealthStatus(now = new Date()): HealthStatus {
   return {
     ok: true,
-    service: serviceNames.api,
+    service: serviceName,
     timestamp: now.toISOString(),
+    uptimeSeconds: Math.round((now.getTime() - startedAt) / 1000),
+    prototype: {
+      runtime: "node:http",
+      dataSource: "mock",
+      externalDependencies: false,
+    },
+    routes: router.patterns(),
   };
 }
 
 const port = Number(process.env.API_PORT ?? 3001);
+const router = createApiRouter(() => getHealthStatus());
 
 const server = createServer((request, response) => {
-  if (request.url === "/health" || request.url === "/api/health") {
-    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify(getHealthStatus()));
-    return;
-  }
-
-  response.writeHead(404, { "content-type": "application/json; charset=utf-8" });
-  response.end(JSON.stringify({ success: false, error: { code: "NOT_FOUND" } }));
+  void router.handle(request, response);
 });
 
 server.listen(port, () => {
-  console.log(`${serviceNames.api} listening on :${port}`);
+  console.log(`${serviceName} listening on :${port}`);
 });

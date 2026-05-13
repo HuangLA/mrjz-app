@@ -1,0 +1,100 @@
+export type OpenDotaDraftAction = {
+  order?: number;
+  ord?: number;
+  is_pick?: boolean;
+  team?: number;
+  hero_id?: number;
+  player_slot?: number;
+};
+
+export type OpenDotaAbilityUpgrade = {
+  ability?: number;
+  ability_id?: number;
+  level?: number;
+  time?: number;
+};
+
+export type OpenDotaPermanentBuff = {
+  permanent_buff?: number | string;
+  permanent_buff_id?: number | string;
+  name?: string;
+  key?: string;
+  stack_count?: number;
+  grant_time?: number;
+};
+
+export type OpenDotaWardLogEntry = {
+  time?: number;
+  player_slot?: number;
+  x?: number;
+  y?: number;
+  z?: number;
+  entityleft?: number;
+  key?: string;
+};
+
+export type OpenDotaChatMessage = {
+  time?: number;
+  type?: string;
+  unit?: string;
+  key?: string | number;
+  player_slot?: number;
+  slot?: number;
+};
+
+export type OpenDotaMatchPlayer = {
+  account_id?: number;
+  player_slot: number;
+  personaname?: string;
+  name?: string;
+  player_name?: string;
+  hero_id?: number;
+  level?: number;
+  kills?: number;
+  deaths?: number;
+  assists?: number;
+  gold_per_min?: number;
+  xp_per_min?: number;
+  net_worth?: number;
+  last_hits?: number;
+  denies?: number;
+  hero_damage?: number;
+  tower_damage?: number;
+  hero_healing?: number;
+  damage_taken?: number;
+  lane?: number;
+  lane_role?: number;
+  item_0?: number;
+  item_1?: number;
+  item_2?: number;
+  item_3?: number;
+  item_4?: number;
+  item_5?: number;
+  backpack_0?: number;
+  backpack_1?: number;
+  backpack_2?: number;
+  item_neutral?: number;
+  ability_upgrades_arr?: number[];
+  ability_upgrades?: OpenDotaAbilityUpgrade[];
+  permanent_buffs?: OpenDotaPermanentBuff[];
+  obs_log?: OpenDotaWardLogEntry[];
+  sen_log?: OpenDotaWardLogEntry[];
+  gold_t?: number[];
+  xp_t?: number[];
+};
+
+export type OpenDotaMatchDetail = {
+  match_id: number;
+  leagueid?: number;
+  league_id?: number;
+  radiant_win?: boolean;
+  radiant_score?: number;
+  dire_score?: number;
+  duration?: number;
+  game_mode?: number;
+  start_time?: number;
+  version?: number;
+  players: OpenDotaMatchPlayer[];
+  picks_bans?: OpenDotaDraftAction[];
+  chat?: OpenDotaChatMessage[];
+};

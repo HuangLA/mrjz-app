@@ -11,6 +11,6 @@
     "test": "echo \"TODO: add miniprogram tests\""
   },
   "dependencies": {
-    "@mrjz/shared": "workspace:*"
+    "@mrjz/shared": "0.1.0"
   }
 }

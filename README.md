@@ -15,6 +15,7 @@
 - [产品需求文档](./docs/PRD.md)
 - [技术方案](./docs/TECHNICAL_DESIGN.md)
 - [比赛管理系统方案](./docs/TOURNAMENT_MANAGEMENT_SPEC.md)
+- [OpenDota 字段映射](./docs/OPEN_DOTA_FIELDS.md)
 - [Web 管理后台方案](./docs/ADMIN_WEB_SPEC.md)
 - [手机网页端方案](./docs/MOBILE_WEB_SPEC.md)
 - [比赛详情页参考分析](./docs/MATCH_DETAIL_REFERENCE.md)
@@ -37,7 +38,7 @@ docs/             PRD、技术文档、设计稿和进度追踪
 
 ## 当前初始化状态
 
-项目已初始化为 TypeScript monorepo 骨架。当前尚未安装框架依赖，也没有生成 lockfile；下一步进入 M1 时需要安装并锁定 API、Admin、H5 和小程序的实际技术栈。
+项目已初始化为 npm workspace + TypeScript monorepo，并已生成 `package-lock.json`。当前已有可构建的 API、Web Admin 和 H5 原型：API 提供赛事、赛程、积分、淘汰赛和比赛详情 mock 接口；Web Admin 提供赛制、赛程和 OpenDota 同步任务的管理方向；H5 提供赛事首页、阶段赛程、比赛详情和标签互动的页面原型。微信小程序仍是占位入口，后续会按同一接口契约接入。
 
 ## 参考来源
 
