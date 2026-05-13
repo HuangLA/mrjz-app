@@ -116,7 +116,7 @@ flowchart TD
 - 小程序和手机网页 H5 不直接请求 OpenDota，统一通过后端代理和缓存。
 - Web Admin 是唯一推荐的数据维护入口，小程序和 H5 只展示公开数据、个人数据和必要互动。
 - 后端保存原始 OpenDota JSON，结构化字段用于列表、详情和统计。
-- 管理员维护赛程和人工赛果，OpenDota 补全赛后详细数据。
+- 管理员维护赛程、联赛配置和异常纠偏；后端自动发现比赛、同步 OpenDota、请求解析并补全赛后详细数据。
 - 用户个人数据按平台联赛范围聚合，禁止直接返回全局战绩。
 
 ## 3. OpenDota 集成
@@ -133,15 +133,17 @@ OpenDota 当前 OpenAPI 版本查询为 `31.1.0`。关键端点：
 | 英雄常量 | `GET /constants/{resource}` | heroes、items、abilities 等 |
 | 英雄统计 | `GET /heroStats` | 可做补充，不作为 MVP 核心 |
 
-### 3.1 同步策略
+### 3.1 自动同步策略
 
-1. 按赛季配置 `league_id`。
-2. 同步入口优先调用 `/leagues/{league_id}/matchIds`。
-3. 对新 match_id 逐个调用 `/matches/{match_id}`。
-4. 如果 `version`、`objectives`、`picks_bans`、`players.gold_t` 等高级字段缺失，则标记 `parse_status = not_parsed`。
-5. 管理员可手动请求解析，后端调用 `POST /request/{match_id}`。
-6. 后续任务轮询 `/matches/{match_id}` 或 `/request/{jobId}` 更新状态。
-7. 所有 OpenDota 响应写入 `raw_match_json`，避免字段遗漏导致返工。
+1. 管理员按赛季配置 `league_id`、同步频率、是否自动请求解析。
+2. `league-discovery` 定时任务优先调用 `/leagues/{league_id}/matchIds`，发现联赛下的 match_id。
+3. 后端对新 match_id 创建同步任务，逐个调用 `/matches/{match_id}`。
+4. 后端保存 `raw_match_json` 和结构化字段，并尝试自动关联 `series_games`。
+5. 如果 `version`、`objectives`、`picks_bans`、`players.gold_t` 等高级字段缺失，则标记 `parse_status = not_parsed`。
+6. 如果该联赛开启自动解析，`parse-request` 任务按限流策略调用 `POST /request/{match_id}`。
+7. `parse-polling` 定时任务轮询 `/matches/{match_id}` 或 `/request/{jobId}`，解析完成后刷新结构化数据。
+8. 管理员可以手动重试失败任务、请求解析、重新关联赛程或处理赛果冲突。
+9. 所有 OpenDota 响应写入 `raw_match_json`，避免字段遗漏导致返工。
 
 ### 3.2 限流和缓存
 
@@ -149,6 +151,24 @@ OpenDota 当前 OpenAPI 版本查询为 `31.1.0`。关键端点：
 - 外部请求必须经过队列，避免并发打爆 OpenDota。
 - 同步任务默认串行或小并发，失败指数退避。
 - 对常量资源做长缓存，英雄和物品版本变更时手动刷新。
+
+### 3.3 自动化任务
+
+| 任务 | 触发方式 | 说明 |
+| --- | --- | --- |
+| `league-discovery` | 定时 + 手动 | 根据 league_id 拉取 match_id 列表，发现新比赛 |
+| `match-sync` | 队列 + 手动 | 拉取单场比赛详情并写入结构化数据 |
+| `parse-request` | 队列 + 手动 | 对未解析比赛请求 OpenDota 解析 |
+| `parse-polling` | 定时 | 刷新解析中的比赛，补全高级数据 |
+| `schedule-linker` | 同步后触发 + 手动 | 尝试把 OpenDota match 与 Web Admin 赛程关联 |
+| `sync-health-check` | 定时 | 发现长期失败或卡住的同步任务并告警 |
+
+自动关联策略：
+
+- match_id 明确填写时，优先使用 match_id 关联。
+- 未填写 match_id 时，可按比赛时间窗口、双方队伍、联赛 ID 和 BO 顺序进行候选匹配。
+- 匹配置信度不足时进入 Web Admin “待确认”列表，不自动覆盖人工赛程。
+- OpenDota 结果与人工赛果冲突时进入“结果冲突”，前端公开展示以管理员确认结果为准。
 
 ## 4. 登录与权限
 
@@ -267,8 +287,9 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 | 表 | 关键字段 |
 | --- | --- |
-| `sync_jobs` | id, type, scope, status, progress_current, progress_total, error_message, started_at, finished_at |
+| `sync_jobs` | id, type, scope, status, progress_current, progress_total, error_message, retry_count, next_run_at, started_at, finished_at |
 | `opendota_requests` | id, endpoint, params_json, status_code, cost, error_message, requested_at |
+| `league_sync_configs` | id, season_id, league_id, enabled, interval_minutes, auto_request_parse, last_discovered_at, created_by |
 
 ### 5.6 社区互动标签
 
@@ -405,6 +426,10 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | POST | `/api/admin/matches/:matchId/sync` | 同步单场比赛 |
 | POST | `/api/admin/leagues/:leagueId/sync` | 同步联赛比赛 |
 | POST | `/api/admin/matches/:matchId/request-parse` | 请求 OpenDota 解析 |
+| GET | `/api/admin/league-sync-configs` | 联赛自动同步配置列表 |
+| POST | `/api/admin/league-sync-configs` | 创建联赛自动同步配置 |
+| PATCH | `/api/admin/league-sync-configs/:id` | 修改同步频率、启停、自动解析策略 |
+| POST | `/api/admin/sync-jobs/:id/retry` | 重试失败同步任务 |
 | GET | `/api/admin/tags` | 标签列表与审核筛选 |
 | PATCH | `/api/admin/tags/:tagId` | 隐藏、恢复或修改标签状态 |
 | GET | `/api/admin/sync-jobs` | 同步任务列表 |
