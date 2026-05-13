@@ -242,6 +242,24 @@ sequenceDiagram
 | `sync_jobs` | id, type, scope, status, progress_current, progress_total, error_message, started_at, finished_at |
 | `opendota_requests` | id, endpoint, params_json, status_code, cost, error_message, requested_at |
 
+### 5.6 社区互动标签
+
+| 表 | 关键字段 |
+| --- | --- |
+| `social_tags` | id, target_type, target_id, normalized_text, display_text, created_by_user_id, like_count, status, hidden_reason, created_at, updated_at |
+| `social_tag_likes` | id, tag_id, user_id, created_at |
+| `social_tag_reports` | id, tag_id, user_id, reason, status, created_at |
+
+设计规则：
+
+- `target_type` 取值为 `player` 或 `team`。
+- `normalized_text` 用于去重，建议统一 trim、全角半角归一、大小写归一。
+- 同一 `target_type + target_id + normalized_text` 只能存在一条可见标签。
+- 同一 `tag_id + user_id` 只能点赞一次，取消点赞删除或软删除点赞记录。
+- `like_count` 作为冗余计数字段，点赞/取消点赞时事务更新。
+- `status` 取值建议为 `active`、`hidden`、`pending_review`。
+- 标签展示大小由后端或前端根据 `like_count` 计算，建议限制在 12 到 28px。
+
 ## 6. API 设计
 
 统一响应：
@@ -301,10 +319,49 @@ sequenceDiagram
 | GET | `/api/matches/:matchId` | 比赛详情 |
 | GET | `/api/players` | 选手列表 |
 | GET | `/api/players/:id` | 选手详情，限定联赛数据 |
+| GET | `/api/players/:id/tags` | 获取选手标签云 |
+| POST | `/api/players/:id/tags` | 登录用户给选手添加标签 |
 | GET | `/api/teams` | 队伍列表 |
 | GET | `/api/teams/:id` | 队伍详情 |
+| GET | `/api/teams/:id/tags` | 获取队伍标签云 |
+| POST | `/api/teams/:id/tags` | 登录用户给队伍添加标签 |
+| POST | `/api/tags/:tagId/like` | 登录用户点赞标签 |
+| DELETE | `/api/tags/:tagId/like` | 登录用户取消点赞 |
 
-### 6.4 管理端 API
+### 6.4 互动标签接口规则
+
+添加标签请求：
+
+```json
+{
+  "text": "绝活哥"
+}
+```
+
+标签响应：
+
+```json
+{
+  "id": 1,
+  "targetType": "player",
+  "targetId": 123,
+  "text": "绝活哥",
+  "likeCount": 18,
+  "likedByMe": true,
+  "sizeLevel": 4
+}
+```
+
+规则：
+
+- 只有登录用户可以添加标签和点赞。
+- 标签长度建议限制为 2 到 8 个中文字符或 2 到 16 个英文字符。
+- 单用户对同一目标添加标签需要频控，例如每分钟最多 3 个、每天最多 30 个。
+- 重复标签不新建，直接返回已有标签；如果用户意图表达认可，前端引导点赞。
+- `sizeLevel` 可按点赞数分为 1 到 5 档，前端用档位控制字号和视觉权重。
+- 被隐藏或待审核标签不向普通用户展示。
+
+### 6.5 管理端 API
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -320,6 +377,8 @@ sequenceDiagram
 | POST | `/api/admin/matches/:matchId/sync` | 同步单场比赛 |
 | POST | `/api/admin/leagues/:leagueId/sync` | 同步联赛比赛 |
 | POST | `/api/admin/matches/:matchId/request-parse` | 请求 OpenDota 解析 |
+| GET | `/api/admin/tags` | 标签列表与审核筛选 |
+| PATCH | `/api/admin/tags/:tagId` | 隐藏、恢复或修改标签状态 |
 | GET | `/api/admin/sync-jobs` | 同步任务列表 |
 | GET | `/api/admin/audit-logs` | 审计日志 |
 
