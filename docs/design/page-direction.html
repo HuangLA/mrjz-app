@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MRJZ 页面设计方向 v0</title>
+  <style>
+    :root {
+      --bg: #0b1018;
+      --panel: #141b27;
+      --panel-2: #1b2432;
+      --line: rgba(255,255,255,.08);
+      --text: #eef4ff;
+      --muted: #8f9aae;
+      --soft: #c8d0df;
+      --radiant: #78d66c;
+      --radiant-2: #193723;
+      --dire: #ef6467;
+      --dire-2: #3a1d25;
+      --gold: #f0c36a;
+      --blue: #65b5ff;
+      --surface: #f5f7fb;
+      --ink: #172033;
+      --admin-line: #d9e0ea;
+      --radius: 8px;
+      --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        linear-gradient(90deg, rgba(120, 214, 108, .08), transparent 22%, transparent 76%, rgba(239, 100, 103, .07)),
+        linear-gradient(180deg, #0b1018 0%, #111724 42%, #0b1018 100%);
+      font-family: var(--font);
+      letter-spacing: 0;
+    }
+
+    .page {
+      width: min(1440px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-end;
+      padding: 0 0 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 36px;
+      line-height: 1.1;
+      font-weight: 760;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      min-width: 260px;
+      color: var(--soft);
+      font-size: 12px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .section-title {
+      margin: 34px 0 18px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 21px;
+      font-weight: 720;
+    }
+
+    .section-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .mobile-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 22px;
+      align-items: start;
+    }
+
+    .phone-wrap {
+      display: grid;
+      gap: 10px;
+      justify-items: center;
+    }
+
+    .phone-title {
+      width: 260px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--soft);
+      font-size: 13px;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+
+    .phone {
+      width: 260px;
+      height: 560px;
+      overflow: hidden;
+      border-radius: 28px;
+      background: #0f1520;
+      border: 1px solid rgba(255,255,255,.14);
+      box-shadow: 0 24px 80px rgba(0,0,0,.38);
+      position: relative;
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      width: 74px;
+      height: 5px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: rgba(255,255,255,.18);
+      z-index: 5;
+    }
+
+    .screen {
+      height: 100%;
+      overflow: hidden;
+      padding: 22px 12px 12px;
+      background:
+        linear-gradient(135deg, rgba(120,214,108,.09), transparent 30%),
+        linear-gradient(215deg, rgba(239,100,103,.12), transparent 38%),
+        #101722;
+    }
+
+    .nav {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    .screen h3 {
+      margin: 0;
+      color: #fff;
+      font-size: 18px;
+      line-height: 1.18;
+      font-weight: 760;
+    }
+
+    .screen h4 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: #f5f7ff;
+    }
+
+    .mini {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .panel {
+      background: rgba(20,27,39,.82);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 10px;
+      margin-bottom: 9px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
+
+    .hero-panel {
+      min-height: 120px;
+      background:
+        linear-gradient(110deg, rgba(16,23,34,.95) 0%, rgba(16,23,34,.82) 48%, rgba(16,23,34,.2) 100%),
+        url("https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/necrolyte.png");
+      background-size: auto 118%, auto 125%;
+      background-position: center, right center;
+      border: 1px solid rgba(120,214,108,.16);
+    }
+
+    .hero-panel strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 24px;
+      color: #fff;
+    }
+
+    .hero-panel .row,
+    .hero-panel h3,
+    .hero-panel p {
+      max-width: 145px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .stack { display: grid; gap: 8px; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .metric {
+      padding: 8px 6px;
+      background: rgba(255,255,255,.04);
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+
+    .metric b {
+      display: block;
+      font-size: 16px;
+      color: #fff;
+    }
+
+    .metric span {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .team-row, .match-card, .schedule-card {
+      padding: 9px;
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.05);
+    }
+
+    .schedule-card {
+      display: grid;
+      gap: 7px;
+    }
+
+    .team-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      font-weight: 650;
+      color: #f8fbff;
+      font-size: 12px;
+    }
+
+    .team-name span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .score {
+      font-size: 18px;
+      font-weight: 780;
+      color: #fff;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      color: #101722;
+      background: var(--gold);
+      white-space: nowrap;
+    }
+
+    .status.green { background: var(--radiant); }
+    .status.red { background: var(--dire); color: #fff; }
+    .status.ghost { background: rgba(255,255,255,.08); color: var(--soft); }
+
+    .avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      object-fit: cover;
+      background: rgba(255,255,255,.08);
+      flex: 0 0 auto;
+    }
+
+    .hero-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: rgba(255,255,255,.08);
+    }
+
+    .items {
+      display: grid;
+      grid-template-columns: repeat(3, 14px);
+      gap: 3px;
+    }
+
+    .item {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, #6ed0ff, #6549ca);
+      border: 1px solid rgba(255,255,255,.12);
+    }
+
+    .item:nth-child(2n) { background: linear-gradient(135deg, #f4be60, #9c3b2d); }
+    .item:nth-child(3n) { background: linear-gradient(135deg, #74d175, #215c35); }
+
+    .player-line {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+
+    .player-line:last-child { border-bottom: 0; }
+
+    .player-name {
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 680;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .kda {
+      color: var(--soft);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .tab {
+      padding: 6px 9px;
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,.05);
+      font-size: 11px;
+    }
+
+    .tab.active {
+      color: #0f1520;
+      background: var(--radiant);
+    }
+
+    .chart {
+      height: 80px;
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.05), transparent),
+        repeating-linear-gradient(0deg, transparent 0 19px, rgba(255,255,255,.06) 20px),
+        linear-gradient(150deg, transparent 46%, rgba(120,214,108,.75) 47%, transparent 49%),
+        linear-gradient(160deg, transparent 45%, rgba(101,181,255,.8) 46%, transparent 48%),
+        linear-gradient(168deg, transparent 42%, rgba(239,100,103,.72) 43%, transparent 46%);
+    }
+
+    .tag-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      max-width: 100%;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(120,214,108,.10);
+      border: 1px solid rgba(120,214,108,.22);
+      color: #e9ffe9;
+      white-space: nowrap;
+      font-weight: 650;
+    }
+
+    .tag.small { font-size: 10px; }
+    .tag.mid { font-size: 13px; }
+    .tag.big { font-size: 18px; color: #fff; }
+    .tag.red { background: rgba(239,100,103,.12); border-color: rgba(239,100,103,.25); }
+
+    .timeline {
+      position: relative;
+      display: grid;
+      gap: 8px;
+      padding-left: 16px;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 2px;
+      bottom: 2px;
+      width: 1px;
+      background: rgba(255,255,255,.15);
+    }
+
+    .draft {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 7px;
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 7px;
+      background: rgba(255,255,255,.04);
+      font-size: 11px;
+    }
+
+    .draft::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--radiant);
+    }
+
+    .bottom-nav {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 10px;
+      height: 42px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      border-radius: 14px;
+      background: rgba(9,13,20,.88);
+      border: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(12px);
+      color: var(--muted);
+      font-size: 10px;
+      text-align: center;
+    }
+
+    .bottom-nav b { color: #fff; font-weight: 650; }
+
+    .admin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 22px;
+    }
+
+    .desktop {
+      min-height: 360px;
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 28px 90px rgba(0,0,0,.32);
+    }
+
+    .desktop-shell {
+      display: grid;
+      grid-template-columns: 132px 1fr;
+      min-height: 360px;
+    }
+
+    .side {
+      background: #172033;
+      color: #dfe7f5;
+      padding: 16px 12px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .side h4 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: #fff;
+    }
+
+    .side span {
+      display: block;
+      padding: 7px 8px;
+      border-radius: 7px;
+      color: #aeb9cc;
+      font-size: 12px;
+    }
+
+    .side span.active {
+      color: #102016;
+      background: var(--radiant);
+      font-weight: 720;
+    }
+
+    .admin-main {
+      padding: 16px;
+    }
+
+    .admin-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--admin-line);
+    }
+
+    .admin-head h3 {
+      margin: 0;
+      font-size: 18px;
+      color: var(--ink);
+    }
+
+    .admin-head p {
+      margin: 3px 0 0;
+      color: #697589;
+      font-size: 12px;
+    }
+
+    .button {
+      padding: 8px 11px;
+      border-radius: 7px;
+      color: #102016;
+      background: var(--radiant);
+      border: 0;
+      font-weight: 720;
+      font-size: 12px;
+    }
+
+    .admin-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .admin-stat {
+      padding: 10px;
+      border: 1px solid var(--admin-line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .admin-stat b {
+      display: block;
+      font-size: 18px;
+      color: var(--ink);
+    }
+
+    .admin-stat span {
+      font-size: 11px;
+      color: #697589;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border: 1px solid var(--admin-line);
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+
+    th, td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #e8edf4;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      color: #697589;
+      font-weight: 650;
+      background: #f7f9fc;
+    }
+
+    td { color: #253149; }
+
+    .admin-pill {
+      display: inline-flex;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #eef3fa;
+      color: #4f5c72;
+      font-size: 11px;
+    }
+
+    .admin-pill.warn { color: #8a4a12; background: #fff2dd; }
+    .admin-pill.good { color: #1c6d3f; background: #e7f7ec; }
+    .admin-pill.bad { color: #9b2e38; background: #ffe9ec; }
+
+    @media (max-width: 720px) {
+      .page { width: min(100vw - 20px, 420px); padding-top: 20px; }
+      .topbar { display: grid; }
+      h1 { font-size: 27px; }
+      .legend { min-width: 0; }
+      .mobile-grid { grid-template-columns: 1fr; }
+      .admin-grid { grid-template-columns: 1fr; }
+      .desktop-shell { grid-template-columns: 1fr; }
+      .side { display: none; }
+      .admin-stats { grid-template-columns: repeat(2, 1fr); }
+      .desktop { min-height: 0; }
+      .admin-main { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div>
+        <h1>MRJZ 社区赛页面方向 v0</h1>
+        <p class="lead">移动端以深色赛事数据面板为主，强调比分、英雄、装备和标签云；后台以桌面运营工具为主，强调同步自动化、异常处理和数据维护。</p>
+      </div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--radiant)"></i>Radiant / 正向状态</span>
+        <span><i class="dot" style="background:var(--dire)"></i>Dire / 冲突和失败</span>
+        <span><i class="dot" style="background:var(--gold)"></i>待处理和人工确认</span>
+      </div>
+    </header>
+
+    <section>
+      <div class="section-title">
+        <h2>用户侧移动页面</h2>
+        <p>小程序与 H5 共用方向，H5 第一版可先做公开只读。</p>
+      </div>
+
+      <div class="mobile-grid">
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>首页</strong><span class="badge">赛事入口</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>12:55</span><span>MRJZ S8</span></div>
+              <div class="hero-panel panel">
+                <div class="row"><span class="status green">自动同步正常</span><span class="mini">league 19483</span></div>
+                <strong>每日节奏 S8</strong>
+                <p class="mini">当前阶段：小组赛第 2 周</p>
+              </div>
+              <div class="metric-grid">
+                <div class="metric"><b>36</b><span>赛程</span></div>
+                <div class="metric"><b>18</b><span>已完赛</span></div>
+                <div class="metric"><b>4</b><span>待确认</span></div>
+              </div>
+              <div class="panel">
+                <h4>下一场</h4>
+                <div class="schedule-card">
+                  <div class="row"><span class="mini">今晚 21:00 · BO3</span><span class="status">待开赛</span></div>
+                  <div class="row"><span class="team-name"><i class="dot" style="background:var(--radiant)"></i><span>ATK2</span></span><b>vs</b><span class="team-name"><i class="dot" style="background:var(--dire)"></i><span>死亡之拳</span></span></div>
+                </div>
+              </div>
+              <div class="panel">
+                <h4>最新赛果</h4>
+                <div class="match-card">
+                  <div class="row"><span class="team-name"><span>死亡之拳</span></span><span class="score">33 : 27</span></div>
+                  <div class="row"><span class="mini">47:05 · 已解析</span><span class="status green">查看战报</span></div>
+                </div>
+              </div>
+              <div class="bottom-nav"><b>首页</b><span>赛程</span><span>比赛</span><span>我的</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>赛程</strong><span class="badge">按日期扫描</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>返回</span><span>赛程</span></div>
+              <div class="title-row"><h3>本周赛程</h3><span class="status ghost">S8</span></div>
+              <div class="tabs"><span class="tab active">全部</span><span class="tab">待开赛</span><span class="tab">待补录</span></div>
+              <div class="panel">
+                <h4>5月13日</h4>
+                <div class="stack">
+                  <div class="schedule-card">
+                    <div class="row"><span class="mini">21:00 · 小组赛</span><span class="status">BO3</span></div>
+                    <div class="row"><span class="team-name"><i class="dot" style="background:var(--radiant)"></i><span>ATK2</span></span><b>vs</b><span class="team-name"><i class="dot" style="background:var(--dire)"></i><span>死亡之拳</span></span></div>
+                  </div>
+                  <div class="schedule-card">
+                    <div class="row"><span class="mini">22:30 · 小组赛</span><span class="status ghost">未确认</span></div>
+                    <div class="row"><span class="team-name"><span>空白格</span></span><b>vs</b><span class="team-name"><span>野马</span></span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="panel">
+                <h4>5月12日</h4>
+                <div class="schedule-card">
+                  <div class="row"><span class="mini">已完赛 · 自动关联</span><span class="status green">2 : 1</span></div>
+                  <div class="row"><span>沉默术士杯</span><span class="mini">match 已解析</span></div>
+                </div>
+              </div>
+              <div class="bottom-nav"><span>首页</span><b>赛程</b><span>比赛</span><span>我的</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>比赛列表</strong><span class="badge">赛后数据</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>返回</span><span>比赛记录</span></div>
+              <div class="title-row"><h3>已同步比赛</h3><span class="status green">自动</span></div>
+              <div class="tabs"><span class="tab active">全部</span><span class="tab">已解析</span><span class="tab">待确认</span></div>
+              <div class="stack">
+                <div class="panel match-card">
+                  <div class="row"><span class="team-name"><span>死亡之拳</span></span><span class="score">33 : 27</span></div>
+                  <div class="row"><span class="mini">8781793789 · 47:05</span><span class="status green">已解析</span></div>
+                </div>
+                <div class="panel match-card">
+                  <div class="row"><span class="team-name"><span>ATK2</span></span><span class="score">41 : 39</span></div>
+                  <div class="row"><span class="mini">8781123456 · 58:22</span><span class="status">解析中</span></div>
+                </div>
+                <div class="panel match-card">
+                  <div class="row"><span class="team-name"><span>野马</span></span><span class="score">24 : 18</span></div>
+                  <div class="row"><span class="mini">自动发现 · 未关联赛程</span><span class="status red">待确认</span></div>
+                </div>
+              </div>
+              <div class="bottom-nav"><span>首页</span><span>赛程</span><b>比赛</b><span>我的</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>比赛详情</strong><span class="badge">长复盘页</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>返回</span><span>8781793789</span></div>
+              <div class="panel">
+                <div class="row"><span class="status green">死亡之拳 胜利</span><span class="mini">47:05</span></div>
+                <div class="row" style="margin-top:8px"><span class="team-name"><span>天辉</span></span><span class="score">33 : 27</span><span class="team-name"><span>夜魇</span></span></div>
+              </div>
+              <div class="panel hero-panel">
+                <span class="status">MVP</span>
+                <strong>空白格</strong>
+                <p class="mini">瘟疫法师 · 10 / 4 / 9 · 参战 70.4%</p>
+              </div>
+              <div class="panel">
+                <h4>双方阵容</h4>
+                <div class="player-line"><img class="hero-avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/earthshaker.png" alt=""><div><div class="player-name">野马</div><div class="mini">参战 45.5%</div></div><div class="items"><i class="item"></i><i class="item"></i><i class="item"></i></div></div>
+                <div class="player-line"><img class="hero-avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/slardar.png" alt=""><div><div class="player-name">WILL SMITH 007</div><div class="mini">8 / 11 / 13</div></div><div class="items"><i class="item"></i><i class="item"></i><i class="item"></i></div></div>
+                <div class="player-line"><img class="hero-avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/necrolyte.png" alt=""><div><div class="player-name">空白格</div><div class="mini">KDA 4.8</div></div><div class="items"><i class="item"></i><i class="item"></i><i class="item"></i></div></div>
+              </div>
+              <div class="panel">
+                <h4>Ban & Pick</h4>
+                <div class="timeline">
+                  <div class="draft"><span>Ban 戴泽</span><span class="mini">1</span></div>
+                  <div class="draft"><span>Pick 石鳞剑士</span><span class="mini">8</span></div>
+                  <div class="draft"><span>Pick 瘟疫法师</span><span class="mini">24</span></div>
+                </div>
+              </div>
+              <div class="panel"><h4>经济趋势</h4><div class="chart"></div></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>选手主页</strong><span class="badge">数据 + 标签</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>返回</span><span>选手</span></div>
+              <div class="panel hero-panel">
+                <span class="status green">死亡之拳</span>
+                <strong>空白格</strong>
+                <p class="mini">Dota ID 123456789 · 已绑定</p>
+              </div>
+              <div class="metric-grid">
+                <div class="metric"><b>18</b><span>场次</span></div>
+                <div class="metric"><b>61%</b><span>胜率</span></div>
+                <div class="metric"><b>4.2</b><span>KDA</span></div>
+              </div>
+              <div class="panel">
+                <h4>社区标签</h4>
+                <div class="tag-cloud">
+                  <span class="tag big">绝活哥 42</span>
+                  <span class="tag mid">稳健 18</span>
+                  <span class="tag small red">爱聊天 9</span>
+                  <span class="tag small">控盾人 7</span>
+                </div>
+              </div>
+              <div class="panel">
+                <h4>常用英雄</h4>
+                <div class="player-line"><img class="hero-avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/necrolyte.png" alt=""><div><div class="player-name">瘟疫法师</div><div class="mini">7 场 · 71% 胜率</div></div><span class="kda">KDA 5.1</span></div>
+                <div class="player-line"><img class="hero-avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/slardar.png" alt=""><div><div class="player-name">斯拉达</div><div class="mini">5 场 · 60% 胜率</div></div><span class="kda">KDA 3.7</span></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>队伍主页</strong><span class="badge">阵容 + 印象</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>返回</span><span>队伍</span></div>
+              <div class="panel">
+                <div class="row"><span class="status red">夜魇侧偏好</span><span class="mini">S8</span></div>
+                <h3 style="margin-top:10px">死亡之拳</h3>
+                <p class="mini">12 胜 6 负 · 小组第 2</p>
+              </div>
+              <div class="panel">
+                <h4>当前阵容</h4>
+                <div class="player-line"><img class="avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/necrolyte.png" alt=""><div class="player-name">空白格</div><span class="kda">中路</span></div>
+                <div class="player-line"><img class="avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/nyx_assassin.png" alt=""><div class="player-name">xixiy</div><span class="kda">辅助</span></div>
+                <div class="player-line"><img class="avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/jakiro.png" alt=""><div class="player-name">ChengSiWei</div><span class="kda">辅助</span></div>
+              </div>
+              <div class="panel">
+                <h4>队伍标签</h4>
+                <div class="tag-cloud">
+                  <span class="tag big red">团战发动机 31</span>
+                  <span class="tag mid">后期队 16</span>
+                  <span class="tag small">爱打盾 8</span>
+                </div>
+              </div>
+              <div class="panel">
+                <h4>近期赛程</h4>
+                <div class="row"><span class="mini">今晚 21:00</span><span>vs ATK2</span></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>我的</strong><span class="badge">登录态</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>设置</span><span>我的</span></div>
+              <div class="panel">
+                <div class="row">
+                  <div class="team-name"><img class="avatar" src="https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/pangolier.png" alt=""><span>WILL SMITH 007</span></div>
+                  <span class="status green">已绑定</span>
+                </div>
+                <p class="mini">仅展示每日节奏联赛内数据</p>
+              </div>
+              <div class="metric-grid">
+                <div class="metric"><b>14</b><span>场次</span></div>
+                <div class="metric"><b>57%</b><span>胜率</span></div>
+                <div class="metric"><b>3.9</b><span>KDA</span></div>
+              </div>
+              <div class="panel">
+                <h4>我的近期比赛</h4>
+                <div class="schedule-card"><div class="row"><span>石鳞剑士</span><span class="status green">胜</span></div><span class="mini">8 / 11 / 13 · 47:05</span></div>
+                <div class="schedule-card" style="margin-top:7px"><div class="row"><span>斧王</span><span class="status red">负</span></div><span class="mini">6 / 9 / 21 · 39:18</span></div>
+              </div>
+              <div class="bottom-nav"><span>首页</span><span>赛程</span><span>比赛</span><b>我的</b></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="phone-wrap">
+          <div class="phone-title"><strong>H5 战报分享</strong><span class="badge">兜底访问</span></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="nav"><span>MRJZ</span><span>网页端</span></div>
+              <div class="panel hero-panel">
+                <span class="status green">公开战报</span>
+                <h3>空白格带队拿下 BO3</h3>
+                <p class="mini">微信小程序审核期间，H5 也可查看赛程、战报和选手主页。</p>
+              </div>
+              <div class="score-card">
+                <div>
+                  <b>死亡之拳</b>
+                  <span>第 3 局 · 47:05</span>
+                </div>
+                <div class="score">33 : 27</div>
+                <div>
+                  <b>ATK2</b>
+                  <span>联赛 S8</span>
+                </div>
+              </div>
+              <div class="panel">
+                <h4>分享预览</h4>
+                <div class="schedule-card"><div class="row"><span>赛事赛程</span><span class="mini">今晚 21:00</span></div></div>
+                <div class="schedule-card" style="margin-top:7px"><div class="row"><span>比赛详情</span><span class="status green">已解析</span></div></div>
+                <div class="schedule-card" style="margin-top:7px"><div class="row"><span>选手主页</span><span class="mini">标签云开放</span></div></div>
+              </div>
+              <div class="panel">
+                <h4>打开方式</h4>
+                <p class="mini">H5 与小程序共用 API 和页面信息架构，优先保证手机浏览器可读。</p>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h2>Web Admin 管理页面</h2>
+        <p>桌面运营工具：自动化状态、异常队列和批量维护优先。</p>
+      </div>
+
+      <div class="admin-grid">
+        <article class="desktop">
+          <div class="desktop-shell">
+            <aside class="side"><h4>MRJZ Admin</h4><span class="active">工作台</span><span>赛程赛果</span><span>自动同步</span><span>队伍选手</span><span>标签审核</span></aside>
+            <section class="admin-main">
+              <div class="admin-head"><div><h3>工作台</h3><p>当前赛季 S8，小组赛第 2 周</p></div><button class="button">新建赛程</button></div>
+              <div class="admin-stats">
+                <div class="admin-stat"><b>18</b><span>已同步比赛</span></div>
+                <div class="admin-stat"><b>4</b><span>待确认关联</span></div>
+                <div class="admin-stat"><b>2</b><span>赛果冲突</span></div>
+                <div class="admin-stat"><b>96%</b><span>解析完成率</span></div>
+              </div>
+              <table>
+                <thead><tr><th>任务</th><th>对象</th><th>状态</th><th>下一步</th></tr></thead>
+                <tbody>
+                  <tr><td>自动发现</td><td>league 19483</td><td><span class="admin-pill good">正常</span></td><td>22:00 再次运行</td></tr>
+                  <tr><td>赛程关联</td><td>8781123456</td><td><span class="admin-pill warn">待确认</span></td><td>选择 BO3 第 2 局</td></tr>
+                  <tr><td>赛果冲突</td><td>ATK2 vs 死亡之拳</td><td><span class="admin-pill bad">需处理</span></td><td>确认展示结果</td></tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+        </article>
+
+        <article class="desktop">
+          <div class="desktop-shell">
+            <aside class="side"><h4>MRJZ Admin</h4><span>工作台</span><span class="active">赛程赛果</span><span>自动同步</span><span>队伍选手</span><span>标签审核</span></aside>
+            <section class="admin-main">
+              <div class="admin-head"><div><h3>赛程和赛果</h3><p>手动维护赛程，后端自动补全比赛详情</p></div><button class="button">批量创建</button></div>
+              <div class="admin-stats">
+                <div class="admin-stat"><b>36</b><span>赛程总数</span></div>
+                <div class="admin-stat"><b>14</b><span>待开赛</span></div>
+                <div class="admin-stat"><b>3</b><span>待补录</span></div>
+                <div class="admin-stat"><b>1</b><span>延期</span></div>
+              </div>
+              <table>
+                <thead><tr><th>时间</th><th>对阵</th><th>BO</th><th>match_id</th><th>状态</th></tr></thead>
+                <tbody>
+                  <tr><td>5/13 21:00</td><td>ATK2 vs 死亡之拳</td><td>BO3</td><td>自动匹配中</td><td><span class="admin-pill">待开赛</span></td></tr>
+                  <tr><td>5/12 22:30</td><td>空白格队 vs 野马队</td><td>BO1</td><td>8781793789</td><td><span class="admin-pill good">已关联</span></td></tr>
+                  <tr><td>5/11 20:00</td><td>ChengSiWei 队 vs xixiy 队</td><td>BO2</td><td>缺失</td><td><span class="admin-pill warn">待补录</span></td></tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+        </article>
+
+        <article class="desktop">
+          <div class="desktop-shell">
+            <aside class="side"><h4>MRJZ Admin</h4><span>工作台</span><span>赛程赛果</span><span class="active">自动同步</span><span>队伍选手</span><span>标签审核</span></aside>
+            <section class="admin-main">
+              <div class="admin-head"><div><h3>自动同步控制台</h3><p>league_id 自动发现、解析请求和失败重试</p></div><button class="button">立即发现</button></div>
+              <div class="admin-stats">
+                <div class="admin-stat"><b>19483</b><span>league_id</span></div>
+                <div class="admin-stat"><b>15 分钟</b><span>同步频率</span></div>
+                <div class="admin-stat"><b>开启</b><span>自动解析</span></div>
+                <div class="admin-stat"><b>2</b><span>失败任务</span></div>
+              </div>
+              <table>
+                <thead><tr><th>任务</th><th>match</th><th>耗时</th><th>结果</th></tr></thead>
+                <tbody>
+                  <tr><td>league-discovery</td><td>19483</td><td>1.2s</td><td><span class="admin-pill good">发现 2 场新比赛</span></td></tr>
+                  <tr><td>match-sync</td><td>8781793789</td><td>2.8s</td><td><span class="admin-pill good">已写入</span></td></tr>
+                  <tr><td>parse-request</td><td>8781123456</td><td>0.9s</td><td><span class="admin-pill warn">队列等待</span></td></tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+        </article>
+
+        <article class="desktop">
+          <div class="desktop-shell">
+            <aside class="side"><h4>MRJZ Admin</h4><span>工作台</span><span>赛程赛果</span><span>自动同步</span><span>队伍选手</span><span class="active">标签审核</span></aside>
+            <section class="admin-main">
+              <div class="admin-head"><div><h3>互动标签审核</h3><p>处理违规标签、举报和恢复</p></div><button class="button">导出记录</button></div>
+              <div class="admin-stats">
+                <div class="admin-stat"><b>286</b><span>总标签</span></div>
+                <div class="admin-stat"><b>14</b><span>今日新增</span></div>
+                <div class="admin-stat"><b>6</b><span>举报</span></div>
+                <div class="admin-stat"><b>3</b><span>已隐藏</span></div>
+              </div>
+              <table>
+                <thead><tr><th>标签</th><th>目标</th><th>点赞</th><th>状态</th></tr></thead>
+                <tbody>
+                  <tr><td>绝活哥</td><td>选手：空白格</td><td>42</td><td><span class="admin-pill good">展示中</span></td></tr>
+                  <tr><td>团战发动机</td><td>队伍：死亡之拳</td><td>31</td><td><span class="admin-pill good">展示中</span></td></tr>
+                  <tr><td>待审核文本</td><td>选手：xixiy</td><td>2</td><td><span class="admin-pill bad">已举报</span></td></tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
