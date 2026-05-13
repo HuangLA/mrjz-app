@@ -43,7 +43,7 @@
 
 | Commit | 内容 |
 | --- | --- |
-| `2a2d2e4` | Build API admin and H5 prototypes |
+| `ce89101` | Build API admin and H5 prototypes |
 | `90b659a` | Initialize project workspace |
 | `7e53317` | Add tournament management system spec |
 
