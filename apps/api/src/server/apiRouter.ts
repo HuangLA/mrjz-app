@@ -1,11 +1,30 @@
 import {
+  createRound,
+  createSeries,
+  createStage,
+  createSyncTask,
+  createTeam,
+  createPlayer,
+  createTournament,
   getMatchDetail,
   getStageBracket,
   getStageRounds,
   getStageStandings,
   getTournamentDetail,
+  linkOpenDotaMatchToSeries,
+  listLeagueSyncTargets,
+  listTournamentOpenDotaMatches,
+  listTournamentPlayers,
+  listTournamentTeams,
+  listLeagues,
+  listSyncTasks,
   listTournaments,
+  addTeamMember,
+  updateTournamentLifecycle,
+  updateSeriesGameResult,
 } from "../data/repository.js";
+import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
+import { readJsonBody } from "./body.js";
 import { json, ok, fail } from "./responses.js";
 import { Router } from "./router.js";
 
@@ -16,9 +35,8 @@ export type HealthStatus = {
   uptimeSeconds: number;
   prototype: {
     runtime: "node:http";
-    dataSource: "sqlite" | "mock";
+    dataSource: "sqlite";
     databasePath: string;
-    fallbackReason?: string;
     externalDependencies: false;
   };
   routes: string[];
@@ -32,6 +50,19 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
 
   router.get("/api/tournaments", () => ok(listTournaments()));
 
+  router.post("/api/tournaments", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createTournament(bodyToCreateTournamentInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.get("/api/leagues", () => ok(listLeagues()));
+
+  router.get("/api/sync-tasks", () => ok(listSyncTasks()));
+
   router.get("/api/tournaments/:id", ({ params }) => {
     const tournament = getTournamentDetail(params.id ?? "");
 
@@ -40,6 +71,80 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(tournament);
+  });
+
+  router.get("/api/tournaments/:id/matches", ({ params, url }) => {
+    const limit = positiveIntegerQuery(url, "limit", 100);
+    const matches = listTournamentOpenDotaMatches(params.id ?? "", limit);
+
+    if (matches === undefined) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(matches);
+  });
+
+  router.get("/api/tournaments/:id/teams", ({ params }) => {
+    const teams = listTournamentTeams(params.id ?? "");
+
+    if (teams === undefined) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(teams);
+  });
+
+  router.get("/api/tournaments/:id/players", ({ params }) => {
+    const players = listTournamentPlayers(params.id ?? "");
+
+    if (players === undefined) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(players);
+  });
+
+  router.post("/api/tournaments/:id/opendota-matches/:matchId/link-series", async ({ request, params }) => {
+    try {
+      const matchId = Number(params.matchId);
+
+      if (!Number.isSafeInteger(matchId) || matchId <= 0) {
+        return fail(400, "VALIDATION_ERROR", "matchId must be a positive integer");
+      }
+
+      const body = await readJsonBody(request);
+
+      return ok(linkOpenDotaMatchToSeries(params.id ?? "", matchId, bodyToLinkOpenDotaMatchInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/tournaments/:id/sync-opendota", async ({ params, url }) => {
+    const tournamentId = params.id ?? "";
+    const targets = listLeagueSyncTargets().filter(
+      (target) => target.tournamentId === tournamentId || target.league.id === tournamentId,
+    );
+
+    if (targets.length === 0) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(
+      await runOpenDotaBackfillSync({
+        targets,
+        matchLimit: positiveIntegerQuery(url, "limit", 1000),
+      }),
+    );
+  });
+
+  router.patch("/api/tournaments/:id/lifecycle", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateTournamentLifecycle(params.id ?? "", bodyToUpdateTournamentLifecycleInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
   });
 
   router.get("/api/stages/:stageId/standings", ({ params }) => {
@@ -82,5 +187,315 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(match);
   });
 
+  router.post("/api/teams", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createTeam(bodyToCreateTeamInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/players", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createPlayer(bodyToCreatePlayerInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/teams/:teamId/members", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(addTeamMember(bodyToAddTeamMemberInput(params.teamId ?? "", body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/stages", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createStage(bodyToCreateStageInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/rounds", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createRound(bodyToCreateRoundInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/series", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createSeries(bodyToCreateSeriesInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/series/:seriesId/games/:gameIndex/result", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      const gameIndex = Number(params.gameIndex);
+
+      if (!Number.isSafeInteger(gameIndex) || gameIndex <= 0) {
+        return fail(400, "VALIDATION_ERROR", "gameIndex must be a positive integer");
+      }
+
+      return ok(updateSeriesGameResult(params.seriesId ?? "", gameIndex, bodyToUpdateGameResultInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/sync-tasks", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createSyncTask(bodyToCreateSyncTaskInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   return router;
+}
+
+function bodyToCreateTeamInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    name: stringField(body, "name"),
+    shortName: optionalStringField(body, "shortName"),
+    color: optionalStringField(body, "color"),
+    tournamentId: optionalStringField(body, "tournamentId"),
+  }) as Parameters<typeof createTeam>[0];
+}
+
+function bodyToCreateTournamentInput(body: Record<string, unknown>) {
+  const status = optionalStringField(body, "status");
+
+  if (status !== undefined && !["draft", "upcoming", "running", "completed", "archived"].includes(status)) {
+    throw new Error("status must be draft, upcoming, running, completed, or archived");
+  }
+
+  return withoutUndefined({
+    name: stringField(body, "name"),
+    seasonName: optionalStringField(body, "seasonName"),
+    opendotaLeagueId: numberField(body, "opendotaLeagueId"),
+    startsAt: optionalStringField(body, "startsAt"),
+    status,
+  }) as Parameters<typeof createTournament>[0];
+}
+
+function bodyToCreatePlayerInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    displayName: stringField(body, "displayName"),
+    accountId: optionalNumberOrNullField(body, "accountId"),
+    currentTeamId: optionalStringOrNullField(body, "currentTeamId"),
+    avatarUrl: optionalStringOrNullField(body, "avatarUrl"),
+  }) as Parameters<typeof createPlayer>[0];
+}
+
+function bodyToAddTeamMemberInput(teamId: string, body: Record<string, unknown>) {
+  return withoutUndefined({
+    teamId,
+    playerId: stringField(body, "playerId"),
+    role: optionalStringField(body, "role"),
+  }) as Parameters<typeof addTeamMember>[0];
+}
+
+function bodyToLinkOpenDotaMatchInput(body: Record<string, unknown>) {
+  const boType = optionalStringField(body, "boType");
+
+  if (boType !== undefined && !["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
+    throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  return withoutUndefined({
+    stageId: optionalStringField(body, "stageId"),
+    roundId: optionalStringField(body, "roundId"),
+    roundName: optionalStringField(body, "roundName"),
+    boType,
+    scheduledAt: optionalStringField(body, "scheduledAt"),
+    radiantTeamId: stringField(body, "radiantTeamId"),
+    direTeamId: stringField(body, "direTeamId"),
+  }) as Parameters<typeof linkOpenDotaMatchToSeries>[2];
+}
+
+function bodyToCreateStageInput(body: Record<string, unknown>) {
+  const type = stringField(body, "type");
+
+  if (!["group", "swiss", "knockout"].includes(type)) {
+    throw new Error("type must be group, swiss, or knockout");
+  }
+
+  return withoutUndefined({
+    tournamentId: stringField(body, "tournamentId"),
+    type: type as "group" | "swiss" | "knockout",
+    name: stringField(body, "name"),
+    advancementRule: optionalStringField(body, "advancementRule"),
+    sortOrder: optionalNumberField(body, "sortOrder"),
+  }) as Parameters<typeof createStage>[0];
+}
+
+function bodyToUpdateTournamentLifecycleInput(body: Record<string, unknown>) {
+  const status = stringField(body, "status");
+
+  if (!["draft", "upcoming", "running", "completed", "archived"].includes(status)) {
+    throw new Error("status must be draft, upcoming, running, completed, or archived");
+  }
+
+  return withoutUndefined({
+    status: status as Parameters<typeof updateTournamentLifecycle>[1]["status"],
+    startsAt: optionalStringOrNullField(body, "startsAt"),
+    endsAt: optionalStringOrNullField(body, "endsAt"),
+  }) as Parameters<typeof updateTournamentLifecycle>[1];
+}
+
+function bodyToCreateRoundInput(body: Record<string, unknown>) {
+  const status = optionalStringField(body, "status");
+  const pairingStatus = optionalStringField(body, "pairingStatus");
+
+  if (status !== undefined && !["draft", "published", "running", "completed", "locked"].includes(status)) {
+    throw new Error("status must be draft, published, running, completed, or locked");
+  }
+
+  if (pairingStatus !== undefined && !["draft", "published", "confirmed"].includes(pairingStatus)) {
+    throw new Error("pairingStatus must be draft, published, or confirmed");
+  }
+
+  return withoutUndefined({
+    stageId: stringField(body, "stageId"),
+    name: stringField(body, "name"),
+    roundNumber: optionalNumberField(body, "roundNumber"),
+    status: status as Parameters<typeof createRound>[0]["status"],
+    pairingStatus: pairingStatus as Parameters<typeof createRound>[0]["pairingStatus"],
+  }) as Parameters<typeof createRound>[0];
+}
+
+function bodyToCreateSeriesInput(body: Record<string, unknown>) {
+  const boType = stringField(body, "boType");
+
+  if (!["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
+    throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  return withoutUndefined({
+    stageId: stringField(body, "stageId"),
+    roundId: stringField(body, "roundId"),
+    boType: boType as "BO1" | "BO2" | "BO3" | "BO5",
+    scheduledAt: optionalStringField(body, "scheduledAt"),
+    radiantTeamId: stringField(body, "radiantTeamId"),
+    direTeamId: stringField(body, "direTeamId"),
+  }) as Parameters<typeof createSeries>[0];
+}
+
+function bodyToUpdateGameResultInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    matchId: optionalNumberOrNullField(body, "matchId"),
+    radiantScore: optionalNumberOrNullField(body, "radiantScore"),
+    direScore: optionalNumberOrNullField(body, "direScore"),
+    winnerTeamId: optionalStringOrNullField(body, "winnerTeamId"),
+  }) as Parameters<typeof updateSeriesGameResult>[2];
+}
+
+function bodyToCreateSyncTaskInput(body: Record<string, unknown>) {
+  const kind = stringField(body, "kind");
+
+  if (!["discover_match", "request_parse", "refresh_match", "schedule_link"].includes(kind)) {
+    throw new Error("kind must be discover_match, request_parse, refresh_match, or schedule_link");
+  }
+
+  const payload = body.payload;
+
+  return withoutUndefined({
+    kind: kind as "discover_match" | "request_parse" | "refresh_match" | "schedule_link",
+    leagueId: optionalNumberOrNullField(body, "leagueId"),
+    targetType: optionalStringOrNullField(body, "targetType"),
+    targetId: optionalStringOrNullField(body, "targetId"),
+    payload:
+      payload !== undefined && payload !== null && typeof payload === "object" && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>)
+        : {},
+  }) as Parameters<typeof createSyncTask>[0];
+}
+
+function stringField(body: Record<string, unknown>, fieldName: string): string {
+  const value = body[fieldName];
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`${fieldName} is required`);
+  }
+
+  return value.trim();
+}
+
+function optionalStringField(body: Record<string, unknown>, fieldName: string): string | undefined {
+  const value = body[fieldName];
+
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function optionalStringOrNullField(body: Record<string, unknown>, fieldName: string): string | null | undefined {
+  if (!(fieldName in body)) {
+    return undefined;
+  }
+
+  const value = body[fieldName];
+
+  if (value === null) {
+    return null;
+  }
+
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function optionalNumberField(body: Record<string, unknown>, fieldName: string): number | undefined {
+  const value = body[fieldName];
+
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function optionalNumberOrNullField(body: Record<string, unknown>, fieldName: string): number | null | undefined {
+  if (!(fieldName in body)) {
+    return undefined;
+  }
+
+  const value = body[fieldName];
+
+  if (value === null) {
+    return null;
+  }
+
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function numberField(body: Record<string, unknown>, fieldName: string): number {
+  const value = body[fieldName];
+
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+    throw new Error(`${fieldName} must be an integer`);
+  }
+
+  return value;
+}
+
+function validationError(error: unknown) {
+  return fail(400, "VALIDATION_ERROR", error instanceof Error ? error.message : "Invalid request body");
+}
+
+function positiveIntegerQuery(url: URL, fieldName: string, fallback: number): number {
+  const value = Number(url.searchParams.get(fieldName));
+
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+function withoutUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
 }

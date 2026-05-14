@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
   current_stage_id TEXT,
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
-  status TEXT NOT NULL CHECK (status IN ('draft', 'running', 'completed', 'archived')),
+  status TEXT NOT NULL CHECK (status IN ('draft', 'upcoming', 'running', 'completed', 'archived')),
   visibility TEXT NOT NULL CHECK (visibility IN ('public', 'private')),
   starts_at TEXT,
   ends_at TEXT,
@@ -219,7 +219,7 @@ CREATE TABLE IF NOT EXISTS tag_reports (
 
 CREATE TABLE IF NOT EXISTS sync_tasks (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK (kind IN ('discover_match', 'request_parse', 'schedule_link')),
+  kind TEXT NOT NULL CHECK (kind IN ('discover_match', 'request_parse', 'refresh_match', 'schedule_link')),
   status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'needs_review')),
   league_id INTEGER,
   target_type TEXT,

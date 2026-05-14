@@ -10,6 +10,8 @@
     "db:init": "npm run build && node --no-warnings=ExperimentalWarning dist/db/bootstrap.js",
     "db:reset": "npm run build && node --no-warnings=ExperimentalWarning dist/db/bootstrap.js --reset",
     "db:status": "npm run build && node --no-warnings=ExperimentalWarning dist/db/bootstrap.js --status",
+    "sync:opendota": "npm run build && node --no-warnings=ExperimentalWarning dist/opendota/runSync.js",
+    "sync:opendota:backfill": "npm run build && node --no-warnings=ExperimentalWarning dist/opendota/runSync.js --backfill",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add API lint\"",
     "test": "echo \"TODO: add API tests\""

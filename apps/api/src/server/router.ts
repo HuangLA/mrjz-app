@@ -19,7 +19,7 @@ type Route = {
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, OPTIONS",
+  "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
   "access-control-allow-headers": "content-type, authorization",
 };
 
@@ -27,8 +27,20 @@ export class Router {
   private readonly routes: Route[] = [];
 
   get(pattern: string, handler: RouteHandler): void {
+    this.addRoute("GET", pattern, handler);
+  }
+
+  post(pattern: string, handler: RouteHandler): void {
+    this.addRoute("POST", pattern, handler);
+  }
+
+  patch(pattern: string, handler: RouteHandler): void {
+    this.addRoute("PATCH", pattern, handler);
+  }
+
+  private addRoute(method: string, pattern: string, handler: RouteHandler): void {
     this.routes.push({
-      method: "GET",
+      method,
       pattern: normalizePath(pattern),
       segments: splitPath(pattern),
       handler,
@@ -36,7 +48,7 @@ export class Router {
   }
 
   patterns(): string[] {
-    return this.routes.map((route) => `GET ${route.pattern}`);
+    return this.routes.map((route) => `${route.method} ${route.pattern}`);
   }
 
   async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {

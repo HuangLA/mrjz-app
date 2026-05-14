@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { getRepositoryInfo } from "./data/repository.js";
+import { startOpenDotaSyncScheduler } from "./opendota/syncWorker.js";
 import { createApiRouter, type HealthStatus } from "./server/apiRouter.js";
 
 const serviceName = "mrjz-api";
@@ -17,7 +18,6 @@ export function getHealthStatus(now = new Date()): HealthStatus {
       runtime: "node:http",
       dataSource: repositoryInfo.dataSource,
       databasePath: repositoryInfo.databasePath,
-      ...(repositoryInfo.dataSource === "mock" ? { fallbackReason: repositoryInfo.reason } : {}),
       externalDependencies: false,
     },
     routes: router.patterns(),
@@ -33,4 +33,5 @@ const server = createServer((request, response) => {
 
 server.listen(port, () => {
   console.log(`${serviceName} listening on :${port}`);
+  startOpenDotaSyncScheduler();
 });

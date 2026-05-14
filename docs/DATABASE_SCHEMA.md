@@ -1,6 +1,6 @@
 # 数据库设计草案
 
-最后更新：2026-05-13
+最后更新：2026-05-14
 
 ## 当前选择
 
@@ -25,12 +25,36 @@ npm run db:reset
 - OpenDota：`opendota_matches`、`sync_tasks`
 - 互动：`app_users`、`tags`、`tag_likes`、`tag_reports`
 
+## 当前种子数据
+
+- 第一届：OpenDota `league_id = 17485`，本地赛事 `tournament_mrjz_s1`。
+- 第二届：OpenDota `league_id = 18365`，本地赛事 `tournament_mrjz_s2`。
+- 第三届：OpenDota `league_id = 19483`，本地赛事 `tournament_mrjz_s3`。
+- 第一届和第二届默认 `completed`，第三届默认 `running`，用于验证 10 分钟 OpenDota 自动同步。
+- 初始化脚本只写入三届真实联赛壳和默认阶段；赛程、队伍、积分榜和标签均等待管理员真实录入。
+- 真实比赛通过 `npm run sync:opendota:backfill` 拉取并保存在本地运行态数据库。
+
+## 当前本地 backfill 结果
+
+截至 2026-05-14，本机 `apps/api/var/mrjz.sqlite` 已固化前三届比赛：
+
+| league_id | 本地赛事 | 状态 | 比赛数 | 解析状态 |
+| --- | --- | --- | --- | --- |
+| `17485` | `tournament_mrjz_s1` | `completed` | 30 | 7 场 `parsed`，23 场 `requested` |
+| `18365` | `tournament_mrjz_s2` | `completed` | 42 | 42 场 `parsed` |
+| `19483` | `tournament_mrjz_s3` | `running` | 47 | 47 场 `parsed` |
+
+运行态 SQLite 文件仍不提交到 Git；新环境需要先 `npm run db:init`，再配置 OpenDota/Steam 凭据后执行 `npm run sync:opendota:backfill`。
+
 ## 关键约束
 
 - `stages.type` 固定为 `group`、`swiss`、`knockout`，后台和用户端统一识别普通小组赛、瑞士轮、淘汰赛。
+- `tournaments.status` 固定为 `draft`、`upcoming`、`running`、`completed`、`archived`；只有 `running` 会进入 10 分钟 OpenDota 自动同步。
+- `tournaments.starts_at` 支持管理员为 `upcoming` 赛事手动设置开赛时间，H5 和管理后台都直接展示。
 - `series_games.match_id` 全局唯一，避免同一局 OpenDota match 被重复绑定。
 - `series_games.conflict_status` 用于标记人工赛果和 OpenDota 赛果冲突；冲突未处理前不推进积分、瑞士轮配对或淘汰赛节点。
 - `opendota_matches.raw_json` 暂存原始 OpenDota 返回，后端 normalizer 统一生成比赛详情视图。
+- `sync_tasks.kind` 当前支持 `discover_match`、`request_parse`、`refresh_match`、`schedule_link`，对应联赛发现、请求解析、单场刷新和人工赛程关联。
 - `tags` 支持选手和队伍两类目标，`tag_likes` 通过联合主键限制同一用户重复点赞。
 
 ## 后续迁移方向

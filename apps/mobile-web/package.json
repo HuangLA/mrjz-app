@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5174",
     "build": "tsc -p tsconfig.json && vite build",
+    "cache:dota-assets": "node scripts/cache-dota-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add mobile web lint\"",
     "test": "echo \"TODO: add mobile web tests\""

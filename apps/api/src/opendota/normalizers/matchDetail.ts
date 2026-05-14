@@ -53,8 +53,8 @@ export function normalizeOpenDotaMatchDetail(
   now = new Date(),
 ): MatchDetailViewModel {
   const teams = {
-    radiant: context?.teams?.radiant ?? FALLBACK_TEAMS.radiant,
-    dire: context?.teams?.dire ?? FALLBACK_TEAMS.dire,
+    radiant: context?.teams?.radiant ?? teamFromRaw("radiant", raw),
+    dire: context?.teams?.dire ?? teamFromRaw("dire", raw),
   };
   const radiantScore = numberOr(raw.radiant_score, 0);
   const direScore = numberOr(raw.dire_score, 0);
@@ -63,7 +63,8 @@ export function normalizeOpenDotaMatchDetail(
   const durationSeconds = numberOr(raw.duration, 0);
   const startTime = typeof raw.start_time === "number" ? raw.start_time : null;
   const endedAt = startTime === null ? null : toIso(startTime + durationSeconds);
-  const allPlayers = normalizePlayers(raw.players, teams, radiantScore, direScore);
+  const rawPlayers = raw.players ?? [];
+  const allPlayers = normalizePlayers(rawPlayers, teams, radiantScore, direScore);
   const radiantPlayers = allPlayers.filter((player) => player.side === "radiant");
   const direPlayers = allPlayers.filter((player) => player.side === "dire");
   const playersBySlot = new Map(allPlayers.map((player) => [player.playerSlot, player]));
@@ -73,9 +74,9 @@ export function normalizeOpenDotaMatchDetail(
     total: drafts.length,
     source: drafts.length > 0 ? "picks_bans" : "missing",
   };
-  const vision = normalizeVisionTimeline(raw.players, playersBySlot);
+  const vision = normalizeVisionTimeline(rawPlayers, playersBySlot);
   const chat = normalizeChat(raw.chat, playersBySlot);
-  const charts = normalizeTrendCharts(allPlayers, raw.players);
+  const charts = normalizeTrendCharts(allPlayers, rawPlayers);
   const comparisons = normalizeComparisons(radiantPlayers, direPlayers);
   const lanes = normalizeLanes(allPlayers);
   const hasAbilityBuilds = allPlayers.some((player) => player.abilityBuild.hasData);
@@ -87,7 +88,7 @@ export function normalizeOpenDotaMatchDetail(
     match: {
       matchId: raw.match_id,
       leagueId: raw.leagueid ?? raw.league_id ?? context?.league?.opendotaLeagueId ?? null,
-      leagueName: context?.league?.name ?? "OpenDota League",
+      leagueName: context?.league?.name ?? raw.league?.name ?? "OpenDota League",
       tournamentName: context?.tournament?.name ?? null,
       stageName: context?.stage?.name ?? null,
       roundName: context?.round?.name ?? null,
@@ -143,6 +144,29 @@ export function normalizeOpenDotaMatchDetail(
   };
 }
 
+function teamFromRaw(side: TeamSide, raw: OpenDotaMatchDetail): TeamBrief {
+  const fallback = FALLBACK_TEAMS[side];
+  const name = side === "radiant" ? raw.radiant_name : raw.dire_name;
+  const teamId = side === "radiant" ? raw.radiant_team_id : raw.dire_team_id;
+  const normalizedName = typeof name === "string" && name.trim().length > 0 ? name.trim() : fallback.name;
+
+  return {
+    ...fallback,
+    id: typeof teamId === "number" ? `${side}_${teamId}` : fallback.id,
+    name: normalizedName,
+    shortName: normalizedName === fallback.name ? fallback.shortName : shortName(normalizedName),
+  };
+}
+
+function shortName(name: string): string {
+  return (
+    name
+      .replace(/[^\p{L}\p{N}]+/gu, "")
+      .slice(0, 6)
+      .toUpperCase() || name.slice(0, 3)
+  );
+}
+
 function normalizePlayers(
   players: OpenDotaMatchPlayer[],
   teams: Record<TeamSide, TeamBrief>,
@@ -189,12 +213,12 @@ function normalizePlayers(
       heroDamage,
       towerDamage: numberOrNull(player.tower_damage),
       heroHealing: numberOrNull(player.hero_healing),
-      damageTaken: numberOrNull(player.damage_taken),
+      damageTaken: damageTakenTotal(player.damage_taken),
       lane: numberOrNull(player.lane),
       laneRole: numberOrNull(player.lane_role),
       items,
       abilityBuild,
-      aghanim: normalizeAghanimState(items, player.permanent_buffs ?? []),
+      aghanim: normalizeAghanimState(items, player),
     };
   });
 }
@@ -252,8 +276,9 @@ function normalizeItems(player: OpenDotaMatchPlayer): MatchPlayerViewModel["item
 
 function normalizeAghanimState(
   items: MatchPlayerViewModel["items"],
-  permanentBuffs: OpenDotaPermanentBuff[],
+  player: OpenDotaMatchPlayer,
 ): AghanimStateViewModel {
+  const permanentBuffs = player.permanent_buffs ?? [];
   const itemIds = [
     ...items.inventory.map((item) => item.itemId),
     ...items.backpack.map((item) => item.itemId),
@@ -262,12 +287,14 @@ function normalizeAghanimState(
 
   const hasScepterItem = itemIds.includes(AGHANIMS_SCEPTER_ITEM_ID);
   const hasShardItem = itemIds.includes(AGHANIMS_SHARD_ITEM_ID);
+  const hasScepterFlag = player.aghanims_scepter === 1 || player.aghanim_scepter === 1;
+  const hasShardFlag = player.aghanims_shard === 1 || player.aghanim_shard === 1;
   const hasScepterBuff = permanentBuffs.some((buff) => permanentBuffMatches(buff, ["scepter", "ultimate"]));
   const hasShardBuff = permanentBuffs.some((buff) => permanentBuffMatches(buff, ["shard", "aghanim_shard"]));
-  const hasScepter = hasScepterItem || hasScepterBuff;
-  const hasShard = hasShardItem || hasShardBuff;
-  const scepterSource: AghanimSource = hasScepterItem ? "item" : hasScepterBuff ? "permanent_buff" : "none";
-  const shardSource: AghanimSource = hasShardItem ? "item" : hasShardBuff ? "permanent_buff" : "none";
+  const hasScepter = hasScepterItem || hasScepterFlag || hasScepterBuff;
+  const hasShard = hasShardItem || hasShardFlag || hasShardBuff;
+  const scepterSource: AghanimSource = hasScepterItem || hasScepterFlag ? "item" : hasScepterBuff ? "permanent_buff" : "none";
+  const shardSource: AghanimSource = hasShardItem || hasShardFlag ? "item" : hasShardBuff ? "permanent_buff" : "none";
 
   return {
     hasScepter,
@@ -621,6 +648,22 @@ function numberOr(value: number | undefined, fallback: number): number {
 
 function numberOrNull(value: number | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function damageTakenTotal(value: OpenDotaMatchPlayer["damage_taken"]): number | null {
+  if (typeof value === "number") {
+    return numberOrNull(value);
+  }
+
+  if (value === undefined || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  const total = Object.values(value).reduce((sum, damage) => {
+    return typeof damage === "number" && Number.isFinite(damage) ? sum + damage : sum;
+  }, 0);
+
+  return total > 0 ? total : null;
 }
 
 function sumBy<T>(items: T[], selector: (item: T) => number): number {

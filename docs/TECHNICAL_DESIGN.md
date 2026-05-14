@@ -618,7 +618,7 @@ DEFAULT_LEAGUE_ID=
 
 - 单元测试：字段转换、权限判断、聚合统计。
 - 集成测试：登录、赛程 CRUD、赛果录入、比赛详情读取。
-- 同步测试：mock OpenDota 响应，覆盖 parsed 和 not_parsed。
+- 同步测试：使用受控 OpenDota fixture 响应，覆盖 parsed 和 not_parsed。
 
 小程序：
 

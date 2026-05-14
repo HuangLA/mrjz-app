@@ -61,7 +61,7 @@ export type OpenDotaMatchPlayer = {
   hero_damage?: number;
   tower_damage?: number;
   hero_healing?: number;
-  damage_taken?: number;
+  damage_taken?: number | Record<string, number>;
   lane?: number;
   lane_role?: number;
   item_0?: number;
@@ -74,6 +74,10 @@ export type OpenDotaMatchPlayer = {
   backpack_1?: number;
   backpack_2?: number;
   item_neutral?: number;
+  aghanim_scepter?: number;
+  aghanim_shard?: number;
+  aghanims_scepter?: number;
+  aghanims_shard?: number;
   ability_upgrades_arr?: number[];
   ability_upgrades?: OpenDotaAbilityUpgrade[];
   permanent_buffs?: OpenDotaPermanentBuff[];
@@ -87,14 +91,52 @@ export type OpenDotaMatchDetail = {
   match_id: number;
   leagueid?: number;
   league_id?: number;
+  league?: {
+    leagueid?: number;
+    name?: string;
+  };
   radiant_win?: boolean;
   radiant_score?: number;
   dire_score?: number;
+  radiant_name?: string;
+  dire_name?: string;
+  radiant_team_id?: number;
+  dire_team_id?: number;
   duration?: number;
   game_mode?: number;
   start_time?: number;
   version?: number;
-  players: OpenDotaMatchPlayer[];
+  players?: OpenDotaMatchPlayer[];
   picks_bans?: OpenDotaDraftAction[];
   chat?: OpenDotaChatMessage[];
+};
+
+export type OpenDotaLeagueMatch = {
+  match_id?: number;
+  leagueid?: number;
+  league_id?: number;
+  start_time?: number;
+  radiant_win?: boolean;
+  radiant_score?: number;
+  dire_score?: number;
+  duration?: number;
+  version?: number;
+};
+
+export type OpenDotaPlayerMatchSummary = {
+  match_id?: number;
+  start_time?: number;
+  duration?: number;
+  game_mode?: number;
+  lobby_type?: number;
+  version?: number | null;
+};
+
+export type SteamLeagueMatch = {
+  match_id?: number;
+  match_seq_num?: number;
+  start_time?: number;
+  lobby_type?: number;
+  radiant_team_id?: number;
+  dire_team_id?: number;
 };

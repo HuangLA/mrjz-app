@@ -1,14 +1,10 @@
 import "./styles.css";
+import { loadMatchData, loadMobileData, type MobileData } from "./api";
 import {
-  featuredMatch,
-  playerTags,
-  scheduleGroups,
-  stageViews,
-  teamTags,
-  tournamentStats,
   type AghanimState,
   type AppRoute,
   type DraftStep,
+  type MatchRecord,
   type MatchData,
   type PlayerStats,
   type StageKey,
@@ -16,14 +12,22 @@ import {
 } from "./data";
 
 const root = document.querySelector<HTMLDivElement>("#root");
+let activeWardScrubber: HTMLElement | null = null;
+let activeWardPointerId: number | null = null;
+let wardScrubberScrollY: number | null = null;
+let wardScrubberScrollLockUntil = 0;
+let wardScrubberSuppressNativeEventsUntil = 0;
 
 const routeOptions: Array<{ key: AppRoute; label: string; kicker: string }> = [
   { key: "home", label: "首页", kicker: "总览" },
   { key: "stage", label: "赛事阶段", kicker: "阶段" },
   { key: "schedule", label: "赛程", kicker: "时间" },
+  { key: "records", label: "比赛记录", kicker: "记录" },
   { key: "match", label: "比赛详情", kicker: "战报" },
-  { key: "tags", label: "标签预览", kicker: "社区" },
+  { key: "tags", label: "选手/队伍", kicker: "社区" },
 ];
+
+const primaryNavRoutes = routeOptions.filter((route) => route.key !== "match");
 
 const stageOptions: Array<{ key: StageKey; label: string }> = [
   { key: "group", label: "小组赛" },
@@ -38,10 +42,20 @@ const appState: {
   route: AppRoute;
   stage: StageKey;
   expandedPlayers: Set<string>;
+  wardScrubberSeconds: Record<string, number>;
+  data: MobileData | null;
+  loading: boolean;
+  selectedTournamentId: string | null;
+  routeHistory: AppRoute[];
 } = {
   route: readRouteFromHash(),
   stage: "group",
   expandedPlayers: new Set(["r2"]),
+  wardScrubberSeconds: {},
+  data: null,
+  loading: true,
+  selectedTournamentId: null,
+  routeHistory: [],
 };
 
 if (!root) {
@@ -49,6 +63,7 @@ if (!root) {
 }
 
 render();
+void refreshData();
 
 window.addEventListener("hashchange", () => {
   appState.route = readRouteFromHash();
@@ -57,18 +72,65 @@ window.addEventListener("hashchange", () => {
 
 root.addEventListener("click", (event) => {
   const target = event.target instanceof HTMLElement ? event.target : null;
+  const backButton = target?.closest<HTMLElement>("[data-back]");
   const routeButton = target?.closest<HTMLElement>("[data-route]");
   const stageButton = target?.closest<HTMLElement>("[data-stage]");
   const playerButton = target?.closest<HTMLElement>("[data-player]");
   const topButton = target?.closest<HTMLElement>("[data-top]");
+  const tournamentButton = target?.closest<HTMLElement>("[data-tournament]");
+  const matchButton = target?.closest<HTMLElement>("[data-match-id]");
+
+  if (backButton) {
+    goBack();
+    return;
+  }
+
+  if (tournamentButton) {
+    const tournamentId = tournamentButton.dataset.tournament;
+    const targetRoute = tournamentButton.dataset.targetRoute;
+    if (tournamentId) {
+      appState.selectedTournamentId = tournamentId;
+      appState.loading = true;
+      if (isRoute(targetRoute)) {
+        navigateTo(targetRoute);
+      }
+      render();
+      void refreshData(tournamentId);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    return;
+  }
+
+  if (matchButton) {
+    const matchId = matchButton.dataset.matchId;
+    if (matchId && appState.data) {
+      appState.loading = true;
+      navigateTo("match");
+      render();
+      loadMatchData(appState.data.apiBaseUrl, matchId)
+        .then((match) => {
+          if (appState.data) {
+            appState.data.featuredMatch = match;
+            appState.data.notice = null;
+          }
+        })
+        .catch(() => {
+          if (appState.data) {
+            appState.data.notice = `match ${matchId} 暂无真实详情或尚未入库。`;
+          }
+        })
+        .finally(() => {
+          appState.loading = false;
+          render();
+        });
+    }
+    return;
+  }
 
   if (routeButton) {
     const nextRoute = routeButton.dataset.route;
     if (isRoute(nextRoute)) {
-      appState.route = nextRoute;
-      window.history.replaceState(null, "", `#${nextRoute}`);
-      render();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      navigateTo(nextRoute);
     }
     return;
   }
@@ -100,6 +162,346 @@ root.addEventListener("click", (event) => {
   }
 });
 
+root.addEventListener("input", handleWardScrubberEvent);
+root.addEventListener("change", handleWardScrubberEvent);
+root.addEventListener("pointerdown", handleWardScrubberPointerDown);
+root.addEventListener("pointermove", handleWardScrubberPointerMove);
+root.addEventListener("mousedown", handleWardScrubberMouseDown);
+root.addEventListener("touchstart", handleWardScrubberTouchStart, { passive: false });
+root.addEventListener("touchmove", handleWardScrubberTouchMove, { passive: false });
+window.addEventListener("pointerup", handleWardScrubberPointerEnd);
+window.addEventListener("pointercancel", handleWardScrubberPointerEnd);
+window.addEventListener("mousemove", handleWardScrubberMouseMove);
+window.addEventListener("mouseup", handleWardScrubberMouseEnd);
+window.addEventListener("touchend", handleWardScrubberTouchEnd);
+window.addEventListener("touchcancel", handleWardScrubberTouchEnd);
+window.addEventListener("scroll", handleWardScrubberScroll, { passive: true });
+
+function handleWardScrubberEvent(event: Event): void {
+  const target = event.target instanceof HTMLElement ? event.target : null;
+
+  if (target?.matches("[data-ward-scrubber]")) {
+    if (target === activeWardScrubber || performance.now() < wardScrubberSuppressNativeEventsUntil) {
+      event.preventDefault();
+      return;
+    }
+
+    const seconds = Number(target.dataset.value);
+
+    if (Number.isFinite(seconds)) {
+      setWardScrubberSecond(target, seconds);
+    }
+  }
+}
+
+function handleWardScrubberPointerDown(event: PointerEvent): void {
+  const scrubber = getWardScrubber(event.target);
+
+  if (!scrubber) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  activeWardPointerId = event.pointerId;
+  startWardScrubberDrag(scrubber);
+  updateWardScrubberFromClientX(scrubber, event.clientX);
+  scrubber.setPointerCapture(event.pointerId);
+}
+
+function handleWardScrubberPointerMove(event: PointerEvent): void {
+  if (!activeWardScrubber || activeWardPointerId !== event.pointerId) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  extendWardScrubberScrollLock();
+  updateWardScrubberFromClientX(activeWardScrubber, event.clientX);
+  keepWardScrubberScrollLocked();
+}
+
+function handleWardScrubberMouseDown(event: MouseEvent): void {
+  if (window.PointerEvent) {
+    return;
+  }
+
+  const scrubber = getWardScrubber(event.target);
+
+  if (scrubber) {
+    event.preventDefault();
+    event.stopPropagation();
+    startWardScrubberDrag(scrubber);
+    updateWardScrubberFromClientX(scrubber, event.clientX);
+  }
+}
+
+function handleWardScrubberMouseMove(event: MouseEvent): void {
+  if (window.PointerEvent) {
+    return;
+  }
+
+  if (!activeWardScrubber || event.buttons === 0) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  extendWardScrubberScrollLock();
+  updateWardScrubberFromClientX(activeWardScrubber, event.clientX);
+  keepWardScrubberScrollLocked();
+}
+
+function handleWardScrubberTouchStart(event: TouchEvent): void {
+  if (window.PointerEvent) {
+    return;
+  }
+
+  const scrubber = getWardScrubber(event.target);
+  const touch = event.touches[0];
+
+  if (scrubber) {
+    event.preventDefault();
+    event.stopPropagation();
+    startWardScrubberDrag(scrubber);
+
+    if (touch) {
+      updateWardScrubberFromClientX(scrubber, touch.clientX);
+    }
+  }
+}
+
+function handleWardScrubberPointerEnd(event: PointerEvent): void {
+  if (!activeWardScrubber || activeWardPointerId !== event.pointerId) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (activeWardScrubber.hasPointerCapture(event.pointerId)) {
+    activeWardScrubber.releasePointerCapture(event.pointerId);
+  }
+
+  finishWardScrubberDrag();
+}
+
+function handleWardScrubberMouseEnd(event: MouseEvent): void {
+  if (window.PointerEvent) {
+    return;
+  }
+
+  if (activeWardScrubber) {
+    event.preventDefault();
+    event.stopPropagation();
+    finishWardScrubberDrag();
+  }
+}
+
+function handleWardScrubberTouchMove(event: TouchEvent): void {
+  if (window.PointerEvent) {
+    return;
+  }
+
+  if (!activeWardScrubber && !getWardScrubber(event.target)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const touch = event.touches[0];
+
+  if (activeWardScrubber && touch) {
+    extendWardScrubberScrollLock();
+    updateWardScrubberFromClientX(activeWardScrubber, touch.clientX);
+  }
+  keepWardScrubberScrollLocked();
+
+}
+
+function handleWardScrubberTouchEnd(event: TouchEvent): void {
+  if (window.PointerEvent) {
+    return;
+  }
+
+  if (activeWardScrubber) {
+    event.preventDefault();
+    event.stopPropagation();
+    finishWardScrubberDrag();
+  }
+}
+
+function startWardScrubberDrag(scrubber: HTMLElement): void {
+  if (activeWardScrubber === scrubber) {
+    return;
+  }
+
+  activeWardScrubber = scrubber;
+  wardScrubberScrollY = window.scrollY;
+  wardScrubberScrollLockUntil = performance.now() + 650;
+}
+
+function updateWardScrubberFromClientX(scrubber: HTMLElement, clientX: number): void {
+  const bounds = scrubber.getBoundingClientRect();
+
+  if (bounds.width <= 0) {
+    return;
+  }
+
+  const min = scrubberNumber(scrubber, "min", 0);
+  const max = scrubberNumber(scrubber, "max", min);
+  const rawStep = scrubberNumber(scrubber, "step", 1);
+  const step = Number.isFinite(rawStep) && rawStep > 0 ? rawStep : 1;
+  const ratio = clampNumber((clientX - bounds.left) / bounds.width, 0, 1);
+  const rawValue = min + ratio * (max - min);
+  const steppedValue = min + Math.round((rawValue - min) / step) * step;
+
+  setWardScrubberSecond(scrubber, steppedValue);
+}
+
+function setWardScrubberSecond(scrubber: HTMLElement, seconds: number): void {
+  const matchId = scrubber.dataset.matchId;
+
+  if (!matchId || !Number.isFinite(seconds)) {
+    return;
+  }
+
+  const min = scrubberNumber(scrubber, "min", 0);
+  const max = scrubberNumber(scrubber, "max", min);
+  const selectedSecond = Math.round(clampNumber(seconds, min, max));
+  const selectedSecondText = String(selectedSecond);
+
+  if (appState.wardScrubberSeconds[matchId] === selectedSecond && scrubber.dataset.visionSecond === selectedSecondText) {
+    scrubber.dataset.value = selectedSecondText;
+    updateWardScrubberProgress(scrubber, selectedSecond);
+
+    return;
+  }
+
+  scrubber.dataset.value = selectedSecondText;
+  updateWardScrubberProgress(scrubber, selectedSecond);
+  appState.wardScrubberSeconds[matchId] = selectedSecond;
+  updateWardTimelineView(scrubber, selectedSecond);
+  scrubber.dataset.visionSecond = selectedSecondText;
+}
+
+function finishWardScrubberDrag(): void {
+  const lockedScrollY = wardScrubberScrollY;
+
+  activeWardScrubber = null;
+  activeWardPointerId = null;
+  wardScrubberScrollLockUntil = performance.now() + 420;
+  wardScrubberSuppressNativeEventsUntil = performance.now() + 520;
+
+  if (lockedScrollY !== null) {
+    keepWardScrubberScrollLocked(lockedScrollY);
+  }
+
+  window.setTimeout(() => {
+    if (performance.now() >= wardScrubberScrollLockUntil) {
+      wardScrubberScrollY = null;
+    }
+  }, 460);
+}
+
+function getWardScrubber(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+
+  const scrubber = target.closest<HTMLElement>("[data-ward-scrubber]");
+  return scrubber instanceof HTMLElement ? scrubber : null;
+}
+
+function handleWardScrubberScroll(): void {
+  if (wardScrubberScrollY === null || performance.now() >= wardScrubberScrollLockUntil) {
+    return;
+  }
+
+  requestAnimationFrame(() => keepWardScrubberScrollLocked());
+}
+
+function extendWardScrubberScrollLock(): void {
+  wardScrubberScrollLockUntil = Math.max(wardScrubberScrollLockUntil, performance.now() + 180);
+}
+
+function keepWardScrubberScrollLocked(forcedScrollY = wardScrubberScrollY): void {
+  if (forcedScrollY === null || Math.abs(window.scrollY - forcedScrollY) <= 1) {
+    return;
+  }
+
+  window.scrollTo({ top: forcedScrollY, behavior: "auto" });
+}
+
+function updateWardScrubberProgress(scrubber: HTMLElement, selectedSecond: number): void {
+  const min = scrubberNumber(scrubber, "min", 0);
+  const max = scrubberNumber(scrubber, "max", min);
+  const progress = max > min ? ((selectedSecond - min) / (max - min)) * 100 : 0;
+
+  scrubber.style.setProperty("--ward-progress", `${clampNumber(progress, 0, 100).toFixed(2)}%`);
+  scrubber.setAttribute("aria-valuenow", String(selectedSecond));
+  scrubber.setAttribute("aria-valuetext", formatWardClock(selectedSecond));
+}
+
+function scrubberNumber(scrubber: HTMLElement, key: "min" | "max" | "step", fallback: number): number {
+  const value = Number(scrubber.dataset[key]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function updateWardTimelineView(range: HTMLElement, selectedSecond: number): void {
+  const timeline = range.closest<HTMLElement>("[data-vision-timeline]");
+
+  if (!timeline) {
+    return;
+  }
+
+  let radiantCount = 0;
+  let direCount = 0;
+
+  timeline.querySelectorAll<HTMLElement>("[data-ward-marker]").forEach((marker) => {
+    const start = Number(marker.dataset.start);
+    const end = Number(marker.dataset.end);
+    const active = Number.isFinite(start) && Number.isFinite(end) && start <= selectedSecond && selectedSecond <= end;
+    const activeText = active ? "true" : "false";
+
+    if (marker.dataset.active !== activeText) {
+      marker.dataset.active = activeText;
+      marker.classList.toggle("active", active);
+    }
+
+    if (active && marker.dataset.side === "radiant") {
+      radiantCount += 1;
+    }
+
+    if (active && marker.dataset.side === "dire") {
+      direCount += 1;
+    }
+  });
+
+  const totalCount = radiantCount + direCount;
+  const radiantCounter = timeline.querySelector<HTMLElement>("[data-vision-radiant-count]");
+  const direCounter = timeline.querySelector<HTMLElement>("[data-vision-dire-count]");
+  const clock = timeline.querySelector<HTMLElement>("[data-vision-clock]");
+  const totalCounter = timeline.querySelector<HTMLElement>("[data-vision-total-count]");
+
+  if (radiantCounter) {
+    radiantCounter.textContent = `天辉 ${radiantCount}`;
+  }
+
+  if (direCounter) {
+    direCounter.textContent = `夜魇 ${direCount}`;
+  }
+
+  if (clock) {
+    clock.textContent = formatWardClock(selectedSecond);
+  }
+
+  if (totalCounter) {
+    totalCounter.textContent = `${totalCount} 个有效眼位`;
+  }
+}
+
 function render(): void {
   document.title = `MRJZ H5 - ${routeLabel(appState.route)}`;
   root!.innerHTML = `
@@ -108,10 +510,63 @@ function render(): void {
       <main class="view" aria-live="polite">
         ${renderCurrentRoute()}
       </main>
-      ${renderBottomNav()}
       <button class="back-top" type="button" data-top aria-label="回到顶部">↑</button>
     </div>
   `;
+}
+
+function navigateTo(route: AppRoute, options: { replace?: boolean; scroll?: boolean } = {}): void {
+  if (route === appState.route) {
+    render();
+    if (options.scroll !== false) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    return;
+  }
+
+  if (!options.replace) {
+    appState.routeHistory.push(appState.route);
+  }
+
+  appState.route = route;
+  const nextHash = `#${route}`;
+
+  if (options.replace) {
+    window.history.replaceState(null, "", nextHash);
+  } else {
+    window.history.pushState(null, "", nextHash);
+  }
+
+  render();
+
+  if (options.scroll !== false) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
+function goBack(): void {
+  const previousRoute = appState.routeHistory.pop();
+
+  if (previousRoute) {
+    navigateTo(previousRoute, { replace: true });
+    return;
+  }
+
+  if (appState.route !== "home") {
+    navigateTo("home", { replace: true });
+  }
+}
+
+async function refreshData(tournamentId = appState.selectedTournamentId ?? undefined): Promise<void> {
+  try {
+    appState.data = await loadMobileData(tournamentId);
+    appState.selectedTournamentId = appState.data.selectedTournamentId;
+  } catch (error) {
+    console.error(error);
+  } finally {
+    appState.loading = false;
+    render();
+  }
 }
 
 function renderCurrentRoute(): string {
@@ -122,30 +577,29 @@ function renderCurrentRoute(): string {
       return renderStagePage();
     case "schedule":
       return renderSchedulePage();
+    case "records":
+      return renderRecordsPage();
     case "match":
-      return renderMatchDetail(featuredMatch);
+      return renderMatchDetail(currentData().featuredMatch);
     case "tags":
       return renderTagsPage();
   }
 }
 
 function renderAppBar(): string {
+  const data = currentData();
   return `
     <header class="app-bar">
-      <div class="status-line">
-        <span>MRJZ Mobile Web</span>
-        <span>公开分享原型</span>
-      </div>
       <div class="title-line">
-        <button class="icon-button" type="button" data-route="home" aria-label="返回首页">‹</button>
+        <button class="icon-button" type="button" data-back aria-label="返回上一页">‹</button>
         <div>
-          <p class="eyebrow">${escapeHtml(activeRoute().kicker)}</p>
+          <p class="eyebrow">${escapeHtml(data.selectedTournamentName)} · League ${escapeHtml(data.selectedTournamentMeta.leagueId)}</p>
           <h1>${escapeHtml(routeLabel(appState.route))}</h1>
         </div>
-        <button class="icon-button share-button" type="button" data-route="match" aria-label="分享战报">↗</button>
+        <span class="appbar-spacer" aria-hidden="true"></span>
       </div>
       <nav class="route-tabs" aria-label="主导航">
-        ${routeOptions
+        ${primaryNavRoutes
           .map(
             (route) => `
               <button
@@ -163,48 +617,47 @@ function renderAppBar(): string {
   `;
 }
 
-function renderBottomNav(): string {
-  return `
-    <nav class="bottom-nav" aria-label="底部导航">
-      ${routeOptions
-        .filter((route) => route.key !== "home")
-        .map(
-          (route) => `
-            <button
-              type="button"
-              class="${route.key === appState.route ? "active" : ""}"
-              data-route="${route.key}"
-            >
-              <span>${escapeHtml(route.kicker)}</span>
-              <b>${escapeHtml(route.label.replace("比赛", ""))}</b>
-            </button>
-          `,
-        )
-        .join("")}
-    </nav>
-  `;
-}
-
 function renderHome(): string {
-  const nextMatch = scheduleGroups[0]?.matches[0];
-  const recentMatch = scheduleGroups[1]?.matches[0];
+  const data = currentData();
+  const meta = data.selectedTournamentMeta;
+  const nextMatch = data.scheduleGroups.flatMap((group) => group.matches).find((match) => match.status !== "已完赛");
+  const recentRecord = data.matchRecords[0];
 
   return `
-    <section class="hero-card dense-section">
+    ${renderDataNotice()}
+    <section class="hero-card dense-section lifecycle-${escapeHtml(meta.status)}">
       <div>
-        <p class="eyebrow">MRJZ 春季杯 S1</p>
-        <h2>公开赛程与长战报 H5</h2>
-        <p class="muted">手机浏览器、微信、QQ 分享链接都能落地查看，复杂写入仍交给 Web Admin。</p>
+        <p class="eyebrow">MRJZ Dota 2 Community</p>
+        <h2>${escapeHtml(data.selectedTournamentName)}</h2>
+        <p class="muted">${escapeHtml(meta.statusText)}${meta.status === "upcoming" ? ` · 开赛 ${escapeHtml(meta.startsAt)}` : ""}</p>
+        <div class="lifecycle-strip">
+          ${renderLifecycleStep("upcoming", "预告", meta.status)}
+          ${renderLifecycleStep("running", "进行中", meta.status)}
+          ${renderLifecycleStep("completed", "已完赛", meta.status)}
+        </div>
       </div>
       <div class="hero-score">
-        <span>${featuredMatch.radiant.shortName}</span>
-        <b>${featuredMatch.radiantScore}:${featuredMatch.direScore}</b>
-        <span>${featuredMatch.dire.shortName}</span>
+        <span>League ${escapeHtml(meta.leagueId)}</span>
+        <b>${data.featuredMatch.radiantScore}:${data.featuredMatch.direScore}</b>
+        <span>${escapeHtml(data.featuredMatch.radiant.shortName)} / ${escapeHtml(data.featuredMatch.dire.shortName)}</span>
+      </div>
+    </section>
+
+    <section class="section-panel">
+      <div class="section-title compact">
+        <div>
+          <p class="eyebrow">Seasons</p>
+          <h2>赛事入口</h2>
+        </div>
+        <span class="tiny-meta">点击查看对应届数的比赛记录</span>
+      </div>
+      <div class="season-result-grid">
+        ${data.tournamentOptions.map((option) => renderSeasonResultEntry(option, data.tournamentRecentRecords[option.id] ?? [])).join("")}
       </div>
     </section>
 
     <section class="metric-grid" aria-label="赛事概览">
-      ${tournamentStats.map(renderMetric).join("")}
+      ${data.tournamentStats.length > 0 ? data.tournamentStats.map(renderMetric).join("") : renderEmptyState("暂无真实赛事统计")}
     </section>
 
     <section class="section-panel">
@@ -226,22 +679,20 @@ function renderHome(): string {
         </div>
         <button class="link-button" type="button" data-route="match">打开战报</button>
       </div>
-      ${recentMatch ? renderScheduleCard(recentMatch) : renderEmptyState("暂无已完赛比赛")}
-    </section>
-
-    <section class="quick-grid">
-      ${renderQuickEntry("stage", "赛事地图", "积分榜、轮次、Bracket 缩略图")}
-      ${renderQuickEntry("match", "长战报", "10 名玩家、BP、眼位、聊天")}
-      ${renderQuickEntry("tags", "标签云", "选手与队伍社区印象")}
-      ${renderQuickEntry("schedule", "时间表", "日期分组与状态筛选")}
+      ${
+        recentRecord
+          ? renderMatchRecordCard(recentRecord)
+          : renderEmptyState("暂无已完赛比赛")
+      }
     </section>
   `;
 }
 
 function renderStagePage(): string {
-  const currentStage = stageViews[appState.stage];
+  const currentStage = currentData().stageViews[appState.stage];
 
   return `
+    ${renderDataNotice()}
     <section class="stage-switch section-panel">
       <div class="section-title compact">
         <div>
@@ -285,7 +736,7 @@ function renderStagePage(): string {
         <span class="tiny-meta">不在前端计算晋级</span>
       </div>
       <div class="standing-list">
-        ${currentStage.standings.map(renderStandingRow).join("")}
+        ${currentStage.standings.length > 0 ? currentStage.standings.map(renderStandingRow).join("") : renderEmptyState("该阶段暂无后端积分榜")}
       </div>
     </section>
 
@@ -297,18 +748,7 @@ function renderStagePage(): string {
         </div>
         <span class="status-tag blue">${escapeHtml(currentStage.currentRound)}</span>
       </div>
-      <div class="round-board">
-        <div>
-          <span>20:30</span>
-          <b>死亡之拳 vs 天辉老中医</b>
-          <small>BO3 · 配对草稿</small>
-        </div>
-        <div>
-          <span>22:00</span>
-          <b>Roshan Snack vs 高地不掉队</b>
-          <small>BO2 · 待补录赛果</small>
-        </div>
-      </div>
+      ${renderEmptyState("暂无管理员录入的真实轮次赛程")}
     </section>
 
     <section class="section-panel">
@@ -317,15 +757,17 @@ function renderStagePage(): string {
           <p class="eyebrow">Bracket</p>
           <h2>淘汰赛缩略图</h2>
         </div>
-        <span class="tiny-meta">移动端纵向预览</span>
+        <span class="tiny-meta">真实节点</span>
       </div>
-      ${renderBracketMini(appState.stage)}
+      ${renderEmptyState("暂无管理员录入的真实淘汰赛节点")}
     </section>
   `;
 }
 
 function renderSchedulePage(): string {
+  const groups = currentData().scheduleGroups;
   return `
+    ${renderDataNotice()}
     <section class="section-panel">
       <div class="section-title compact">
         <div>
@@ -342,7 +784,7 @@ function renderSchedulePage(): string {
         <span class="filter">延期</span>
       </div>
     </section>
-    ${scheduleGroups
+    ${groups
       .map(
         (group) => `
           <section class="section-panel schedule-group">
@@ -360,129 +802,153 @@ function renderSchedulePage(): string {
   `;
 }
 
+function renderRecordsPage(): string {
+  const records = currentData().matchRecords;
+
+  return `
+    ${renderDataNotice()}
+    <section class="section-panel">
+      <div class="section-title compact">
+        <div>
+          <p class="eyebrow">OpenDota Archive</p>
+          <h2>比赛记录</h2>
+        </div>
+        <span class="sync-pill">${records.length} 场</span>
+      </div>
+      <div class="filter-row">
+        <span class="filter active">全部</span>
+        <span class="filter">已解析</span>
+        <span class="filter">BP</span>
+        <span class="filter">眼位</span>
+        <span class="filter">聊天</span>
+      </div>
+    </section>
+    <section class="records-list">
+      ${records.length > 0 ? records.map(renderMatchRecordCard).join("") : renderEmptyState("暂无已同步比赛记录")}
+    </section>
+  `;
+}
+
 function renderMatchDetail(match: MatchData): string {
   const mvp = match.players.find((player) => player.id === match.mvpPlayerId);
   const radiantPlayers = match.players.filter((player) => player.side === "radiant");
   const direPlayers = match.players.filter((player) => player.side === "dire");
 
   return `
+    ${renderDataNotice()}
     ${renderMatchSummary(match)}
     ${mvp ? renderMvpCard(mvp, match) : ""}
+    ${renderMatchQuickStats(match)}
 
-    <section class="section-panel">
+    <section class="section-panel player-section">
       <div class="section-title compact">
         <div>
           <p class="eyebrow">Players</p>
-          <h2>双方选手数据</h2>
+          <h2>双方数据</h2>
         </div>
-        <span class="tiny-meta">点选展开加点与高级数据</span>
+        <span class="tiny-meta">装备 / 技能 / KDA</span>
       </div>
       ${renderTeamPanel("radiant", radiantPlayers, match)}
       ${renderTeamPanel("dire", direPlayers, match)}
     </section>
 
-    <section class="section-panel">
-      <div class="section-title compact">
-        <div>
-          <p class="eyebrow">Aghanim</p>
-          <h2>神杖与魔晶状态</h2>
-        </div>
-        <span class="tiny-meta">图示占位</span>
-      </div>
-      <div class="agha-board">
-        ${match.players.map(renderAghanimStatus).join("")}
-      </div>
-    </section>
-
-    <section class="section-panel">
-      <div class="section-title compact">
-        <div>
-          <p class="eyebrow">Draft</p>
-          <h2>Ban / Pick 顺序</h2>
-        </div>
-        <span class="tiny-meta">按 order 升序</span>
-      </div>
-      ${renderDraftTimeline(match.draft)}
-      <div class="empty-state subtle">无 BP 降级态：该比赛暂未解析 Ban/Pick 时，本模块保留位置并显示空状态。</div>
-    </section>
+    ${match.draft.length > 0 ? renderDraftSection(match) : ""}
 
     <section class="section-panel">
       <div class="section-title compact">
         <div>
           <p class="eyebrow">Vision</p>
-          <h2>眼位时间轴</h2>
+          <h2>视野地图</h2>
         </div>
-        <span class="tiny-meta">MVP 先做关键节点</span>
+        <span class="tiny-meta">${match.wardTimeline.length} 条</span>
       </div>
-      ${renderWardTimeline(match)}
+      ${match.wardTimeline.length > 0 ? renderWardTimeline(match) : renderEmptyState("该比赛暂无眼位时间轴")}
     </section>
 
     <section class="section-panel">
       <div class="section-title compact">
         <div>
           <p class="eyebrow">Trend</p>
-          <h2>经济 / 经验趋势</h2>
+          <h2>战况趋势</h2>
         </div>
-        <span class="status-tag green">占位图</span>
+        <span class="status-tag ${match.trends.hasTrends ? "green" : ""}">
+          ${match.trends.hasTrends ? "真实曲线" : "暂无数据"}
+        </span>
       </div>
-      ${renderTrendPlaceholder()}
+      ${renderTrendSection(match)}
     </section>
 
-    <section class="section-panel">
+    <section class="section-panel chat-section">
       <div class="section-title compact">
         <div>
           <p class="eyebrow">Chat</p>
-          <h2>全局聊天记录</h2>
+          <h2>聊天记录</h2>
         </div>
         <span class="tiny-meta">公开聊天</span>
       </div>
       <div class="chat-list">
-        ${match.chat.map(renderChatLine).join("")}
+        ${match.chat.length > 0 ? match.chat.map(renderChatLine).join("") : renderEmptyState("该比赛暂无公开聊天")}
       </div>
     </section>
+  `;
+}
 
-    <section class="section-panel tag-entry">
-      <div>
-        <p class="eyebrow">Community Tags</p>
-        <h2>标签云入口</h2>
-        <p class="muted">战报读完后进入选手与队伍标签预览，只读展示点赞热度。</p>
-      </div>
-      <button class="primary-button" type="button" data-route="tags">查看标签</button>
+function renderMatchQuickStats(match: MatchData): string {
+  const radiantKills = match.players
+    .filter((player) => player.side === "radiant")
+    .reduce((sum, player) => sum + player.kills, 0);
+  const direKills = match.players
+    .filter((player) => player.side === "dire")
+    .reduce((sum, player) => sum + player.kills, 0);
+
+  return `
+    <section class="match-ribbon">
+      <span class="match-ribbon-stat duration"><b>${escapeHtml(match.duration)}</b>时长</span>
+      <span class="match-ribbon-stat kill-score">
+        <small>击杀</small>
+        <b>
+          <i class="radiant-score">${radiantKills}</i>
+          <em>:</em>
+          <i class="dire-score">${direKills}</i>
+        </b>
+      </span>
     </section>
   `;
 }
 
 function renderTagsPage(): string {
+  const match = currentData().featuredMatch;
+  const playerA = match.players.find((player) => player.id === match.mvpPlayerId) ?? match.players[0];
+  const playerB = match.players.find((player) => player.side !== playerA?.side) ?? match.players[5] ?? match.players[0];
+
   return `
     <section class="section-panel">
       <div class="section-title compact">
         <div>
           <p class="eyebrow">Players</p>
-          <h2>选手标签预览</h2>
+          <h2>选手标签</h2>
         </div>
-        <span class="sync-pill">只读</span>
+        <span class="sync-pill">真实数据</span>
       </div>
-      <div class="tag-cloud">
-        ${playerTags.map((tag) => renderTag(tag.label, tag.votes, tag.target)).join("")}
-      </div>
+      ${renderEmptyState("暂无真实选手标签。后续接入登录后允许用户添加和点赞。")}
     </section>
 
     <section class="section-panel">
       <div class="section-title compact">
         <div>
           <p class="eyebrow">Teams</p>
-          <h2>队伍标签预览</h2>
+          <h2>队伍标签</h2>
         </div>
-        <span class="sync-pill">社区印象</span>
+        <span class="sync-pill">真实数据</span>
       </div>
-      <div class="tag-cloud">
-        ${teamTags.map((tag) => renderTag(tag.label, tag.votes, tag.target)).join("")}
-      </div>
+      ${renderEmptyState("暂无真实队伍标签。后续由用户互动产生。")}
     </section>
 
     <section class="profile-preview-grid">
-      ${renderProfilePreview("River.Mid", "风行者", "死亡之拳", "88% 参战率 · 48.7k 输出", playerTags.slice(0, 3).map((tag) => tag.label))}
-      ${renderProfilePreview("死亡之拳", "战队", "A 组 3-0", "控盾 4 次 · 场均 34.7 击杀", teamTags.slice(0, 2).map((tag) => tag.label))}
+      ${playerA ? renderProfilePreview(`player:${playerA.id}`, playerA.name, playerA.hero, getTeam(match, playerA.side).name, `${playerA.participation} 参战 · ${playerA.heroDamage} 输出`, []) : ""}
+      ${playerB ? renderProfilePreview(`player:${playerB.id}`, playerB.name, playerB.hero, getTeam(match, playerB.side).name, `${playerB.participation} 参战 · ${playerB.heroDamage} 输出`, []) : ""}
+      ${match.players.length > 0 ? renderProfilePreview(`team:${match.radiant.name}`, match.radiant.name, "战队", "天辉侧", `${match.radiantScore} 击杀 · ${match.winner === "radiant" ? "本局胜方" : "本局负方"}`, []) : ""}
+      ${match.players.length > 0 ? renderProfilePreview(`team:${match.dire.name}`, match.dire.name, "战队", "夜魇侧", `${match.direScore} 击杀 · ${match.winner === "dire" ? "本局胜方" : "本局负方"}`, []) : ""}
     </section>
   `;
 }
@@ -497,13 +963,61 @@ function renderMetric(metric: { label: string; value: string; hint: string }): s
   `;
 }
 
-function renderQuickEntry(route: AppRoute, title: string, note: string): string {
+function renderSeasonResultEntry(option: MobileData["tournamentOptions"][number], records: MatchRecord[]): string {
+  const active = currentData().selectedTournamentId === option.id;
+  const latest = records[0];
+  const score =
+    latest === undefined || latest.radiantScore === null || latest.direScore === null
+      ? "暂无赛果"
+      : `${latest.radiantScore}:${latest.direScore}`;
+
   return `
-    <button class="quick-entry" type="button" data-route="${route}">
-      <b>${escapeHtml(title)}</b>
-      <span>${escapeHtml(note)}</span>
-    </button>
+    <article class="season-entry ${active ? "active" : ""}">
+      <button class="season-main" type="button" data-tournament="${escapeHtml(option.id)}" data-target-route="records">
+        <div>
+          <p class="eyebrow">League ${escapeHtml(option.leagueId)}</p>
+          <h3>${escapeHtml(option.name)}</h3>
+          <span>${escapeHtml(lifecycleLabel(option.status))} · ${escapeHtml(option.startsAt)}</span>
+        </div>
+        <strong>${escapeHtml(score)}</strong>
+      </button>
+      <div class="season-records">
+        ${
+          records.length > 0
+            ? records
+                .map(
+                  (record) => `
+                    <button type="button" data-match-id="${escapeHtml(record.matchId)}">
+                      <span>${escapeHtml(record.radiantTeamName)}</span>
+                      <b>${escapeHtml(record.radiantScore === null || record.direScore === null ? "-:-" : `${record.radiantScore}:${record.direScore}`)}</b>
+                      <span>${escapeHtml(record.direTeamName)}</span>
+                    </button>
+                  `,
+                )
+                .join("")
+            : renderEmptyState("暂无已落库比赛")
+        }
+      </div>
+    </article>
   `;
+}
+
+function renderLifecycleStep(step: "upcoming" | "running" | "completed", label: string, activeStatus: string): string {
+  const order = ["upcoming", "running", "completed"];
+  const activeIndex = order.indexOf(activeStatus);
+  const stepIndex = order.indexOf(step);
+  const active = activeStatus === step;
+  const done = activeIndex > stepIndex || activeStatus === "completed";
+
+  return `<span class="${active ? "active" : done ? "done" : ""}">${escapeHtml(label)}</span>`;
+}
+
+function renderDataNotice(): string {
+  const data = currentData();
+  const loadingText = appState.loading ? "正在读取公开 API..." : "";
+  const text = loadingText || data.notice;
+
+  return text ? `<section class="api-notice">${escapeHtml(text)}</section>` : "";
 }
 
 function renderScheduleCard(match: {
@@ -518,6 +1032,9 @@ function renderScheduleCard(match: {
   matchId?: string;
 }): string {
   const isFinished = match.status === "已完赛";
+  const matchAction = match.matchId
+    ? `<button class="link-button" type="button" data-match-id="${escapeHtml(match.matchId)}">打开战报</button>`
+    : `<small>等待后台确认</small>`;
   return `
     <article class="schedule-card ${isFinished ? "finished" : ""}">
       <div class="schedule-time">
@@ -531,10 +1048,46 @@ function renderScheduleCard(match: {
       </div>
       <div class="schedule-meta">
         <span class="status-tag ${statusClass(match.status)}">${escapeHtml(match.status)}</span>
-        <small>${escapeHtml(match.matchId ? `match ${match.matchId}` : "等待后台确认")}</small>
+        ${matchAction}
       </div>
     </article>
   `;
+}
+
+function renderMatchRecordCard(record: MatchRecord): string {
+  const score =
+    record.radiantScore === null || record.direScore === null ? "- : -" : `${record.radiantScore} : ${record.direScore}`;
+  const winnerClass = record.radiantWin === null ? "" : record.radiantWin ? "radiant-win" : "dire-win";
+
+  return `
+    <article class="record-card ${winnerClass}">
+      <button class="record-main" type="button" data-match-id="${escapeHtml(record.matchId)}">
+        <div class="record-head">
+          <span>#${escapeHtml(record.matchId)}</span>
+          <b>${escapeHtml(record.startTime)}</b>
+        </div>
+        <div class="record-score">
+          <span>${escapeHtml(record.radiantTeamName)}</span>
+          <strong>${escapeHtml(score)}</strong>
+          <span>${escapeHtml(record.direTeamName)}</span>
+        </div>
+        <div class="record-meta">
+          <span>${escapeHtml(record.duration)}</span>
+          <span>${escapeHtml(record.parseStatus)}</span>
+          <span>${record.playerCount} 人</span>
+        </div>
+        <div class="record-flags">
+          ${renderRecordFlag("BP", record.hasDraft)}
+          ${renderRecordFlag("眼位", record.hasVision)}
+          ${renderRecordFlag("聊天", record.hasChat)}
+        </div>
+      </button>
+    </article>
+  `;
+}
+
+function renderRecordFlag(label: string, active: boolean): string {
+  return `<span class="${active ? "active" : ""}">${escapeHtml(label)}</span>`;
 }
 
 function renderStandingRow(row: {
@@ -558,43 +1111,15 @@ function renderStandingRow(row: {
   `;
 }
 
-function renderBracketMini(stage: StageKey): string {
-  const finalName = stage === "knockout" ? "总决赛" : "Final Seed";
-  return `
-    <div class="bracket-mini">
-      <div class="bracket-column">
-        ${renderBracketNode("死亡之拳", "Upper Seed 1")}
-        ${renderBracketNode("夜魇补刀学院", "Lower R1")}
-      </div>
-      <div class="bracket-rail">
-        <span></span>
-        <span></span>
-      </div>
-      <div class="bracket-column">
-        ${renderBracketNode("天辉老中医", "Upper Seed 2")}
-        ${renderBracketNode("肉山研究所", finalName)}
-      </div>
-    </div>
-  `;
-}
-
-function renderBracketNode(team: string, note: string): string {
-  return `
-    <div class="bracket-node">
-      <b>${escapeHtml(team)}</b>
-      <span>${escapeHtml(note)}</span>
-    </div>
-  `;
-}
-
 function renderMatchSummary(match: MatchData): string {
   const winner = match.winner === "radiant" ? match.radiant : match.dire;
   return `
-    <section class="match-summary">
+    <section class="match-summary battle-summary">
       <div class="summary-meta">
-        <span>${escapeHtml(match.league)}</span>
-        <span>${escapeHtml(match.series)}</span>
+        <span>比赛编号 ${escapeHtml(match.id)}</span>
+        <span>${escapeHtml(match.endedAt)}</span>
       </div>
+      <p class="victory-label">${escapeHtml(winner.name)} 胜利</p>
       <div class="scoreboard">
         <div class="team-side radiant">
           <span>${escapeHtml(match.radiant.seed)}</span>
@@ -602,7 +1127,7 @@ function renderMatchSummary(match: MatchData): string {
           <small>天辉</small>
         </div>
         <div class="score-core">
-          <p>${escapeHtml(winner.name)} 胜利</p>
+          <p>${escapeHtml(match.league)}</p>
           <strong>${match.radiantScore}<i>:</i>${match.direScore}</strong>
           <span>${escapeHtml(match.duration)} · ${escapeHtml(match.mode)}</span>
         </div>
@@ -612,11 +1137,6 @@ function renderMatchSummary(match: MatchData): string {
           <small>夜魇</small>
         </div>
       </div>
-      <div class="match-meta-grid">
-        <span>match_id <b>${escapeHtml(match.id)}</b></span>
-        <span>结束 <b>${escapeHtml(match.endedAt)}</b></span>
-        <span>解析 <b>${escapeHtml(match.parseStatus)}</b></span>
-      </div>
     </section>
   `;
 }
@@ -624,7 +1144,7 @@ function renderMatchSummary(match: MatchData): string {
 function renderMvpCard(player: PlayerStats, match: MatchData): string {
   const team = getTeam(match, player.side);
   return `
-    <section class="mvp-card">
+    <section class="mvp-card ${player.side}">
       <div class="mvp-copy">
         <p class="eyebrow">MVP</p>
         <h2>${escapeHtml(player.name)}</h2>
@@ -638,58 +1158,63 @@ function renderMvpCard(player: PlayerStats, match: MatchData): string {
           ${player.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
         </div>
       </div>
-      <img class="mvp-portrait" src="${escapeHtml(player.portrait)}" alt="${escapeHtml(player.hero)}" />
+      <div class="mvp-visual">
+        <img class="mvp-portrait" src="${escapeHtml(player.portrait)}" alt="${escapeHtml(player.hero)}" />
+        <span>MVP</span>
+      </div>
     </section>
   `;
 }
 
 function renderTeamPanel(side: TeamSide, players: PlayerStats[], match: MatchData): string {
   const team = getTeam(match, side);
+  const kills = players.reduce((sum, player) => sum + player.kills, 0);
+  const isWinner = match.winner === side;
   return `
     <div class="team-panel ${side}">
       <div class="team-panel-head">
-        <span>${side === "radiant" ? "天辉" : "夜魇"}</span>
-        <b>${escapeHtml(team.name)}</b>
-        <small>${escapeHtml(team.seed)}</small>
+        <div>
+          <span>${side === "radiant" ? "天辉" : "夜魇"} ${isWinner ? "胜利" : "失败"}</span>
+          <b>${escapeHtml(team.name)}</b>
+        </div>
+        <small>杀敌 ${kills}</small>
       </div>
       <div class="player-list">
-        ${players.map(renderPlayerRow).join("")}
+        ${players.map((player) => renderPlayerRow(player, match.mvpPlayerId)).join("")}
       </div>
     </div>
   `;
 }
 
-function renderPlayerRow(player: PlayerStats): string {
+function renderPlayerRow(player: PlayerStats, mvpPlayerId?: string): string {
   const expanded = appState.expandedPlayers.has(player.id);
+  const abilitySteps = player.abilityOrder.filter((ability) => ability.kind === "ability");
+  const isMvp = player.id === mvpPlayerId;
+
   return `
-    <article class="player-row ${player.side} ${expanded ? "expanded" : ""}">
-      <button type="button" class="player-main" data-player="${escapeHtml(player.id)}" aria-expanded="${expanded ? "true" : "false"}">
-        <img class="hero-avatar" src="${escapeHtml(player.portrait)}" alt="${escapeHtml(player.hero)}" />
+    <article class="player-row ${player.side} ${expanded ? "expanded" : ""} ${isMvp ? "mvp-player" : ""}" data-player="${escapeHtml(player.id)}" role="button" aria-expanded="${expanded ? "true" : "false"}" tabindex="0">
+      <div class="player-main">
+        ${isMvp ? `<span class="player-mvp-badge">MVP</span>` : ""}
+        <span class="hero-avatar-shell">
+          <img class="hero-avatar" src="${escapeHtml(player.portrait)}" alt="${escapeHtml(player.hero)}" />
+          <i>${player.level}</i>
+        </span>
         <div class="player-id">
-          <div>
-            <b>${escapeHtml(player.name)}</b>
-            <span>Lv.${player.level} · ${escapeHtml(player.hero)} · ${escapeHtml(player.role)}</span>
-          </div>
-          <div class="ability-mini" aria-label="技能加点顺序预览">
-            ${player.abilityOrder
-              .slice(0, 8)
-              .map((ability, index) => `<span title="${escapeHtml(ability)}">${index + 1}</span>`)
-              .join("")}
+          <b>${escapeHtml(player.name)}</b>
+          <span>${escapeHtml(player.hero)}</span>
+          <div class="player-chips">
+            <em>${escapeHtml(player.lane)}</em>
+            <span class="player-mini-metrics">
+              <small>参战 ${escapeHtml(player.participation)}</small>
+              <small>伤害 ${escapeHtml(player.damageShare)}</small>
+            </span>
           </div>
         </div>
         <div class="player-kda">
           <b>${player.kills}/${player.deaths}/${player.assists}</b>
-          <span>${escapeHtml(player.participation)}</span>
+          <span>KDA ${escapeHtml(kdaRatio(player))}</span>
         </div>
-      </button>
-      <div class="player-tools">
-        <div class="item-grid">
-          ${player.items.map(renderItemChip).join("")}
-        </div>
-        <div class="agha-icons">
-          ${renderAghanimIcon("杖", player.scepter)}
-          ${renderAghanimIcon("晶", player.shard)}
-        </div>
+        ${renderPlayerLoadout(player)}
       </div>
       ${
         expanded
@@ -706,11 +1231,8 @@ function renderPlayerRow(player: PlayerStats): string {
                 ${renderAdvancedMetric("承伤", player.damageTaken)}
               </div>
               <div class="ability-order">
-                ${player.abilityOrder
-                  .map((ability, index) => `<span><b>${index + 1}</b>${escapeHtml(ability)}</span>`)
-                  .join("")}
+                ${abilitySteps.length > 0 ? abilitySteps.map((ability, index) => renderAbilityStep(ability, index)).join("") : renderEmptyState("暂无普通技能加点")}
               </div>
-              <p class="tiny-meta">分路 ${escapeHtml(player.lane)} · 中立 ${escapeHtml(player.neutralItem)}</p>
             </div>
           `
           : ""
@@ -719,8 +1241,55 @@ function renderPlayerRow(player: PlayerStats): string {
   `;
 }
 
-function renderItemChip(item: string): string {
-  return `<span class="item-chip" title="${escapeHtml(item)}">${escapeHtml(item.slice(0, 2))}</span>`;
+function renderPlayerLoadout(player: PlayerStats): string {
+  const itemSlots = Array.from({ length: 6 }, (_, index) => player.items[index] ?? { label: "-", imageUrl: "" });
+  const backpackSlots = Array.from(
+    { length: 3 },
+    (_, index) => player.backpackItems[index] ?? { label: "-", imageUrl: "" },
+  );
+
+  return `
+    <div class="player-loadout">
+      <div class="inventory-stack">
+        <div class="inventory-grid" aria-label="六格物品栏">
+          ${itemSlots.map((item, index) => renderItemSlot(item, index + 1)).join("")}
+        </div>
+        <div class="backpack-grid" aria-label="背包物品栏">
+          ${backpackSlots.map((item) => renderItemSlot(item, "backpack")).join("")}
+        </div>
+      </div>
+      ${renderItemSlot(player.neutralItem, "neutral")}
+      <div class="agha-status-row">
+        ${renderAghanimIcon("神杖", player.scepter)}
+        ${renderAghanimIcon("魔精", player.shard)}
+      </div>
+      ${renderTalentTreeLegend(player)}
+    </div>
+  `;
+}
+
+function renderAbilityStep(ability: PlayerStats["abilityOrder"][number], index: number): string {
+  const level = ability.level ?? index + 1;
+  const kind = ability.kind ?? "ability";
+  const image = ability.imageUrl
+    ? `<img src="${escapeHtml(ability.imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('fallback'); this.remove();" />`
+    : "";
+  const fallback = image ? "" : renderAbilityFallbackGlyph(kind);
+
+  return `<span class="ability-step ${kind} ${image ? "" : "fallback"}" title="${escapeHtml(`${level}. ${ability.label}`)}">${image}${fallback}<b>${level}</b></span>`;
+}
+
+function renderItemSlot(item: PlayerStats["items"][number], slot: number | "neutral" | "backpack"): string {
+  const empty = item.label === "-" || item.label === "空";
+  const image = item.imageUrl
+    ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('empty'); this.remove();" />`
+    : "";
+
+  return `
+    <span class="item-slot ${slot === "neutral" ? "neutral" : ""} ${slot === "backpack" ? "backpack" : ""} ${empty ? "empty" : ""}" title="${escapeHtml(item.label)}">
+      ${image}
+    </span>
+  `;
 }
 
 function renderAdvancedMetric(label: string, value: string): string {
@@ -732,22 +1301,176 @@ function renderAdvancedMetric(label: string, value: string): string {
   `;
 }
 
-function renderAghanimStatus(player: PlayerStats): string {
+function renderAghanimIcon(label: string, state: AghanimState): string {
+  const title = state === "owned" ? "已拥有" : state === "queued" ? "待购买" : "未购买";
+  const type = label.includes("晶") || label.includes("精") ? "shard" : "scepter";
+  const filename = `${type}${state === "owned" ? "On" : "Off"}.svg`;
+
+  return `<img class="agha-icon ${type} ${state}" src="/static/svg/${filename}" alt="${escapeHtml(label)}" title="${escapeHtml(`${label} ${title}`)}" loading="lazy" decoding="async" />`;
+}
+
+function kdaRatio(player: PlayerStats): string {
+  if (player.deaths === 0) {
+    return String(player.kills + player.assists);
+  }
+
+  return ((player.kills + player.assists) / player.deaths).toFixed(1);
+}
+
+function renderTalentTreeLegend(player: PlayerStats): string {
+  const pickedCount = player.talentTree.filter((node) => node.picked).length;
+  const title = pickedCount > 0 ? `天赋树 已选择 ${pickedCount}/8` : "天赋树 暂无可识别选择";
+
   return `
-    <div class="agha-row ${player.side}">
-      <span>${escapeHtml(player.heroShort)}</span>
-      <b>${escapeHtml(player.name)}</b>
-      <div>
-        ${renderAghanimIcon("神杖", player.scepter)}
-        ${renderAghanimIcon("魔晶", player.shard)}
-      </div>
-    </div>
+    <span class="talent-tree-mini" title="${escapeHtml(title)}">
+      ${renderTalentTreeSvg(player)}
+    </span>
   `;
 }
 
-function renderAghanimIcon(label: string, state: AghanimState): string {
-  const title = state === "owned" ? "已拥有" : state === "queued" ? "待购买" : "未购买";
-  return `<span class="agha-icon ${state}" title="${escapeHtml(label)} ${title}">${escapeHtml(label)}</span>`;
+function renderTalentTreeSvg(player: PlayerStats): string {
+  const prefix = `talent-${String(player.id).replace(/[^a-zA-Z0-9_-]/g, "") || "x"}`;
+  const nodes = player.talentTree.length > 0 ? player.talentTree : defaultTalentTreeNodes();
+  const inactiveBranches = nodes.filter((node) => !node.picked).map((node) => renderTalentBranchPath(node, prefix)).join("");
+  const activeBranches = nodes.filter((node) => node.picked).map((node) => renderTalentBranchPath(node, prefix)).join("");
+  const pickedCount = nodes.filter((node) => node.picked).length;
+
+  return `
+    <svg class="talent-tree-svg" viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="${prefix}-copper-left" gradientUnits="userSpaceOnUse" x1="4.68" y1="3.66" x2="35.93" y2="57.79">
+          <stop offset="0.0938" stop-color="rgb(231, 189, 118)"></stop>
+          <stop offset="0.2261" stop-color="rgb(201, 108, 53)"></stop>
+          <stop offset="0.4401" stop-color="rgb(207, 126, 65)"></stop>
+          <stop offset="0.5891" stop-color="rgb(215, 148, 84)"></stop>
+          <stop offset="0.7585" stop-color="rgb(229, 185, 114)"></stop>
+          <stop offset="1" stop-color="rgb(242, 214, 139)"></stop>
+        </linearGradient>
+        <linearGradient id="${prefix}-copper-right" gradientUnits="userSpaceOnUse" x1="-7.88" y1="3.66" x2="23.37" y2="57.79" gradientTransform="matrix(-1 0 0 1 38.4375 0)">
+          <stop offset="0.0938" stop-color="rgb(231, 189, 118)"></stop>
+          <stop offset="0.2261" stop-color="rgb(201, 108, 53)"></stop>
+          <stop offset="0.4401" stop-color="rgb(207, 126, 65)"></stop>
+          <stop offset="0.5891" stop-color="rgb(215, 148, 84)"></stop>
+          <stop offset="0.7585" stop-color="rgb(229, 185, 114)"></stop>
+          <stop offset="1" stop-color="rgb(242, 214, 139)"></stop>
+        </linearGradient>
+        <linearGradient id="${prefix}-copper-dot" gradientUnits="userSpaceOnUse" x1="3" y1="22" x2="27" y2="31">
+          <stop offset="0.1257" stop-color="rgb(231, 189, 118)"></stop>
+          <stop offset="0.3335" stop-color="rgb(204, 117, 59)"></stop>
+          <stop offset="0.8908" stop-color="rgb(201, 109, 52)"></stop>
+          <stop offset="0.9891" stop-color="rgb(229, 185, 114)"></stop>
+        </linearGradient>
+      </defs>
+      <svg viewBox="0 0 51 63" height="23" y="4.45" class="talent-branch-copy" preserveAspectRatio="xMidYMin meet">
+        ${inactiveBranches}
+        ${activeBranches}
+      </svg>
+      ${renderTalentTreeArc(prefix, pickedCount)}
+    </svg>
+  `;
+}
+
+function renderTalentBranchPath(node: PlayerStats["talentTree"][number], prefix: string): string {
+  const path = talentBranchPath(node.tier, node.side);
+  const title = `${node.tier === 1 ? "10" : node.tier === 2 ? "15" : node.tier === 3 ? "20" : "25"}级天赋${
+    node.picked ? " 已选择" : ""
+  }`;
+  const fill = node.picked ? `url(#${prefix}-copper-${node.side})` : "hsl(0,0%,28%)";
+
+  return `<path class="talent-branch ${node.picked ? "picked" : "off"}" fill="${fill}" d="${path}"><title>${escapeHtml(title)}</title></path>`;
+}
+
+function talentBranchPath(
+  tier: PlayerStats["talentTree"][number]["tier"],
+  side: PlayerStats["talentTree"][number]["side"],
+): string {
+  const paths: Record<string, string> = {
+    "1-left":
+      "M0.013,44.716c0,0,6.586,6.584,9.823,6.805c3.236,0.224,7.033,0,7.033,0s7.024,1.732,7.024,7.368V63 l3.195-0.014c0,0,0-3.782,0-5.571c0-6.857-10.053-7.567-10.053-7.567S11.957,41.979,0.013,44.716z",
+    "1-right":
+      "M51,44.716c0,0-6.586,6.584-9.823,6.805c-3.235,0.224-7.032,0-7.032,0s-7.024,1.732-7.024,7.368V63 l-3.195-0.014c0,0,0-3.782,0-5.571c0-6.857,10.052-7.567,10.052-7.567S39.057,41.979,51,44.716z",
+    "2-left":
+      "M0,30.326c0,0,5.744,9.07,9.516,9.495c3.1,0.348,6.542,0.107,8.122,0.262 c3.068,0.301,6.256,1.351,6.256,5.667V63h3.181c0,0,0-17.488,0-18.454c0-0.964-0.006-5.235-7.093-6.584 c-1.207-0.232-3.687-0.281-4.913-0.281C15.068,37.681,10.547,29.951,0,30.326z",
+    "2-right":
+      "M51,30.326c0,0-5.745,9.07-9.517,9.495c-3.1,0.348-6.542,0.107-8.12,0.262 c-3.069,0.301-6.257,1.351-6.257,5.667V63h-3.182c0,0,0-17.488,0-18.454c0-0.964,0.006-5.235,7.093-6.584 c1.208-0.232,3.688-0.281,4.913-0.281C35.931,37.681,40.451,29.951,51,30.326z",
+    "3-left":
+      "M4.031,16.042c0,0,0.669,3.435,2.899,6.315c2.232,2.878,4.147,4.891,6.489,4.891 c2.344,0,6.208-0.01,7.68,0.868c1.837,1.095,2.803,3.213,2.803,5.373c0,0.976,0,29.511,0,29.511h3.173V33.489 c0,0-0.085-3.859-3.102-6.426c-1.651-1.405-2.911-2.141-5.294-2.141c-0.908,0-2.041-0.019-2.041-0.019s-1.785-4.153-5.188-6.203 C8.046,16.651,4.031,16.042,4.031,16.042z",
+    "3-right":
+      "M46.969,16.042c0,0-0.669,3.435-2.898,6.315c-2.232,2.878-4.147,4.891-6.489,4.891 c-2.344,0-6.208-0.01-7.68,0.868c-1.837,1.095-2.803,3.213-2.803,5.373c0,0.976,0,29.511,0,29.511h-3.174V33.489 c0,0,0.086-3.859,3.103-6.426c1.651-1.405,2.911-2.141,5.295-2.141c0.907,0,2.041-0.019,2.041-0.019s1.785-4.153,5.187-6.203 C42.954,16.651,46.969,16.042,46.969,16.042z",
+    "4-left":
+      "M11.033,0c0,0-0.802,7.891,2.625,11.654c3.426,3.761,5.55,2.683,7.765,3.097 c1.969,0.369,2.479,1.772,2.479,3.984c0,2.212,0,44.209,0,44.209h3.101c0,0,0.072-43.305,0.072-44.209 c0-0.905-0.019-4.906-3.792-6.115c-1.592-0.509-2.334-0.376-2.918-2.293C19.782,8.408,17.96,1.99,11.033,0z",
+    "4-right":
+      "M39.967,0c0,0,0.803,7.891-2.625,11.654c-3.426,3.761-5.551,2.683-7.765,3.097 c-1.969,0.369-2.479,1.772-2.479,3.984c0,2.212,0,44.209,0,44.209h-3.101c0,0-0.073-43.305-0.073-44.209 c0-0.905,0.02-4.906,3.793-6.115c1.592-0.509,2.335-0.376,2.917-2.293C31.218,8.408,33.04,1.99,39.967,0z",
+  };
+
+  return paths[`${tier}-${side}`] ?? paths["1-left"]!;
+}
+
+function renderTalentTreeArc(prefix: string, pickedCount: number): string {
+  const activeDots = Math.min(7, Math.max(0, pickedCount));
+  const dots = [
+    "M3.258 23.38c.295-.22.624-.303.992-.238.362.057.651.235.868.536.217.3.298.634.243 1.002-.05.376-.225.67-.52.891a1.24 1.24 0 01-1.002.244 1.275 1.275 0 01-.868-.535 1.315 1.315 0 01-.242-1.002c.05-.377.225-.671.529-.898z",
+    "M6.244 26.987c.215-.301.503-.482.873-.534.361-.06.69.02.988.24.297.218.474.51.532.878.067.374-.012.708-.227 1.01-.221.31-.51.491-.88.544a1.263 1.263 0 01-.987-.24 1.302 1.302 0 01-.533-.879 1.291 1.291 0 01.234-1.019z",
+    "M10.17 29.492c.114-.355.333-.617.669-.783a1.26 1.26 0 011.012-.082c.349.115.607.338.773.669.177.335.204.677.091 1.032a1.27 1.27 0 01-.671.793 1.26 1.26 0 01-1.012.082 1.284 1.284 0 01-.774-.669 1.294 1.294 0 01-.087-1.042z",
+    "M14.684 30.638c0-.373.129-.69.398-.954.258-.264.57-.396.938-.396.366 0 .68.13.938.393.27.262.4.58.4.953.002.383-.127.701-.397.965a1.268 1.268 0 01-.937.396c-.367 0-.68-.13-.939-.393-.27-.263-.4-.58-.4-.964z",
+    "M19.302 30.322a1.287 1.287 0 01.09-1.032c.165-.331.423-.555.771-.67a1.26 1.26 0 011.013.08c.336.166.556.428.67.782.116.365.09.708-.087 1.043a1.284 1.284 0 01-.772.67 1.26 1.26 0 01-1.013-.08 1.27 1.27 0 01-.672-.793z",
+    "M23.614 28.564a1.284 1.284 0 01-.23-1.01c.058-.367.234-.66.53-.88.297-.219.626-.3.988-.241.37.051.659.231.874.532.223.31.302.645.236 1.019-.057.367-.234.66-.53.88-.297.219-.626.3-.988.241a1.252 1.252 0 01-.88-.541z",
+    "M27.184 25.537a1.272 1.272 0 01-.523-.89 1.316 1.316 0 01.24-1.002c.215-.302.504-.48.866-.538.368-.067.697.015.993.234.305.226.481.52.531.896.057.368-.023.702-.239 1.003-.216.301-.505.48-.866.538a1.24 1.24 0 01-1.002-.241z",
+  ];
+
+  return `
+    ${dots
+      .map(
+        (path, index) =>
+          `<path class="talent-arc-dot ${index < activeDots ? "picked" : ""}" fill="${
+            index < activeDots ? `url(#${prefix}-copper-dot)` : "hsla(0,0%,100%,0.12)"
+          }" d="${path}"></path>`,
+      )
+      .join("")}
+    <path class="talent-arc" d="M1.974 21.886a15.733 15.733 0 01-1.307-6.302C.667 6.983 7.537 0 16 0c8.463 0 15.333 6.983 15.333 15.584 0 2.226-.46 4.343-1.288 6.259a3.35 3.35 0 00-.942-.549 14.626 14.626 0 001.152-5.71c0-7.996-6.387-14.488-14.255-14.488-7.867 0-14.255 6.492-14.255 14.488 0 2.042.417 3.986 1.169 5.75a3.36 3.36 0 00-.94.552z"></path>
+  `;
+}
+
+function defaultTalentTreeNodes(): PlayerStats["talentTree"] {
+  return ([4, 3, 2, 1] as const).flatMap((tier) =>
+    (["left", "right"] as const).map((side) => ({
+      tier,
+      side,
+      picked: false,
+      label: "天赋",
+    })),
+  );
+}
+
+function renderAbilityFallbackGlyph(kind: PlayerStats["abilityOrder"][number]["kind"]): string {
+  if (kind === "attribute") {
+    return `
+      <svg class="ability-fallback-svg attribute-glyph" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="12"></circle>
+        <circle cx="16" cy="5" r="2"></circle>
+        <circle cx="24" cy="9" r="2"></circle>
+        <circle cx="27" cy="18" r="2"></circle>
+        <circle cx="20" cy="26" r="2"></circle>
+        <circle cx="10" cy="26" r="2"></circle>
+        <circle cx="5" cy="17" r="2"></circle>
+        <circle cx="8" cy="9" r="2"></circle>
+      </svg>
+    `;
+  }
+
+  return `
+    <svg class="ability-fallback-svg talent-glyph" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M16 29V7"></path>
+      <path d="M16 21C11 21 8 18 6 14"></path>
+      <path d="M16 18c5 0 8-3 10-8"></path>
+      <path d="M16 12c-3 0-5-2-6-6"></path>
+      <path d="M16 10c3 0 5-2 6-6"></path>
+      <circle cx="16" cy="7" r="2.2"></circle>
+      <circle cx="6" cy="14" r="2"></circle>
+      <circle cx="26" cy="10" r="2"></circle>
+      <circle cx="16" cy="29" r="2"></circle>
+    </svg>
+  `;
 }
 
 function renderDraftTimeline(draft: DraftStep[]): string {
@@ -760,67 +1483,324 @@ function renderDraftTimeline(draft: DraftStep[]): string {
       ${draft
         .slice()
         .sort((a, b) => a.order - b.order)
-        .map(
-          (step) => `
-            <div class="draft-step ${step.side} ${step.type.toLowerCase()}">
-              <span class="draft-order">${step.order}</span>
-              <div>
-                <b>${escapeHtml(step.type)} · ${escapeHtml(step.hero)}</b>
-                <small>${escapeHtml(step.actor)}</small>
-              </div>
-            </div>
-          `,
-        )
+        .map(renderDraftStep)
         .join("")}
     </div>
+  `;
+}
+
+function renderDraftStep(step: DraftStep): string {
+  const actionText = step.type === "Ban" ? "禁用" : "选择";
+  const portrait = step.portrait ?? "/static/dota/heroes/unknown.svg";
+
+  return `
+    <div class="draft-step ${step.side} ${step.type.toLowerCase()}">
+      <span class="draft-order">${step.order}</span>
+      <article class="draft-card">
+        <img class="draft-hero" src="${escapeHtml(portrait)}" alt="${escapeHtml(step.hero)}" loading="lazy">
+        <div class="draft-copy">
+          <div>
+            <b>${escapeHtml(step.hero)}</b>
+            <span>${escapeHtml(step.actor)}</span>
+          </div>
+          <em>${escapeHtml(actionText)}</em>
+        </div>
+      </article>
+    </div>
+  `;
+}
+
+function renderDraftSection(match: MatchData): string {
+  return `
+    <section class="section-panel">
+      <div class="section-title compact">
+        <div>
+          <p class="eyebrow">Draft</p>
+          <h2>Ban / Pick 顺序</h2>
+        </div>
+      </div>
+      ${renderDraftTimeline(match.draft)}
+    </section>
   `;
 }
 
 function renderWardTimeline(match: MatchData): string {
+  const mapEvents = match.wardTimeline
+    .filter((event) => event.x !== null && event.y !== null)
+    .slice()
+    .sort((a, b) => a.timeSeconds - b.timeSeconds);
+  const maxSecond = getWardTimelineMaxSecond(match);
+  const selectedSecond = getWardScrubberSecond(match, maxSecond);
+  const selectedProgress = maxSecond > 0 ? (selectedSecond / maxSecond) * 100 : 0;
+  const activeEvents = mapEvents.filter((event) => isWardVisibleAt(event, selectedSecond));
+  const markerEvents = uniqueWardEvents(mapEvents);
+
   return `
-    <div class="vision-map" aria-label="关键眼位小地图占位">
-      <span class="map-dot radiant" style="left: 28%; top: 34%"></span>
-      <span class="map-dot dire" style="left: 63%; top: 28%"></span>
-      <span class="map-dot radiant" style="left: 49%; top: 48%"></span>
-      <span class="map-dot dire" style="left: 68%; top: 66%"></span>
-      <span class="map-dot radiant" style="left: 40%; top: 72%"></span>
-    </div>
-    <div class="ward-list">
-      ${match.wardTimeline
-        .map(
-          (event) => `
-            <div class="ward-row ${event.side}">
-              <span>${escapeHtml(event.time)}</span>
-              <b>${escapeHtml(event.type)}</b>
-              <small>${escapeHtml(event.lane)} · ${escapeHtml(event.note)}</small>
-            </div>
-          `,
-        )
-        .join("")}
+    <div class="vision-timeline" data-vision-timeline>
+      <div class="vision-board">
+        <div class="vision-map" aria-label="眼位小地图时间轴">
+          <img src="/static/dota/wards/minimap/minimap_game.png" alt="" loading="lazy">
+          ${markerEvents.map((event) => renderWardMapDot(event, selectedSecond)).join("")}
+        </div>
+        <div class="vision-hud">
+          <span class="vision-chip radiant" data-vision-radiant-count>天辉 ${activeEvents.filter((event) => event.side === "radiant").length}</span>
+          <span class="vision-chip dire" data-vision-dire-count>夜魇 ${activeEvents.filter((event) => event.side === "dire").length}</span>
+          <span class="vision-clock" data-vision-clock>${escapeHtml(formatWardClock(selectedSecond))}</span>
+        </div>
+      </div>
+      <div class="vision-scrubber">
+        <div
+          class="vision-range"
+          role="slider"
+          tabindex="0"
+          data-ward-scrubber
+          data-match-id="${escapeHtml(match.id)}"
+          data-min="0"
+          data-max="${maxSecond}"
+          data-step="15"
+          data-value="${selectedSecond}"
+          data-vision-second="${selectedSecond}"
+          style="--ward-progress: ${clampNumber(selectedProgress, 0, 100).toFixed(2)}%"
+          aria-valuemin="0"
+          aria-valuemax="${maxSecond}"
+          aria-valuenow="${selectedSecond}"
+          aria-valuetext="${escapeHtml(formatWardClock(selectedSecond))}"
+          aria-label="选择眼位时间点"
+        ></div>
+        <div class="vision-scale">
+          <span>0:00</span>
+          <b data-vision-total-count>${activeEvents.length} 个有效眼位</b>
+          <span>${escapeHtml(formatWardClock(maxSecond))}</span>
+        </div>
+        <div class="vision-note">只显示当前时间点已插下且未过期的眼位 · 假眼 6:00 · 真眼 7:00</div>
+      </div>
     </div>
   `;
 }
 
-function renderTrendPlaceholder(): string {
+function renderWardMapDot(event: MatchData["wardTimeline"][number], selectedSecond: number): string {
+  const x = event.x ?? 128;
+  const y = event.y ?? 128;
+  const left = clampNumber((x / 255) * 100, 4, 96);
+  const top = clampNumber(100 - (y / 255) * 100, 4, 96);
+  const isActive = isWardVisibleAt(event, selectedSecond);
+  const expiresAt = wardExpiresAt(event);
+  const icon = event.type === "岗哨守卫" ? "sentry" : "observer";
+  const displayType = wardDisplayType(event);
+
   return `
-    <div class="trend-tabs">
-      <span class="active">总经济差</span>
-      <span>总经验差</span>
-      <span>个人经济</span>
+    <span
+      role="img"
+      class="ward-marker ${event.side} ${icon} ${isActive ? "active" : ""}"
+      data-ward-marker
+      data-side="${event.side}"
+      data-start="${event.timeSeconds}"
+      data-end="${expiresAt}"
+      data-active="${isActive ? "true" : "false"}"
+      style="left: ${left.toFixed(1)}%; top: ${top.toFixed(1)}%"
+      title="${escapeHtml(`${event.time} ${displayType} ${event.note}`)}"
+      aria-label="${escapeHtml(`${event.time} ${event.side === "radiant" ? "天辉" : "夜魇"} ${displayType}`)}"
+    ></span>
+  `;
+}
+
+function getWardTimelineMaxSecond(match: MatchData): number {
+  const durationSeconds = parseClockText(match.duration);
+  const lastWardSecond = Math.max(0, ...match.wardTimeline.map((event) => event.timeSeconds));
+
+  return Math.max(600, durationSeconds, lastWardSecond + 120);
+}
+
+function getWardScrubberSecond(match: MatchData, maxSecond: number): number {
+  const storedSecond = appState.wardScrubberSeconds[match.id];
+
+  if (storedSecond !== undefined) {
+    return Math.round(clampNumber(storedSecond, 0, maxSecond));
+  }
+
+  return 0;
+}
+
+function isWardVisibleAt(event: MatchData["wardTimeline"][number], selectedSecond: number): boolean {
+  return event.timeSeconds <= selectedSecond && selectedSecond <= wardExpiresAt(event);
+}
+
+function wardExpiresAt(event: MatchData["wardTimeline"][number]): number {
+  const lifetime = event.type === "岗哨守卫" ? 420 : 360;
+
+  return event.removedAt !== null && event.removedAt > event.timeSeconds ? event.removedAt : event.timeSeconds + lifetime;
+}
+
+function wardDisplayType(event: MatchData["wardTimeline"][number]): string {
+  return event.type === "岗哨守卫" ? "真眼" : "假眼";
+}
+
+function uniqueWardEvents(events: MatchData["wardTimeline"]): MatchData["wardTimeline"] {
+  const seen = new Set<string>();
+
+  return events.filter((event) => {
+    const key = `${event.timeSeconds}:${event.side}:${event.type}:${event.x}:${event.y}:${event.note}`;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function parseClockText(value: string | null | undefined): number {
+  const parts = String(value ?? "")
+    .trim()
+    .split(":")
+    .map((part) => Number(part));
+
+  if (parts.length === 2 && parts.every(Number.isFinite)) {
+    return Math.max(0, parts[0]! * 60 + parts[1]!);
+  }
+
+  if (parts.length === 3 && parts.every(Number.isFinite)) {
+    return Math.max(0, parts[0]! * 3600 + parts[1]! * 60 + parts[2]!);
+  }
+
+  return 0;
+}
+
+function formatWardClock(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function renderTrendSection(match: MatchData): string {
+  if (!match.trends.hasTrends) {
+    return renderEmptyState("该比赛暂无经济/经验趋势数据");
+  }
+
+  return `
+    <div class="trend-grid">
+      ${renderAdvantageTrendGraph(match)}
+      ${renderPlayerGoldTrendGraph(match)}
     </div>
-    <div class="trend-graph" aria-label="经济经验趋势占位">
-      <div class="zero-line"></div>
-      <span class="trend-line radiant-line"></span>
-      <span class="trend-line dire-line"></span>
-      <span class="trend-point p1"></span>
-      <span class="trend-point p2"></span>
-      <span class="trend-point p3"></span>
-      <span class="trend-point p4"></span>
+    ${renderComparisonBars(match)}
+  `;
+}
+
+function renderAdvantageTrendGraph(match: MatchData): string {
+  const gold = sampleTrend(match.trends.goldAdvantage, 44);
+  const xp = sampleTrend(match.trends.xpAdvantage, 44);
+  const lastGold = match.trends.goldAdvantage[match.trends.goldAdvantage.length - 1];
+  const lastXp = match.trends.xpAdvantage[match.trends.xpAdvantage.length - 1];
+  const maxAbs = Math.max(1, ...gold.map((point) => Math.abs(point.value)), ...xp.map((point) => Math.abs(point.value)));
+
+  if (gold.length === 0 && xp.length === 0) {
+    return `<div class="trend-card">${renderEmptyState("经济/经验差暂无数据")}</div>`;
+  }
+
+  return `
+    <div class="trend-card trend-card-wide">
+      <div class="trend-card-head">
+        <b>经济 / 经验差</b>
+        <span>经济 ${escapeHtml(formatTrendValue(lastGold?.value ?? 0))} · 经验 ${escapeHtml(formatTrendValue(lastXp?.value ?? 0))}</span>
+      </div>
+      <svg viewBox="0 0 280 112" role="img" aria-label="经济和经验差曲线">
+        ${renderTrendGridLines(280, 112)}
+        <line x1="10" y1="56" x2="270" y2="56" class="trend-axis"></line>
+        ${gold.length > 0 ? `<polyline points="${trendPolyline(gold, { maxAbs, width: 280, height: 112 })}" class="trend-poly gold"></polyline>` : ""}
+        ${xp.length > 0 ? `<polyline points="${trendPolyline(xp, { maxAbs, width: 280, height: 112 })}" class="trend-poly xp"></polyline>` : ""}
+      </svg>
+      <div class="trend-legend">
+        <span><i class="trend-dot gold"></i>经济差</span>
+        <span><i class="trend-dot xp"></i>经验差</span>
+      </div>
+      <div class="trend-scale">
+        <span>${escapeHtml(`${Math.min(gold[0]?.minute ?? 0, xp[0]?.minute ?? 0)}m`)}</span>
+        <span>${escapeHtml(`±${compactNumber(maxAbs)}`)}</span>
+        <span>${escapeHtml(`${Math.max(lastGold?.minute ?? 0, lastXp?.minute ?? 0)}m`)}</span>
+      </div>
     </div>
-    <div class="trend-legend">
-      <span><i class="radiant-dot"></i>天辉经济</span>
-      <span><i class="dire-dot"></i>夜魇经验</span>
-      <span>真实版本接 ECharts 或轻量 canvas</span>
+  `;
+}
+
+function renderPlayerGoldTrendGraph(match: MatchData): string {
+  const trends = match.trends.playerGold
+    .filter((trend) => trend.values.length > 0)
+    .slice()
+    .sort((left, right) => left.playerSlot - right.playerSlot);
+  const maxGold = Math.max(1, ...trends.flatMap((trend) => trend.values));
+
+  if (trends.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="trend-card trend-card-wide">
+      <div class="trend-card-head">
+        <b>选手经济曲线</b>
+        <span>${trends.length} 名选手</span>
+      </div>
+      <svg viewBox="0 0 280 128" role="img" aria-label="所有选手经济曲线">
+        ${renderTrendGridLines(280, 128)}
+        ${trends
+          .map((trend, index) => {
+            const points = playerTrendPolyline(trend.values, maxGold, 280, 128);
+
+            return `<polyline points="${points}" class="player-trend-line" style="--trend-color: ${playerTrendColor(index, trend.side)}"></polyline>`;
+          })
+          .join("")}
+      </svg>
+      <div class="trend-player-legend">
+        ${trends
+          .map(
+            (trend, index) => `
+              <span class="${trend.side}">
+                <i style="background: ${playerTrendColor(index, trend.side)}"></i>
+                <b>${escapeHtml(playerTrendHeroName(match, trend))}</b>
+                <small>${escapeHtml(compactNumber(trend.values[trend.values.length - 1] ?? 0))}</small>
+              </span>
+            `,
+          )
+          .join("")}
+      </div>
+      <div class="trend-scale">
+        <span>0m</span>
+        <span>${escapeHtml(compactNumber(maxGold))}</span>
+        <span>${escapeHtml(`${Math.max(...trends.map((trend) => trend.values.length - 1))}m`)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function playerTrendHeroName(match: MatchData, trend: MatchData["trends"]["playerGold"][number]): string {
+  return match.players.find((player) => player.id === String(trend.playerSlot))?.hero ?? trend.playerName;
+}
+
+function renderComparisonBars(match: MatchData): string {
+  if (match.comparisons.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="comparison-list">
+      ${match.comparisons
+        .map((metric) => {
+          const share = clampNumber(metric.radiantShare, 0.08, 0.92);
+
+          return `
+            <div class="comparison-row">
+              <span>${escapeHtml(metric.label)}</span>
+              <div>
+                <i class="comparison-fill radiant" style="width: ${(share * 100).toFixed(1)}%"></i>
+                <i class="comparison-fill dire" style="width: ${((1 - share) * 100).toFixed(1)}%"></i>
+              </div>
+              <small>${escapeHtml(compactNumber(metric.radiantValue))} / ${escapeHtml(compactNumber(metric.direValue))}</small>
+            </div>
+          `;
+        })
+        .join("")}
     </div>
   `;
 }
@@ -842,17 +1822,7 @@ function renderChatLine(line: {
   `;
 }
 
-function renderTag(label: string, votes: number, target: string): string {
-  const size = votes > 70 ? "large" : votes > 40 ? "medium" : "small";
-  return `
-    <span class="cloud-tag ${size}">
-      <b>${escapeHtml(label)}</b>
-      <small>${votes} · ${escapeHtml(target)}</small>
-    </span>
-  `;
-}
-
-function renderProfilePreview(name: string, type: string, team: string, stat: string, tags: string[]): string {
+function renderProfilePreview(id: string, name: string, type: string, team: string, stat: string, tags: string[]): string {
   return `
     <article class="profile-preview">
       <div class="profile-avatar">${escapeHtml(name.slice(0, 2))}</div>
@@ -864,6 +1834,7 @@ function renderProfilePreview(name: string, type: string, team: string, stat: st
           ${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
         </div>
       </div>
+      <span class="status-tag blue">${escapeHtml(id.startsWith("team:") ? "真实队伍" : "真实选手")}</span>
     </article>
   `;
 }
@@ -876,8 +1847,89 @@ function getTeam(match: MatchData, side: TeamSide) {
   return side === "radiant" ? match.radiant : match.dire;
 }
 
-function activeRoute() {
-  return routeOptions.find((route) => route.key === appState.route) ?? routeOptions[0]!;
+function currentData(): MobileData {
+  return (
+    appState.data ?? {
+      apiBaseUrl: "http://127.0.0.1:3001/api",
+      source: "unavailable",
+      selectedTournamentId: "",
+      selectedTournamentName: "正在读取真实数据",
+      selectedTournamentMeta: {
+        status: "unknown",
+        statusText: "正在读取公开 API",
+        startsAt: "时间待定",
+        endsAt: "时间待定",
+        leagueId: "-",
+      },
+      tournamentOptions: [],
+      tournamentStats: [],
+      stageViews: emptyStageViews(),
+      scheduleGroups: [],
+      matchRecords: [],
+      tournamentRecentRecords: {},
+      featuredMatch: emptyMatchData(),
+      notice: "正在读取公开 API，稍后自动刷新。",
+    }
+  );
+}
+
+function emptyStageViews(): MobileData["stageViews"] {
+  return {
+    group: {
+      key: "group",
+      name: "小组赛",
+      status: "暂无真实阶段数据",
+      currentRound: "暂无轮次",
+      note: "管理员尚未录入真实小组赛。",
+      standings: [],
+    },
+    swiss: {
+      key: "swiss",
+      name: "瑞士轮",
+      status: "暂无真实阶段数据",
+      currentRound: "暂无轮次",
+      note: "管理员尚未录入真实瑞士轮。",
+      standings: [],
+    },
+    knockout: {
+      key: "knockout",
+      name: "淘汰赛",
+      status: "暂无真实阶段数据",
+      currentRound: "暂无轮次",
+      note: "管理员尚未录入真实淘汰赛。",
+      standings: [],
+    },
+  };
+}
+
+function emptyMatchData(): MatchData {
+  return {
+    id: "-",
+    league: "暂无真实比赛详情",
+    series: "",
+    mode: "未知模式",
+    endedAt: "时间待定",
+    duration: "--:--",
+    radiantScore: 0,
+    direScore: 0,
+    winner: "radiant",
+    radiant: { side: "radiant", name: "天辉", shortName: "天辉", seed: "天辉", color: "#78d66c" },
+    dire: { side: "dire", name: "夜魇", shortName: "夜魇", seed: "夜魇", color: "#ef6467" },
+    mvpPlayerId: "",
+    parseStatus: "暂无数据",
+    players: [],
+    draft: [],
+    wardTimeline: [],
+    trends: {
+      hasTrends: false,
+      goldAdvantage: [],
+      xpAdvantage: [],
+      playerGold: [],
+      playerXp: [],
+    },
+    comparisons: [],
+    chat: [],
+  };
 }
 
 function routeLabel(route: AppRoute): string {
@@ -885,21 +1937,34 @@ function routeLabel(route: AppRoute): string {
 }
 
 function statusClass(status: string): string {
-  if (status === "已完赛" || status === "晋级区") {
+  if (status === "已完赛" || status === "晋级区" || status === "completed") {
     return "green";
   }
-  if (status === "延期" || status === "淘汰区") {
+  if (status === "延期" || status === "淘汰区" || status === "archived") {
     return "red";
   }
-  if (status === "待补录") {
+  if (status === "待补录" || status === "running") {
     return "blue";
   }
   return "";
 }
 
+function lifecycleLabel(status: string): string {
+  const text: Record<string, string> = {
+    draft: "草稿",
+    upcoming: "未开赛",
+    running: "进行中",
+    completed: "已结束",
+    archived: "归档",
+    unknown: "未知",
+  };
+
+  return text[status] ?? status;
+}
+
 function readRouteFromHash(): AppRoute {
   const rawRoute = window.location.hash.replace("#", "");
-  return isRoute(rawRoute) ? rawRoute : "match";
+  return isRoute(rawRoute) ? rawRoute : "home";
 }
 
 function isRoute(value: string | undefined): value is AppRoute {
@@ -917,4 +1982,90 @@ function escapeHtml(value: string | number): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function sampleTrend(points: MatchData["trends"]["goldAdvantage"], targetCount: number) {
+  if (points.length <= targetCount) {
+    return points;
+  }
+
+  const step = (points.length - 1) / (targetCount - 1);
+
+  return Array.from({ length: targetCount }, (_, index) => points[Math.round(index * step)]).filter(
+    (point): point is MatchData["trends"]["goldAdvantage"][number] => point !== undefined,
+  );
+}
+
+function trendPolyline(
+  points: MatchData["trends"]["goldAdvantage"],
+  options: { maxAbs: number; width: number; height: number },
+): string {
+  const { maxAbs, width, height } = options;
+  const padding = 8;
+  const denominator = Math.max(1, points.length - 1);
+
+  return points
+    .map((point, index) => {
+      const x = padding + (index / denominator) * (width - padding * 2);
+      const y = height / 2 - (point.value / maxAbs) * (height / 2 - padding);
+
+      return `${x.toFixed(1)},${clampNumber(y, padding, height - padding).toFixed(1)}`;
+    })
+    .join(" ");
+}
+
+function playerTrendPolyline(values: number[], maxValue: number, width: number, height: number): string {
+  const padding = 8;
+  const denominator = Math.max(1, values.length - 1);
+
+  return values
+    .map((value, index) => {
+      const x = padding + (index / denominator) * (width - padding * 2);
+      const y = height - padding - (value / maxValue) * (height - padding * 2);
+
+      return `${x.toFixed(1)},${clampNumber(y, padding, height - padding).toFixed(1)}`;
+    })
+    .join(" ");
+}
+
+function renderTrendGridLines(width: number, height: number): string {
+  const top = 10;
+  const middle = height / 2;
+  const bottom = height - 10;
+
+  return `
+    <line x1="10" y1="${top}" x2="${width - 10}" y2="${top}" class="trend-grid-line"></line>
+    <line x1="10" y1="${middle}" x2="${width - 10}" y2="${middle}" class="trend-grid-line muted"></line>
+    <line x1="10" y1="${bottom}" x2="${width - 10}" y2="${bottom}" class="trend-grid-line"></line>
+  `;
+}
+
+function playerTrendColor(index: number, side: TeamSide): string {
+  const radiantColors = ["#75e06c", "#9fe870", "#45d1a4", "#54c7ff", "#d6f06b"];
+  const direColors = ["#ff646d", "#ff9b5f", "#d96bff", "#ff5fb7", "#f0c36a"];
+  const palette = side === "radiant" ? radiantColors : direColors;
+
+  return palette[index % palette.length]!;
+}
+
+function formatTrendValue(value: number): string {
+  if (value === 0) {
+    return "0";
+  }
+
+  return `${value > 0 ? "+" : ""}${compactNumber(value)}`;
+}
+
+function compactNumber(value: number): string {
+  const abs = Math.abs(value);
+
+  if (abs >= 1000) {
+    return `${(value / 1000).toFixed(abs >= 10000 ? 1 : 2)}k`;
+  }
+
+  return String(Math.round(value));
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

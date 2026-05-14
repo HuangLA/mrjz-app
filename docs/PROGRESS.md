@@ -1,24 +1,24 @@
 # 项目进度追踪
 
-最后更新：2026-05-13
+最后更新：2026-05-15
 
 ## 当前状态
 
-当前阶段：M1 工程骨架、数据库基线和网页端优先推进。
+当前阶段：M4 OpenDota 自动同步校准，M5 H5 用户侧 MVP 收口。
 
-总体判断：M0 文档基线已经完成，M1 已初始化 npm workspace、安装依赖并生成 lockfile。API、Web Admin、H5 已有可构建原型；本地 SQLite 数据库、初始 migration、seed 和 API 读仓库已建立。比赛详情已经落到共享契约和 API normalizer 方向，覆盖技能加点、Ban/Pick、魔晶/神杖、眼位时间轴、经济经验趋势和聊天记录。微信小程序暂时后置，先把网页端和后端闭环做完整。
+总体判断：M0/M1 文档和工程骨架已完成。API、Web Admin、H5 均可构建；本地 SQLite 数据库、三届真实联赛壳、API 读写仓库和 OpenDota backfill 已建立。前三届比赛数据已通过后端固化到本地数据库：第一届 `17485` 共 30 场，第二届 `18365` 共 42 场，第三届 `19483` 共 47 场。H5 已读取真实比赛库，并展示比赛列表、战报、技能加点、Ban/Pick、神杖/魔晶、眼位、趋势和聊天。微信小程序继续后置，先把网页端和后端闭环做完整。
 
 ## 里程碑状态
 
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
 | M0 产品和技术定稿 | 已完成 | PRD、技术方案、比赛管理系统、设计方向、开发计划已建立 |
-| M1 工程骨架 | 进行中 | npm workspace、依赖、lockfile、API/Admin/H5 原型、SQLite 数据库基线已建立，小程序后置 |
+| M1 工程骨架 | 已完成 | npm workspace、依赖、lockfile、API/Admin/H5 原型、SQLite 数据库基线和联调脚手架已建立，小程序后置 |
 | M2 登录和权限 | 未开始 | 微信登录、管理员登录、RBAC |
-| M3 赛事基础与管理后台 | 进行中 | 初始表结构和读接口已建立，待写接口、Admin 接口联调和服务层测试 |
-| M4 OpenDota 自动同步 | 未开始 | league discovery、match sync、parse request |
-| M5 用户侧 MVP | 未开始 | 小程序和 H5 核心展示 |
-| M6 比赛详情增强 | 未开始 | 长复盘页、图表、Ban/Pick、聊天 |
+| M3 赛事基础与管理后台 | 进行中 | 表结构、读接口、写接口、Admin API 联调和基础冒烟已完成，待权限和服务层测试 |
+| M4 OpenDota 自动同步 | 进行中 | 10 分钟调度 worker、OpenDota client、parse request、Steam/选手发现和三届 backfill 已建立，待重试队列和生产限速策略 |
+| M5 用户侧 MVP | 进行中 | H5 已接真实 API 和真实比赛库，小程序后置 |
+| M6 比赛详情增强 | 进行中 | H5 长复盘已展示技能加点、Ban/Pick、神杖/魔晶、眼位、趋势和聊天，已建立本地 Dota 静态素材缓存 |
 | M7 上线准备 | 未开始 | 部署、真机、审核、合规 |
 
 ## 已完成
@@ -35,27 +35,50 @@
 - 建立 API `/health`、Admin/H5 `index.html`、小程序占位入口和共享类型。
 - 建立比赛详情共享契约和 OpenDota 字段映射文档。
 - 安装 npm workspace 依赖并生成 `package-lock.json`。
-- 建立 API mock 数据仓库、赛事赛程接口和比赛详情 OpenDota normalizer。
+- 建立 API SQLite 数据仓库、赛事赛程接口和比赛详情 OpenDota normalizer。
 - 建立 Web Admin 赛制、赛程、赛果、OpenDota 同步任务管理原型。
 - 建立手机 H5 赛事首页、阶段赛程、比赛详情和标签互动原型。
 - 建立本地 SQLite 数据库、初始 migration、seed 数据和数据库设计文档。
 - API 已能从 SQLite repository 读取赛事、赛程、轮次和 OpenDota 原始比赛 JSON。
+- 按旧网页端真实 league_id 建立三届 seed：第一届 `17485`、第二届 `18365`、第三届 `19483`。
+- 建立 API 写接口：创建队伍、阶段、轮次、赛程 series、单局赛果、同步任务。
+- Web Admin 已接真实 API，支持多赛事选择、阶段/轮次/赛程/赛果管理和同步任务列表。
+- H5 已接真实 API，支持三届赛事入口、阶段赛程和比赛详情；API 不可用时显示空状态。
+- 完成 API 冒烟测试：三届 league_id、创建队伍/轮次/赛程、录入赛果、创建 `refresh_match` 同步任务。
+- 完成浏览器检查：Admin 和 H5 页面可读取本地 API，浏览器 console 无 error。
+- 固化三届联赛生命周期：第一届 `completed`、第二届 `completed`、第三届 `running`。
+- 建立 `PATCH /api/tournaments/:id/lifecycle`，管理员可设置 `upcoming`、`running`、`completed` 和开赛/结束时间。
+- 建立 OpenDota worker：每 10 分钟扫描 `running` 联赛，拉取最新比赛，未解析则请求 OpenDota parse。
+- H5 多联赛入口和赛事概览已展示联赛状态与 `upcoming` 开赛时间。
+- 建立 OpenDota backfill：支持通过 Steam MatchHistory、旧项目 seed match_id 和选手近期比赛发现联赛比赛。
+- 通过后端拉取并落库前三届比赛数据：第一届 `17485` 30 场，第二届 `18365` 42 场，第三届 `19483` 47 场。
+- H5 新增比赛记录页，支持按联赛展示真实 OpenDota 比赛库并打开任意战报。
+- H5 比赛详情已接真实数据：英雄头像/名称、技能加点、物品、神杖/魔晶状态、Ban/Pick 顺序、眼位时间轴、全局聊天和经济/经验趋势。
+- H5 比赛详情眼位时间轴已切换为本地 Dota 小地图视图，支持按比赛时间滑动查看天辉/夜魇眼位和视野范围。
+- H5 已本地化 Dota 常量、英雄头像、物品图标和技能图标，运行时优先读取 `public/static/dota`，减少外部 CDN 请求导致的空图风险。
+- H5 已优先使用真实比赛库最新一场作为默认战报，避免开发种子赛程中的占位 match_id 影响展示。
+- 移除运行时本地示例数据：API 只读 SQLite，Admin/H5 不再拼接本地赛事、赛程、标签或同步任务。
+- 重置本地 SQLite：仅保留三届真实联赛壳、3 个真实阶段和 119 条 OpenDota 比赛 JSON；队伍、赛程、积分榜、标签等待管理员真实录入。
+- Web Admin 重新按“当前届次范围”组织：新增届次 / 联赛、战队管理、选手管理、比赛结果库、阶段赛程和同步任务工作面。
+- API 新增创建届次、读取当前届次战队 / 选手、从 OpenDota match 手动绑定平台 series 的接口；绑定时会补齐双方队伍、写入 BO1 series、关联 `series_games.match_id`，并从 OpenDota 玩家自动沉淀选手和队伍成员。
+- 战队列表已能基于已绑定比赛展示 series 胜负、局胜负、胜率和常用英雄 hero_id，为后续队伍胜率和擅长英雄页面提供数据基础。
+- 完成后台补对阵冒烟：本地第三届 `8772653377` 已绑定 “富贵不能赢” vs “懂吗？？？”，并自动沉淀 10 名选手和两队统计。
 
 ## 最近提交
 
 | Commit | 内容 |
 | --- | --- |
+| `e3ab432` | Update progress after database setup |
 | `6cb020f` | Add SQLite database baseline |
 | `ce89101` | Build API admin and H5 prototypes |
-| `90b659a` | Initialize project workspace |
 
 ## 当前目录状态
 
 ```text
 apps/
-  api/            后端 API 占位
-  admin/          Web Admin 占位
-  mobile-web/     H5 占位
+  api/            后端 API 和 SQLite 数据层
+  admin/          Web Admin 管理后台原型
+  mobile-web/     手机 H5 原型
   miniprogram/    小程序占位
 packages/
   shared/         共享类型和常量
@@ -65,12 +88,13 @@ docs/
 
 ## 下一步任务
 
-1. 实现 `TournamentService` 的写模型和单元测试：创建队伍、阶段、轮次、series、series_game。
-2. 给 Web Admin 接入真实 API：赛程列表、赛果录入、冲突处理、同步任务列表。
-3. 实现 OpenDota 同步 worker：league 拉取、parse request、异常队列和重试。
-4. 将 Web Admin/H5 从原生 DOM 原型升级为正式组件结构。
-5. 接入真实 Dota 静态资源：英雄、技能、物品、队伍和选手头像。
-6. 小程序等网页端和后端闭环稳定后再初始化 Taro。
+1. 为 OpenDota worker 增加失败重试策略和后台任务状态推进：限速、429、parse pending、重复 match_id。
+2. 为 API 写接口补服务层测试和错误用例：重复 match_id、非法 BO、缺失队伍、跨阶段 round。
+3. 给 Web Admin 增加登录/RBAC、操作审计和更完整的赛程创建体验。
+4. 将 Web Admin/H5 从原生 DOM 原型升级为正式组件结构，并补路由级加载、错误和空状态。
+5. 为手动补对阵增加批量确认、按 OpenDota 原始队名推荐平台队伍、以及误绑定后的审计化解绑 / 重绑流程。
+6. 接入真实 Dota 静态资源：英雄、技能、物品、队伍和选手头像。
+7. 小程序等网页端和后端闭环稳定后再初始化 Taro。
 
 ## 决策记录
 
@@ -85,17 +109,20 @@ docs/
 | 2026-05-13 | 本地包管理统一为 npm workspace | 当前机器可直接安装运行 npm，避免 pnpm 未安装造成 M1 阻塞 |
 | 2026-05-13 | 小程序开发后置，先完成 Web Admin 和 H5 | 当前上线风险可由 H5 规避，后台和数据库闭环优先级更高 |
 | 2026-05-13 | 本地开发数据库采用 Node SQLite，生产保留 PostgreSQL 迁移方向 | 无需新增依赖即可建立可运行数据层，后续上云再切换连接池和迁移工具 |
+| 2026-05-14 | 本地测试数据固定使用旧网页端三届联赛 `17485`、`18365`、`19483` | 保证后台、H5 和后续 OpenDota worker 使用同一组真实 league_id 验证 |
+| 2026-05-14 | 联赛生命周期统一落在 `tournaments.status` | 当前一个 OpenDota league 对应一个 MRJZ 届次，前端和 worker 可共用同一状态字段 |
+| 2026-05-14 | 漏选对标的 OpenDota 比赛先由后台绑定成 BO1 series | 先保证真实 match 与平台队伍、选手、统计能关联，复杂 BO 合并和审计化重绑后续补齐 |
 
 ## 风险和阻塞
 
 | 风险 | 当前状态 | 应对 |
 | --- | --- | --- |
-| OpenDota 数据不完整 | 未验证 | M4 用真实 match_id 做种子测试 |
+| OpenDota 数据不完整 | 已缓解 | 三届比赛已 backfill；第一届仍有 23 场处于 parse requested，继续通过定时 worker 刷新 |
 | 瑞士轮配对规则复杂 | 已识别 | MVP 采用可解释的同分优先配对，复杂 Buchholz 后置 |
 | 小程序上线延迟 | 已识别 | H5 同步实现公开浏览 |
 | 前端页面密度不符合预期 | 进行中 | 设计稿已降字号，后续继续按真实 App 调整 |
 | 小程序尚未初始化 | 已接受 | 网页端闭环完成后再使用 Taro 初始化，并复用 H5 页面契约 |
-| 比赛详情静态资源缺失 | 已识别 | M2/M3 接入英雄、技能、物品图标映射和 CDN 策略 |
+| 比赛详情静态资源缺失 | 已识别 | M3/M4 接入英雄、技能、物品图标映射和 CDN 策略 |
 | Node SQLite 仍是实验模块 | 已识别 | 仅用于本地快速闭环，生产环境迁移到 PostgreSQL |
 
 ## 更新规则

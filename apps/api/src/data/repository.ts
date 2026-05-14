@@ -1,38 +1,71 @@
 import {
-  getBracketByStageId,
-  getMatchContextByMatchId,
-  getRoundsByStageId,
-  getStandingsByStageId,
-  getTournamentById,
-  listTournamentSummaries,
-} from "./mock/tournaments.js";
-import { openDotaMatches } from "./mock/opendotaMatches.js";
-import { normalizeOpenDotaMatchDetail } from "../opendota/normalizers/matchDetail.js";
-import { databaseFileExists, resolveDatabasePath } from "../db/client.js";
-import { SqliteTournamentRepository } from "./sqliteRepository.js";
+  SqliteTournamentRepository,
+  type CreateRoundInput,
+  type CreateSeriesInput,
+  type CreateStageInput,
+  type CreateSyncTaskInput,
+  type CreateTeamInput,
+  type CreatePlayerInput,
+  type CreateTournamentInput,
+  type LeagueSyncTarget,
+  type LinkOpenDotaMatchInput,
+  type OpenDotaMatchListItem,
+  type LeagueOption,
+  type OpenDotaMatchCache,
+  type RunningLeagueSyncTarget,
+  type SyncTaskView,
+  type TournamentPlayerListItem,
+  type TournamentTeamListItem,
+  type UpdateTournamentLifecycleInput,
+  type UpdateGameResultInput,
+  type UpsertOpenDotaMatchInput,
+  type AddTeamMemberInput,
+} from "./sqliteRepository.js";
+import type {
+  BracketNode,
+  StageRound,
+  StandingRow,
+  TournamentDetail,
+  TournamentListItem,
+} from "../view-models/tournament.js";
+import type { MatchDetailViewModel } from "../view-models/matchDetail.js";
 
-type DataSourceInfo =
-  | {
-      dataSource: "sqlite";
-      databasePath: string;
-    }
-  | {
-      dataSource: "mock";
-      databasePath: string;
-      reason: string;
-    };
+type DataSourceInfo = {
+  dataSource: "sqlite";
+  databasePath: string;
+};
 
 type Repository = {
   info: DataSourceInfo;
-  getMatchDetail(matchIdParam: string): ReturnType<typeof getMockMatchDetail>;
-  listTournaments(): ReturnType<typeof listTournamentSummaries>;
-  getTournamentDetail(id: string): ReturnType<typeof getTournamentById>;
-  getStageStandings(stageId: string): ReturnType<typeof getStandingsByStageId>;
-  getStageRounds(stageId: string): ReturnType<typeof getRoundsByStageId>;
-  getStageBracket(stageId: string): ReturnType<typeof getBracketByStageId>;
+  getMatchDetail(matchIdParam: string): MatchDetailViewModel | undefined;
+  listTournaments(): TournamentListItem[];
+  createTournament(input: CreateTournamentInput): TournamentDetail;
+  getTournamentDetail(id: string): TournamentDetail | undefined;
+  getStageStandings(stageId: string): StandingRow[] | undefined;
+  getStageRounds(stageId: string): StageRound[] | undefined;
+  getStageBracket(stageId: string): BracketNode[] | undefined;
+  listLeagues(): LeagueOption[];
+  listSyncTasks(): SyncTaskView[];
+  listRunningLeagueSyncTargets(): RunningLeagueSyncTarget[];
+  listLeagueSyncTargets(statuses?: Array<LeagueSyncTarget["status"]>): LeagueSyncTarget[];
+  listTournamentOpenDotaMatches(tournamentId: string, limit?: number): OpenDotaMatchListItem[] | undefined;
+  listTournamentTeams(tournamentId: string): TournamentTeamListItem[] | undefined;
+  listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
+  getOpenDotaMatchCache(matchId: number): OpenDotaMatchCache | undefined;
+  upsertOpenDotaMatch(input: UpsertOpenDotaMatchInput): OpenDotaMatchCache;
+  updateTournamentLifecycle(tournamentId: string, input: UpdateTournamentLifecycleInput): TournamentDetail;
+  createTeam(input: CreateTeamInput): unknown;
+  createPlayer(input: CreatePlayerInput): unknown;
+  addTeamMember(input: AddTeamMemberInput): unknown;
+  createStage(input: CreateStageInput): unknown;
+  createRound(input: CreateRoundInput): unknown;
+  createSeries(input: CreateSeriesInput): unknown;
+  updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput): unknown;
+  linkOpenDotaMatchToSeries(tournamentId: string, matchId: number, input: LinkOpenDotaMatchInput): unknown;
+  createSyncTask(input: CreateSyncTaskInput): SyncTaskView;
 };
 
-const repository = createRepository();
+const repository: Repository = new SqliteTournamentRepository();
 
 export function getRepositoryInfo(): DataSourceInfo {
   return repository.info;
@@ -44,6 +77,10 @@ export function getMatchDetail(matchIdParam: string) {
 
 export function listTournaments() {
   return repository.listTournaments();
+}
+
+export function createTournament(input: CreateTournamentInput) {
+  return repository.createTournament(input);
 }
 
 export function getTournamentDetail(id: string) {
@@ -62,46 +99,78 @@ export function getStageBracket(stageId: string) {
   return repository.getStageBracket(stageId);
 }
 
-function createRepository(): Repository {
-  if (databaseFileExists()) {
-    try {
-      return new SqliteTournamentRepository();
-    } catch (error) {
-      return createMockRepository(`SQLite open failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  return createMockRepository("Database file has not been initialized");
+export function listLeagues() {
+  return repository.listLeagues();
 }
 
-function createMockRepository(reason: string): Repository {
-  return {
-    info: {
-      dataSource: "mock",
-      databasePath: resolveDatabasePath(),
-      reason,
-    },
-    getMatchDetail: getMockMatchDetail,
-    listTournaments: listTournamentSummaries,
-    getTournamentDetail: getTournamentById,
-    getStageStandings: getStandingsByStageId,
-    getStageRounds: getRoundsByStageId,
-    getStageBracket: getBracketByStageId,
-  };
+export function listSyncTasks() {
+  return repository.listSyncTasks();
 }
 
-function getMockMatchDetail(matchIdParam: string) {
-  const matchId = Number(matchIdParam);
+export function listRunningLeagueSyncTargets() {
+  return repository.listRunningLeagueSyncTargets();
+}
 
-  if (!Number.isSafeInteger(matchId)) {
-    return undefined;
-  }
+export function listLeagueSyncTargets(statuses?: Array<LeagueSyncTarget["status"]>) {
+  return repository.listLeagueSyncTargets(statuses);
+}
 
-  const rawMatch = openDotaMatches[matchId];
+export function listTournamentOpenDotaMatches(tournamentId: string, limit?: number) {
+  return repository.listTournamentOpenDotaMatches(tournamentId, limit);
+}
 
-  if (rawMatch === undefined) {
-    return undefined;
-  }
+export function listTournamentTeams(tournamentId: string) {
+  return repository.listTournamentTeams(tournamentId);
+}
 
-  return normalizeOpenDotaMatchDetail(rawMatch, getMatchContextByMatchId(matchId));
+export function listTournamentPlayers(tournamentId: string) {
+  return repository.listTournamentPlayers(tournamentId);
+}
+
+export function getOpenDotaMatchCache(matchId: number) {
+  return repository.getOpenDotaMatchCache(matchId);
+}
+
+export function upsertOpenDotaMatch(input: UpsertOpenDotaMatchInput) {
+  return repository.upsertOpenDotaMatch(input);
+}
+
+export function updateTournamentLifecycle(tournamentId: string, input: UpdateTournamentLifecycleInput) {
+  return repository.updateTournamentLifecycle(tournamentId, input);
+}
+
+export function createTeam(input: CreateTeamInput) {
+  return repository.createTeam(input);
+}
+
+export function createPlayer(input: CreatePlayerInput) {
+  return repository.createPlayer(input);
+}
+
+export function addTeamMember(input: AddTeamMemberInput) {
+  return repository.addTeamMember(input);
+}
+
+export function createStage(input: CreateStageInput) {
+  return repository.createStage(input);
+}
+
+export function createRound(input: CreateRoundInput) {
+  return repository.createRound(input);
+}
+
+export function createSeries(input: CreateSeriesInput) {
+  return repository.createSeries(input);
+}
+
+export function updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput) {
+  return repository.updateSeriesGameResult(seriesId, gameIndex, input);
+}
+
+export function linkOpenDotaMatchToSeries(tournamentId: string, matchId: number, input: LinkOpenDotaMatchInput) {
+  return repository.linkOpenDotaMatchToSeries(tournamentId, matchId, input);
+}
+
+export function createSyncTask(input: CreateSyncTaskInput) {
+  return repository.createSyncTask(input);
 }
