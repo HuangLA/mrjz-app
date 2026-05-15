@@ -18,6 +18,8 @@
     "db:status": "npm --workspace @mrjz/api run db:status",
     "sync:opendota": "npm --workspace @mrjz/api run sync:opendota",
     "sync:opendota:backfill": "npm --workspace @mrjz/api run sync:opendota:backfill",
+    "sync:entities": "npm --workspace @mrjz/api run sync:entities",
+    "sync:steam-profiles": "npm --workspace @mrjz/api run sync:steam-profiles",
     "assets:mobile-web": "npm --workspace @mrjz/mobile-web run cache:dota-assets",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",

@@ -368,8 +368,9 @@ function renderTeams(): string {
         <h2>创建战队</h2>
         <input name="tournamentId" value="${escapeHtml(state.selectedTournamentId)}" readonly />
         <label>队伍名<input name="name" placeholder="队伍名" required /></label>
-        <label>简称<input name="shortName" placeholder="最多 8 个字符" required /></label>
+        <label>简称<input name="shortName" placeholder="可留空，默认取队伍名" /></label>
         <label>颜色<input name="color" placeholder="#22c55e" /></label>
+        <label>OpenDota team_id<input name="opendotaTeamId" inputmode="numeric" placeholder="可选，赛后可按名称补全" /></label>
         <button class="primary-button" type="submit">创建并加入当前届次</button>
       </form>
 
@@ -406,6 +407,14 @@ function renderTeamCard(team: TournamentTeamListItem): string {
       </div>
       <p>${escapeHtml(members)}</p>
       <small>${escapeHtml(stat.linkedMatches)} 场已绑定比赛 · ${escapeHtml(heroes)}</small>
+      <form class="team-member-form" data-action="add-team-member">
+        <input type="hidden" name="teamId" value="${escapeHtml(team.id)}" />
+        <select name="playerId" aria-label="选择选手" required>
+          <option value="">添加已有选手</option>${playerOptions()}
+        </select>
+        <input name="role" placeholder="角色" />
+        <button class="secondary-button" type="submit" ${state.players.length === 0 ? "disabled" : ""}>添加</button>
+      </form>
     </article>
   `;
 }
@@ -976,6 +985,7 @@ function buildAdminRequests(action: string, payload: Record<string, FormDataEntr
             name: payloadString(payload, "name"),
             shortName: payloadString(payload, "shortName"),
             color: payloadString(payload, "color") || undefined,
+            opendotaTeamId: payloadNumber(payload, "opendotaTeamId"),
           }),
         },
       ];

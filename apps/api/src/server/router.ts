@@ -16,11 +16,15 @@ type Route = {
   handler: RouteHandler;
 };
 
-const JSON_HEADERS = {
-  "content-type": "application/json; charset=utf-8",
+const BASE_HEADERS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
   "access-control-allow-headers": "content-type, authorization",
+};
+
+const JSON_HEADERS = {
+  ...BASE_HEADERS,
+  "content-type": "application/json; charset=utf-8",
 };
 
 export class Router {
@@ -124,7 +128,19 @@ export class Router {
 }
 
 function send(response: ServerResponse, result: RouteResult): void {
-  response.writeHead(result.status, JSON_HEADERS);
+  if (result.raw === true) {
+    response.writeHead(result.status, {
+      ...BASE_HEADERS,
+      ...result.headers,
+    });
+    response.end(result.body);
+    return;
+  }
+
+  response.writeHead(result.status, {
+    ...JSON_HEADERS,
+    ...result.headers,
+  });
   response.end(JSON.stringify(result.body, null, 2));
 }
 

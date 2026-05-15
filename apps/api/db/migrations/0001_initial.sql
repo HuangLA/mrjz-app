@@ -39,10 +39,12 @@ CREATE TABLE IF NOT EXISTS tournaments (
 
 CREATE TABLE IF NOT EXISTS teams (
   id TEXT PRIMARY KEY,
+  opendota_team_id INTEGER UNIQUE,
   name TEXT NOT NULL,
   short_name TEXT NOT NULL,
   logo_url TEXT,
   color TEXT,
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'opendota')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 ) STRICT;
@@ -63,6 +65,19 @@ CREATE TABLE IF NOT EXISTS players (
   avatar_url TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tournament_players (
+  tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  current_team_id TEXT REFERENCES teams(id),
+  source TEXT NOT NULL DEFAULT 'opendota' CHECK (source IN ('manual', 'opendota')),
+  first_seen_match_id INTEGER,
+  last_seen_match_id INTEGER,
+  last_seen_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (tournament_id, player_id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS team_members (
@@ -188,6 +203,24 @@ CREATE TABLE IF NOT EXISTS app_users (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS tournament_player_stats (
+  tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  summary_json TEXT NOT NULL DEFAULT '{}',
+  matches_json TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (tournament_id, player_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tournament_team_stats (
+  tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  summary_json TEXT NOT NULL DEFAULT '{}',
+  matches_json TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (tournament_id, team_id)
+) STRICT;
+
 CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY,
   target_type TEXT NOT NULL CHECK (target_type IN ('player', 'team')),
@@ -233,6 +266,7 @@ CREATE TABLE IF NOT EXISTS sync_tasks (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_tournaments_league ON tournaments(league_id);
+CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
 CREATE INDEX IF NOT EXISTS idx_stages_tournament ON stages(tournament_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_rounds_stage ON rounds(stage_id, round_number);
 CREATE INDEX IF NOT EXISTS idx_series_round ON series(round_id, scheduled_at);

@@ -10,6 +10,8 @@ import {
   getStageBracket,
   getStageRounds,
   getStageStandings,
+  getTournamentPlayerDetail,
+  getTournamentTeamDetail,
   getTournamentDetail,
   linkOpenDotaMatchToSeries,
   listLeagueSyncTargets,
@@ -20,12 +22,14 @@ import {
   listSyncTasks,
   listTournaments,
   addTeamMember,
+  backfillCachedTournamentEntities,
   updateTournamentLifecycle,
   updateSeriesGameResult,
 } from "../data/repository.js";
 import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
+import { readSteamAvatarCache } from "../opendota/steamAvatarCache.js";
 import { readJsonBody } from "./body.js";
-import { json, ok, fail } from "./responses.js";
+import { binary, json, ok, fail } from "./responses.js";
 import { Router } from "./router.js";
 
 export type HealthStatus = {
@@ -47,6 +51,20 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
 
   router.get("/health", () => json(200, getHealthStatus()));
   router.get("/api/health", () => json(200, getHealthStatus()));
+
+  router.get("/api/assets/steam-avatars/:filename", async ({ params }) => {
+    const accountId = Number((params.filename ?? "").replace(/\.jpg$/i, ""));
+    const avatar = await readSteamAvatarCache(accountId);
+
+    if (avatar === null) {
+      return fail(404, "STEAM_AVATAR_NOT_FOUND", "Steam avatar cache not found");
+    }
+
+    return binary(200, avatar.bytes, {
+      "content-type": avatar.contentType,
+      "cache-control": "public, max-age=3600",
+    });
+  });
 
   router.get("/api/tournaments", () => ok(listTournaments()));
 
@@ -102,6 +120,30 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(players);
+  });
+
+  router.get("/api/tournaments/:id/players/:playerId", ({ params }) => {
+    const player = getTournamentPlayerDetail(params.id ?? "", params.playerId ?? "");
+
+    if (player === undefined) {
+      return fail(404, "PLAYER_NOT_FOUND", "Player not found for this tournament");
+    }
+
+    return ok(player);
+  });
+
+  router.post("/api/tournaments/:id/entities/backfill", ({ params }) => {
+    return ok(backfillCachedTournamentEntities(params.id ?? ""));
+  });
+
+  router.get("/api/tournaments/:id/teams/:teamId", ({ params }) => {
+    const team = getTournamentTeamDetail(params.id ?? "", params.teamId ?? "");
+
+    if (team === undefined) {
+      return fail(404, "TEAM_NOT_FOUND", "Team not found for this tournament");
+    }
+
+    return ok(team);
   });
 
   router.post("/api/tournaments/:id/opendota-matches/:matchId/link-series", async ({ request, params }) => {
@@ -273,6 +315,7 @@ function bodyToCreateTeamInput(body: Record<string, unknown>) {
     name: stringField(body, "name"),
     shortName: optionalStringField(body, "shortName"),
     color: optionalStringField(body, "color"),
+    opendotaTeamId: optionalNumberOrNullField(body, "opendotaTeamId"),
     tournamentId: optionalStringField(body, "tournamentId"),
   }) as Parameters<typeof createTeam>[0];
 }

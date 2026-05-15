@@ -97,6 +97,28 @@ export interface TeamStatsSummary {
   }>;
 }
 
+export interface PlayerStatsSummary {
+  totalMatches: number;
+  wins: number;
+  losses: number;
+  winRate: number | null;
+  avgKills: number | null;
+  avgDeaths: number | null;
+  avgAssists: number | null;
+  kda: number | null;
+  avgGpm: number | null;
+  avgXpm: number | null;
+  avgNetWorth: number | null;
+  avgHeroDamage: number | null;
+  avgTowerDamage: number | null;
+  avgDamageTaken: number | null;
+  topHeroes: Array<{
+    heroId: number;
+    picks: number;
+    wins: number;
+  }>;
+}
+
 export interface TournamentTeamListItem extends TeamBrief {
   tournamentId: string;
   seed: number | null;
@@ -108,6 +130,7 @@ export interface TournamentTeamListItem extends TeamBrief {
 
 export interface TournamentPlayerListItem extends PlayerBrief {
   teams: TeamBrief[];
+  stats: PlayerStatsSummary;
 }
 
 export interface OpenDotaMatchListItem {

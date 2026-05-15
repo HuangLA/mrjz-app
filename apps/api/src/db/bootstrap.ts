@@ -1,3 +1,4 @@
+import "../env.js";
 import { unlinkSync } from "node:fs";
 import { openDatabase, databaseFileExists, readMigration, resolveDatabasePath } from "./client.js";
 
@@ -99,11 +100,65 @@ function applyMigrations(): void {
 
   try {
     database.exec(readMigration("0001_initial"));
+    applySchemaPatches();
     database.exec("COMMIT;");
   } catch (error) {
     database.exec("ROLLBACK;");
     throw error;
   }
+}
+
+function applySchemaPatches(): void {
+  ensureColumn("teams", "opendota_team_id", "INTEGER");
+  ensureColumn("teams", "source", "TEXT NOT NULL DEFAULT 'manual'");
+  database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
+  ensureEntityTables();
+}
+
+function ensureColumn(tableName: string, columnName: string, definition: string): void {
+  const columns = database.prepare(`PRAGMA table_info(${tableName})`).all();
+  const exists = columns.some((column) => column.name === columnName);
+
+  if (!exists) {
+    database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
+  }
+}
+
+function ensureEntityTables(): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS tournament_players (
+      tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+      player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      current_team_id TEXT REFERENCES teams(id),
+      source TEXT NOT NULL DEFAULT 'opendota' CHECK (source IN ('manual', 'opendota')),
+      first_seen_match_id INTEGER,
+      last_seen_match_id INTEGER,
+      last_seen_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (tournament_id, player_id)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS tournament_player_stats (
+      tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+      player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      summary_json TEXT NOT NULL DEFAULT '{}',
+      matches_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (tournament_id, player_id)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS tournament_team_stats (
+      tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+      team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      summary_json TEXT NOT NULL DEFAULT '{}',
+      matches_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (tournament_id, team_id)
+    ) STRICT;
+
+    CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
+  `);
 }
 
 function seedRealTournamentShells(): void {

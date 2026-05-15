@@ -1,13 +1,26 @@
 import "./styles.css";
-import { loadMatchData, loadMobileData, type MobileData } from "./api";
+import {
+  loadMatchData,
+  loadMobileData,
+  loadPlayerProfile,
+  loadTeamProfile,
+  loadTournamentPlayers,
+  loadTournamentTeams,
+  type MobileData,
+} from "./api";
 import {
   type AghanimState,
   type AppRoute,
   type DraftStep,
+  type EntityTeamInfo,
   type MatchRecord,
   type MatchData,
+  type PlayerDirectoryItem,
+  type PlayerProfile,
   type PlayerStats,
+  type ProfileMatchSummary,
   type StageKey,
+  type TeamProfile,
   type TeamSide,
 } from "./data";
 
@@ -17,14 +30,17 @@ let activeWardPointerId: number | null = null;
 let wardScrubberScrollY: number | null = null;
 let wardScrubberScrollLockUntil = 0;
 let wardScrubberSuppressNativeEventsUntil = 0;
+let lastFloatingNavScrollY = 0;
+let floatingNavScrollTicking = false;
 
 const routeOptions: Array<{ key: AppRoute; label: string; kicker: string }> = [
-  { key: "home", label: "首页", kicker: "总览" },
+  { key: "home", label: "首页", kicker: "入口" },
   { key: "stage", label: "赛事阶段", kicker: "阶段" },
   { key: "schedule", label: "赛程", kicker: "时间" },
   { key: "records", label: "比赛记录", kicker: "记录" },
   { key: "match", label: "比赛详情", kicker: "战报" },
-  { key: "tags", label: "选手/队伍", kicker: "社区" },
+  { key: "players", label: "选手", kicker: "数据" },
+  { key: "teams", label: "队伍", kicker: "战队" },
 ];
 
 const primaryNavRoutes = routeOptions.filter((route) => route.key !== "match");
@@ -35,7 +51,36 @@ const stageOptions: Array<{ key: StageKey; label: string }> = [
   { key: "knockout", label: "淘汰赛" },
 ];
 
-const routeSet = new Set<AppRoute>(routeOptions.map((route) => route.key));
+type PlayerSortKey =
+  | "displayName"
+  | "totalMatches"
+  | "winRate"
+  | "kda"
+  | "avgKills"
+  | "avgGpm"
+  | "avgXpm"
+  | "avgHeroDamage"
+  | "avgTowerDamage"
+  | "avgDamageTaken";
+
+type SortDirection = "asc" | "desc";
+
+const playerSortOptions: Array<{ key: PlayerSortKey; label: string; defaultDirection: SortDirection }> = [
+  { key: "totalMatches", label: "场次", defaultDirection: "desc" },
+  { key: "winRate", label: "胜率", defaultDirection: "desc" },
+  { key: "kda", label: "KDA", defaultDirection: "desc" },
+  { key: "avgKills", label: "击杀", defaultDirection: "desc" },
+  { key: "avgGpm", label: "GPM", defaultDirection: "desc" },
+  { key: "avgXpm", label: "XPM", defaultDirection: "desc" },
+  { key: "avgHeroDamage", label: "伤害", defaultDirection: "desc" },
+  { key: "avgTowerDamage", label: "建筑", defaultDirection: "desc" },
+  { key: "avgDamageTaken", label: "承伤", defaultDirection: "desc" },
+  { key: "displayName", label: "名字", defaultDirection: "asc" },
+];
+
+const playerSortKeySet = new Set<PlayerSortKey>(playerSortOptions.map((option) => option.key));
+
+const routeSet = new Set<AppRoute>([...routeOptions.map((route) => route.key), "player", "team"]);
 const stageSet = new Set<StageKey>(stageOptions.map((stage) => stage.key));
 
 const appState: {
@@ -46,7 +91,15 @@ const appState: {
   data: MobileData | null;
   loading: boolean;
   selectedTournamentId: string | null;
+  playerSortKey: PlayerSortKey;
+  playerSortDirection: SortDirection;
+  profileId: string | null;
+  playerProfiles: Record<string, PlayerProfile>;
+  teamProfiles: Record<string, TeamProfile>;
+  profileLoading: Record<string, boolean>;
+  profileErrors: Record<string, string>;
   routeHistory: AppRoute[];
+  floatingNavHidden: boolean;
 } = {
   route: readRouteFromHash(),
   stage: "group",
@@ -55,7 +108,15 @@ const appState: {
   data: null,
   loading: true,
   selectedTournamentId: null,
+  playerSortKey: "totalMatches",
+  playerSortDirection: "desc",
+  profileId: readProfileIdFromHash(),
+  playerProfiles: {},
+  teamProfiles: {},
+  profileLoading: {},
+  profileErrors: {},
   routeHistory: [],
+  floatingNavHidden: false,
 };
 
 if (!root) {
@@ -67,6 +128,7 @@ void refreshData();
 
 window.addEventListener("hashchange", () => {
   appState.route = readRouteFromHash();
+  appState.profileId = readProfileIdFromHash();
   render();
 });
 
@@ -76,6 +138,10 @@ root.addEventListener("click", (event) => {
   const routeButton = target?.closest<HTMLElement>("[data-route]");
   const stageButton = target?.closest<HTMLElement>("[data-stage]");
   const playerButton = target?.closest<HTMLElement>("[data-player]");
+  const profilePlayerButton = target?.closest<HTMLElement>("[data-profile-player]");
+  const profileTeamButton = target?.closest<HTMLElement>("[data-profile-team]");
+  const playerSortButton = target?.closest<HTMLElement>("[data-player-sort]");
+  const retryProfileButton = target?.closest<HTMLElement>("[data-retry-profile]");
   const topButton = target?.closest<HTMLElement>("[data-top]");
   const tournamentButton = target?.closest<HTMLElement>("[data-tournament]");
   const matchButton = target?.closest<HTMLElement>("[data-match-id]");
@@ -123,6 +189,55 @@ root.addEventListener("click", (event) => {
           appState.loading = false;
           render();
         });
+    }
+    return;
+  }
+
+  if (profilePlayerButton) {
+    const playerId = profilePlayerButton.dataset.profilePlayer;
+
+    if (playerId) {
+      navigateTo("player", { profileId: playerId });
+    }
+    return;
+  }
+
+  if (profileTeamButton) {
+    const teamId = profileTeamButton.dataset.profileTeam;
+
+    if (teamId) {
+      navigateTo("team", { profileId: teamId });
+    }
+    return;
+  }
+
+  if (playerSortButton) {
+    const sortKey = playerSortButton.dataset.playerSort;
+    if (isPlayerSortKey(sortKey)) {
+      if (appState.playerSortKey === sortKey) {
+        appState.playerSortDirection = appState.playerSortDirection === "desc" ? "asc" : "desc";
+      } else {
+        appState.playerSortKey = sortKey;
+        appState.playerSortDirection =
+          playerSortOptions.find((option) => option.key === sortKey)?.defaultDirection ?? "desc";
+      }
+      render();
+    }
+    return;
+  }
+
+  if (retryProfileButton) {
+    const profileType = retryProfileButton.dataset.retryProfile;
+    const profileId = retryProfileButton.dataset.profileId;
+
+    if (profileType && profileId) {
+      delete appState.profileErrors[`${profileType}:${profileId}`];
+      if (profileType === "player") {
+        void ensurePlayerProfileLoaded(profileId);
+      } else if (profileType === "team") {
+        void ensureTeamProfileLoaded(profileId);
+      }
+      render();
     }
     return;
   }
@@ -176,6 +291,7 @@ window.addEventListener("mouseup", handleWardScrubberMouseEnd);
 window.addEventListener("touchend", handleWardScrubberTouchEnd);
 window.addEventListener("touchcancel", handleWardScrubberTouchEnd);
 window.addEventListener("scroll", handleWardScrubberScroll, { passive: true });
+window.addEventListener("scroll", handleFloatingNavScroll, { passive: true });
 
 function handleWardScrubberEvent(event: Event): void {
   const target = event.target instanceof HTMLElement ? event.target : null;
@@ -422,6 +538,36 @@ function handleWardScrubberScroll(): void {
   requestAnimationFrame(() => keepWardScrubberScrollLocked());
 }
 
+function handleFloatingNavScroll(): void {
+  if (floatingNavScrollTicking) {
+    return;
+  }
+
+  floatingNavScrollTicking = true;
+  requestAnimationFrame(() => {
+    const nextScrollY = Math.max(0, window.scrollY);
+    const delta = nextScrollY - lastFloatingNavScrollY;
+
+    if (nextScrollY < 24 || delta < -8) {
+      setFloatingNavHidden(false);
+    } else if (delta > 10 && nextScrollY > 80) {
+      setFloatingNavHidden(true);
+    }
+
+    lastFloatingNavScrollY = nextScrollY;
+    floatingNavScrollTicking = false;
+  });
+}
+
+function setFloatingNavHidden(hidden: boolean): void {
+  if (appState.floatingNavHidden === hidden) {
+    return;
+  }
+
+  appState.floatingNavHidden = hidden;
+  root?.querySelector<HTMLElement>(".floating-route-nav")?.classList.toggle("hidden", hidden);
+}
+
 function extendWardScrubberScrollLock(): void {
   wardScrubberScrollLockUntil = Math.max(wardScrubberScrollLockUntil, performance.now() + 180);
 }
@@ -504,19 +650,32 @@ function updateWardTimelineView(range: HTMLElement, selectedSecond: number): voi
 
 function render(): void {
   document.title = `MRJZ H5 - ${routeLabel(appState.route)}`;
+  const isHome = appState.route === "home";
+
   root!.innerHTML = `
-    <div class="app-shell">
+    <div class="app-shell ${isHome ? "route-home" : "route-secondary"}">
       ${renderAppBar()}
       <main class="view" aria-live="polite">
         ${renderCurrentRoute()}
       </main>
-      <button class="back-top" type="button" data-top aria-label="回到顶部">↑</button>
+      ${isHome ? "" : renderFloatingRouteNav()}
+      ${isHome ? "" : `<button class="back-top" type="button" data-top aria-label="回到顶部">↑</button>`}
     </div>
   `;
 }
 
-function navigateTo(route: AppRoute, options: { replace?: boolean; scroll?: boolean } = {}): void {
+function navigateTo(route: AppRoute, options: { replace?: boolean; scroll?: boolean; profileId?: string } = {}): void {
+  const nextProfileId = options.profileId ?? (route === "player" || route === "team" ? appState.profileId : null);
+  const nextHash = route === "player" || route === "team" ? `#${route}/${encodeURIComponent(nextProfileId ?? "")}` : `#${route}`;
+
   if (route === appState.route) {
+    appState.profileId = nextProfileId;
+    appState.floatingNavHidden = false;
+    if (options.replace) {
+      window.history.replaceState(null, "", nextHash);
+    } else if (window.location.hash !== nextHash) {
+      window.history.pushState(null, "", nextHash);
+    }
     render();
     if (options.scroll !== false) {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -529,7 +688,8 @@ function navigateTo(route: AppRoute, options: { replace?: boolean; scroll?: bool
   }
 
   appState.route = route;
-  const nextHash = `#${route}`;
+  appState.profileId = nextProfileId;
+  appState.floatingNavHidden = false;
 
   if (options.replace) {
     window.history.replaceState(null, "", nextHash);
@@ -552,6 +712,16 @@ function goBack(): void {
     return;
   }
 
+  if (appState.route === "player") {
+    navigateTo("players", { replace: true });
+    return;
+  }
+
+  if (appState.route === "team") {
+    navigateTo("teams", { replace: true });
+    return;
+  }
+
   if (appState.route !== "home") {
     navigateTo("home", { replace: true });
   }
@@ -561,6 +731,10 @@ async function refreshData(tournamentId = appState.selectedTournamentId ?? undef
   try {
     appState.data = await loadMobileData(tournamentId);
     appState.selectedTournamentId = appState.data.selectedTournamentId;
+    appState.playerProfiles = {};
+    appState.teamProfiles = {};
+    appState.profileLoading = {};
+    appState.profileErrors = {};
   } catch (error) {
     console.error(error);
   } finally {
@@ -581,29 +755,38 @@ function renderCurrentRoute(): string {
       return renderRecordsPage();
     case "match":
       return renderMatchDetail(currentData().featuredMatch);
-    case "tags":
-      return renderTagsPage();
+    case "players":
+      return renderPlayersPage();
+    case "teams":
+      return renderTeamsPage();
+    case "player":
+      return renderPlayerProfilePage();
+    case "team":
+      return renderTeamProfilePage();
   }
 }
 
 function renderAppBar(): string {
-  const data = currentData();
   return `
     <header class="app-bar">
-      <div class="title-line">
+      <div class="title-line top-only">
         <button class="icon-button" type="button" data-back aria-label="返回上一页">‹</button>
-        <div>
-          <p class="eyebrow">${escapeHtml(data.selectedTournamentName)} · League ${escapeHtml(data.selectedTournamentMeta.leagueId)}</p>
-          <h1>${escapeHtml(routeLabel(appState.route))}</h1>
-        </div>
-        <span class="appbar-spacer" aria-hidden="true"></span>
       </div>
-      <nav class="route-tabs" aria-label="主导航">
+    </header>
+  `;
+}
+
+function renderFloatingRouteNav(): string {
+  const navRoute = activePrimaryNavRoute(appState.route);
+
+  return `
+    <nav class="floating-route-nav ${appState.floatingNavHidden ? "hidden" : ""}" aria-label="主导航">
+      <div class="route-tabs">
         ${primaryNavRoutes
           .map(
             (route) => `
               <button
-                class="route-tab ${route.key === appState.route ? "active" : ""}"
+                class="route-tab ${route.key === navRoute ? "active" : ""}"
                 type="button"
                 data-route="${route.key}"
               >
@@ -612,78 +795,56 @@ function renderAppBar(): string {
             `,
           )
           .join("")}
-      </nav>
-    </header>
+      </div>
+    </nav>
   `;
+}
+
+function activePrimaryNavRoute(route: AppRoute): AppRoute {
+  if (route === "player") {
+    return "players";
+  }
+
+  if (route === "team") {
+    return "teams";
+  }
+
+  return route;
 }
 
 function renderHome(): string {
   const data = currentData();
-  const meta = data.selectedTournamentMeta;
-  const nextMatch = data.scheduleGroups.flatMap((group) => group.matches).find((match) => match.status !== "已完赛");
-  const recentRecord = data.matchRecords[0];
 
   return `
     ${renderDataNotice()}
-    <section class="hero-card dense-section lifecycle-${escapeHtml(meta.status)}">
-      <div>
-        <p class="eyebrow">MRJZ Dota 2 Community</p>
-        <h2>${escapeHtml(data.selectedTournamentName)}</h2>
-        <p class="muted">${escapeHtml(meta.statusText)}${meta.status === "upcoming" ? ` · 开赛 ${escapeHtml(meta.startsAt)}` : ""}</p>
-        <div class="lifecycle-strip">
-          ${renderLifecycleStep("upcoming", "预告", meta.status)}
-          ${renderLifecycleStep("running", "进行中", meta.status)}
-          ${renderLifecycleStep("completed", "已完赛", meta.status)}
-        </div>
-      </div>
-      <div class="hero-score">
-        <span>League ${escapeHtml(meta.leagueId)}</span>
-        <b>${data.featuredMatch.radiantScore}:${data.featuredMatch.direScore}</b>
-        <span>${escapeHtml(data.featuredMatch.radiant.shortName)} / ${escapeHtml(data.featuredMatch.dire.shortName)}</span>
-      </div>
-    </section>
-
-    <section class="section-panel">
+    <section class="section-panel tournament-gateway">
       <div class="section-title compact">
         <div>
-          <p class="eyebrow">Seasons</p>
-          <h2>赛事入口</h2>
+          <p class="eyebrow">MRJZ Dota 2 Community</p>
+          <h2>选择赛事</h2>
         </div>
-        <span class="tiny-meta">点击查看对应届数的比赛记录</span>
+        <span class="sync-pill">${escapeHtml(data.tournamentOptions.length)} 届</span>
       </div>
-      <div class="season-result-grid">
-        ${data.tournamentOptions.map((option) => renderSeasonResultEntry(option, data.tournamentRecentRecords[option.id] ?? [])).join("")}
+      <p class="gateway-lead">先选定要查看的届数，再进入阶段、赛程、比赛记录、选手和队伍数据。</p>
+      <div class="tournament-entry-list">
+        ${data.tournamentOptions.length > 0 ? data.tournamentOptions.map((option) => renderTournamentEntry(option, data.tournamentRecentRecords[option.id] ?? [])).join("") : renderEmptyState("暂无可查看赛事")}
       </div>
     </section>
+  `;
+}
 
-    <section class="metric-grid" aria-label="赛事概览">
-      ${data.tournamentStats.length > 0 ? data.tournamentStats.map(renderMetric).join("") : renderEmptyState("暂无真实赛事统计")}
-    </section>
+function renderTournamentScope(): string {
+  const data = currentData();
+  const meta = data.selectedTournamentMeta;
 
-    <section class="section-panel">
-      <div class="section-title">
-        <div>
-          <p class="eyebrow">Next</p>
-          <h2>下一场赛程</h2>
-        </div>
-        <button class="link-button" type="button" data-route="schedule">查看赛程</button>
+  return `
+    <section class="tournament-scope">
+      <div>
+        <p class="eyebrow">当前赛事</p>
+        <b>${escapeHtml(data.selectedTournamentName)}</b>
+        <span>League ${escapeHtml(meta.leagueId)} · ${escapeHtml(meta.statusText)}</span>
       </div>
-      ${nextMatch ? renderScheduleCard(nextMatch) : renderEmptyState("暂无下一场赛程")}
-    </section>
-
-    <section class="section-panel">
-      <div class="section-title">
-        <div>
-          <p class="eyebrow">Latest</p>
-          <h2>最新赛果</h2>
-        </div>
-        <button class="link-button" type="button" data-route="match">打开战报</button>
-      </div>
-      ${
-        recentRecord
-          ? renderMatchRecordCard(recentRecord)
-          : renderEmptyState("暂无已完赛比赛")
-      }
+      <button class="link-button" type="button" data-route="home">切换</button>
     </section>
   `;
 }
@@ -693,6 +854,7 @@ function renderStagePage(): string {
 
   return `
     ${renderDataNotice()}
+    ${renderTournamentScope()}
     <section class="stage-switch section-panel">
       <div class="section-title compact">
         <div>
@@ -768,6 +930,7 @@ function renderSchedulePage(): string {
   const groups = currentData().scheduleGroups;
   return `
     ${renderDataNotice()}
+    ${renderTournamentScope()}
     <section class="section-panel">
       <div class="section-title compact">
         <div>
@@ -807,6 +970,7 @@ function renderRecordsPage(): string {
 
   return `
     ${renderDataNotice()}
+    ${renderTournamentScope()}
     <section class="section-panel">
       <div class="section-title compact">
         <div>
@@ -916,41 +1080,654 @@ function renderMatchQuickStats(match: MatchData): string {
   `;
 }
 
-function renderTagsPage(): string {
-  const match = currentData().featuredMatch;
-  const playerA = match.players.find((player) => player.id === match.mvpPlayerId) ?? match.players[0];
-  const playerB = match.players.find((player) => player.side !== playerA?.side) ?? match.players[5] ?? match.players[0];
+function renderPlayersPage(): string {
+  const data = currentData();
+  const topPlayers = sortTournamentPlayers(data.players);
+  const error = appState.profileErrors.players;
+
+  if (topPlayers.length === 0) {
+    void ensurePlayersLoaded();
+  }
 
   return `
-    <section class="section-panel">
+    ${renderDataNotice()}
+    ${renderTournamentScope()}
+    <section class="section-panel player-board-panel">
       <div class="section-title compact">
         <div>
           <p class="eyebrow">Players</p>
-          <h2>选手标签</h2>
+          <h2>选手数据榜</h2>
         </div>
-        <span class="sync-pill">真实数据</span>
+        <span class="sync-pill">${topPlayers.length} 名</span>
       </div>
-      ${renderEmptyState("暂无真实选手标签。后续接入登录后允许用户添加和点赞。")}
+      ${renderPlayerSortBar()}
+      <div class="player-stat-list">
+        ${
+          topPlayers.length > 0
+            ? topPlayers.map(renderPlayerDirectoryCard).join("")
+            : renderEmptyState(error ?? (appState.profileLoading.players ? "正在读取选手数据" : "暂无选手数据"))
+        }
+      </div>
     </section>
+  `;
+}
 
+function renderTeamsPage(): string {
+  const data = currentData();
+  const topTeams = [...data.teams].sort((left, right) => right.stats.seriesPlayed - left.stats.seriesPlayed);
+  const error = appState.profileErrors.teams;
+
+  if (topTeams.length === 0) {
+    void ensureTeamsLoaded();
+  }
+
+  return `
+    ${renderDataNotice()}
+    ${renderTournamentScope()}
     <section class="section-panel">
       <div class="section-title compact">
         <div>
           <p class="eyebrow">Teams</p>
-          <h2>队伍标签</h2>
+          <h2>队伍主页</h2>
         </div>
-        <span class="sync-pill">真实数据</span>
+        <span class="sync-pill">${topTeams.length} 支</span>
       </div>
-      ${renderEmptyState("暂无真实队伍标签。后续由用户互动产生。")}
-    </section>
-
-    <section class="profile-preview-grid">
-      ${playerA ? renderProfilePreview(`player:${playerA.id}`, playerA.name, playerA.hero, getTeam(match, playerA.side).name, `${playerA.participation} 参战 · ${playerA.heroDamage} 输出`, []) : ""}
-      ${playerB ? renderProfilePreview(`player:${playerB.id}`, playerB.name, playerB.hero, getTeam(match, playerB.side).name, `${playerB.participation} 参战 · ${playerB.heroDamage} 输出`, []) : ""}
-      ${match.players.length > 0 ? renderProfilePreview(`team:${match.radiant.name}`, match.radiant.name, "战队", "天辉侧", `${match.radiantScore} 击杀 · ${match.winner === "radiant" ? "本局胜方" : "本局负方"}`, []) : ""}
-      ${match.players.length > 0 ? renderProfilePreview(`team:${match.dire.name}`, match.dire.name, "战队", "夜魇侧", `${match.direScore} 击杀 · ${match.winner === "dire" ? "本局胜方" : "本局负方"}`, []) : ""}
+      <div class="profile-card-list">
+        ${
+          topTeams.length > 0
+            ? topTeams.map(renderTeamDirectoryCard).join("")
+            : renderEmptyState(error ?? (appState.profileLoading.teams ? "正在读取队伍数据" : "暂无队伍数据"))
+        }
+      </div>
     </section>
   `;
+}
+
+function renderPlayerDirectoryCard(player: MobileData["players"][number]): string {
+  const team = player.currentTeam ?? player.teams[0] ?? null;
+  const heroStrip = renderPlayerHeroStrip(player.stats.topHeroes);
+  const winRateValue = Math.max(0, Math.min(100, numericStatValue(player, "winRate") ?? 0));
+
+  return `
+    <article class="player-stat-card" style="--accent:${escapeHtml(team?.color ?? "#5eead4")}">
+      <button class="player-stat-card-main" type="button" data-profile-player="${escapeHtml(player.id)}">
+        <div class="player-stat-head">
+          ${renderSteamAvatar(player)}
+          <div class="player-stat-identity">
+            <div class="player-stat-name-row">
+              <b>${escapeHtml(player.displayName)}</b>
+              ${renderPlayerTeamBadge(team)}
+            </div>
+            <small>
+              <span class="profile-id-link">ID ${escapeHtml(player.accountId ?? player.id)}</span>
+              <span>${player.stats.wins}W / ${player.stats.losses}L</span>
+            </small>
+          </div>
+          <div class="player-stat-primary">
+            <span>胜率 <b>${escapeHtml(player.stats.winRate)}</b></span>
+            <i style="--rate:${winRateValue}%"></i>
+            <strong>${escapeHtml(player.stats.kda)}</strong>
+            <em>KDA</em>
+          </div>
+        </div>
+        <div class="player-stat-grid">
+          ${renderPlayerStatTile("场次", String(player.stats.totalMatches))}
+          ${renderPlayerStatTile("GPM", player.stats.avgGpm)}
+          ${renderPlayerStatTile("XPM", player.stats.avgXpm)}
+          ${renderPlayerStatTile("击/亡/助", `${player.stats.avgKills}/${player.stats.avgDeaths}/${player.stats.avgAssists}`)}
+          ${renderPlayerStatTile("场均经济", player.stats.avgNetWorth)}
+          ${renderPlayerStatTile("英雄伤害", player.stats.avgHeroDamage)}
+          ${renderPlayerStatTile("建筑伤害", player.stats.avgTowerDamage)}
+          ${renderPlayerStatTile("承伤", player.stats.avgDamageTaken)}
+        </div>
+        ${heroStrip}
+      </button>
+    </article>
+  `;
+}
+
+function renderPlayerSortBar(): string {
+  const activeOption =
+    playerSortOptions.find((option) => option.key === appState.playerSortKey) ?? playerSortOptions[0]!;
+
+  return `
+    <div class="player-sort-meta">
+      <span>排序</span>
+      <b>${escapeHtml(activeOption.label)} ${appState.playerSortDirection === "desc" ? "↓" : "↑"}</b>
+    </div>
+    <div class="player-sort-bar" role="toolbar" aria-label="选手排序">
+      ${playerSortOptions
+        .map((option) => {
+          const active = option.key === appState.playerSortKey;
+          const direction = active ? appState.playerSortDirection : option.defaultDirection;
+
+          return `
+            <button
+              class="${active ? "active" : ""}"
+              type="button"
+              data-player-sort="${option.key}"
+              aria-pressed="${active ? "true" : "false"}"
+            >
+              ${escapeHtml(option.label)}
+              <span>${direction === "desc" ? "↓" : "↑"}</span>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderPlayerTeamBadge(team: EntityTeamInfo | null): string {
+  if (team === null) {
+    return `<span class="team-mark empty">暂未归队</span>`;
+  }
+
+  return `
+    <span
+      class="team-mark"
+      style="--team:${escapeHtml(team.color)}"
+      title="所属战队：${escapeHtml(team.name)}"
+      aria-label="所属战队：${escapeHtml(team.name)}"
+    >
+      ${escapeHtml(team.name)}
+    </span>
+  `;
+}
+
+function renderPlayerStatTile(label: string, value: string): string {
+  return `
+    <span>
+      <small>${escapeHtml(label)}</small>
+      <b>${escapeHtml(value)}</b>
+    </span>
+  `;
+}
+
+function renderPlayerHeroStrip(heroes: PlayerDirectoryItem["stats"]["topHeroes"]): string {
+  if (heroes.length === 0) {
+    return `<div class="player-hero-strip empty">暂无常用英雄</div>`;
+  }
+
+  return `
+    <div class="player-hero-strip">
+      ${heroes
+        .slice(0, 3)
+        .map(
+          (hero) => `
+            <span>
+              <img src="${escapeHtml(hero.icon)}" alt="${escapeHtml(hero.hero)}" loading="lazy" onerror="this.onerror=null; this.src='${escapeHtml(hero.portrait)}';">
+            </span>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderSteamAvatar(player: Pick<PlayerDirectoryItem, "displayName" | "avatarUrl">, size: "normal" | "large" | "small" = "normal"): string {
+  const className = `steam-avatar ${size}`;
+  const fallback = `<span class="profile-avatar-fallback ${size === "large" ? "large" : ""}" aria-hidden="true">${escapeHtml(player.displayName.slice(0, 1).toUpperCase())}</span>`;
+
+  if (player.avatarUrl) {
+    return `
+      <span class="steam-avatar-shell ${size}">
+        <img class="${className}" src="${escapeHtml(player.avatarUrl)}" alt="${escapeHtml(player.displayName)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('avatar-failed'); this.remove();">
+        ${fallback}
+      </span>
+    `;
+  }
+
+  return fallback;
+}
+
+function renderTeamDirectoryCard(team: MobileData["teams"][number]): string {
+  return `
+    <article class="profile-list-card team-card" style="--accent:${escapeHtml(team.color)}">
+      <button type="button" data-profile-team="${escapeHtml(team.id)}">
+        <span class="profile-avatar-fallback team">${escapeHtml(team.shortName.slice(0, 2).toUpperCase())}</span>
+        <div>
+          <b>${escapeHtml(team.name)}</b>
+          <small>${team.memberCount} 名成员 · ${team.stats.seriesPlayed} 场 · 胜率 ${escapeHtml(team.stats.winRate)}</small>
+          <span>${team.stats.gameWins} 胜 / ${team.stats.gameLosses} 负 · 入库 ${team.stats.linkedMatches} 场</span>
+        </div>
+        <strong>进入</strong>
+      </button>
+    </article>
+  `;
+}
+
+function renderPlayerProfilePage(): string {
+  const data = currentData();
+  const playerId = appState.profileId ?? data.players[0]?.id ?? null;
+
+  if (playerId === null) {
+    return renderEmptyState("暂无选手数据");
+  }
+
+  const profile = appState.playerProfiles[playerId];
+  const error = appState.profileErrors[`player:${playerId}`];
+
+  if (error) {
+    return renderProfileError("选手主页读取失败", error, "player", playerId);
+  }
+
+  if (!profile) {
+    void ensurePlayerProfileLoaded(playerId);
+    return renderProfileLoading("正在读取选手主页");
+  }
+
+  const team = profile.currentTeam ?? profile.teams[0] ?? null;
+
+  return `
+    ${renderDataNotice()}
+    ${renderTournamentScope()}
+    <section class="profile-hero player-profile" style="--accent:${escapeHtml(team?.color ?? "#5eead4")}">
+      <div class="profile-hero-main">
+        ${renderSteamAvatar(profile, "large")}
+        <div>
+          <p class="eyebrow">Player Profile</p>
+          <div class="profile-name-row">
+            <h2>${escapeHtml(profile.displayName)}</h2>
+            ${renderPlayerTeamBadge(team)}
+          </div>
+          <p>${escapeHtml(team?.name ?? "暂未归队")} · Account ${escapeHtml(profile.accountId ?? "-")}</p>
+        </div>
+      </div>
+      <div class="profile-winrate">
+        <span>本届胜率</span>
+        <b>${escapeHtml(profile.stats.winRate)}</b>
+        <small>${profile.stats.wins}W / ${profile.stats.losses}L</small>
+      </div>
+    </section>
+
+    ${renderProfileStatGrid([
+      ["场次", String(profile.stats.totalMatches)],
+      ["胜率", profile.stats.winRate],
+      ["KDA", profile.stats.kda],
+      ["场均K/D/A", `${profile.stats.avgKills}/${profile.stats.avgDeaths}/${profile.stats.avgAssists}`],
+      ["GPM", profile.stats.avgGpm],
+      ["XPM", profile.stats.avgXpm],
+      ["场均经济", profile.stats.avgNetWorth],
+      ["场均伤害", profile.stats.avgHeroDamage],
+      ["建筑伤害", profile.stats.avgTowerDamage],
+      ["场均承伤", profile.stats.avgDamageTaken],
+    ])}
+
+    ${renderSignatureHeroes(profile.stats.topHeroes)}
+    ${renderProfileMatches(profile.matches, "参赛记录")}
+    ${renderProfileTagsPlaceholder("player")}
+  `;
+}
+
+function renderTeamProfilePage(): string {
+  const data = currentData();
+  const teamId = appState.profileId ?? data.teams[0]?.id ?? null;
+
+  if (teamId === null) {
+    return renderEmptyState("暂无队伍数据");
+  }
+
+  const profile = appState.teamProfiles[teamId];
+  const error = appState.profileErrors[`team:${teamId}`];
+
+  if (error) {
+    return renderProfileError("队伍主页读取失败", error, "team", teamId);
+  }
+
+  if (!profile) {
+    void ensureTeamProfileLoaded(teamId);
+    return renderProfileLoading("正在读取队伍主页");
+  }
+
+  return `
+    ${renderDataNotice()}
+    ${renderTournamentScope()}
+    <section class="profile-hero team-profile" style="--accent:${escapeHtml(profile.color)}">
+      <div class="profile-hero-main">
+        <span class="profile-avatar-fallback large team">${escapeHtml(profile.shortName.slice(0, 2).toUpperCase())}</span>
+        <div>
+          <p class="eyebrow">Team Profile</p>
+          <h2>${escapeHtml(profile.name)}</h2>
+          <p>${profile.memberCount} 名成员 · ${escapeHtml(profile.status)} · ${profile.stats.linkedMatches} 场真实比赛</p>
+        </div>
+      </div>
+      <div class="profile-winrate">
+        <span>本届胜率</span>
+        <b>${escapeHtml(profile.stats.winRate)}</b>
+        <small>${profile.stats.gameWins}W / ${profile.stats.gameLosses}L</small>
+      </div>
+    </section>
+
+    ${renderProfileStatGrid([
+      ["比赛", String(profile.stats.seriesPlayed)],
+      ["胜场", String(profile.stats.seriesWins)],
+      ["负场", String(profile.stats.seriesLosses)],
+      ["成员", String(profile.memberCount)],
+      ["入库比赛", String(profile.stats.linkedMatches)],
+      ["状态", profile.status],
+    ])}
+
+    <section class="section-panel">
+      <div class="section-title compact">
+        <div>
+          <p class="eyebrow">Roster</p>
+          <h2>成员名单</h2>
+        </div>
+      </div>
+      <div class="roster-list">
+        ${
+          profile.members.length > 0
+            ? profile.members
+                .map(
+                  (player) => `
+                    <button type="button" data-profile-player="${escapeHtml(player.id)}">
+                      ${renderSteamAvatar(player, "small")}
+                      <b>${escapeHtml(player.displayName)}</b>
+                      <span>ID ${escapeHtml(player.accountId ?? player.id)}</span>
+                    </button>
+                  `,
+                )
+                .join("")
+            : renderEmptyState("暂无成员")
+        }
+      </div>
+    </section>
+
+    ${renderSignatureHeroes(profile.stats.topHeroes)}
+    ${renderProfileMatches(profile.matches, "队伍比赛")}
+    ${renderProfileTagsPlaceholder("team")}
+  `;
+}
+
+function renderProfileLoading(text: string): string {
+  return `
+    <section class="section-panel profile-loading">
+      <p class="eyebrow">Loading</p>
+      <h2>${escapeHtml(text)}</h2>
+    </section>
+  `;
+}
+
+function renderProfileError(title: string, message: string, type: "player" | "team", profileId: string): string {
+  return `
+    <section class="section-panel profile-loading profile-error">
+      <p class="eyebrow">Error</p>
+      <h2>${escapeHtml(title)}</h2>
+      <small>${escapeHtml(message)}</small>
+      <button type="button" data-retry-profile="${type}" data-profile-id="${escapeHtml(profileId)}">再试一次</button>
+    </section>
+  `;
+}
+
+function renderProfileStatGrid(stats: Array<[string, string]>): string {
+  return `
+    <section class="profile-stat-grid">
+      ${stats.map(([label, value]) => `<article><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></article>`).join("")}
+    </section>
+  `;
+}
+
+function renderSignatureHeroes(heroes: Array<{ hero: string; portrait: string; picks: number; wins: number }>): string {
+  return `
+    <section class="section-panel">
+      <div class="section-title compact">
+        <div>
+          <p class="eyebrow">Heroes</p>
+          <h2>常用英雄</h2>
+        </div>
+      </div>
+      <div class="signature-heroes">
+        ${
+          heroes.length > 0
+            ? heroes
+                .map(
+                  (hero) => `
+                    <article>
+                      <img src="${escapeHtml(hero.portrait)}" alt="${escapeHtml(hero.hero)}" loading="lazy" onerror="${heroImageFallbackHandler()}">
+                      <div>
+                        <b>${escapeHtml(hero.hero)}</b>
+                        <span>${hero.picks} 场 · ${hero.wins} 胜 · ${formatHeroWinRate(hero.wins, hero.picks)}</span>
+                      </div>
+                    </article>
+                  `,
+                )
+                .join("")
+            : renderEmptyState("暂无英雄统计")
+        }
+      </div>
+    </section>
+  `;
+}
+
+function renderProfileMatches(matches: ProfileMatchSummary[], title: string): string {
+  return `
+    <section class="section-panel">
+      <div class="section-title compact">
+        <div>
+          <p class="eyebrow">Matches</p>
+          <h2>${escapeHtml(title)}</h2>
+        </div>
+        <span class="sync-pill">${matches.length} 场</span>
+      </div>
+      <div class="profile-match-list">
+        ${
+          matches.length > 0
+            ? matches
+                .map(
+                  (match) => `
+                    <button type="button" data-match-id="${escapeHtml(match.matchId)}" class="${match.result}">
+                      ${match.heroPortrait ? `<img src="${escapeHtml(match.heroPortrait)}" alt="${escapeHtml(match.hero ?? "英雄")}" loading="lazy" onerror="${heroImageFallbackHandler()}">` : "<span></span>"}
+                      <div>
+                        <b>${escapeHtml(match.radiantTeamName)} ${escapeHtml(match.score)} ${escapeHtml(match.direTeamName)}</b>
+                        <small>${escapeHtml(match.startTime)} · ${escapeHtml(match.duration)}</small>
+                      </div>
+                      <strong>${escapeHtml(match.kda ?? resultLabel(match.result))}</strong>
+                    </button>
+                  `,
+                )
+                .join("")
+            : renderEmptyState("暂无比赛记录")
+        }
+      </div>
+    </section>
+  `;
+}
+
+function renderProfileTagsPlaceholder(type: "player" | "team"): string {
+  return `
+    <section class="section-panel tag-entry">
+      <div class="section-title compact">
+        <div>
+          <p class="eyebrow">Community Tags</p>
+          <h2>${type === "player" ? "选手标签" : "队伍标签"}</h2>
+        </div>
+      </div>
+      ${renderEmptyState("标签添加和点赞接口接入后，这里展示用户互动产生的标签云。")}
+    </section>
+  `;
+}
+
+function resultLabel(result: "win" | "loss" | "unknown"): string {
+  if (result === "win") {
+    return "胜";
+  }
+
+  return result === "loss" ? "负" : "-";
+}
+
+function sortTournamentPlayers(players: PlayerDirectoryItem[]): PlayerDirectoryItem[] {
+  return [...players].sort((left, right) => comparePlayers(left, right, appState.playerSortKey, appState.playerSortDirection));
+}
+
+function comparePlayers(
+  left: PlayerDirectoryItem,
+  right: PlayerDirectoryItem,
+  key: PlayerSortKey,
+  direction: SortDirection,
+): number {
+  if (key === "displayName") {
+    const result = left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+    return direction === "asc" ? result : -result;
+  }
+
+  const leftValue = numericStatValue(left, key);
+  const rightValue = numericStatValue(right, key);
+
+  if (leftValue === null && rightValue === null) {
+    return left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+  }
+
+  if (leftValue === null) {
+    return 1;
+  }
+
+  if (rightValue === null) {
+    return -1;
+  }
+
+  const result = leftValue === rightValue ? 0 : leftValue > rightValue ? 1 : -1;
+  const normalized = direction === "asc" ? result : -result;
+
+  return normalized || left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+}
+
+function numericStatValue(player: PlayerDirectoryItem, key: PlayerSortKey): number | null {
+  switch (key) {
+    case "totalMatches":
+      return player.stats.totalMatches;
+    case "winRate":
+      return parseStatNumber(player.stats.winRate);
+    case "kda":
+      return parseStatNumber(player.stats.kda);
+    case "avgKills":
+      return parseStatNumber(player.stats.avgKills);
+    case "avgGpm":
+      return parseStatNumber(player.stats.avgGpm);
+    case "avgXpm":
+      return parseStatNumber(player.stats.avgXpm);
+    case "avgHeroDamage":
+      return parseStatNumber(player.stats.avgHeroDamage);
+    case "avgTowerDamage":
+      return parseStatNumber(player.stats.avgTowerDamage);
+    case "avgDamageTaken":
+      return parseStatNumber(player.stats.avgDamageTaken);
+    case "displayName":
+      return null;
+  }
+}
+
+function parseStatNumber(value: string): number | null {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized.length === 0 || normalized === "-") {
+    return null;
+  }
+
+  const multiplier = normalized.endsWith("k") ? 1000 : 1;
+  const parsed = Number.parseFloat(normalized.replace(/[%k,]/g, ""));
+
+  return Number.isFinite(parsed) ? parsed * multiplier : null;
+}
+
+function formatHeroWinRate(wins: number, picks: number): string {
+  if (picks <= 0) {
+    return "-";
+  }
+
+  return `${Math.round((wins / picks) * 100)}%`;
+}
+
+function heroImageFallbackHandler(): string {
+  return "this.onerror=null; this.src='/static/dota/heroes/unknown.svg';";
+}
+
+async function ensurePlayersLoaded(): Promise<void> {
+  const data = appState.data;
+  const key = "players";
+
+  if (!data || data.players.length > 0 || appState.profileLoading[key]) {
+    return;
+  }
+
+  appState.profileLoading[key] = true;
+  delete appState.profileErrors[key];
+
+  try {
+    data.players = await loadTournamentPlayers(data.apiBaseUrl, data.selectedTournamentId);
+  } catch (error) {
+    console.error(error);
+    appState.profileErrors[key] = "读取选手数据失败，请确认后端服务仍在运行。";
+  } finally {
+    delete appState.profileLoading[key];
+    render();
+  }
+}
+
+async function ensureTeamsLoaded(): Promise<void> {
+  const data = appState.data;
+  const key = "teams";
+
+  if (!data || data.teams.length > 0 || appState.profileLoading[key]) {
+    return;
+  }
+
+  appState.profileLoading[key] = true;
+  delete appState.profileErrors[key];
+
+  try {
+    data.teams = await loadTournamentTeams(data.apiBaseUrl, data.selectedTournamentId);
+  } catch (error) {
+    console.error(error);
+    appState.profileErrors[key] = "读取队伍数据失败，请确认后端服务仍在运行。";
+  } finally {
+    delete appState.profileLoading[key];
+    render();
+  }
+}
+
+async function ensurePlayerProfileLoaded(playerId: string): Promise<void> {
+  const data = appState.data;
+  const key = `player:${playerId}`;
+
+  if (!data || appState.playerProfiles[playerId] || appState.profileLoading[key]) {
+    return;
+  }
+
+  appState.profileLoading[key] = true;
+  delete appState.profileErrors[key];
+
+  try {
+    appState.playerProfiles[playerId] = await loadPlayerProfile(data.apiBaseUrl, data.selectedTournamentId, playerId);
+  } catch (error) {
+    console.error(error);
+    appState.profileErrors[key] = "这个选手主页暂时没有读到，请稍后重试或重新同步实体数据。";
+  } finally {
+    delete appState.profileLoading[key];
+    render();
+  }
+}
+
+async function ensureTeamProfileLoaded(teamId: string): Promise<void> {
+  const data = appState.data;
+  const key = `team:${teamId}`;
+
+  if (!data || appState.teamProfiles[teamId] || appState.profileLoading[key]) {
+    return;
+  }
+
+  appState.profileLoading[key] = true;
+  delete appState.profileErrors[key];
+
+  try {
+    appState.teamProfiles[teamId] = await loadTeamProfile(data.apiBaseUrl, data.selectedTournamentId, teamId);
+  } catch (error) {
+    console.error(error);
+    appState.profileErrors[key] = "这个队伍主页暂时没有读到，请稍后重试或重新同步实体数据。";
+  } finally {
+    delete appState.profileLoading[key];
+    render();
+  }
 }
 
 function renderMetric(metric: { label: string; value: string; hint: string }): string {
@@ -963,41 +1740,31 @@ function renderMetric(metric: { label: string; value: string; hint: string }): s
   `;
 }
 
-function renderSeasonResultEntry(option: MobileData["tournamentOptions"][number], records: MatchRecord[]): string {
+function renderTournamentEntry(option: MobileData["tournamentOptions"][number], records: MatchRecord[]): string {
   const active = currentData().selectedTournamentId === option.id;
   const latest = records[0];
   const score =
     latest === undefined || latest.radiantScore === null || latest.direScore === null
       ? "暂无赛果"
       : `${latest.radiantScore}:${latest.direScore}`;
+  const latestText =
+    latest === undefined
+      ? "暂无比赛记录"
+      : `${latest.radiantTeamName} ${score} ${latest.direTeamName}`;
 
   return `
-    <article class="season-entry ${active ? "active" : ""}">
-      <button class="season-main" type="button" data-tournament="${escapeHtml(option.id)}" data-target-route="records">
+    <article class="tournament-entry ${active ? "active" : ""}">
+      <button class="tournament-entry-main" type="button" data-tournament="${escapeHtml(option.id)}" data-target-route="stage">
         <div>
           <p class="eyebrow">League ${escapeHtml(option.leagueId)}</p>
           <h3>${escapeHtml(option.name)}</h3>
           <span>${escapeHtml(lifecycleLabel(option.status))} · ${escapeHtml(option.startsAt)}</span>
         </div>
-        <strong>${escapeHtml(score)}</strong>
+        <div class="tournament-entry-action">
+          <strong>${active ? "当前" : "进入"}</strong>
+          <span>${escapeHtml(latestText)}</span>
+        </div>
       </button>
-      <div class="season-records">
-        ${
-          records.length > 0
-            ? records
-                .map(
-                  (record) => `
-                    <button type="button" data-match-id="${escapeHtml(record.matchId)}">
-                      <span>${escapeHtml(record.radiantTeamName)}</span>
-                      <b>${escapeHtml(record.radiantScore === null || record.direScore === null ? "-:-" : `${record.radiantScore}:${record.direScore}`)}</b>
-                      <span>${escapeHtml(record.direTeamName)}</span>
-                    </button>
-                  `,
-                )
-                .join("")
-            : renderEmptyState("暂无已落库比赛")
-        }
-      </div>
     </article>
   `;
 }
@@ -1054,13 +1821,14 @@ function renderScheduleCard(match: {
   `;
 }
 
-function renderMatchRecordCard(record: MatchRecord): string {
+function renderMatchRecordCard(record: MatchRecord, index = 0): string {
   const score =
     record.radiantScore === null || record.direScore === null ? "- : -" : `${record.radiantScore} : ${record.direScore}`;
   const winnerClass = record.radiantWin === null ? "" : record.radiantWin ? "radiant-win" : "dire-win";
+  const heroCount = record.heroLineups.radiant.length + record.heroLineups.dire.length;
 
   return `
-    <article class="record-card ${winnerClass}">
+    <article class="record-card ${winnerClass}" style="--record-delay:${Math.min(index * 28, 420)}ms">
       <button class="record-main" type="button" data-match-id="${escapeHtml(record.matchId)}">
         <div class="record-head">
           <span>#${escapeHtml(record.matchId)}</span>
@@ -1071,18 +1839,62 @@ function renderMatchRecordCard(record: MatchRecord): string {
           <strong>${escapeHtml(score)}</strong>
           <span>${escapeHtml(record.direTeamName)}</span>
         </div>
+        ${renderRecordHeroMatchup(record)}
         <div class="record-meta">
           <span>${escapeHtml(record.duration)}</span>
           <span>${escapeHtml(record.parseStatus)}</span>
           <span>${record.playerCount} 人</span>
         </div>
         <div class="record-flags">
+          ${renderRecordFlag(`英雄 ${heroCount || "-"}`, heroCount > 0)}
           ${renderRecordFlag("BP", record.hasDraft)}
           ${renderRecordFlag("眼位", record.hasVision)}
           ${renderRecordFlag("聊天", record.hasChat)}
         </div>
       </button>
     </article>
+  `;
+}
+
+function renderRecordHeroMatchup(record: MatchRecord): string {
+  const hasLineup = record.heroLineups.radiant.length > 0 || record.heroLineups.dire.length > 0;
+
+  if (!hasLineup) {
+    return `
+      <div class="record-lineup empty">
+        <span>英雄阵容待同步</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="record-lineup" aria-label="双方英雄对阵">
+      ${renderRecordHeroStrip("radiant", record.heroLineups.radiant)}
+      <span class="record-versus" aria-hidden="true"><i></i><b>VS</b><i></i></span>
+      ${renderRecordHeroStrip("dire", record.heroLineups.dire)}
+    </div>
+  `;
+}
+
+function renderRecordHeroStrip(side: TeamSide, heroes: MatchRecord["heroLineups"][TeamSide]): string {
+  return `
+    <span class="record-hero-strip ${side}">
+      ${Array.from({ length: 5 }, (_, index) => renderRecordHero(side, heroes[index], index)).join("")}
+    </span>
+  `;
+}
+
+function renderRecordHero(side: TeamSide, hero: MatchRecord["heroLineups"][TeamSide][number] | undefined, index: number): string {
+  if (hero === undefined) {
+    return `<span class="record-hero empty" style="--hero-delay:${index * 30}ms"><i></i></span>`;
+  }
+
+  const title = `${side === "radiant" ? "天辉" : "夜魇"} · ${hero.playerName} · ${hero.hero}`;
+
+  return `
+    <span class="record-hero" style="--hero-delay:${index * 30}ms" title="${escapeHtml(title)}">
+      <img src="${escapeHtml(hero.icon)}" alt="${escapeHtml(hero.hero)}" loading="lazy" onerror="this.onerror=null; this.src='${escapeHtml(hero.portrait)}';">
+    </span>
   `;
 }
 
@@ -1159,7 +1971,7 @@ function renderMvpCard(player: PlayerStats, match: MatchData): string {
         </div>
       </div>
       <div class="mvp-visual">
-        <img class="mvp-portrait" src="${escapeHtml(player.portrait)}" alt="${escapeHtml(player.hero)}" />
+        <img class="mvp-portrait" src="${escapeHtml(player.portrait)}" alt="${escapeHtml(player.hero)}" onerror="${heroImageFallbackHandler()}" />
         <span>MVP</span>
       </div>
     </section>
@@ -1196,7 +2008,7 @@ function renderPlayerRow(player: PlayerStats, mvpPlayerId?: string): string {
       <div class="player-main">
         ${isMvp ? `<span class="player-mvp-badge">MVP</span>` : ""}
         <span class="hero-avatar-shell">
-          <img class="hero-avatar" src="${escapeHtml(player.portrait)}" alt="${escapeHtml(player.hero)}" />
+          <img class="hero-avatar" src="${escapeHtml(player.portrait)}" alt="${escapeHtml(player.hero)}" onerror="${heroImageFallbackHandler()}" />
           <i>${player.level}</i>
         </span>
         <div class="player-id">
@@ -1272,7 +2084,7 @@ function renderAbilityStep(ability: PlayerStats["abilityOrder"][number], index: 
   const level = ability.level ?? index + 1;
   const kind = ability.kind ?? "ability";
   const image = ability.imageUrl
-    ? `<img src="${escapeHtml(ability.imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('fallback'); this.remove();" />`
+    ? `<img src="${escapeHtml(ability.imageUrl)}" alt="" loading="lazy" onerror="this.onerror=null; this.parentElement.classList.add('fallback'); this.remove();" />`
     : "";
   const fallback = image ? "" : renderAbilityFallbackGlyph(kind);
 
@@ -1282,7 +2094,7 @@ function renderAbilityStep(ability: PlayerStats["abilityOrder"][number], index: 
 function renderItemSlot(item: PlayerStats["items"][number], slot: number | "neutral" | "backpack"): string {
   const empty = item.label === "-" || item.label === "空";
   const image = item.imageUrl
-    ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('empty'); this.remove();" />`
+    ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy" onerror="this.onerror=null; this.parentElement.classList.add('empty'); this.remove();" />`
     : "";
 
   return `
@@ -1306,7 +2118,7 @@ function renderAghanimIcon(label: string, state: AghanimState): string {
   const type = label.includes("晶") || label.includes("精") ? "shard" : "scepter";
   const filename = `${type}${state === "owned" ? "On" : "Off"}.svg`;
 
-  return `<img class="agha-icon ${type} ${state}" src="/static/svg/${filename}" alt="${escapeHtml(label)}" title="${escapeHtml(`${label} ${title}`)}" loading="lazy" decoding="async" />`;
+  return `<img class="agha-icon ${type} ${state}" src="/static/svg/${filename}" alt="${escapeHtml(label)}" title="${escapeHtml(`${label} ${title}`)}" loading="lazy" decoding="async" onerror="this.style.visibility='hidden';" />`;
 }
 
 function kdaRatio(player: PlayerStats): string {
@@ -1497,7 +2309,7 @@ function renderDraftStep(step: DraftStep): string {
     <div class="draft-step ${step.side} ${step.type.toLowerCase()}">
       <span class="draft-order">${step.order}</span>
       <article class="draft-card">
-        <img class="draft-hero" src="${escapeHtml(portrait)}" alt="${escapeHtml(step.hero)}" loading="lazy">
+        <img class="draft-hero" src="${escapeHtml(portrait)}" alt="${escapeHtml(step.hero)}" loading="lazy" onerror="${heroImageFallbackHandler()}">
         <div class="draft-copy">
           <div>
             <b>${escapeHtml(step.hero)}</b>
@@ -1867,6 +2679,8 @@ function currentData(): MobileData {
       scheduleGroups: [],
       matchRecords: [],
       tournamentRecentRecords: {},
+      players: [],
+      teams: [],
       featuredMatch: emptyMatchData(),
       notice: "正在读取公开 API，稍后自动刷新。",
     }
@@ -1933,6 +2747,14 @@ function emptyMatchData(): MatchData {
 }
 
 function routeLabel(route: AppRoute): string {
+  if (route === "player") {
+    return "选手主页";
+  }
+
+  if (route === "team") {
+    return "队伍主页";
+  }
+
   return routeOptions.find((option) => option.key === route)?.label ?? "MRJZ";
 }
 
@@ -1963,8 +2785,17 @@ function lifecycleLabel(status: string): string {
 }
 
 function readRouteFromHash(): AppRoute {
-  const rawRoute = window.location.hash.replace("#", "");
+  const rawRoute = window.location.hash.replace("#", "").split("/")[0];
+  if (rawRoute === "tags") {
+    return "players";
+  }
   return isRoute(rawRoute) ? rawRoute : "home";
+}
+
+function readProfileIdFromHash(): string | null {
+  const [, profileId] = window.location.hash.replace("#", "").split("/");
+
+  return profileId ? decodeURIComponent(profileId) : null;
 }
 
 function isRoute(value: string | undefined): value is AppRoute {
@@ -1975,8 +2806,12 @@ function isStage(value: string | undefined): value is StageKey {
   return Boolean(value && stageSet.has(value as StageKey));
 }
 
-function escapeHtml(value: string | number): string {
-  return String(value)
+function isPlayerSortKey(value: string | undefined): value is PlayerSortKey {
+  return Boolean(value && playerSortKeySet.has(value as PlayerSortKey));
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

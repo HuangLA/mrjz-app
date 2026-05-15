@@ -1,6 +1,7 @@
+import "./env.js";
 import { createServer } from "node:http";
 import { getRepositoryInfo } from "./data/repository.js";
-import { startOpenDotaSyncScheduler } from "./opendota/syncWorker.js";
+import { startOpenDotaSyncScheduler, startSteamProfileSyncScheduler } from "./opendota/syncWorker.js";
 import { createApiRouter, type HealthStatus } from "./server/apiRouter.js";
 
 const serviceName = "mrjz-api";
@@ -34,4 +35,5 @@ const server = createServer((request, response) => {
 server.listen(port, () => {
   console.log(`${serviceName} listening on :${port}`);
   startOpenDotaSyncScheduler();
+  startSteamProfileSyncScheduler();
 });

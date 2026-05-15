@@ -1,4 +1,4 @@
-export type AppRoute = "home" | "stage" | "schedule" | "records" | "match" | "tags";
+export type AppRoute = "home" | "stage" | "schedule" | "records" | "match" | "players" | "teams" | "player" | "team";
 
 export type StageKey = "group" | "swiss" | "knockout";
 
@@ -12,6 +12,91 @@ export interface TeamInfo {
   shortName: string;
   seed: string;
   color: string;
+}
+
+export interface EntityTeamInfo {
+  id: string;
+  name: string;
+  shortName: string;
+  logoUrl: string | null;
+  color: string;
+}
+
+export interface HeroPickSummary {
+  heroId: number;
+  hero: string;
+  icon: string;
+  portrait: string;
+  picks: number;
+  wins: number;
+}
+
+export interface ProfileMatchSummary {
+  matchId: string;
+  startTime: string;
+  duration: string;
+  radiantTeamName: string;
+  direTeamName: string;
+  score: string;
+  side: TeamSide | null;
+  hero: string | null;
+  heroPortrait: string | null;
+  kda: string | null;
+  result: "win" | "loss" | "unknown";
+}
+
+export interface ProfileStatsSummary {
+  totalMatches: number;
+  wins: number;
+  losses: number;
+  winRate: string;
+  kda: string;
+  avgKills: string;
+  avgDeaths: string;
+  avgAssists: string;
+  avgGpm: string;
+  avgXpm: string;
+  avgNetWorth: string;
+  avgHeroDamage: string;
+  avgTowerDamage: string;
+  avgDamageTaken: string;
+  topHeroes: HeroPickSummary[];
+}
+
+export interface PlayerDirectoryItem {
+  id: string;
+  accountId: number | null;
+  displayName: string;
+  avatarUrl: string | null;
+  currentTeam: EntityTeamInfo | null;
+  teams: EntityTeamInfo[];
+  stats: ProfileStatsSummary;
+}
+
+export interface TeamDirectoryItem extends EntityTeamInfo {
+  seed: number | null;
+  status: string;
+  memberCount: number;
+  members: PlayerDirectoryItem[];
+  stats: {
+    seriesPlayed: number;
+    seriesWins: number;
+    seriesLosses: number;
+    gameWins: number;
+    gameLosses: number;
+    linkedMatches: number;
+    winRate: string;
+    topHeroes: HeroPickSummary[];
+  };
+}
+
+export interface PlayerProfile extends PlayerDirectoryItem {
+  tournamentId: string;
+  matches: ProfileMatchSummary[];
+}
+
+export interface TeamProfile extends TeamDirectoryItem {
+  matches: ProfileMatchSummary[];
 }
 
 export interface TournamentStat {
@@ -49,9 +134,19 @@ export interface MatchRecord {
   radiantWin: boolean | null;
   parseStatus: string;
   playerCount: number;
+  heroLineups: Record<TeamSide, MatchRecordHero[]>;
   hasDraft: boolean;
   hasVision: boolean;
   hasChat: boolean;
+}
+
+export interface MatchRecordHero {
+  playerSlot: number;
+  heroId: number;
+  hero: string;
+  icon: string;
+  portrait: string;
+  playerName: string;
 }
 
 export interface TournamentMeta {

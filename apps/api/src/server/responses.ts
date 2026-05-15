@@ -14,6 +14,8 @@ export type ApiFailure = {
 export type RouteResult = {
   status: number;
   body: unknown;
+  headers?: Record<string, string>;
+  raw?: boolean;
 };
 
 export function json(status: number, body: unknown): RouteResult {
@@ -38,4 +40,13 @@ export function fail(status: number, code: string, message: string): RouteResult
       message,
     },
   } satisfies ApiFailure);
+}
+
+export function binary(status: number, body: Buffer, headers: Record<string, string>): RouteResult {
+  return {
+    status,
+    body,
+    headers,
+    raw: true,
+  };
 }

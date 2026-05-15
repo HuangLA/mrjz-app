@@ -14,12 +14,16 @@ import {
   type OpenDotaMatchCache,
   type RunningLeagueSyncTarget,
   type SyncTaskView,
+  type TournamentPlayerDetail,
   type TournamentPlayerListItem,
+  type TournamentTeamDetail,
   type TournamentTeamListItem,
   type UpdateTournamentLifecycleInput,
   type UpdateGameResultInput,
   type UpsertOpenDotaMatchInput,
   type AddTeamMemberInput,
+  type EntityBackfillSummary,
+  type SteamPlayerProfileInput,
 } from "./sqliteRepository.js";
 import type {
   BracketNode,
@@ -51,6 +55,11 @@ type Repository = {
   listTournamentOpenDotaMatches(tournamentId: string, limit?: number): OpenDotaMatchListItem[] | undefined;
   listTournamentTeams(tournamentId: string): TournamentTeamListItem[] | undefined;
   listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
+  getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined;
+  getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined;
+  backfillCachedTournamentEntities(tournamentId?: string): EntityBackfillSummary;
+  listTournamentPlayerAccountIds(tournamentId: string): number[];
+  updatePlayerSteamProfiles(profiles: SteamPlayerProfileInput[]): number;
   getOpenDotaMatchCache(matchId: number): OpenDotaMatchCache | undefined;
   upsertOpenDotaMatch(input: UpsertOpenDotaMatchInput): OpenDotaMatchCache;
   updateTournamentLifecycle(tournamentId: string, input: UpdateTournamentLifecycleInput): TournamentDetail;
@@ -125,6 +134,26 @@ export function listTournamentTeams(tournamentId: string) {
 
 export function listTournamentPlayers(tournamentId: string) {
   return repository.listTournamentPlayers(tournamentId);
+}
+
+export function getTournamentTeamDetail(tournamentId: string, teamId: string) {
+  return repository.getTournamentTeamDetail(tournamentId, teamId);
+}
+
+export function getTournamentPlayerDetail(tournamentId: string, playerId: string) {
+  return repository.getTournamentPlayerDetail(tournamentId, playerId);
+}
+
+export function backfillCachedTournamentEntities(tournamentId?: string) {
+  return repository.backfillCachedTournamentEntities(tournamentId);
+}
+
+export function listTournamentPlayerAccountIds(tournamentId: string) {
+  return repository.listTournamentPlayerAccountIds(tournamentId);
+}
+
+export function updatePlayerSteamProfiles(profiles: SteamPlayerProfileInput[]) {
+  return repository.updatePlayerSteamProfiles(profiles);
 }
 
 export function getOpenDotaMatchCache(matchId: number) {

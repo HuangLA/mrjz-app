@@ -1,3 +1,4 @@
+import "../env.js";
 import { runOpenDotaBackfillSync, runOpenDotaLeagueSync } from "./syncWorker.js";
 
 const mode = process.argv.includes("--backfill") ? "backfill" : "running";

@@ -7,6 +7,7 @@ const appRoot = path.resolve(scriptDir, "..");
 const publicRoot = path.join(appRoot, "public", "static", "dota");
 const constantsRoot = path.join(publicRoot, "constants");
 const heroRoot = path.join(publicRoot, "heroes");
+const heroIconRoot = path.join(publicRoot, "hero-icons");
 const itemRoot = path.join(publicRoot, "items");
 const abilityRoot = path.join(publicRoot, "abilities");
 
@@ -15,7 +16,7 @@ const steamCdnBaseUrl = "https://cdn.cloudflare.steamstatic.com";
 const constantNames = ["heroes", "item_ids", "ability_ids", "hero_abilities"];
 const concurrency = Number.parseInt(process.env.DOTA_ASSET_CONCURRENCY ?? "16", 10);
 
-await Promise.all([constantsRoot, heroRoot, itemRoot, abilityRoot].map((dir) => mkdir(dir, { recursive: true })));
+await Promise.all([constantsRoot, heroRoot, heroIconRoot, itemRoot, abilityRoot].map((dir) => mkdir(dir, { recursive: true })));
 
 const constants = Object.fromEntries(
   await Promise.all(constantNames.map(async (name) => [name, await loadConstant(name)])),
@@ -56,6 +57,16 @@ function collectAssets({ heroes, item_ids: itemIds, ability_ids: abilityIds }) {
       url: `${steamCdnBaseUrl}${sourcePath}`,
       file: path.join(heroRoot, filename),
     });
+
+    if (typeof hero.icon === "string") {
+      const iconSourcePath = normalizeDotaAssetPath(hero.icon);
+      const iconFilename = path.basename(iconSourcePath);
+      addAsset(assetsByFile, {
+        type: "heroIcon",
+        url: `${steamCdnBaseUrl}${iconSourcePath}`,
+        file: path.join(heroIconRoot, iconFilename),
+      });
+    }
   }
 
   for (const itemName of Object.values(itemIds)) {

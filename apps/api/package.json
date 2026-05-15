@@ -12,6 +12,8 @@
     "db:status": "npm run build && node --no-warnings=ExperimentalWarning dist/db/bootstrap.js --status",
     "sync:opendota": "npm run build && node --no-warnings=ExperimentalWarning dist/opendota/runSync.js",
     "sync:opendota:backfill": "npm run build && node --no-warnings=ExperimentalWarning dist/opendota/runSync.js --backfill",
+    "sync:entities": "npm run build && node --no-warnings=ExperimentalWarning dist/opendota/backfillEntities.js",
+    "sync:steam-profiles": "npm run build && node --no-warnings=ExperimentalWarning dist/opendota/syncSteamProfiles.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add API lint\"",
     "test": "echo \"TODO: add API tests\""

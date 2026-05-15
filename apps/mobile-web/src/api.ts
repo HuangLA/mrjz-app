@@ -2,17 +2,25 @@ import type {
   AghanimState,
   ComparisonMetric,
   DraftStep,
+  HeroPickSummary,
   IconRef,
   MatchRecord,
+  MatchRecordHero,
   MatchData,
+  PlayerDirectoryItem,
+  PlayerProfile,
   PlayerStats,
+  ProfileMatchSummary,
+  ProfileStatsSummary,
   ScheduleGroup,
   ScheduleItem,
   StageKey,
   StageView,
   StandingRow,
   TalentTreeNode,
+  TeamDirectoryItem,
   TeamInfo,
+  TeamProfile,
   TeamSide,
   TrendCharts,
   TrendPoint,
@@ -42,6 +50,8 @@ export type MobileData = {
   scheduleGroups: ScheduleGroup[];
   matchRecords: MatchRecord[];
   tournamentRecentRecords: Record<string, MatchRecord[]>;
+  players: PlayerDirectoryItem[];
+  teams: TeamDirectoryItem[];
   featuredMatch: MatchData;
   notice: string | null;
 };
@@ -53,7 +63,87 @@ type ApiTeam = {
   name?: string;
   shortName?: string;
   short_name?: string;
+  logoUrl?: string | null;
+  logo_url?: string | null;
   color?: string;
+};
+
+type ApiPlayerStatsSummary = {
+  totalMatches?: number;
+  wins?: number;
+  losses?: number;
+  winRate?: number | null;
+  avgKills?: number | null;
+  avgDeaths?: number | null;
+  avgAssists?: number | null;
+  kda?: number | null;
+  avgGpm?: number | null;
+  avgXpm?: number | null;
+  avgNetWorth?: number | null;
+  avgHeroDamage?: number | null;
+  avgTowerDamage?: number | null;
+  avgDamageTaken?: number | null;
+  topHeroes?: ApiHeroPickSummary[];
+};
+
+type ApiHeroPickSummary = {
+  heroId?: number;
+  picks?: number;
+  wins?: number;
+};
+
+type ApiPlayerDirectoryItem = {
+  id?: string;
+  accountId?: number | null;
+  displayName?: string;
+  avatarUrl?: string | null;
+  currentTeam?: ApiTeam | null;
+  teams?: ApiTeam[];
+  stats?: ApiPlayerStatsSummary;
+};
+
+type ApiTeamStatsSummary = {
+  seriesPlayed?: number;
+  seriesWins?: number;
+  seriesLosses?: number;
+  gameWins?: number;
+  gameLosses?: number;
+  linkedMatches?: number;
+  winRate?: number | null;
+  topHeroes?: ApiHeroPickSummary[];
+};
+
+type ApiTeamDirectoryItem = ApiTeam & {
+  seed?: number | null;
+  status?: string;
+  memberCount?: number;
+  members?: ApiPlayerDirectoryItem[];
+  stats?: ApiTeamStatsSummary;
+};
+
+type ApiProfileMatchSummary = {
+  matchId?: number;
+  startTime?: string | null;
+  durationText?: string | null;
+  radiantTeamName?: string;
+  direTeamName?: string;
+  radiantScore?: number | null;
+  direScore?: number | null;
+  side?: TeamSide | null;
+  heroId?: number | null;
+  kills?: number | null;
+  deaths?: number | null;
+  assists?: number | null;
+  result?: "win" | "loss" | "unknown";
+};
+
+type ApiPlayerProfile = ApiPlayerDirectoryItem & {
+  tournamentId?: string;
+  matches?: ApiProfileMatchSummary[];
+};
+
+type ApiTeamProfile = ApiTeamDirectoryItem & {
+  matches?: ApiProfileMatchSummary[];
 };
 
 type ApiTournament = {
@@ -181,9 +271,19 @@ type ApiMatchRecord = {
   radiantWin?: boolean | null;
   parseStatus?: string;
   playerCount?: number;
+  heroLineups?: {
+    radiant?: ApiMatchRecordHero[];
+    dire?: ApiMatchRecordHero[];
+  };
   hasDraft?: boolean;
   hasVision?: boolean;
   hasChat?: boolean;
+};
+
+type ApiMatchRecordHero = {
+  playerSlot?: number;
+  heroId?: number;
+  playerName?: string;
 };
 
 type ApiMatchPlayer = {
@@ -273,6 +373,7 @@ const defaultApiBaseUrl = "http://127.0.0.1:3001/api";
 const localDotaConstantsBaseUrl = "/static/dota/constants";
 const remoteDotaConstantsBaseUrl = "https://raw.githubusercontent.com/odota/dotaconstants/master/build";
 const localDotaAssetBaseUrl = "/static/dota";
+const dotaConstantsFetchTimeoutMs = 2500;
 const SCHINESE_HERO_NAMES_BY_ID: Record<number, string> = {
   1: "敌法师",
   2: "斧王",
@@ -447,15 +548,16 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
   );
 
   const scheduleGroups = normalizeScheduleGroups(stagePayloads.flatMap((payload) => payload.rounds ?? []));
-  const matchRecords = await fetchApi<ApiMatchRecord[]>(apiBaseUrl, `/tournaments/${selectedTournamentId}/matches?limit=80`).catch(
-    () => [],
-  );
+  const matchRecords = await fetchApi<ApiMatchRecord[]>(
+    apiBaseUrl,
+    `/tournaments/${selectedTournamentId}/matches?limit=80`,
+  ).catch(() => []);
+  await constantsPromise;
   const normalizedRecords = matchRecords.map(normalizeMatchRecord);
   const tournamentRecentRecords = await loadTournamentRecentRecords(apiBaseUrl, tournamentList, selectedTournamentId, normalizedRecords);
   const matchId = findFeaturedMatchId(tournament, scheduleGroups, normalizedRecords);
   const matchDetail =
     matchId === null ? null : await fetchApi<ApiMatchDetail>(apiBaseUrl, `/matches/${matchId}`).catch(() => null);
-  await constantsPromise;
   const match = matchDetail === null ? emptyMatchData(matchId ?? "-") : normalizeMatchDetail(matchDetail);
 
   return {
@@ -470,14 +572,66 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     scheduleGroups,
     matchRecords: normalizedRecords,
     tournamentRecentRecords,
+    players: [],
+    teams: [],
     featuredMatch: match,
     notice: matchDetail === null ? "该赛事暂无可展示的真实比赛详情。" : null,
   };
 }
 
+export async function loadTournamentPlayers(apiBaseUrl: string, tournamentId: string): Promise<PlayerDirectoryItem[]> {
+  const [players] = await Promise.all([
+    fetchApi<ApiPlayerDirectoryItem[]>(apiBaseUrl, `/tournaments/${encodeURIComponent(tournamentId)}/players`),
+    loadDotaConstants(),
+  ]);
+
+  return players.map((player) => normalizePlayerDirectoryItem(player, apiBaseUrl));
+}
+
+export async function loadTournamentTeams(apiBaseUrl: string, tournamentId: string): Promise<TeamDirectoryItem[]> {
+  const [teams] = await Promise.all([
+    fetchApi<ApiTeamDirectoryItem[]>(apiBaseUrl, `/tournaments/${encodeURIComponent(tournamentId)}/teams`),
+    loadDotaConstants(),
+  ]);
+
+  return teams.map((team) => normalizeTeamDirectoryItem(team, apiBaseUrl));
+}
+
 export async function loadMatchData(apiBaseUrl: string, matchId: string): Promise<MatchData> {
-  await loadDotaConstants();
-  return normalizeMatchDetail(await fetchApi<ApiMatchDetail>(apiBaseUrl, `/matches/${matchId}`));
+  const [matchDetail] = await Promise.all([
+    fetchApi<ApiMatchDetail>(apiBaseUrl, `/matches/${matchId}`),
+    loadDotaConstants(),
+  ]);
+
+  return normalizeMatchDetail(matchDetail);
+}
+
+export async function loadPlayerProfile(
+  apiBaseUrl: string,
+  tournamentId: string,
+  playerId: string,
+): Promise<PlayerProfile> {
+  const [profile] = await Promise.all([
+    fetchApi<ApiPlayerProfile>(
+      apiBaseUrl,
+      `/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}`,
+    ),
+    loadDotaConstants(),
+  ]);
+
+  return normalizePlayerProfile(profile, apiBaseUrl);
+}
+
+export async function loadTeamProfile(apiBaseUrl: string, tournamentId: string, teamId: string): Promise<TeamProfile> {
+  const [profile] = await Promise.all([
+    fetchApi<ApiTeamProfile>(
+      apiBaseUrl,
+      `/tournaments/${encodeURIComponent(tournamentId)}/teams/${encodeURIComponent(teamId)}`,
+    ),
+    loadDotaConstants(),
+  ]);
+
+  return normalizeTeamProfile(profile, apiBaseUrl);
 }
 
 function emptyMobileData(
@@ -504,6 +658,8 @@ function emptyMobileData(
     scheduleGroups: [],
     matchRecords: [],
     tournamentRecentRecords: {},
+    players: [],
+    teams: [],
     featuredMatch: emptyMatchData(),
     notice,
   };
@@ -559,40 +715,62 @@ async function loadDotaConstants(): Promise<DotaConstants> {
   }
 
   dotaConstantsPromise = Promise.all([
-    fetchOpenDotaConstant<DotaConstants["heroes"]>("heroes"),
-    fetchOpenDotaConstant<DotaConstants["itemIds"]>("item_ids"),
-    fetchOpenDotaConstant<DotaConstants["abilityIds"]>("ability_ids"),
-    fetchOpenDotaConstant<DotaConstants["heroAbilities"]>("hero_abilities"),
+    fetchOpenDotaConstant<DotaConstants["heroes"]>("heroes").catch(() => dotaConstants.heroes),
+    fetchOpenDotaConstant<DotaConstants["itemIds"]>("item_ids").catch(() => dotaConstants.itemIds),
+    fetchOpenDotaConstant<DotaConstants["abilityIds"]>("ability_ids").catch(() => dotaConstants.abilityIds),
+    fetchOpenDotaConstant<DotaConstants["heroAbilities"]>("hero_abilities").catch(() => dotaConstants.heroAbilities),
   ])
     .then(([heroes, itemIds, abilityIds, heroAbilities]) => {
       dotaConstants = { heroes, itemIds, abilityIds, heroAbilities };
+      if (Object.keys(heroes).length === 0) {
+        dotaConstantsPromise = null;
+      }
       return dotaConstants;
     })
-    .catch(() => dotaConstants);
+    .catch(() => {
+      dotaConstantsPromise = null;
+      return dotaConstants;
+    });
 
   return dotaConstantsPromise;
 }
 
 async function fetchOpenDotaConstant<T>(path: string): Promise<T> {
-  const localResponse = await fetch(`${localDotaConstantsBaseUrl}/${path}.json`, {
-    credentials: "omit",
-    headers: { Accept: "application/json" },
-  }).catch(() => null);
+  const localResponse = await fetchWithTimeout(`${localDotaConstantsBaseUrl}/${path}.json`, dotaConstantsFetchTimeoutMs).catch(
+    () => null,
+  );
 
   if (localResponse?.ok) {
     return (await localResponse.json()) as T;
   }
 
-  const response = await fetch(`${remoteDotaConstantsBaseUrl}/${path}.json`, {
-    credentials: "omit",
-    headers: { Accept: "application/json" },
-  });
+  const env = import.meta.env as Record<string, string | undefined>;
+  if (env.VITE_ALLOW_REMOTE_DOTA_CONSTANTS !== "1") {
+    throw new Error(`Local Dota constants missing: ${path}`);
+  }
+
+  const response = await fetchWithTimeout(`${remoteDotaConstantsBaseUrl}/${path}.json`, dotaConstantsFetchTimeoutMs);
 
   if (!response.ok) {
     throw new Error(`OpenDota constants HTTP ${response.status}`);
   }
 
   return (await response.json()) as T;
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      credentials: "omit",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function apiUrl(apiBaseUrl: string, path: string): string {
@@ -644,9 +822,171 @@ function normalizeMatchRecord(record: ApiMatchRecord): MatchRecord {
     radiantWin: record.radiantWin ?? null,
     parseStatus: parseStatusText(record.parseStatus),
     playerCount: record.playerCount ?? 0,
+    heroLineups: {
+      radiant: normalizeRecordHeroLineup(record.heroLineups?.radiant),
+      dire: normalizeRecordHeroLineup(record.heroLineups?.dire),
+    },
     hasDraft: Boolean(record.hasDraft),
     hasVision: Boolean(record.hasVision),
     hasChat: Boolean(record.hasChat),
+  };
+}
+
+function normalizeRecordHeroLineup(lineup: ApiMatchRecordHero[] | undefined): MatchRecordHero[] {
+  return (lineup ?? [])
+    .map((hero) => {
+      if (typeof hero.heroId !== "number" || hero.heroId <= 0) {
+        return null;
+      }
+
+      const heroName = heroLabel(hero.heroId);
+
+      return {
+        playerSlot: hero.playerSlot ?? 0,
+        heroId: hero.heroId,
+        hero: heroName,
+        icon: heroIcon(hero.heroId),
+        portrait: heroPortrait(hero.heroId),
+        playerName: hero.playerName?.trim() || heroName,
+      };
+    })
+    .filter(isDefined)
+    .sort((left, right) => left.playerSlot - right.playerSlot)
+    .slice(0, 5);
+}
+
+function normalizeTeamBrief(team: ApiTeam | null | undefined): TeamDirectoryItem["members"][number]["currentTeam"] {
+  if (!team?.id) {
+    return null;
+  }
+
+  return {
+    id: team.id,
+    name: team.name ?? team.shortName ?? team.short_name ?? "未命名队伍",
+    shortName: team.shortName ?? team.short_name ?? team.name ?? "TEAM",
+    logoUrl: team.logoUrl ?? team.logo_url ?? null,
+    color: team.color ?? "#64748b",
+  };
+}
+
+function normalizeHeroPickSummary(hero: ApiHeroPickSummary): HeroPickSummary {
+  const heroId = hero.heroId ?? 0;
+
+  return {
+    heroId,
+    hero: heroLabel(heroId),
+    icon: heroIcon(heroId),
+    portrait: heroPortrait(heroId),
+    picks: hero.picks ?? 0,
+    wins: hero.wins ?? 0,
+  };
+}
+
+function normalizeProfileStats(stats: ApiPlayerStatsSummary | undefined): ProfileStatsSummary {
+  return {
+    totalMatches: stats?.totalMatches ?? 0,
+    wins: stats?.wins ?? 0,
+    losses: stats?.losses ?? 0,
+    winRate: percentOrDash(stats?.winRate),
+    kda: numberOrDash(stats?.kda, 2),
+    avgKills: numberOrDash(stats?.avgKills, 1),
+    avgDeaths: numberOrDash(stats?.avgDeaths, 1),
+    avgAssists: numberOrDash(stats?.avgAssists, 1),
+    avgGpm: numberOrDash(stats?.avgGpm, 0),
+    avgXpm: numberOrDash(stats?.avgXpm, 0),
+    avgNetWorth: compactNumberOrDash(stats?.avgNetWorth),
+    avgHeroDamage: compactNumberOrDash(stats?.avgHeroDamage),
+    avgTowerDamage: compactNumberOrDash(stats?.avgTowerDamage),
+    avgDamageTaken: compactNumberOrDash(stats?.avgDamageTaken),
+    topHeroes: (stats?.topHeroes ?? []).map(normalizeHeroPickSummary),
+  };
+}
+
+function normalizePlayerDirectoryItem(player: ApiPlayerDirectoryItem, apiBaseUrl?: string): PlayerDirectoryItem {
+  const accountId = player.accountId ?? null;
+
+  return {
+    id: player.id ?? "player_unknown",
+    accountId,
+    displayName: player.displayName ?? "未命名选手",
+    avatarUrl:
+      accountId !== null && apiBaseUrl !== undefined
+        ? apiUrl(apiBaseUrl, `/assets/steam-avatars/${accountId}.jpg`)
+        : player.avatarUrl ?? null,
+    currentTeam: normalizeTeamBrief(player.currentTeam),
+    teams: (player.teams ?? []).map(normalizeTeamBrief).filter(isDefined),
+    stats: normalizeProfileStats(player.stats),
+  };
+}
+
+function normalizeTeamStats(stats: ApiTeamStatsSummary | undefined): TeamDirectoryItem["stats"] {
+  return {
+    seriesPlayed: stats?.seriesPlayed ?? 0,
+    seriesWins: stats?.seriesWins ?? 0,
+    seriesLosses: stats?.seriesLosses ?? 0,
+    gameWins: stats?.gameWins ?? 0,
+    gameLosses: stats?.gameLosses ?? 0,
+    linkedMatches: stats?.linkedMatches ?? 0,
+    winRate: percentOrDash(stats?.winRate),
+    topHeroes: (stats?.topHeroes ?? []).map(normalizeHeroPickSummary),
+  };
+}
+
+function normalizeTeamDirectoryItem(team: ApiTeamDirectoryItem, apiBaseUrl?: string): TeamDirectoryItem {
+  const brief = normalizeTeamBrief(team);
+
+  return {
+    id: brief?.id ?? "team_unknown",
+    name: brief?.name ?? "未命名队伍",
+    shortName: brief?.shortName ?? "TEAM",
+    logoUrl: brief?.logoUrl ?? null,
+    color: brief?.color ?? "#64748b",
+    seed: team.seed ?? null,
+    status: team.status ?? "active",
+    memberCount: team.memberCount ?? team.members?.length ?? 0,
+    members: (team.members ?? []).map((player) => normalizePlayerDirectoryItem(player, apiBaseUrl)),
+    stats: normalizeTeamStats(team.stats),
+  };
+}
+
+function normalizeProfileMatch(match: ApiProfileMatchSummary): ProfileMatchSummary {
+  const score =
+    match.radiantScore === null || match.radiantScore === undefined || match.direScore === null || match.direScore === undefined
+      ? "-:-"
+      : `${match.radiantScore}:${match.direScore}`;
+  const heroId = match.heroId ?? null;
+  const kda =
+    match.kills === null || match.kills === undefined || match.deaths === null || match.deaths === undefined || match.assists === null || match.assists === undefined
+      ? null
+      : `${match.kills}/${match.deaths}/${match.assists}`;
+
+  return {
+    matchId: String(match.matchId ?? "-"),
+    startTime: formatMaybeDateTime(match.startTime) ?? "时间待定",
+    duration: match.durationText ?? "--:--",
+    radiantTeamName: match.radiantTeamName ?? "天辉",
+    direTeamName: match.direTeamName ?? "夜魇",
+    score,
+    side: match.side ?? null,
+    hero: heroId === null ? null : heroLabel(heroId),
+    heroPortrait: heroId === null ? null : heroPortrait(heroId),
+    kda,
+    result: match.result ?? "unknown",
+  };
+}
+
+function normalizePlayerProfile(profile: ApiPlayerProfile, apiBaseUrl?: string): PlayerProfile {
+  return {
+    ...normalizePlayerDirectoryItem(profile, apiBaseUrl),
+    tournamentId: profile.tournamentId ?? "",
+    matches: (profile.matches ?? []).map(normalizeProfileMatch),
+  };
+}
+
+function normalizeTeamProfile(profile: ApiTeamProfile, apiBaseUrl?: string): TeamProfile {
+  return {
+    ...normalizeTeamDirectoryItem(profile, apiBaseUrl),
+    matches: (profile.matches ?? []).map(normalizeProfileMatch),
   };
 }
 
@@ -1280,6 +1620,26 @@ function compactNumber(value: number | null | undefined): string {
   return String(value);
 }
 
+function compactNumberOrDash(value: number | null | undefined): string {
+  return compactNumber(value);
+}
+
+function numberOrDash(value: number | null | undefined, digits: number): string {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+
+  return Number(value).toFixed(digits);
+}
+
+function percentOrDash(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+
+  return `${Number(value).toFixed(1).replace(/\.0$/, "")}%`;
+}
+
 function aghanimState(value: boolean | undefined): AghanimState {
   return value ? "owned" : "none";
 }
@@ -1394,6 +1754,16 @@ function heroPortrait(heroId: number | undefined): string {
 
   if (imagePath !== undefined && imagePath.length > 0) {
     return `${localDotaAssetBaseUrl}/heroes/${imagePath.replace(/\?.*$/, "").split("/").pop()}`;
+  }
+
+  return `${localDotaAssetBaseUrl}/heroes/unknown.svg`;
+}
+
+function heroIcon(heroId: number | undefined): string {
+  const imagePath = heroId ? dotaConstants.heroes[String(heroId)]?.icon : undefined;
+
+  if (imagePath !== undefined && imagePath.length > 0) {
+    return `${localDotaAssetBaseUrl}/hero-icons/${imagePath.replace(/\?.*$/, "").split("/").pop()}`;
   }
 
   return `${localDotaAssetBaseUrl}/heroes/unknown.svg`;

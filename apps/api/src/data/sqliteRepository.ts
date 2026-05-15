@@ -23,6 +23,17 @@ import type {
 
 type DbRow = Record<string, unknown>;
 
+type ParsedOpenDotaMatchRow = {
+  matchId: number;
+  raw: OpenDotaMatchDetail;
+};
+
+type MatchEntitySyncResult = {
+  tournamentId: string;
+  playerIds: Set<string>;
+  teamIds: Set<string>;
+};
+
 export type RepositoryInfo = {
   dataSource: "sqlite";
   databasePath: string;
@@ -82,11 +93,18 @@ export type OpenDotaMatchListItem = {
   radiantTeamName: string;
   direTeamName: string;
   playerCount: number;
+  heroLineups: Record<TeamSide, OpenDotaMatchListHero[]>;
   hasDraft: boolean;
   hasVision: boolean;
   hasChat: boolean;
   linkedSeries: LinkedSeriesBrief | null;
   updatedAt: string;
+};
+
+export type OpenDotaMatchListHero = {
+  playerSlot: number;
+  heroId: number;
+  playerName: string;
 };
 
 export type LinkedSeriesBrief = {
@@ -116,6 +134,41 @@ export type TeamStatsSummary = {
   topHeroes: HeroPickSummary[];
 };
 
+export type PlayerStatsSummary = {
+  totalMatches: number;
+  wins: number;
+  losses: number;
+  winRate: number | null;
+  avgKills: number | null;
+  avgDeaths: number | null;
+  avgAssists: number | null;
+  kda: number | null;
+  avgGpm: number | null;
+  avgXpm: number | null;
+  avgNetWorth: number | null;
+  avgHeroDamage: number | null;
+  avgTowerDamage: number | null;
+  avgDamageTaken: number | null;
+  topHeroes: HeroPickSummary[];
+};
+
+export type ProfileMatchSummary = {
+  matchId: number;
+  startTime: string | null;
+  durationText: string | null;
+  radiantTeamName: string;
+  direTeamName: string;
+  radiantScore: number | null;
+  direScore: number | null;
+  radiantWin: boolean | null;
+  side: TeamSide | null;
+  heroId: number | null;
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
+  result: "win" | "loss" | "unknown";
+};
+
 export type PlayerBrief = {
   id: string;
   accountId: number | null;
@@ -135,6 +188,23 @@ export type TournamentTeamListItem = TeamBrief & {
 
 export type TournamentPlayerListItem = PlayerBrief & {
   teams: TeamBrief[];
+  stats: PlayerStatsSummary;
+};
+
+export type TournamentPlayerDetail = TournamentPlayerListItem & {
+  tournamentId: string;
+  matches: ProfileMatchSummary[];
+};
+
+export type TournamentTeamDetail = TournamentTeamListItem & {
+  matches: ProfileMatchSummary[];
+};
+
+export type EntityBackfillSummary = {
+  tournaments: number;
+  matches: number;
+  players: number;
+  teams: number;
 };
 
 export type SyncTaskView = {
@@ -155,6 +225,7 @@ export type CreateTeamInput = {
   name: string;
   shortName?: string;
   color?: string;
+  opendotaTeamId?: number | null;
   tournamentId?: string;
 };
 
@@ -169,6 +240,12 @@ export type AddTeamMemberInput = {
   teamId: string;
   playerId: string;
   role?: string;
+};
+
+export type SteamPlayerProfileInput = {
+  accountId: number;
+  displayName?: string | null;
+  avatarUrl?: string | null;
 };
 
 export type CreateTournamentInput = {
@@ -242,9 +319,66 @@ export class SqliteTournamentRepository {
   };
 
   private readonly database = openDatabase();
+  private readonly matchRowsCache = new Map<number, ParsedOpenDotaMatchRow[]>();
+
+  constructor() {
+    this.ensureRuntimeSchema();
+  }
 
   dispose(): void {
     this.database.close();
+  }
+
+  private ensureRuntimeSchema(): void {
+    this.ensureColumn("teams", "opendota_team_id", "INTEGER");
+    this.ensureColumn("teams", "source", "TEXT NOT NULL DEFAULT 'manual'");
+    this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
+    this.ensureEntityTables();
+  }
+
+  private ensureColumn(tableName: string, columnName: string, definition: string): void {
+    const columns = this.database.prepare(`PRAGMA table_info(${tableName})`).all();
+
+    if (!columns.some((column) => text(column, "name") === columnName)) {
+      this.database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
+    }
+  }
+
+  private ensureEntityTables(): void {
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS tournament_players (
+        tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+        player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        current_team_id TEXT REFERENCES teams(id),
+        source TEXT NOT NULL DEFAULT 'opendota' CHECK (source IN ('manual', 'opendota')),
+        first_seen_match_id INTEGER,
+        last_seen_match_id INTEGER,
+        last_seen_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (tournament_id, player_id)
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS tournament_player_stats (
+        tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+        player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        summary_json TEXT NOT NULL DEFAULT '{}',
+        matches_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (tournament_id, player_id)
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS tournament_team_stats (
+        tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        summary_json TEXT NOT NULL DEFAULT '{}',
+        matches_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (tournament_id, team_id)
+      ) STRICT;
+
+      CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
+    `);
   }
 
   listTournaments(): TournamentListItem[] {
@@ -626,7 +760,7 @@ export class SqliteTournamentRepository {
           status: text(row, "status"),
           memberCount: members.length,
           members,
-          stats: this.calculateTeamStats(target.tournamentId, team.id),
+          stats: this.getTeamStatsSnapshot(target.tournamentId, team.id),
         };
       });
   }
@@ -638,26 +772,180 @@ export class SqliteTournamentRepository {
       return undefined;
     }
 
-    return this.database
+    const players = new Map<string, PlayerBrief>();
+
+    this.database
       .prepare(
         `
           SELECT DISTINCT p.*
           FROM players p
+          LEFT JOIN tournament_players tp ON tp.player_id = p.id AND tp.tournament_id = ?
           LEFT JOIN team_members tm ON tm.player_id = p.id
           LEFT JOIN tournament_teams tt ON tt.team_id = tm.team_id OR tt.team_id = p.current_team_id
-          WHERE tt.tournament_id = ?
+          WHERE tp.tournament_id = ? OR tt.tournament_id = ?
           ORDER BY p.display_name ASC, p.id ASC
         `,
       )
-      .all(target.tournamentId)
-      .map((row) => {
+      .all(target.tournamentId, target.tournamentId, target.tournamentId)
+      .forEach((row) => {
         const player = this.playerFromRow(row);
-
-        return {
-          ...player,
-          teams: this.getPlayerTeams(player.id),
-        };
+        players.set(player.id, player);
       });
+
+    return [...players.values()]
+      .map((player) => ({
+        ...player,
+        teams: this.getPlayerTeams(player.id),
+        stats: this.getPlayerStatsSnapshot(target.tournamentId, player.id),
+      }))
+      .sort((left, right) => left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id));
+  }
+
+  getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined {
+    const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
+
+    if (target === undefined) {
+      return undefined;
+    }
+
+    const player = this.getPlayerById(playerId);
+
+    if (player === undefined) {
+      return undefined;
+    }
+
+    return {
+      ...player,
+      tournamentId: target.tournamentId,
+      teams: this.getPlayerTeams(player.id),
+      stats: this.getPlayerStatsSnapshot(target.tournamentId, player.id),
+      matches: this.getPlayerMatchSnapshot(target.tournamentId, player.id),
+    };
+  }
+
+  getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined {
+    const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
+
+    if (target === undefined) {
+      return undefined;
+    }
+
+    let team: TeamBrief;
+
+    try {
+      team = this.requireTeam(teamId);
+    } catch {
+      return undefined;
+    }
+    const tournamentTeamRow = this.database
+      .prepare("SELECT seed, status FROM tournament_teams WHERE tournament_id = ? AND team_id = ?")
+      .get(target.tournamentId, team.id);
+
+    if (tournamentTeamRow === undefined) {
+      return undefined;
+    }
+
+    const members = this.getTeamMembers(team.id);
+
+    return {
+      ...team,
+      tournamentId: target.tournamentId,
+      seed: nullableNumber(tournamentTeamRow, "seed"),
+      status: text(tournamentTeamRow, "status"),
+      memberCount: members.length,
+      members,
+      stats: this.getTeamStatsSnapshot(target.tournamentId, team.id),
+      matches: this.getTeamMatchSnapshot(target.tournamentId, team.id),
+    };
+  }
+
+  backfillCachedTournamentEntities(tournamentId?: string): EntityBackfillSummary {
+    const targets =
+      tournamentId === undefined
+        ? this.listLeagueSyncTargets(["completed", "running", "upcoming"])
+        : this.listLeagueSyncTargets(["completed", "running", "upcoming"]).filter(
+            (target) =>
+              target.tournamentId === tournamentId ||
+              target.league.id === tournamentId ||
+              String(target.league.opendotaLeagueId) === tournamentId,
+          );
+    const playerIds = new Set<string>();
+    const teamIds = new Set<string>();
+    let matches = 0;
+
+    for (const target of targets) {
+      for (const match of this.matchRowsForLeague(target.league.opendotaLeagueId)) {
+        const result = this.ensureEntitiesFromOpenDotaMatch(match.raw, target.league.opendotaLeagueId);
+
+        if (result === null) {
+          continue;
+        }
+
+        matches += 1;
+        result.playerIds.forEach((playerId) => playerIds.add(`${result.tournamentId}:${playerId}`));
+        result.teamIds.forEach((teamId) => teamIds.add(`${result.tournamentId}:${teamId}`));
+      }
+
+      this.ensureTournamentPlayersFromRosters(target.tournamentId);
+      this.refreshEntityStatsForTournament(target.tournamentId);
+    }
+
+    return {
+      tournaments: targets.length,
+      matches,
+      players: playerIds.size,
+      teams: teamIds.size,
+    };
+  }
+
+  listTournamentPlayerAccountIds(tournamentId: string): number[] {
+    return this.database
+      .prepare(
+        `
+          SELECT DISTINCT p.account_id
+          FROM tournament_players tp
+          JOIN players p ON p.id = tp.player_id
+          WHERE tp.tournament_id = ? AND p.account_id IS NOT NULL
+          ORDER BY p.account_id ASC
+        `,
+      )
+      .all(tournamentId)
+      .map((row) => nullableNumber(row, "account_id"))
+      .filter((accountId): accountId is number => accountId !== null);
+  }
+
+  updatePlayerSteamProfiles(profiles: SteamPlayerProfileInput[]): number {
+    let updated = 0;
+
+    for (const profile of profiles) {
+      if (!Number.isSafeInteger(profile.accountId) || profile.accountId <= 0) {
+        continue;
+      }
+
+      const displayName = profile.displayName?.trim() || null;
+      const avatarUrl = profile.avatarUrl?.trim() || null;
+
+      if (displayName === null && avatarUrl === null) {
+        continue;
+      }
+
+      const result = this.database
+        .prepare(
+          `
+            UPDATE players
+            SET
+              display_name = COALESCE(?, display_name),
+              avatar_url = COALESCE(?, avatar_url),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE account_id = ?
+          `,
+        )
+        .run(displayName, avatarUrl, profile.accountId);
+
+      updated += Number(result.changes);
+    }
+
+    return updated;
   }
 
   getOpenDotaMatchCache(matchId: number): OpenDotaMatchCache | undefined {
@@ -685,6 +973,7 @@ export class SqliteTournamentRepository {
 
   upsertOpenDotaMatch(input: UpsertOpenDotaMatchInput): OpenDotaMatchCache {
     const now = new Date().toISOString();
+    const rawMatch = input.rawJson as unknown as OpenDotaMatchDetail;
 
     this.database
       .prepare(
@@ -713,6 +1002,18 @@ export class SqliteTournamentRepository {
         input.lastError ?? null,
         now,
       );
+
+    const resolvedLeagueId = input.leagueId ?? rawMatch.leagueid ?? rawMatch.league_id ?? null;
+
+    if (resolvedLeagueId !== null) {
+      this.matchRowsCache.delete(resolvedLeagueId);
+    }
+
+    const syncResult = this.ensureEntitiesFromOpenDotaMatch(rawMatch, resolvedLeagueId);
+
+    if (syncResult !== null) {
+      this.refreshEntityStatsForTournament(syncResult.tournamentId, syncResult.playerIds, syncResult.teamIds);
+    }
 
     const cached = this.getOpenDotaMatchCache(input.matchId);
 
@@ -768,15 +1069,39 @@ export class SqliteTournamentRepository {
   createTeam(input: CreateTeamInput): TeamBrief {
     const name = requiredString(input.name, "name");
     const shortName = normalizeShortName(input.shortName ?? name);
-    const id = uniqueId("team", `${name}-${shortName}`);
+    const opendotaTeamId =
+      input.opendotaTeamId === undefined || input.opendotaTeamId === null
+        ? null
+        : requiredPositiveInteger(input.opendotaTeamId, "opendotaTeamId");
+    const existingId =
+      opendotaTeamId === null
+        ? input.tournamentId === undefined
+          ? this.getTeamIdByName(name)
+          : this.getTournamentTeamIdByName(input.tournamentId, name)
+        : this.getTeamIdByOpenDotaTeamId(opendotaTeamId) ??
+          (input.tournamentId === undefined ? this.getTeamIdByName(name) : this.getTournamentTeamIdByName(input.tournamentId, name));
     const color = input.color ?? "#64748b";
+
+    if (existingId !== null) {
+      if (opendotaTeamId !== null) {
+        this.fillOpenDotaTeamIdIfMissing(existingId, opendotaTeamId);
+      }
+
+      if (input.tournamentId !== undefined && input.tournamentId.length > 0) {
+        this.ensureTournamentTeam(input.tournamentId, existingId);
+      }
+
+      return this.requireTeam(existingId);
+    }
+
+    const id = uniqueId("team", `${name}-${shortName}`);
 
     this.database.exec("BEGIN;");
 
     try {
       this.database
-        .prepare("INSERT INTO teams (id, name, short_name, logo_url, color) VALUES (?, ?, ?, ?, ?)")
-        .run(id, name, shortName, null, color);
+        .prepare("INSERT INTO teams (id, opendota_team_id, name, short_name, logo_url, color, source) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(id, opendotaTeamId, name, shortName, null, color, "manual");
 
       if (input.tournamentId !== undefined && input.tournamentId.length > 0) {
         this.database
@@ -829,6 +1154,7 @@ export class SqliteTournamentRepository {
         this.database
           .prepare("INSERT OR IGNORE INTO team_members (team_id, player_id, role, joined_at) VALUES (?, ?, 'player', ?)")
           .run(currentTeamId, id, new Date().toISOString());
+        this.ensureTournamentPlayersForTeamMembership(currentTeamId, id, "manual");
       }
 
       this.database.exec("COMMIT;");
@@ -863,6 +1189,7 @@ export class SqliteTournamentRepository {
       this.database
         .prepare("UPDATE players SET current_team_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?")
         .run(teamId, playerId);
+      this.ensureTournamentPlayersForTeamMembership(teamId, playerId, "manual");
       this.database.exec("COMMIT;");
     } catch (error) {
       this.database.exec("ROLLBACK;");
@@ -892,7 +1219,7 @@ export class SqliteTournamentRepository {
       status: "active",
       memberCount: this.getTeamMembers(team.id).length,
       members: this.getTeamMembers(team.id),
-      stats: this.calculateTeamStats(text(row, "tournament_id"), team.id),
+      stats: this.getTeamStatsSnapshot(text(row, "tournament_id"), team.id),
     };
   }
 
@@ -1382,6 +1709,416 @@ export class SqliteTournamentRepository {
     return id;
   }
 
+  private ensureEntitiesFromOpenDotaMatch(rawMatch: OpenDotaMatchDetail, leagueId: number | null): MatchEntitySyncResult | null {
+    if (!Number.isSafeInteger(rawMatch.match_id) || !Array.isArray(rawMatch.players) || leagueId === null) {
+      return null;
+    }
+
+    const target = this.getLeagueSyncTargetByOpenDotaLeagueId(leagueId);
+
+    if (target === undefined) {
+      return null;
+    }
+
+    const sideTeams: Record<TeamSide, string | null> = {
+      radiant: this.ensureTeamFromMatchSide(target.tournamentId, rawMatch, "radiant"),
+      dire: this.ensureTeamFromMatchSide(target.tournamentId, rawMatch, "dire"),
+    };
+    const playerIds = new Set<string>();
+    const teamIds = new Set<string>();
+
+    for (const teamId of Object.values(sideTeams)) {
+      if (teamId !== null) {
+        this.ensureTournamentTeam(target.tournamentId, teamId);
+        teamIds.add(teamId);
+      }
+    }
+
+    for (const player of rawMatch.players) {
+      const teamId = sideTeams[sideFromPlayer(player)];
+      const playerId = this.upsertObservedPlayer(player, teamId);
+
+      if (playerId !== null) {
+        playerIds.add(playerId);
+        this.ensureTournamentPlayer(target.tournamentId, playerId, teamId, "opendota", rawMatch);
+      }
+    }
+
+    return {
+      tournamentId: target.tournamentId,
+      playerIds,
+      teamIds,
+    };
+  }
+
+  private ensureEntitiesForTournament(target: LeagueSyncTarget): void {
+    for (const match of this.matchRowsForLeague(target.league.opendotaLeagueId)) {
+      this.ensureEntitiesFromOpenDotaMatch(match.raw, target.league.opendotaLeagueId);
+    }
+  }
+
+  private ensureTeamFromMatchSide(tournamentId: string, rawMatch: OpenDotaMatchDetail, side: TeamSide): string | null {
+    const opendotaTeamId = side === "radiant" ? rawMatch.radiant_team_id : rawMatch.dire_team_id;
+    const rawName = side === "radiant" ? rawMatch.radiant_name : rawMatch.dire_name;
+    const name = usableTeamName(rawName);
+
+    if (typeof opendotaTeamId === "number" && Number.isSafeInteger(opendotaTeamId) && opendotaTeamId > 0) {
+      const existingByExternalId = this.getTeamIdByOpenDotaTeamId(opendotaTeamId);
+
+      if (existingByExternalId !== null) {
+        return existingByExternalId;
+      }
+
+      const existingByName = name === null ? null : this.getTournamentTeamIdByName(tournamentId, name);
+      const teamId = existingByName ?? `team_opendota_${opendotaTeamId}`;
+
+      this.database
+        .prepare(
+          `
+            INSERT INTO teams (id, opendota_team_id, name, short_name, logo_url, color, source)
+            VALUES (?, ?, ?, ?, NULL, ?, 'opendota')
+            ON CONFLICT(id) DO UPDATE SET
+              opendota_team_id = COALESCE(teams.opendota_team_id, excluded.opendota_team_id),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          `,
+        )
+        .run(teamId, opendotaTeamId, name ?? `OpenDota 队伍 ${opendotaTeamId}`, normalizeShortName(name ?? String(opendotaTeamId)), side === "radiant" ? "#4ade80" : "#f87171");
+
+      this.ensureTournamentTeam(tournamentId, teamId);
+      return teamId;
+    }
+
+    if (name === null) {
+      return null;
+    }
+
+    const existingByName = this.getTournamentTeamIdByName(tournamentId, name);
+
+    if (existingByName !== null) {
+      this.ensureTournamentTeam(tournamentId, existingByName);
+      return existingByName;
+    }
+
+    const teamId = `team_auto_${slugify(name) || side}`;
+
+    this.database
+      .prepare(
+        `
+          INSERT OR IGNORE INTO teams (id, opendota_team_id, name, short_name, logo_url, color, source)
+          VALUES (?, NULL, ?, ?, NULL, ?, 'opendota')
+        `,
+      )
+      .run(teamId, name, normalizeShortName(name), side === "radiant" ? "#4ade80" : "#f87171");
+
+    this.ensureTournamentTeam(tournamentId, teamId);
+    return teamId;
+  }
+
+  private upsertObservedPlayer(player: OpenDotaMatchPlayer, teamId: string | null): string | null {
+    const accountId = typeof player.account_id === "number" && player.account_id > 0 ? player.account_id : null;
+
+    if (accountId === null) {
+      return null;
+    }
+
+    const displayName = player.personaname?.trim() || player.name?.trim() || player.player_name?.trim() || `玩家 ${accountId}`;
+    const avatarUrl = playerAvatarUrl(player);
+    const existing = this.database.prepare("SELECT id, current_team_id FROM players WHERE account_id = ?").get(accountId);
+    const playerId = existing === undefined ? `player_account_${accountId}` : text(existing, "id");
+
+    if (existing === undefined) {
+      this.database
+        .prepare(
+          `
+            INSERT INTO players (id, account_id, display_name, current_team_id, avatar_url)
+            VALUES (?, ?, ?, ?, ?)
+          `,
+        )
+        .run(playerId, accountId, displayName, teamId, avatarUrl);
+    } else {
+      this.database
+        .prepare(
+          `
+            UPDATE players
+            SET
+              display_name = CASE
+                WHEN display_name = '' OR display_name = ? THEN ?
+                ELSE display_name
+              END,
+              current_team_id = COALESCE(current_team_id, ?),
+              avatar_url = COALESCE(avatar_url, ?),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(`玩家 ${accountId}`, displayName, teamId, avatarUrl, playerId);
+    }
+
+    if (teamId !== null) {
+      this.database
+        .prepare("INSERT OR IGNORE INTO team_members (team_id, player_id, role, joined_at) VALUES (?, ?, 'player', ?)")
+        .run(teamId, playerId, new Date().toISOString());
+    }
+
+    return playerId;
+  }
+
+  private ensureTournamentPlayer(
+    tournamentId: string,
+    playerId: string,
+    teamId: string | null,
+    source: "manual" | "opendota",
+    rawMatch?: OpenDotaMatchDetail,
+  ): void {
+    const matchId = Number.isSafeInteger(rawMatch?.match_id) ? rawMatch?.match_id ?? null : null;
+    const seenAt = rawMatch === undefined ? new Date().toISOString() : matchStartTime(rawMatch);
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO tournament_players (
+            tournament_id, player_id, current_team_id, source, first_seen_match_id, last_seen_match_id, last_seen_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(tournament_id, player_id) DO UPDATE SET
+            current_team_id = COALESCE(excluded.current_team_id, tournament_players.current_team_id),
+            source = CASE
+              WHEN tournament_players.source = 'manual' THEN tournament_players.source
+              ELSE excluded.source
+            END,
+            first_seen_match_id = COALESCE(tournament_players.first_seen_match_id, excluded.first_seen_match_id),
+            last_seen_match_id = COALESCE(excluded.last_seen_match_id, tournament_players.last_seen_match_id),
+            last_seen_at = COALESCE(excluded.last_seen_at, tournament_players.last_seen_at),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        `,
+      )
+      .run(tournamentId, playerId, teamId, source, matchId, matchId, seenAt);
+  }
+
+  private ensureTournamentPlayersForTeamMembership(teamId: string, playerId: string, source: "manual" | "opendota"): void {
+    const rows = this.database.prepare("SELECT tournament_id FROM tournament_teams WHERE team_id = ?").all(teamId);
+
+    for (const row of rows) {
+      this.ensureTournamentPlayer(text(row, "tournament_id"), playerId, teamId, source);
+    }
+  }
+
+  private ensureTournamentPlayersFromRosters(tournamentId: string): void {
+    this.database
+      .prepare(
+        `
+          SELECT DISTINCT tt.tournament_id, tm.player_id, tm.team_id
+          FROM tournament_teams tt
+          JOIN team_members tm ON tm.team_id = tt.team_id AND tm.left_at IS NULL
+          WHERE tt.tournament_id = ?
+        `,
+      )
+      .all(tournamentId)
+      .forEach((row) => {
+        this.ensureTournamentPlayer(text(row, "tournament_id"), text(row, "player_id"), text(row, "team_id"), "manual");
+      });
+  }
+
+  private refreshEntityStatsForTournament(
+    tournamentId: string,
+    playerIds?: Iterable<string>,
+    teamIds?: Iterable<string>,
+  ): void {
+    const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
+
+    if (target === undefined) {
+      return;
+    }
+
+    const targetPlayerIds = playerIds === undefined ? this.tournamentPlayerIds(tournamentId) : [...new Set(playerIds)];
+    const targetTeamIds = teamIds === undefined ? this.tournamentTeamIds(tournamentId) : [...new Set(teamIds)];
+
+    for (const playerId of targetPlayerIds) {
+      const stats = this.calculatePlayerStats(target, playerId);
+      const matches = this.getPlayerMatchSummaries(target, playerId);
+
+      this.database
+        .prepare(
+          `
+            INSERT INTO tournament_player_stats (tournament_id, player_id, summary_json, matches_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(tournament_id, player_id) DO UPDATE SET
+              summary_json = excluded.summary_json,
+              matches_json = excluded.matches_json,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          `,
+        )
+        .run(tournamentId, playerId, JSON.stringify(stats), JSON.stringify(matches));
+    }
+
+    for (const teamId of targetTeamIds) {
+      const stats = this.calculateTeamStats(tournamentId, teamId);
+      const matches = this.getTeamMatchSummaries(target, teamId);
+
+      this.database
+        .prepare(
+          `
+            INSERT INTO tournament_team_stats (tournament_id, team_id, summary_json, matches_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(tournament_id, team_id) DO UPDATE SET
+              summary_json = excluded.summary_json,
+              matches_json = excluded.matches_json,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          `,
+        )
+        .run(tournamentId, teamId, JSON.stringify(stats), JSON.stringify(matches));
+    }
+  }
+
+  private tournamentPlayerIds(tournamentId: string): string[] {
+    return this.database
+      .prepare(
+        `
+          SELECT player_id
+          FROM tournament_players
+          WHERE tournament_id = ?
+          UNION
+          SELECT tm.player_id
+          FROM tournament_teams tt
+          JOIN team_members tm ON tm.team_id = tt.team_id AND tm.left_at IS NULL
+          WHERE tt.tournament_id = ?
+        `,
+      )
+      .all(tournamentId, tournamentId)
+      .map((row) => text(row, "player_id"));
+  }
+
+  private tournamentTeamIds(tournamentId: string): string[] {
+    return this.database
+      .prepare("SELECT team_id FROM tournament_teams WHERE tournament_id = ?")
+      .all(tournamentId)
+      .map((row) => text(row, "team_id"));
+  }
+
+  private getPlayerStatsSnapshot(tournamentId: string, playerId: string): PlayerStatsSummary {
+    const row = this.database
+      .prepare("SELECT summary_json FROM tournament_player_stats WHERE tournament_id = ? AND player_id = ?")
+      .get(tournamentId, playerId);
+
+    return row === undefined ? emptyPlayerStats() : parseJson<PlayerStatsSummary>(text(row, "summary_json"), emptyPlayerStats());
+  }
+
+  private getPlayerMatchSnapshot(tournamentId: string, playerId: string): ProfileMatchSummary[] {
+    const row = this.database
+      .prepare("SELECT matches_json FROM tournament_player_stats WHERE tournament_id = ? AND player_id = ?")
+      .get(tournamentId, playerId);
+
+    return row === undefined ? [] : parseJson<ProfileMatchSummary[]>(text(row, "matches_json"), []);
+  }
+
+  private getTeamStatsSnapshot(tournamentId: string, teamId: string): TeamStatsSummary {
+    const row = this.database
+      .prepare("SELECT summary_json FROM tournament_team_stats WHERE tournament_id = ? AND team_id = ?")
+      .get(tournamentId, teamId);
+
+    return row === undefined ? emptyTeamStats() : parseJson<TeamStatsSummary>(text(row, "summary_json"), emptyTeamStats());
+  }
+
+  private getTeamMatchSnapshot(tournamentId: string, teamId: string): ProfileMatchSummary[] {
+    const row = this.database
+      .prepare("SELECT matches_json FROM tournament_team_stats WHERE tournament_id = ? AND team_id = ?")
+      .get(tournamentId, teamId);
+
+    return row === undefined ? [] : parseJson<ProfileMatchSummary[]>(text(row, "matches_json"), []);
+  }
+
+  private getTeamIdByOpenDotaTeamId(opendotaTeamId: number): string | null {
+    const row = this.database.prepare("SELECT id FROM teams WHERE opendota_team_id = ?").get(opendotaTeamId);
+
+    return row === undefined ? null : text(row, "id");
+  }
+
+  private getTeamIdByName(name: string): string | null {
+    const row = this.database
+      .prepare("SELECT id FROM teams WHERE lower(trim(name)) = lower(trim(?)) OR lower(trim(short_name)) = lower(trim(?)) ORDER BY source ASC LIMIT 1")
+      .get(name, name);
+
+    return row === undefined ? null : text(row, "id");
+  }
+
+  private getTournamentTeamIdByName(tournamentId: string, name: string): string | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT tm.id
+          FROM tournament_teams tt
+          JOIN teams tm ON tm.id = tt.team_id
+          WHERE tt.tournament_id = ?
+            AND (lower(trim(tm.name)) = lower(trim(?)) OR lower(trim(tm.short_name)) = lower(trim(?)))
+          ORDER BY tm.source ASC, tt.seed ASC
+          LIMIT 1
+        `,
+      )
+      .get(tournamentId, name, name);
+
+    return row === undefined ? null : text(row, "id");
+  }
+
+  private fillOpenDotaTeamIdIfMissing(teamId: string, opendotaTeamId: number): void {
+    this.database
+      .prepare(
+        `
+          UPDATE teams
+          SET
+            opendota_team_id = COALESCE(opendota_team_id, ?),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(opendotaTeamId, teamId);
+  }
+
+  private getPlayerByAccountId(accountId: number): PlayerBrief | undefined {
+    const row = this.database.prepare("SELECT * FROM players WHERE account_id = ?").get(accountId);
+
+    return row === undefined ? undefined : this.playerFromRow(row);
+  }
+
+  private getLeagueSyncTargetByOpenDotaLeagueId(opendotaLeagueId: number): LeagueSyncTarget | undefined {
+    const row = this.database
+      .prepare(
+        `
+          SELECT
+            t.id AS tournament_id,
+            t.name AS tournament_name,
+            t.status,
+            t.starts_at,
+            t.ends_at,
+            l.id AS league_id,
+            l.name AS league_name,
+            l.opendota_league_id
+          FROM tournaments t
+          JOIN leagues l ON l.id = t.league_id
+          WHERE l.opendota_league_id = ?
+          ORDER BY t.starts_at DESC, t.id ASC
+          LIMIT 1
+        `,
+      )
+      .get(opendotaLeagueId);
+
+    if (row === undefined) {
+      return undefined;
+    }
+
+    return {
+      tournamentId: text(row, "tournament_id"),
+      tournamentName: text(row, "tournament_name"),
+      status: text(row, "status") as TournamentLifecycleStatus,
+      startsAt: nullableText(row, "starts_at"),
+      endsAt: nullableText(row, "ends_at"),
+      league: {
+        id: text(row, "league_id"),
+        name: text(row, "league_name"),
+        opendotaLeagueId: numberValue(row, "opendota_league_id"),
+      },
+    };
+  }
+
   private upsertPlayersFromMatch(rawMatch: OpenDotaMatchDetail, radiantTeamId: string, direTeamId: string): void {
     const players = rawMatch.players ?? [];
     const now = new Date().toISOString();
@@ -1428,69 +2165,247 @@ export class SqliteTournamentRepository {
     }
   }
 
+  private matchRowsForLeague(leagueId: number): ParsedOpenDotaMatchRow[] {
+    const cachedRows = this.matchRowsCache.get(leagueId);
+
+    if (cachedRows !== undefined) {
+      return cachedRows;
+    }
+
+    const rows = this.database
+      .prepare(
+        `
+          SELECT match_id, raw_json
+          FROM opendota_matches
+          WHERE league_id = ?
+        `,
+      )
+      .all(leagueId)
+      .map((row) => ({
+        matchId: numberValue(row, "match_id"),
+        raw: parseJson<OpenDotaMatchDetail | null>(text(row, "raw_json"), null),
+      }))
+      .filter((row): row is ParsedOpenDotaMatchRow => row.raw !== null)
+      .sort((left, right) => (right.raw.start_time ?? 0) - (left.raw.start_time ?? 0));
+
+    this.matchRowsCache.set(leagueId, rows);
+
+    return rows;
+  }
+
+  private observedPlayerAccountIds(leagueId: number): number[] {
+    const accountIds = new Set<number>();
+
+    for (const match of this.matchRowsForLeague(leagueId)) {
+      for (const player of match.raw.players ?? []) {
+        if (typeof player.account_id === "number" && player.account_id > 0) {
+          accountIds.add(player.account_id);
+        }
+      }
+    }
+
+    return [...accountIds];
+  }
+
+  private calculatePlayerStats(target: LeagueSyncTarget, playerId: string): PlayerStatsSummary {
+    const matches = this.getPlayerRawMatches(target, playerId);
+    const heroMap = new Map<number, HeroPickSummary>();
+    let wins = 0;
+    let kills = 0;
+    let deaths = 0;
+    let assists = 0;
+    let gpm = 0;
+    let xpm = 0;
+    let netWorth = 0;
+    let heroDamage = 0;
+    let towerDamage = 0;
+    let damageTaken = 0;
+
+    for (const match of matches) {
+      const didWin = playerWon(match.raw, sideFromPlayer(match.player));
+
+      if (didWin === true) {
+        wins += 1;
+      }
+
+      kills += match.player.kills ?? 0;
+      deaths += match.player.deaths ?? 0;
+      assists += match.player.assists ?? 0;
+      gpm += match.player.gold_per_min ?? 0;
+      xpm += match.player.xp_per_min ?? 0;
+      netWorth += match.player.net_worth ?? 0;
+      heroDamage += match.player.hero_damage ?? 0;
+      towerDamage += match.player.tower_damage ?? 0;
+      damageTaken += damageTakenTotal(match.player.damage_taken);
+
+      if (typeof match.player.hero_id === "number") {
+        const current = heroMap.get(match.player.hero_id) ?? { heroId: match.player.hero_id, picks: 0, wins: 0 };
+        current.picks += 1;
+
+        if (didWin === true) {
+          current.wins += 1;
+        }
+
+        heroMap.set(match.player.hero_id, current);
+      }
+    }
+
+    const totalMatches = matches.length;
+    const losses = totalMatches - wins;
+
+    return {
+      totalMatches,
+      wins,
+      losses,
+      winRate: totalMatches > 0 ? round1((wins / totalMatches) * 100) : null,
+      avgKills: average(kills, totalMatches),
+      avgDeaths: average(deaths, totalMatches),
+      avgAssists: average(assists, totalMatches),
+      kda: totalMatches > 0 ? round2((kills + assists) / Math.max(1, deaths)) : null,
+      avgGpm: average(gpm, totalMatches),
+      avgXpm: average(xpm, totalMatches),
+      avgNetWorth: average(netWorth, totalMatches),
+      avgHeroDamage: average(heroDamage, totalMatches),
+      avgTowerDamage: average(towerDamage, totalMatches),
+      avgDamageTaken: average(damageTaken, totalMatches),
+      topHeroes: [...heroMap.values()].sort((left, right) => right.picks - left.picks || right.wins - left.wins).slice(0, 5),
+    };
+  }
+
+  private getPlayerRawMatches(
+    target: LeagueSyncTarget,
+    playerId: string,
+  ): Array<ParsedOpenDotaMatchRow & { player: OpenDotaMatchPlayer }> {
+    const player = this.getPlayerById(playerId);
+    const accountId = player?.accountId;
+
+    if (accountId === null || accountId === undefined) {
+      return [];
+    }
+
+    return this.matchRowsForLeague(target.league.opendotaLeagueId).flatMap((match) => {
+      const playerRow = (match.raw.players ?? []).find((candidate) => candidate.account_id === accountId);
+
+      return playerRow === undefined ? [] : [{ ...match, player: playerRow }];
+    });
+  }
+
+  private getPlayerMatchSummaries(target: LeagueSyncTarget, playerId: string): ProfileMatchSummary[] {
+    return this.getPlayerRawMatches(target, playerId)
+      .map((match) => this.profileMatchSummary(match.raw, sideFromPlayer(match.player), match.player))
+      .slice(0, 40);
+  }
+
+  private getTeamMatchSummaries(target: LeagueSyncTarget, teamId: string): ProfileMatchSummary[] {
+    return this.matchRowsForLeague(target.league.opendotaLeagueId)
+      .flatMap((match) => {
+        const side = this.sideForTeamInMatch(match.raw, teamId, target.tournamentId);
+
+        return side === null ? [] : [this.profileMatchSummary(match.raw, side, null)];
+      })
+      .slice(0, 40);
+  }
+
+  private sideForTeamInMatch(rawMatch: OpenDotaMatchDetail, teamId: string, tournamentId: string): TeamSide | null {
+    const radiantTeamId = this.resolveObservedTeamId(rawMatch, "radiant", tournamentId);
+
+    if (radiantTeamId === teamId) {
+      return "radiant";
+    }
+
+    const direTeamId = this.resolveObservedTeamId(rawMatch, "dire", tournamentId);
+
+    return direTeamId === teamId ? "dire" : null;
+  }
+
+  private resolveObservedTeamId(rawMatch: OpenDotaMatchDetail, side: TeamSide, tournamentId: string): string | null {
+    const opendotaTeamId = side === "radiant" ? rawMatch.radiant_team_id : rawMatch.dire_team_id;
+
+    if (typeof opendotaTeamId === "number" && opendotaTeamId > 0) {
+      const teamId = this.getTeamIdByOpenDotaTeamId(opendotaTeamId);
+
+      if (teamId !== null) {
+        return teamId;
+      }
+    }
+
+    const name = usableTeamName(side === "radiant" ? rawMatch.radiant_name : rawMatch.dire_name);
+
+    return name === null ? null : this.getTournamentTeamIdByName(tournamentId, name);
+  }
+
+  private profileMatchSummary(
+    rawMatch: OpenDotaMatchDetail,
+    side: TeamSide | null,
+    player: OpenDotaMatchPlayer | null,
+  ): ProfileMatchSummary {
+    const radiantWin = typeof rawMatch.radiant_win === "boolean" ? rawMatch.radiant_win : null;
+    const didWin = side === null ? null : playerWon(rawMatch, side);
+
+    return {
+      matchId: rawMatch.match_id,
+      startTime: matchStartTime(rawMatch),
+      durationText: typeof rawMatch.duration === "number" ? formatDuration(rawMatch.duration) : null,
+      radiantTeamName: stringOr(rawMatch.radiant_name, "天辉"),
+      direTeamName: stringOr(rawMatch.dire_name, "夜魇"),
+      radiantScore: typeof rawMatch.radiant_score === "number" ? rawMatch.radiant_score : null,
+      direScore: typeof rawMatch.dire_score === "number" ? rawMatch.dire_score : null,
+      radiantWin,
+      side,
+      heroId: typeof player?.hero_id === "number" ? player.hero_id : null,
+      kills: typeof player?.kills === "number" ? player.kills : null,
+      deaths: typeof player?.deaths === "number" ? player.deaths : null,
+      assists: typeof player?.assists === "number" ? player.assists : null,
+      result: didWin === null ? "unknown" : didWin ? "win" : "loss",
+    };
+  }
+
   private calculateTeamStats(tournamentId: string, teamId: string): TeamStatsSummary {
-    const seriesRow = this.database
-      .prepare(
-        `
-          SELECT
-            SUM(CASE WHEN s.winner_team_id IS NOT NULL THEN 1 ELSE 0 END) AS series_played,
-            SUM(CASE WHEN s.winner_team_id = ? THEN 1 ELSE 0 END) AS series_wins,
-            SUM(CASE WHEN s.winner_team_id IS NOT NULL AND s.winner_team_id <> ? THEN 1 ELSE 0 END) AS series_losses
-          FROM series s
-          JOIN stages st ON st.id = s.stage_id
-          WHERE st.tournament_id = ? AND (s.radiant_team_id = ? OR s.dire_team_id = ?)
-        `,
-      )
-      .get(teamId, teamId, tournamentId, teamId, teamId);
-    const games = this.database
-      .prepare(
-        `
-          SELECT
-            sg.match_id,
-            sg.winner_team_id,
-            s.radiant_team_id,
-            s.dire_team_id,
-            om.raw_json
-          FROM series_games sg
-          JOIN series s ON s.id = sg.series_id
-          JOIN stages st ON st.id = s.stage_id
-          LEFT JOIN opendota_matches om ON om.match_id = sg.match_id
-          WHERE st.tournament_id = ? AND (s.radiant_team_id = ? OR s.dire_team_id = ?)
-        `,
-      )
-      .all(tournamentId, teamId, teamId);
+    const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
     const heroMap = new Map<number, HeroPickSummary>();
     let gameWins = 0;
     let gameLosses = 0;
     let linkedMatches = 0;
 
-    for (const game of games) {
-      const winnerTeamId = nullableText(game, "winner_team_id");
-      const matchId = nullableNumber(game, "match_id");
-      const isRadiantTeam = text(game, "radiant_team_id") === teamId;
+    if (target === undefined) {
+      return {
+        seriesPlayed: 0,
+        seriesWins: 0,
+        seriesLosses: 0,
+        gameWins: 0,
+        gameLosses: 0,
+        linkedMatches: 0,
+        winRate: null,
+        topHeroes: [],
+      };
+    }
 
-      if (winnerTeamId === teamId) {
+    for (const match of this.matchRowsForLeague(target.league.opendotaLeagueId)) {
+      const side = this.sideForTeamInMatch(match.raw, teamId, tournamentId);
+
+      if (side === null) {
+        continue;
+      }
+
+      const didWin = playerWon(match.raw, side);
+
+      if (didWin === true) {
         gameWins += 1;
-      } else if (winnerTeamId !== null) {
+      } else if (didWin === false) {
         gameLosses += 1;
       }
 
-      if (matchId !== null) {
-        linkedMatches += 1;
-      }
+      linkedMatches += 1;
 
-      const raw = parseJson<OpenDotaMatchDetail | null>(nullableText(game, "raw_json"), null);
-      const players = raw?.players ?? [];
-
-      for (const player of players) {
-        if ((sideFromPlayer(player) === "radiant") !== isRadiantTeam || typeof player.hero_id !== "number") {
+      for (const player of match.raw.players ?? []) {
+        if (sideFromPlayer(player) !== side || typeof player.hero_id !== "number") {
           continue;
         }
 
         const current = heroMap.get(player.hero_id) ?? { heroId: player.hero_id, picks: 0, wins: 0 };
         current.picks += 1;
 
-        if (winnerTeamId === teamId) {
+        if (didWin === true) {
           current.wins += 1;
         }
 
@@ -1498,9 +2413,9 @@ export class SqliteTournamentRepository {
       }
     }
 
-    const seriesPlayed = numberValue(seriesRow ?? {}, "series_played");
-    const seriesWins = numberValue(seriesRow ?? {}, "series_wins");
-    const seriesLosses = numberValue(seriesRow ?? {}, "series_losses");
+    const seriesPlayed = linkedMatches;
+    const seriesWins = gameWins;
+    const seriesLosses = gameLosses;
 
     return {
       seriesPlayed,
@@ -1509,7 +2424,7 @@ export class SqliteTournamentRepository {
       gameWins,
       gameLosses,
       linkedMatches,
-      winRate: seriesPlayed > 0 ? Math.round((seriesWins / seriesPlayed) * 1000) / 10 : null,
+      winRate: seriesPlayed > 0 ? round1((seriesWins / seriesPlayed) * 100) : null,
       topHeroes: [...heroMap.values()].sort((left, right) => right.picks - left.picks || right.wins - left.wins).slice(0, 5),
     };
   }
@@ -1575,6 +2490,7 @@ export class SqliteTournamentRepository {
       radiantTeamName: stringOr(raw?.radiant_name, "天辉"),
       direTeamName: stringOr(raw?.dire_name, "夜魇"),
       playerCount: players.length,
+      heroLineups: summarizeHeroLineups(players),
       hasDraft: Array.isArray(raw?.picks_bans) && raw.picks_bans.length > 0,
       hasVision: players.some((player) => (player.obs_log?.length ?? 0) > 0 || (player.sen_log?.length ?? 0) > 0),
       hasChat: Array.isArray(raw?.chat) && raw.chat.length > 0,
@@ -2122,6 +3038,122 @@ function matchStartTime(rawMatch: OpenDotaMatchDetail): string | null {
 
 function sideFromPlayer(player: OpenDotaMatchPlayer): TeamSide {
   return player.player_slot < 128 ? "radiant" : "dire";
+}
+
+function summarizeHeroLineups(players: OpenDotaMatchPlayer[]): Record<TeamSide, OpenDotaMatchListHero[]> {
+  const lineups: Record<TeamSide, OpenDotaMatchListHero[]> = {
+    radiant: [],
+    dire: [],
+  };
+
+  for (const player of [...players].sort((left, right) => left.player_slot - right.player_slot)) {
+    if (typeof player.hero_id !== "number" || player.hero_id <= 0) {
+      continue;
+    }
+
+    const side = sideFromPlayer(player);
+    if (lineups[side].length >= 5) {
+      continue;
+    }
+
+    lineups[side].push({
+      playerSlot: player.player_slot,
+      heroId: player.hero_id,
+      playerName: player.personaname?.trim() || player.player_name?.trim() || player.name?.trim() || `玩家 ${player.player_slot}`,
+    });
+  }
+
+  return lineups;
+}
+
+function playerWon(rawMatch: OpenDotaMatchDetail, side: TeamSide): boolean | null {
+  if (typeof rawMatch.radiant_win !== "boolean") {
+    return null;
+  }
+
+  return side === "radiant" ? rawMatch.radiant_win : !rawMatch.radiant_win;
+}
+
+function usableTeamName(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const name = value.trim();
+  const normalized = name.toLowerCase();
+
+  if (name.length === 0 || ["radiant", "dire", "天辉", "夜魇", "unknown", "unknown team"].includes(normalized)) {
+    return null;
+  }
+
+  return name;
+}
+
+function playerAvatarUrl(player: OpenDotaMatchPlayer): string | null {
+  const dynamicPlayer = player as OpenDotaMatchPlayer & {
+    avatar?: string;
+    avatarmedium?: string;
+    avatarfull?: string;
+  };
+
+  return dynamicPlayer.avatarfull?.trim() || dynamicPlayer.avatarmedium?.trim() || dynamicPlayer.avatar?.trim() || null;
+}
+
+function emptyPlayerStats(): PlayerStatsSummary {
+  return {
+    totalMatches: 0,
+    wins: 0,
+    losses: 0,
+    winRate: null,
+    avgKills: null,
+    avgDeaths: null,
+    avgAssists: null,
+    kda: null,
+    avgGpm: null,
+    avgXpm: null,
+    avgNetWorth: null,
+    avgHeroDamage: null,
+    avgTowerDamage: null,
+    avgDamageTaken: null,
+    topHeroes: [],
+  };
+}
+
+function emptyTeamStats(): TeamStatsSummary {
+  return {
+    seriesPlayed: 0,
+    seriesWins: 0,
+    seriesLosses: 0,
+    gameWins: 0,
+    gameLosses: 0,
+    linkedMatches: 0,
+    winRate: null,
+    topHeroes: [],
+  };
+}
+
+function damageTakenTotal(value: OpenDotaMatchPlayer["damage_taken"]): number {
+  if (typeof value === "number") {
+    return value;
+  }
+
+  if (value === undefined) {
+    return 0;
+  }
+
+  return Object.values(value).reduce((sum, current) => sum + current, 0);
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function average(total: number, count: number): number | null {
+  return count > 0 ? round1(total / count) : null;
 }
 
 function defaultAdvancementRule(type: CreateStageInput["type"]): string {

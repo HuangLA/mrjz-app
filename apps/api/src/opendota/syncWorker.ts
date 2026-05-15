@@ -1,11 +1,14 @@
 import {
   createSyncTask,
   getOpenDotaMatchCache,
+  listTournamentPlayerAccountIds,
   listLeagueSyncTargets,
   listRunningLeagueSyncTargets,
+  updatePlayerSteamProfiles,
   upsertOpenDotaMatch,
 } from "../data/repository.js";
 import { OpenDotaClient } from "./client.js";
+import { cacheSteamAvatar } from "./steamAvatarCache.js";
 import { SteamDotaClient } from "./steamClient.js";
 import type {
   OpenDotaLeagueMatch,
@@ -17,6 +20,7 @@ import type {
 import type { LeagueSyncTarget } from "../data/sqliteRepository.js";
 
 export const DEFAULT_OPENDOTA_SYNC_INTERVAL_MS = 10 * 60 * 1000;
+export const DEFAULT_STEAM_PROFILE_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export type OpenDotaLeagueSyncSummary = {
   checkedLeagues: number;
@@ -38,6 +42,14 @@ export type OpenDotaLeagueSyncOptions = {
   includeSteamDiscovery?: boolean;
   includeKnownSeeds?: boolean;
   includePlayerDiscovery?: boolean;
+};
+
+export type SteamProfileSyncSummary = {
+  checkedTournaments: number;
+  requestedProfiles: number;
+  updatedProfiles: number;
+  cachedAvatars: number;
+  errors: string[];
 };
 
 const KNOWN_MRJZ_IMPORT_SOURCES: Record<number, { matchIds: number[]; seedAccountIds: number[] }> = {
@@ -201,6 +213,88 @@ async function syncOpenDotaTargets(options: OpenDotaLeagueSyncOptions): Promise<
         await sleep(requestDelayMs);
       }
     }
+
+  }
+
+  return summary;
+}
+
+export async function runSteamProfileSync(options: { steamClient?: SteamDotaClient; targets?: LeagueSyncTarget[] } = {}): Promise<SteamProfileSyncSummary> {
+  const steamClient = options.steamClient ?? new SteamDotaClient();
+  const targets = options.targets ?? listLeagueSyncTargets(["completed", "running", "upcoming"]);
+  const summary: SteamProfileSyncSummary = {
+    checkedTournaments: 0,
+    requestedProfiles: 0,
+    updatedProfiles: 0,
+    cachedAvatars: 0,
+    errors: [],
+  };
+
+  if (!steamClient.available) {
+    summary.errors.push("STEAM_API_KEY is not configured");
+    return summary;
+  }
+
+  for (const target of targets) {
+    summary.checkedTournaments += 1;
+    const result = await syncSteamProfilesForTournament(target, steamClient);
+
+    summary.requestedProfiles += result.requestedProfiles;
+    summary.updatedProfiles += result.updatedProfiles;
+    summary.cachedAvatars += result.cachedAvatars;
+    summary.errors.push(...result.errors);
+  }
+
+  return summary;
+}
+
+async function syncSteamProfilesForTournament(
+  target: LeagueSyncTarget,
+  steamClient: SteamDotaClient,
+): Promise<Omit<SteamProfileSyncSummary, "checkedTournaments">> {
+  const accountIds = listTournamentPlayerAccountIds(target.tournamentId);
+  const summary = {
+    requestedProfiles: accountIds.length,
+    updatedProfiles: 0,
+    cachedAvatars: 0,
+    errors: [] as string[],
+  };
+
+  if (accountIds.length === 0) {
+    return summary;
+  }
+
+  try {
+    const summaries = await steamClient.getPlayerSummariesByAccountIds(accountIds);
+    const profileInputs = summaries.map((summary) => ({
+      accountId: summary.accountId,
+      displayName: summary.personaname ?? null,
+      avatarUrl: summary.avatarfull ?? summary.avatarmedium ?? summary.avatar ?? null,
+    }));
+
+    summary.updatedProfiles = updatePlayerSteamProfiles(profileInputs);
+
+    for (const profile of profileInputs) {
+      try {
+        if (await cacheSteamAvatar(profile.accountId, profile.avatarUrl)) {
+          summary.cachedAvatars += 1;
+        }
+      } catch (error) {
+        summary.errors.push(`avatar ${profile.accountId}: ${errorMessage(error)}`);
+      }
+    }
+  } catch (error) {
+    createSyncTask({
+      kind: "refresh_match",
+      leagueId: target.league.opendotaLeagueId,
+      targetType: "steam_profiles",
+      targetId: target.tournamentId,
+      payload: {
+        source: "steam_profiles",
+        error: errorMessage(error),
+      },
+    });
+    summary.errors.push(errorMessage(error));
   }
 
   return summary;
@@ -228,6 +322,39 @@ export function startOpenDotaSyncScheduler(): () => void {
 
   timer.unref?.();
   console.log(`OpenDota sync worker scheduled every ${Math.round(intervalMs / 60000)} minutes`);
+
+  return () => clearInterval(timer);
+}
+
+export function startSteamProfileSyncScheduler(): () => void {
+  if (process.env.MRJZ_DISABLE_STEAM_PROFILE_WORKER === "1") {
+    console.log("Steam profile sync worker disabled by MRJZ_DISABLE_STEAM_PROFILE_WORKER=1");
+    return () => undefined;
+  }
+
+  const steamClient = new SteamDotaClient();
+
+  if (!steamClient.available) {
+    console.log("Steam profile sync worker disabled because STEAM_API_KEY is not configured");
+    return () => undefined;
+  }
+
+  const intervalMs = readPositiveInteger(process.env.STEAM_PROFILE_SYNC_INTERVAL_MS, DEFAULT_STEAM_PROFILE_SYNC_INTERVAL_MS);
+
+  if (process.env.STEAM_PROFILE_SYNC_RUN_ON_START === "1") {
+    void runSteamProfileSync({ steamClient }).catch((error) => {
+      console.error("Steam profile sync worker startup run failed", error);
+    });
+  }
+
+  const timer = setInterval(() => {
+    void runSteamProfileSync({ steamClient }).catch((error) => {
+      console.error("Steam profile sync worker run failed", error);
+    });
+  }, intervalMs);
+
+  timer.unref?.();
+  console.log(`Steam profile sync worker scheduled every ${Math.round(intervalMs / 60000)} minutes`);
 
   return () => clearInterval(timer);
 }
