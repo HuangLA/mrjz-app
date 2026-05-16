@@ -551,10 +551,9 @@ td small,
 }
 
 .team-pick strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .team-pick small {
@@ -719,15 +718,14 @@ td small,
 }
 
 .bracket-node b {
-  overflow: hidden;
   padding: 4px 6px;
   border-radius: 5px;
   background: #f6f8fb;
   color: #253149;
   font-size: 12px;
   font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .match-link-list {

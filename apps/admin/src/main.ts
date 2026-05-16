@@ -682,8 +682,8 @@ function bracketColumnsFromPlan(plan: Pick<CompetitionPlan, "rounds">): BracketC
       round.series.length > 0
         ? round.series.map((series) => ({
             label: series.label,
-            top: series.radiant.shortName || series.radiant.name,
-            bottom: series.dire.shortName || series.dire.name,
+            top: series.radiant.name,
+            bottom: series.dire.name,
             meta: series.note ?? "草稿对阵",
           }))
         : Array.from({ length: round.placeholderCount }, (_, index) => ({
@@ -916,7 +916,7 @@ function renderTeamCard(team: TournamentTeamListItem): string {
         <span style="background:${escapeHtml(team.color)}"></span>
         <div>
           <strong>${escapeHtml(team.name)}</strong>
-          <small>${escapeHtml(team.shortName)} · seed ${escapeHtml(team.seed ?? "-")}</small>
+          <small>seed ${escapeHtml(team.seed ?? "-")} · ${escapeHtml(team.memberCount)} 名成员</small>
         </div>
         ${badge(team.status, toneForStatus(team.status))}
       </div>
@@ -982,7 +982,7 @@ function playersTable(): string {
                   <td><strong>${escapeHtml(player.displayName)}</strong><small>${escapeHtml(player.id)}</small></td>
                   <td>${escapeHtml(player.accountId ?? "-")}</td>
                   <td>${escapeHtml(player.currentTeam?.name ?? "未设置")}</td>
-                  <td>${escapeHtml(player.teams.map((team) => team.shortName || team.name).join(" / ") || "-")}</td>
+                  <td>${escapeHtml(player.teams.map((team) => team.name).join(" / ") || "-")}</td>
                 </tr>
               `,
             )
@@ -1150,7 +1150,7 @@ function renderCompetitionComposer(): string {
                     <label class="team-pick">
                       <input name="teamIds" value="${escapeHtml(team.id)}" type="checkbox" data-composer-field ${selectedIds.has(team.id) ? "checked" : ""} />
                       <span style="background:${escapeHtml(team.color)}"></span>
-                      <strong>${escapeHtml(team.shortName || team.name)}</strong>
+                      <strong>${escapeHtml(team.name)}</strong>
                       <small>seed ${escapeHtml(team.seed ?? "-")}</small>
                     </label>
                   `,
@@ -1217,7 +1217,7 @@ function renderPlanPreview(plan: CompetitionPlan): string {
       <div>
         <span>轮空</span>
         <strong>${escapeHtml(plan.byes.length)}</strong>
-        <small>${escapeHtml(plan.byes.map((bye) => bye.team.shortName || bye.team.name).join("、") || "无")}</small>
+        <small>${escapeHtml(plan.byes.map((bye) => bye.team.name).join("、") || "无")}</small>
       </div>
     </div>
     ${plan.warnings.length > 0 ? `<div class="warning-list">${plan.warnings.map((warning) => `<span>${escapeHtml(warning)}</span>`).join("")}</div>` : ""}
@@ -1234,7 +1234,7 @@ function renderGroupPreview(groups: PlanGroup[]): string {
           (group) => `
             <div>
               <strong>${escapeHtml(group.name)}</strong>
-              <small>${escapeHtml(group.teams.map((team) => team.shortName || team.name).join(" / ") || "暂无队伍")}</small>
+              <small>${escapeHtml(group.teams.map((team) => team.name).join(" / ") || "暂无队伍")}</small>
             </div>
           `,
         )
@@ -1252,7 +1252,7 @@ function renderRoundPreview(rounds: PlanRound[]): string {
           (round) => `
             <div class="round-preview-row">
               <strong>${escapeHtml(round.name)}</strong>
-              <small>${escapeHtml(round.series.map((series) => `${series.radiant.shortName || series.radiant.name} vs ${series.dire.shortName || series.dire.name}`).join(" · ") || "待生成对阵")}</small>
+              <small>${escapeHtml(round.series.map((series) => `${series.radiant.name} vs ${series.dire.name}`).join(" · ") || "待生成对阵")}</small>
             </div>
           `,
         )
@@ -1308,8 +1308,8 @@ function existingBracketColumns(): BracketColumn[] {
 
       column.nodes.push({
         label: `#${node.position}`,
-        top: node.series?.radiantTeam.shortName || node.series?.radiantTeam.name || "待定",
-        bottom: node.series?.direTeam.shortName || node.series?.direTeam.name || "待定",
+        top: node.series?.radiantTeam.name || "待定",
+        bottom: node.series?.direTeam.name || "待定",
         meta: node.status,
       });
       grouped.set(key, column);
@@ -1331,8 +1331,8 @@ function existingBracketColumns(): BracketColumn[] {
       round.series.length > 0
         ? round.series.map((series, index) => ({
             label: `${round.roundNumber}-${index + 1}`,
-            top: series.radiantTeam.shortName || series.radiantTeam.name,
-            bottom: series.direTeam.shortName || series.direTeam.name,
+            top: series.radiantTeam.name,
+            bottom: series.direTeam.name,
             meta: series.status,
           }))
         : [
