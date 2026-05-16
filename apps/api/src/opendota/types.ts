@@ -132,6 +132,19 @@ export type OpenDotaPlayerMatchSummary = {
   version?: number | null;
 };
 
+export type OpenDotaPlayerProfile = {
+  profile?: {
+    account_id?: number;
+    steamid?: string;
+    personaname?: string;
+    name?: string;
+    avatar?: string;
+    avatarmedium?: string;
+    avatarfull?: string;
+    profileurl?: string;
+  };
+};
+
 export type SteamLeagueMatch = {
   match_id?: number;
   match_seq_num?: number;

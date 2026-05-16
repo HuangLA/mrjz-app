@@ -1,5 +1,6 @@
 import { openDatabase, parseJson, resolveDatabasePath } from "../db/client.js";
 import { normalizeOpenDotaMatchDetail } from "../opendota/normalizers/matchDetail.js";
+import { accountIdToSteamId64, steamId64ToAccountId } from "../opendota/steamClient.js";
 import type { OpenDotaMatchDetail, OpenDotaMatchPlayer } from "../opendota/types.js";
 import type {
   BracketNode,
@@ -172,6 +173,7 @@ export type ProfileMatchSummary = {
 export type PlayerBrief = {
   id: string;
   accountId: number | null;
+  steamId64: string | null;
   displayName: string;
   avatarUrl: string | null;
   currentTeam: TeamBrief | null;
@@ -224,26 +226,47 @@ export type SyncTaskView = {
 export type CreateTeamInput = {
   name: string;
   shortName?: string;
+  logoUrl?: string | null;
   color?: string;
   opendotaTeamId?: number | null;
   tournamentId?: string;
 };
 
+export type UpdateTeamInput = {
+  name?: string;
+  shortName?: string;
+  logoUrl?: string | null;
+  color?: string | null;
+  opendotaTeamId?: number | null;
+};
+
 export type CreatePlayerInput = {
   displayName: string;
   accountId?: number | null;
+  steamId64?: string | null;
   currentTeamId?: string | null;
   avatarUrl?: string | null;
 };
 
 export type AddTeamMemberInput = {
   teamId: string;
-  playerId: string;
+  playerId?: string;
+  steamId?: string;
+  accountId?: number | null;
+  steamId64?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
   role?: string;
+};
+
+export type RemoveTeamMemberInput = {
+  teamId: string;
+  playerId: string;
 };
 
 export type SteamPlayerProfileInput = {
   accountId: number;
+  steamId64?: string | null;
   displayName?: string | null;
   avatarUrl?: string | null;
 };
@@ -333,7 +356,9 @@ export class SqliteTournamentRepository {
   private ensureRuntimeSchema(): void {
     this.ensureColumn("teams", "opendota_team_id", "INTEGER");
     this.ensureColumn("teams", "source", "TEXT NOT NULL DEFAULT 'manual'");
+    this.ensureColumn("players", "steam_id64", "TEXT");
     this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
+    this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
     this.ensureEntityTables();
   }
 
@@ -925,10 +950,7 @@ export class SqliteTournamentRepository {
 
       const displayName = profile.displayName?.trim() || null;
       const avatarUrl = profile.avatarUrl?.trim() || null;
-
-      if (displayName === null && avatarUrl === null) {
-        continue;
-      }
+      const steamId64 = profile.steamId64?.trim() || accountIdToSteamId64(profile.accountId);
 
       const result = this.database
         .prepare(
@@ -936,12 +958,13 @@ export class SqliteTournamentRepository {
             UPDATE players
             SET
               display_name = COALESCE(?, display_name),
+              steam_id64 = COALESCE(?, steam_id64),
               avatar_url = COALESCE(?, avatar_url),
               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE account_id = ?
           `,
         )
-        .run(displayName, avatarUrl, profile.accountId);
+        .run(displayName, steamId64, avatarUrl, profile.accountId);
 
       updated += Number(result.changes);
     }
@@ -1070,6 +1093,7 @@ export class SqliteTournamentRepository {
   createTeam(input: CreateTeamInput): TeamBrief {
     const name = requiredString(input.name, "name");
     const shortName = normalizeShortName(input.shortName ?? name);
+    const logoUrl = input.logoUrl?.trim() || null;
     const opendotaTeamId =
       input.opendotaTeamId === undefined || input.opendotaTeamId === null
         ? null
@@ -1084,6 +1108,14 @@ export class SqliteTournamentRepository {
     const color = input.color ?? "#64748b";
 
     if (existingId !== null) {
+      this.updateTeam(existingId, {
+        name,
+        shortName,
+        ...(logoUrl === null ? {} : { logoUrl }),
+        ...(input.color === undefined ? {} : { color: input.color }),
+        ...(opendotaTeamId === null ? {} : { opendotaTeamId }),
+      });
+
       if (opendotaTeamId !== null) {
         this.fillOpenDotaTeamIdIfMissing(existingId, opendotaTeamId);
       }
@@ -1102,7 +1134,7 @@ export class SqliteTournamentRepository {
     try {
       this.database
         .prepare("INSERT INTO teams (id, opendota_team_id, name, short_name, logo_url, color, source) VALUES (?, ?, ?, ?, ?, ?, ?)")
-        .run(id, opendotaTeamId, name, shortName, null, color, "manual");
+        .run(id, opendotaTeamId, name, shortName, logoUrl, color, "manual");
 
       if (input.tournamentId !== undefined && input.tournamentId.length > 0) {
         this.database
@@ -1120,17 +1152,67 @@ export class SqliteTournamentRepository {
       id,
       name,
       shortName,
-      logoUrl: null,
+      logoUrl,
       color,
     };
   }
 
+  updateTeam(teamId: string, input: UpdateTeamInput): TeamBrief {
+    const id = requiredString(teamId, "teamId");
+    this.requireTeam(id);
+
+    const updates = {
+      name: input.name?.trim() || undefined,
+      shortName: input.shortName === undefined ? undefined : normalizeShortName(input.shortName || input.name || ""),
+      logoUrl: input.logoUrl === undefined ? undefined : input.logoUrl?.trim() || null,
+      color: input.color === undefined ? undefined : input.color?.trim() || null,
+      opendotaTeamId:
+        input.opendotaTeamId === undefined || input.opendotaTeamId === null
+          ? input.opendotaTeamId
+          : requiredPositiveInteger(input.opendotaTeamId, "opendotaTeamId"),
+    };
+
+    this.database
+      .prepare(
+        `
+          UPDATE teams
+          SET
+            name = COALESCE(?, name),
+            short_name = COALESCE(?, short_name),
+            logo_url = CASE WHEN ? THEN ? ELSE logo_url END,
+            color = CASE WHEN ? THEN ? ELSE color END,
+            opendota_team_id = CASE WHEN ? THEN ? ELSE opendota_team_id END,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(
+        updates.name ?? null,
+        updates.shortName ?? null,
+        updates.logoUrl !== undefined ? 1 : 0,
+        updates.logoUrl ?? null,
+        updates.color !== undefined ? 1 : 0,
+        updates.color ?? null,
+        updates.opendotaTeamId !== undefined ? 1 : 0,
+        updates.opendotaTeamId ?? null,
+        id,
+      );
+
+    return this.requireTeam(id);
+  }
+
   createPlayer(input: CreatePlayerInput): PlayerBrief {
     const displayName = requiredString(input.displayName, "displayName");
-    const accountId =
+    let accountId =
       input.accountId === undefined || input.accountId === null
         ? null
         : requiredPositiveInteger(input.accountId, "accountId");
+    const steamIdentity =
+      accountId === null && input.steamId64 !== undefined && input.steamId64 !== null && input.steamId64.trim().length > 0
+        ? accountIdentityFromTeamMemberInput({ teamId: "manual", steamId64: input.steamId64 })
+        : null;
+    accountId = accountId ?? steamIdentity?.accountId ?? null;
+    const steamId64 = steamIdentity?.steamId64 ?? normalizeSteamId64(input.steamId64, accountId);
     const currentTeamId = input.currentTeamId?.trim() || null;
     const avatarUrl = input.avatarUrl?.trim() || null;
     const id = uniqueId("player", `${accountId ?? "manual"}-${displayName}`);
@@ -1145,11 +1227,11 @@ export class SqliteTournamentRepository {
       this.database
         .prepare(
           `
-            INSERT INTO players (id, account_id, display_name, current_team_id, avatar_url)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO players (id, account_id, steam_id64, display_name, current_team_id, avatar_url)
+            VALUES (?, ?, ?, ?, ?, ?)
           `,
         )
-        .run(id, accountId, displayName, currentTeamId, avatarUrl);
+        .run(id, accountId, steamId64, displayName, currentTeamId, avatarUrl);
 
       if (currentTeamId !== null) {
         this.database
@@ -1175,21 +1257,38 @@ export class SqliteTournamentRepository {
 
   addTeamMember(input: AddTeamMemberInput): TournamentTeamListItem | undefined {
     const teamId = requiredString(input.teamId, "teamId");
-    const playerId = requiredString(input.playerId, "playerId");
     const role = input.role?.trim() || "player";
-    const team = this.requireTeam(teamId);
-
-    this.requirePlayer(playerId);
+    this.requireTeam(teamId);
+    const requestedPlayerId = input.playerId?.trim();
 
     this.database.exec("BEGIN;");
 
     try {
+      const playerId = requestedPlayerId ? this.requirePlayer(requestedPlayerId).id : this.upsertManualPlayerForTeamMember(teamId, input);
       this.database
-        .prepare("INSERT OR IGNORE INTO team_members (team_id, player_id, role, joined_at) VALUES (?, ?, ?, ?)")
+        .prepare(
+          `
+            INSERT INTO team_members (team_id, player_id, role, joined_at, left_at)
+            VALUES (?, ?, ?, ?, NULL)
+            ON CONFLICT(team_id, player_id) DO UPDATE SET
+              role = excluded.role,
+              left_at = NULL
+          `,
+        )
         .run(teamId, playerId, role, new Date().toISOString());
       this.database
-        .prepare("UPDATE players SET current_team_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?")
-        .run(teamId, playerId);
+        .prepare(
+          `
+            UPDATE players
+            SET
+              current_team_id = ?,
+              display_name = COALESCE(?, display_name),
+              avatar_url = COALESCE(?, avatar_url),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(teamId, input.displayName?.trim() || null, input.avatarUrl?.trim() || null, playerId);
       this.ensureTournamentPlayersForTeamMembership(teamId, playerId, "manual");
       this.database.exec("COMMIT;");
     } catch (error) {
@@ -1197,31 +1296,53 @@ export class SqliteTournamentRepository {
       throw error;
     }
 
-    const row = this.database
-      .prepare(
-        `
-          SELECT tt.tournament_id
-          FROM tournament_teams tt
-          WHERE tt.team_id = ?
-          ORDER BY tt.seed ASC
-          LIMIT 1
-        `,
-      )
-      .get(teamId);
+    return this.getTeamListItemForFirstTournament(teamId);
+  }
 
-    if (row === undefined) {
-      return undefined;
+  removeTeamMember(input: RemoveTeamMemberInput): TournamentTeamListItem | undefined {
+    const teamId = requiredString(input.teamId, "teamId");
+    const playerId = requiredString(input.playerId, "playerId");
+
+    this.requireTeam(teamId);
+    this.requirePlayer(playerId);
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.database
+        .prepare(
+          `
+            UPDATE team_members
+            SET left_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE team_id = ? AND player_id = ? AND left_at IS NULL
+          `,
+        )
+        .run(teamId, playerId);
+      this.database
+        .prepare(
+          `
+            UPDATE players
+            SET current_team_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ? AND current_team_id = ?
+          `,
+        )
+        .run(playerId, teamId);
+      this.database
+        .prepare(
+          `
+            UPDATE tournament_players
+            SET current_team_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE player_id = ? AND current_team_id = ?
+          `,
+        )
+        .run(playerId, teamId);
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
     }
 
-    return {
-      ...team,
-      tournamentId: text(row, "tournament_id"),
-      seed: null,
-      status: "active",
-      memberCount: this.getTeamMembers(team.id).length,
-      members: this.getTeamMembers(team.id),
-      stats: this.getTeamStatsSnapshot(text(row, "tournament_id"), team.id),
-    };
+    return this.getTeamListItemForFirstTournament(teamId);
   }
 
   createStage(input: CreateStageInput): StageSummary {
@@ -1599,6 +1720,7 @@ export class SqliteTournamentRepository {
     return {
       id: text(row, "id"),
       accountId: nullableNumber(row, "account_id"),
+      steamId64: nullableText(row, "steam_id64") ?? steamId64FromAccountId(nullableNumber(row, "account_id")),
       displayName: text(row, "display_name"),
       avatarUrl: nullableText(row, "avatar_url"),
       currentTeam: currentTeamId === null ? null : this.requireTeam(currentTeamId),
@@ -2079,6 +2201,94 @@ export class SqliteTournamentRepository {
     const row = this.database.prepare("SELECT * FROM players WHERE account_id = ?").get(accountId);
 
     return row === undefined ? undefined : this.playerFromRow(row);
+  }
+
+  private getPlayerByAccountIdentity(accountId: number, steamId64: string | null): PlayerBrief | undefined {
+    const row =
+      steamId64 === null
+        ? this.database.prepare("SELECT * FROM players WHERE account_id = ?").get(accountId)
+        : this.database.prepare("SELECT * FROM players WHERE account_id = ? OR steam_id64 = ? LIMIT 1").get(accountId, steamId64);
+
+    return row === undefined ? undefined : this.playerFromRow(row);
+  }
+
+  private upsertManualPlayerForTeamMember(teamId: string, input: AddTeamMemberInput): string {
+    const identity = accountIdentityFromTeamMemberInput(input);
+    const existing = this.getPlayerByAccountIdentity(identity.accountId, identity.steamId64);
+    const displayName = input.displayName?.trim() || `玩家 ${identity.accountId}`;
+    const avatarUrl = input.avatarUrl?.trim() || null;
+
+    if (existing !== undefined) {
+      this.database
+        .prepare(
+          `
+            UPDATE players
+            SET
+              account_id = COALESCE(account_id, ?),
+              steam_id64 = COALESCE(steam_id64, ?),
+              display_name = CASE WHEN ? IS NOT NULL THEN ? ELSE display_name END,
+              avatar_url = CASE WHEN ? IS NOT NULL THEN ? ELSE avatar_url END,
+              current_team_id = ?,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(
+          identity.accountId,
+          identity.steamId64,
+          input.displayName?.trim() ? 1 : null,
+          displayName,
+          avatarUrl === null ? null : 1,
+          avatarUrl,
+          teamId,
+          existing.id,
+        );
+      return existing.id;
+    }
+
+    const playerId = uniqueId("player", `${identity.accountId}-${displayName}`);
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO players (id, account_id, steam_id64, display_name, current_team_id, avatar_url)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(playerId, identity.accountId, identity.steamId64, displayName, teamId, avatarUrl);
+
+    return playerId;
+  }
+
+  private getTeamListItemForFirstTournament(teamId: string): TournamentTeamListItem | undefined {
+    const team = this.requireTeam(teamId);
+    const row = this.database
+      .prepare(
+        `
+          SELECT tt.tournament_id, tt.seed, tt.status
+          FROM tournament_teams tt
+          WHERE tt.team_id = ?
+          ORDER BY tt.seed ASC
+          LIMIT 1
+        `,
+      )
+      .get(teamId);
+
+    if (row === undefined) {
+      return undefined;
+    }
+
+    const tournamentId = text(row, "tournament_id");
+
+    return {
+      ...team,
+      tournamentId,
+      seed: nullableNumber(row, "seed"),
+      status: text(row, "status"),
+      memberCount: this.getTeamMembers(team.id).length,
+      members: this.getTeamMembers(team.id),
+      stats: this.getTeamStatsSnapshot(tournamentId, team.id),
+    };
   }
 
   private getLeagueSyncTargetByOpenDotaLeagueId(opendotaLeagueId: number): LeagueSyncTarget | undefined {
@@ -3006,6 +3216,83 @@ function requiredPositiveInteger(value: number | undefined, fieldName: string): 
   }
 
   return value;
+}
+
+function accountIdentityFromTeamMemberInput(input: AddTeamMemberInput): { accountId: number; steamId64: string } {
+  if (input.accountId !== undefined && input.accountId !== null) {
+    const accountId = requiredPositiveInteger(input.accountId, "accountId");
+    return {
+      accountId,
+      steamId64: normalizeSteamId64(input.steamId64 ?? input.steamId, accountId) ?? accountIdToSteamId64(accountId),
+    };
+  }
+
+  const rawSteamId = input.steamId64 ?? input.steamId;
+
+  if (rawSteamId === undefined || rawSteamId === null || rawSteamId.trim().length === 0) {
+    throw new Error("steamId is required when playerId is not provided");
+  }
+
+  const normalized = normalizeSteamIdentity(rawSteamId);
+
+  if (normalized.length >= 16) {
+    const accountId = steamId64ToAccountId(normalized);
+
+    if (accountId === null) {
+      throw new Error("steamId must be a valid SteamID64 or Dota account_id");
+    }
+
+    return {
+      accountId,
+      steamId64: accountIdToSteamId64(accountId),
+    };
+  }
+
+  const accountId = Number(normalized);
+
+  if (!Number.isSafeInteger(accountId) || accountId <= 0) {
+    throw new Error("steamId must be a valid SteamID64 or Dota account_id");
+  }
+
+  return {
+    accountId,
+    steamId64: accountIdToSteamId64(accountId),
+  };
+}
+
+function normalizeSteamId64(rawSteamId: string | null | undefined, accountId: number | null): string | null {
+  if (rawSteamId === undefined || rawSteamId === null || rawSteamId.trim().length === 0) {
+    return accountId === null ? null : accountIdToSteamId64(accountId);
+  }
+
+  const normalized = normalizeSteamIdentity(rawSteamId);
+
+  if (normalized.length >= 16) {
+    const resolvedAccountId = steamId64ToAccountId(normalized);
+
+    if (resolvedAccountId === null || (accountId !== null && resolvedAccountId !== accountId)) {
+      throw new Error("steamId must match accountId");
+    }
+
+    return accountIdToSteamId64(resolvedAccountId);
+  }
+
+  const resolvedAccountId = Number(normalized);
+
+  if (!Number.isSafeInteger(resolvedAccountId) || resolvedAccountId <= 0 || (accountId !== null && resolvedAccountId !== accountId)) {
+    throw new Error("steamId must match accountId");
+  }
+
+  return accountIdToSteamId64(resolvedAccountId);
+}
+
+function steamId64FromAccountId(accountId: number | null): string | null {
+  return accountId === null ? null : accountIdToSteamId64(accountId);
+}
+
+function normalizeSteamIdentity(rawSteamId: string): string {
+  const steam3Match = rawSteamId.trim().match(/^\[U:1:(\d+)]$/i);
+  return steam3Match?.[1] ?? rawSteamId.replace(/\D/g, "");
 }
 
 function normalizeShortName(value: string): string {

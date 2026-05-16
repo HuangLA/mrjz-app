@@ -22,6 +22,8 @@ import {
   type UpdateGameResultInput,
   type UpsertOpenDotaMatchInput,
   type AddTeamMemberInput,
+  type RemoveTeamMemberInput,
+  type UpdateTeamInput,
   type EntityBackfillSummary,
   type SteamPlayerProfileInput,
 } from "./sqliteRepository.js";
@@ -64,8 +66,10 @@ type Repository = {
   upsertOpenDotaMatch(input: UpsertOpenDotaMatchInput): OpenDotaMatchCache;
   updateTournamentLifecycle(tournamentId: string, input: UpdateTournamentLifecycleInput): TournamentDetail;
   createTeam(input: CreateTeamInput): unknown;
+  updateTeam(teamId: string, input: UpdateTeamInput): unknown;
   createPlayer(input: CreatePlayerInput): unknown;
   addTeamMember(input: AddTeamMemberInput): unknown;
+  removeTeamMember(input: RemoveTeamMemberInput): unknown;
   createStage(input: CreateStageInput): unknown;
   createRound(input: CreateRoundInput): unknown;
   createSeries(input: CreateSeriesInput): unknown;
@@ -172,12 +176,20 @@ export function createTeam(input: CreateTeamInput) {
   return repository.createTeam(input);
 }
 
+export function updateTeam(teamId: string, input: UpdateTeamInput) {
+  return repository.updateTeam(teamId, input);
+}
+
 export function createPlayer(input: CreatePlayerInput) {
   return repository.createPlayer(input);
 }
 
 export function addTeamMember(input: AddTeamMemberInput) {
   return repository.addTeamMember(input);
+}
+
+export function removeTeamMember(input: RemoveTeamMemberInput) {
+  return repository.removeTeamMember(input);
 }
 
 export function createStage(input: CreateStageInput) {

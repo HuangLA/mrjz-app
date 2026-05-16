@@ -77,6 +77,7 @@ export interface SeriesGame {
 export interface PlayerBrief {
   id: string;
   accountId: number | null;
+  steamId64: string | null;
   displayName: string;
   avatarUrl: string | null;
   currentTeam: TeamBrief | null;
@@ -272,16 +273,21 @@ export async function getJson<T>(path: string): Promise<T> {
   return body.data;
 }
 
-export async function sendAdminRequest(path: string, method: "POST" | "PATCH", payload: unknown): Promise<WriteResult> {
+export async function sendAdminRequest(path: string, method: "POST" | "PATCH" | "DELETE", payload?: unknown): Promise<WriteResult> {
   try {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const init: RequestInit = {
       method,
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
-    });
+    };
+
+    if (payload !== undefined) {
+      init.body = JSON.stringify(payload);
+    }
+
+    const response = await fetch(`${apiBaseUrl}${path}`, init);
 
     let message = response.statusText;
     let data: unknown;

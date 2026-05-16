@@ -20,9 +20,9 @@ import {
 type ViewKey = "overview" | "editions" | "teams" | "players" | "matches" | "stages" | "sync";
 
 type AdminWriteRequest = {
-  method: "POST" | "PATCH";
+  method: "POST" | "PATCH" | "DELETE";
   path: string;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
 };
 
 type AdminFormValue = FormDataEntryValue | FormDataEntryValue[];
@@ -870,50 +870,60 @@ function renderEditions(): string {
 
 function renderTeams(): string {
   return `
-    <section class="panel">
+    <section class="panel team-ops-panel">
       <div class="section-heading">
         <div>
           <h2>战队管理</h2>
-          <p>队伍是当前届次下的运营对象；绑定比赛后这里会出现 series 胜率、局胜负和常用英雄。</p>
+          <p>先建队也可以直接按 SteamID 加人；后端会补全可获取的 Steam / OpenDota 资料。</p>
         </div>
         ${badge(`${state.teams.length} 支队伍`, "info")}
       </div>
-      <div class="team-grid">
-        ${state.teams.length === 0 ? emptyState("还没有战队。先创建战队，再到比赛结果库补对阵。") : state.teams.map(renderTeamCard).join("")}
-      </div>
-    </section>
-
-    <section class="panel form-grid">
-      <form class="admin-form" data-action="create-team">
+      <div class="team-command-grid">
+        <form class="admin-form" data-action="create-team">
         <h2>创建战队</h2>
         <input name="tournamentId" value="${escapeHtml(state.selectedTournamentId)}" readonly />
         <label>队伍名<input name="name" placeholder="队伍名" required /></label>
         <label>简称<input name="shortName" placeholder="可留空，默认取队伍名" /></label>
+        <label>队伍头像 URL<input name="logoUrl" placeholder="可留空，后续手动维护" /></label>
         <label>颜色<input name="color" placeholder="#22c55e" /></label>
         <label>OpenDota team_id<input name="opendotaTeamId" inputmode="numeric" placeholder="可选，赛后可按名称补全" /></label>
         <button class="primary-button" type="submit">创建并加入当前届次</button>
-      </form>
+        </form>
 
-      <form class="admin-form" data-action="add-team-member">
-        <h2>添加队员</h2>
-        <label>战队<select name="teamId" required>${teamOptions()}</select></label>
-        <label>选手<select name="playerId" required>${playerOptions()}</select></label>
-        <label>角色<input name="role" placeholder="player / captain" /></label>
-        <button class="secondary-button" type="submit">加入战队</button>
-      </form>
+        <form class="admin-form" data-action="add-team-member">
+          <h2>按 SteamID 添加队员</h2>
+          <label>战队<select name="teamId" required>${teamOptions()}</select></label>
+          <label>SteamID64 / Dota account_id<input name="steamId" inputmode="numeric" placeholder="例如 7656... 或 account_id" required /></label>
+          <label>角色<input name="role" placeholder="player / captain" /></label>
+          <label>昵称覆盖<input name="displayName" placeholder="可留空，自动读取" /></label>
+          <label>头像覆盖 URL<input name="avatarUrl" placeholder="可留空，自动读取" /></label>
+          <button class="secondary-button" type="submit" ${state.teams.length === 0 ? "disabled" : ""}>添加并同步资料</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading compact">
+        <div>
+          <h2>当前战队</h2>
+          <p>队伍头像、颜色和成员都可以直接在卡片内维护；移除成员不会删除选手档案。</p>
+        </div>
+      </div>
+      <div class="team-grid">
+        ${state.teams.length === 0 ? emptyState("还没有战队。先创建战队，再按 SteamID 添加队员。") : state.teams.map(renderTeamCard).join("")}
+      </div>
     </section>
   `;
 }
 
 function renderTeamCard(team: TournamentTeamListItem): string {
   const stat = team.stats;
-  const members = team.members.map((member) => member.displayName).join("、") || "暂无成员";
   const heroes = stat.topHeroes.length === 0 ? "暂无英雄数据" : stat.topHeroes.map((hero) => `#${hero.heroId} ${hero.picks} pick`).join(" · ");
 
   return `
     <article class="team-card">
       <div class="team-card-head">
-        <span style="background:${escapeHtml(team.color)}"></span>
+        ${teamLogo(team)}
         <div>
           <strong>${escapeHtml(team.name)}</strong>
           <small>seed ${escapeHtml(team.seed ?? "-")} · ${escapeHtml(team.memberCount)} 名成员</small>
@@ -925,18 +935,59 @@ function renderTeamCard(team: TournamentTeamListItem): string {
         <span>Game</span><strong>${escapeHtml(stat.gameWins)}-${escapeHtml(stat.gameLosses)}</strong>
         <span>胜率</span><strong>${escapeHtml(stat.winRate === null ? "-" : `${stat.winRate}%`)}</strong>
       </div>
-      <p>${escapeHtml(members)}</p>
+      <div class="member-list">
+        <strong>成员</strong>
+        ${team.members.length === 0 ? `<span class="muted-copy">暂无成员，可以在下方输入 SteamID 添加。</span>` : team.members.map((member) => renderTeamMemberRow(team, member)).join("")}
+      </div>
       <small>${escapeHtml(stat.linkedMatches)} 场已绑定比赛 · ${escapeHtml(heroes)}</small>
+
+      <form class="team-edit-form" data-action="update-team">
+        <input type="hidden" name="teamId" value="${escapeHtml(team.id)}" />
+        <label>队伍名<input name="name" value="${escapeHtml(team.name)}" /></label>
+        <label>头像 URL<input name="logoUrl" value="${escapeHtml(team.logoUrl ?? "")}" placeholder="手动头像 URL" /></label>
+        <label>颜色<input name="color" value="${escapeHtml(team.color)}" /></label>
+        <button class="secondary-button" type="submit">保存资料</button>
+      </form>
+
       <form class="team-member-form" data-action="add-team-member">
         <input type="hidden" name="teamId" value="${escapeHtml(team.id)}" />
-        <select name="playerId" aria-label="选择选手" required>
-          <option value="">添加已有选手</option>${playerOptions()}
-        </select>
+        <input name="steamId" inputmode="numeric" placeholder="SteamID64 / account_id" required />
         <input name="role" placeholder="角色" />
-        <button class="secondary-button" type="submit" ${state.players.length === 0 ? "disabled" : ""}>添加</button>
+        <button class="secondary-button" type="submit">添加队员</button>
       </form>
     </article>
   `;
+}
+
+function teamLogo(team: TournamentTeamListItem): string {
+  if (team.logoUrl) {
+    return `<img class="team-logo" src="${escapeHtml(team.logoUrl)}" alt="" />`;
+  }
+
+  return `<span class="team-logo-fallback" style="background:${escapeHtml(team.color)}">${escapeHtml(team.name.slice(0, 2))}</span>`;
+}
+
+function renderTeamMemberRow(team: TournamentTeamListItem, member: TournamentTeamListItem["members"][number]): string {
+  return `
+    <form class="member-row" data-action="remove-team-member">
+      <input type="hidden" name="teamId" value="${escapeHtml(team.id)}" />
+      <input type="hidden" name="playerId" value="${escapeHtml(member.id)}" />
+      ${playerAvatar(member)}
+      <div>
+        <strong>${escapeHtml(member.displayName)}</strong>
+        <small>${escapeHtml(member.steamId64 ?? (member.accountId === null ? "未绑定 SteamID" : `account_id ${member.accountId}`))}</small>
+      </div>
+      <button class="link-button danger-link" type="submit">移除</button>
+    </form>
+  `;
+}
+
+function playerAvatar(member: TournamentTeamListItem["members"][number]): string {
+  if (member.avatarUrl) {
+    return `<img class="member-avatar" src="${escapeHtml(member.avatarUrl)}" alt="" />`;
+  }
+
+  return `<span class="member-avatar member-avatar-fallback">${escapeHtml(member.displayName.slice(0, 1).toUpperCase())}</span>`;
 }
 
 function renderPlayers(): string {
@@ -957,6 +1008,7 @@ function renderPlayers(): string {
         <h2>创建选手</h2>
         <label>昵称<input name="displayName" placeholder="展示昵称" required /></label>
         <label>Dota account_id<input name="accountId" inputmode="numeric" placeholder="可留空" /></label>
+        <label>SteamID64<input name="steamId64" inputmode="numeric" placeholder="可留空" /></label>
         <label>当前战队<select name="currentTeamId"><option value="">未选择</option>${teamOptions()}</select></label>
         <label>头像 URL<input name="avatarUrl" placeholder="可选" /></label>
         <button class="primary-button" type="submit">保存选手</button>
@@ -973,14 +1025,14 @@ function playersTable(): string {
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>选手</th><th>account_id</th><th>当前战队</th><th>历史归属</th></tr></thead>
+        <thead><tr><th>选手</th><th>Steam / account_id</th><th>当前战队</th><th>历史归属</th></tr></thead>
         <tbody>
           ${state.players
             .map(
               (player) => `
                 <tr>
                   <td><strong>${escapeHtml(player.displayName)}</strong><small>${escapeHtml(player.id)}</small></td>
-                  <td>${escapeHtml(player.accountId ?? "-")}</td>
+                  <td>${escapeHtml(player.steamId64 ?? "-")}<small>${escapeHtml(player.accountId === null ? "" : `account_id ${player.accountId}`)}</small></td>
                   <td>${escapeHtml(player.currentTeam?.name ?? "未设置")}</td>
                   <td>${escapeHtml(player.teams.map((team) => team.name).join(" / ") || "-")}</td>
                 </tr>
@@ -1869,6 +1921,25 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
             tournamentId: payloadString(payload, "tournamentId", state.selectedTournamentId),
             name: payloadString(payload, "name"),
             shortName: payloadString(payload, "shortName"),
+            logoUrl: payloadString(payload, "logoUrl") || undefined,
+            color: payloadString(payload, "color") || undefined,
+            opendotaTeamId: payloadNumber(payload, "opendotaTeamId"),
+          }),
+        },
+      ];
+    case "update-team":
+      if (!payloadString(payload, "teamId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "PATCH",
+          path: `/teams/${encodeURIComponent(payloadString(payload, "teamId"))}`,
+          payload: compactPayload({
+            name: payloadString(payload, "name") || undefined,
+            shortName: payloadString(payload, "shortName") || undefined,
+            logoUrl: payloadString(payload, "logoUrl") || null,
             color: payloadString(payload, "color") || undefined,
             opendotaTeamId: payloadNumber(payload, "opendotaTeamId"),
           }),
@@ -1882,13 +1953,14 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
           payload: compactPayload({
             displayName: payloadString(payload, "displayName"),
             accountId: payloadNumber(payload, "accountId"),
+            steamId64: payloadString(payload, "steamId64") || undefined,
             currentTeamId: payloadString(payload, "currentTeamId") || undefined,
             avatarUrl: payloadString(payload, "avatarUrl") || undefined,
           }),
         },
       ];
     case "add-team-member":
-      if (!payloadString(payload, "teamId") || !payloadString(payload, "playerId")) {
+      if (!payloadString(payload, "teamId") || (!payloadString(payload, "steamId") && !payloadString(payload, "playerId"))) {
         return [];
       }
 
@@ -1897,9 +1969,23 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
           method: "POST",
           path: `/teams/${encodeURIComponent(payloadString(payload, "teamId"))}/members`,
           payload: compactPayload({
-            playerId: payloadString(payload, "playerId"),
+            playerId: payloadString(payload, "playerId") || undefined,
+            steamId: payloadString(payload, "steamId") || undefined,
+            displayName: payloadString(payload, "displayName") || undefined,
+            avatarUrl: payloadString(payload, "avatarUrl") || undefined,
             role: payloadString(payload, "role") || undefined,
           }),
+        },
+      ];
+    case "remove-team-member":
+      if (!payloadString(payload, "teamId") || !payloadString(payload, "playerId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "DELETE",
+          path: `/teams/${encodeURIComponent(payloadString(payload, "teamId"))}/members/${encodeURIComponent(payloadString(payload, "playerId"))}`,
         },
       ];
     case "link-match":

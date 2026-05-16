@@ -111,7 +111,9 @@ function applyMigrations(): void {
 function applySchemaPatches(): void {
   ensureColumn("teams", "opendota_team_id", "INTEGER");
   ensureColumn("teams", "source", "TEXT NOT NULL DEFAULT 'manual'");
+  ensureColumn("players", "steam_id64", "TEXT");
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
+  database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
   ensureEntityTables();
 }
 

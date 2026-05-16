@@ -268,6 +268,7 @@ async function syncSteamProfilesForTournament(
     const summaries = await steamClient.getPlayerSummariesByAccountIds(accountIds);
     const profileInputs = summaries.map((summary) => ({
       accountId: summary.accountId,
+      steamId64: summary.steamid,
       displayName: summary.personaname ?? null,
       avatarUrl: summary.avatarfull ?? summary.avatarmedium ?? summary.avatar ?? null,
     }));

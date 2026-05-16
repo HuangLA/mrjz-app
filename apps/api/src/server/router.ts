@@ -18,7 +18,7 @@ type Route = {
 
 const BASE_HEADERS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
+  "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "access-control-allow-headers": "content-type, authorization",
 };
 
@@ -40,6 +40,10 @@ export class Router {
 
   patch(pattern: string, handler: RouteHandler): void {
     this.addRoute("PATCH", pattern, handler);
+  }
+
+  delete(pattern: string, handler: RouteHandler): void {
+    this.addRoute("DELETE", pattern, handler);
   }
 
   private addRoute(method: string, pattern: string, handler: RouteHandler): void {

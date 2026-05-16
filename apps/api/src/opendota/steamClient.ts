@@ -37,6 +37,10 @@ export function accountIdToSteamId64(accountId: number): string {
 }
 
 export function steamId64ToAccountId(steamId64: string): number | null {
+  if (!/^\d+$/.test(steamId64)) {
+    return null;
+  }
+
   const parsed = BigInt(steamId64);
   const accountId = parsed - STEAM_ID_BASE;
 
@@ -118,6 +122,10 @@ export class SteamDotaClient {
     }
 
     return summaries;
+  }
+
+  async getPlayerSummariesBySteamIds(steamIds: string[]): Promise<SteamPlayerSummary[]> {
+    return this.getPlayerSummaries([...new Set(steamIds)].filter((steamId) => /^\d{17}$/.test(steamId)));
   }
 
   private async getPlayerSummaries(steamIds: string[]): Promise<SteamPlayerSummary[]> {

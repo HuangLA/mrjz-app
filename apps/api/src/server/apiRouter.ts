@@ -23,9 +23,12 @@ import {
   listTournaments,
   addTeamMember,
   backfillCachedTournamentEntities,
+  removeTeamMember,
+  updateTeam,
   updateTournamentLifecycle,
   updateSeriesGameResult,
 } from "../data/repository.js";
+import { resolvePlayerProfileBySteamId } from "../opendota/playerProfiles.js";
 import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
 import { readSteamAvatarCache } from "../opendota/steamAvatarCache.js";
 import { readJsonBody } from "./body.js";
@@ -238,6 +241,15 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
   });
 
+  router.patch("/api/teams/:teamId", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateTeam(params.teamId ?? "", bodyToUpdateTeamInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.post("/api/players", async ({ request }) => {
     try {
       const body = await readJsonBody(request);
@@ -250,7 +262,16 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.post("/api/teams/:teamId/members", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(addTeamMember(bodyToAddTeamMemberInput(params.teamId ?? "", body)), 201);
+      const input = await resolveTeamMemberProfile(bodyToAddTeamMemberInput(params.teamId ?? "", body));
+      return ok(addTeamMember(input), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.delete("/api/teams/:teamId/members/:playerId", ({ params }) => {
+    try {
+      return ok(removeTeamMember({ teamId: params.teamId ?? "", playerId: params.playerId ?? "" }));
     } catch (error) {
       return validationError(error);
     }
@@ -314,10 +335,43 @@ function bodyToCreateTeamInput(body: Record<string, unknown>) {
   return withoutUndefined({
     name: stringField(body, "name"),
     shortName: optionalStringField(body, "shortName"),
+    logoUrl: optionalStringOrNullField(body, "logoUrl"),
     color: optionalStringField(body, "color"),
     opendotaTeamId: optionalNumberOrNullField(body, "opendotaTeamId"),
     tournamentId: optionalStringField(body, "tournamentId"),
   }) as Parameters<typeof createTeam>[0];
+}
+
+async function resolveTeamMemberProfile(input: Parameters<typeof addTeamMember>[0]): Promise<Parameters<typeof addTeamMember>[0]> {
+  if (input.playerId !== undefined) {
+    return input;
+  }
+
+  const rawSteamId = input.steamId ?? (input.accountId === undefined || input.accountId === null ? undefined : String(input.accountId));
+
+  if (rawSteamId === undefined) {
+    return input;
+  }
+
+  const profile = await resolvePlayerProfileBySteamId(rawSteamId);
+
+  return withoutUndefined({
+    ...input,
+    accountId: profile.accountId,
+    steamId64: profile.steamId64,
+    displayName: input.displayName ?? profile.displayName,
+    avatarUrl: input.avatarUrl ?? profile.avatarUrl,
+  });
+}
+
+function bodyToUpdateTeamInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    name: optionalStringField(body, "name"),
+    shortName: optionalStringField(body, "shortName"),
+    logoUrl: optionalStringOrNullField(body, "logoUrl"),
+    color: optionalStringOrNullField(body, "color"),
+    opendotaTeamId: optionalNumberOrNullField(body, "opendotaTeamId"),
+  }) as Parameters<typeof updateTeam>[1];
 }
 
 function bodyToCreateTournamentInput(body: Record<string, unknown>) {
@@ -340,6 +394,7 @@ function bodyToCreatePlayerInput(body: Record<string, unknown>) {
   return withoutUndefined({
     displayName: stringField(body, "displayName"),
     accountId: optionalNumberOrNullField(body, "accountId"),
+    steamId64: optionalStringOrNullField(body, "steamId64"),
     currentTeamId: optionalStringOrNullField(body, "currentTeamId"),
     avatarUrl: optionalStringOrNullField(body, "avatarUrl"),
   }) as Parameters<typeof createPlayer>[0];
@@ -348,7 +403,11 @@ function bodyToCreatePlayerInput(body: Record<string, unknown>) {
 function bodyToAddTeamMemberInput(teamId: string, body: Record<string, unknown>) {
   return withoutUndefined({
     teamId,
-    playerId: stringField(body, "playerId"),
+    playerId: optionalStringField(body, "playerId"),
+    steamId: optionalStringField(body, "steamId"),
+    accountId: optionalNumberOrNullField(body, "accountId"),
+    displayName: optionalStringOrNullField(body, "displayName"),
+    avatarUrl: optionalStringOrNullField(body, "avatarUrl"),
     role: optionalStringField(body, "role"),
   }) as Parameters<typeof addTeamMember>[0];
 }

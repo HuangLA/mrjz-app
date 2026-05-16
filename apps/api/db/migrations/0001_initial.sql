@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS tournament_teams (
 CREATE TABLE IF NOT EXISTS players (
   id TEXT PRIMARY KEY,
   account_id INTEGER UNIQUE,
+  steam_id64 TEXT UNIQUE,
   display_name TEXT NOT NULL,
   current_team_id TEXT REFERENCES teams(id),
   avatar_url TEXT,

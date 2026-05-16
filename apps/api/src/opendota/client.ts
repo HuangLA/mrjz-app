@@ -1,4 +1,4 @@
-import type { OpenDotaLeagueMatch, OpenDotaMatchDetail, OpenDotaPlayerMatchSummary } from "./types.js";
+import type { OpenDotaLeagueMatch, OpenDotaMatchDetail, OpenDotaPlayerMatchSummary, OpenDotaPlayerProfile } from "./types.js";
 
 export type OpenDotaClientOptions = {
   baseUrl?: string;
@@ -22,6 +22,10 @@ export class OpenDotaClient {
 
   getPlayerMatches(accountId: number, limit: number): Promise<OpenDotaPlayerMatchSummary[]> {
     return this.getJson<OpenDotaPlayerMatchSummary[]>(`/players/${accountId}/matches?limit=${limit}`);
+  }
+
+  getPlayerProfile(accountId: number): Promise<OpenDotaPlayerProfile> {
+    return this.getJson<OpenDotaPlayerProfile>(`/players/${accountId}`);
   }
 
   getMatch(matchId: number): Promise<OpenDotaMatchDetail> {
