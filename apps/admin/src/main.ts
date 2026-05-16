@@ -25,6 +25,12 @@ type AdminWriteRequest = {
   payload: Record<string, unknown>;
 };
 
+type AdminFormValue = FormDataEntryValue | FormDataEntryValue[];
+type AdminFormPayload = Record<string, AdminFormValue>;
+type CompetitionMode = "group" | "swiss" | "double_elimination";
+type SeriesBoType = "BO1" | "BO2" | "BO3" | "BO5";
+type PlanRoundKind = "group" | "swiss" | "winner" | "loser" | "grand_final";
+
 interface LoadState {
   source: ApiSource;
   loading: boolean;
@@ -56,6 +62,79 @@ interface SyncRow {
   tone: Tone;
 }
 
+interface ComposerState {
+  mode: CompetitionMode;
+  stageName: string;
+  boType: SeriesBoType;
+  scheduledAt: string;
+  groupCount: number;
+  groupLoops: number;
+  advancePerGroup: number;
+  swissRounds: number;
+  bracketSize: number;
+  selectedTeamIds: string[];
+}
+
+interface PlanTeam {
+  id: string;
+  name: string;
+  shortName: string;
+  color: string;
+  seed: number | null;
+}
+
+interface PlanSeries {
+  label: string;
+  position: number;
+  radiant: PlanTeam;
+  dire: PlanTeam;
+  groupName?: string;
+  note?: string;
+}
+
+interface PlanRound {
+  name: string;
+  roundNumber: number;
+  kind: PlanRoundKind;
+  series: PlanSeries[];
+  placeholderCount: number;
+}
+
+interface PlanBye {
+  team: PlanTeam;
+  label: string;
+}
+
+interface PlanGroup {
+  name: string;
+  teams: PlanTeam[];
+}
+
+interface BracketColumn {
+  title: string;
+  tone: Tone;
+  nodes: Array<{
+    label: string;
+    top: string;
+    bottom: string;
+    meta: string;
+  }>;
+}
+
+interface CompetitionPlan {
+  mode: CompetitionMode;
+  stageType: "group" | "swiss" | "knockout";
+  stageName: string;
+  boType: SeriesBoType;
+  advancementRule: string;
+  teams: PlanTeam[];
+  groups: PlanGroup[];
+  rounds: PlanRound[];
+  byes: PlanBye[];
+  bracketColumns: BracketColumn[];
+  warnings: string[];
+}
+
 const root = document.querySelector<HTMLElement>("#root");
 
 const views: Array<{ key: ViewKey; label: string; hint: string }> = [
@@ -69,6 +148,18 @@ const views: Array<{ key: ViewKey; label: string; hint: string }> = [
 ];
 
 let activeView: ViewKey = "overview";
+let composerState: ComposerState = {
+  mode: "swiss",
+  stageName: "",
+  boType: "BO3",
+  scheduledAt: "",
+  groupCount: 2,
+  groupLoops: 1,
+  advancePerGroup: 2,
+  swissRounds: 5,
+  bracketSize: 8,
+  selectedTeamIds: [],
+};
 let state: LoadState = {
   source: "unavailable",
   loading: true,
@@ -173,6 +264,435 @@ function allSeries(): StageRound["series"] {
 
 function linkedMatchCount(): number {
   return state.matches.filter((match) => match.linkedSeries !== null).length;
+}
+
+function sortedTeams(): PlanTeam[] {
+  return [...state.teams]
+    .sort((left, right) => {
+      const leftSeed = left.seed ?? Number.MAX_SAFE_INTEGER;
+      const rightSeed = right.seed ?? Number.MAX_SAFE_INTEGER;
+
+      if (leftSeed !== rightSeed) {
+        return leftSeed - rightSeed;
+      }
+
+      return left.name.localeCompare(right.name, "zh-Hans-CN");
+    })
+    .map((team, index) => ({
+      id: team.id,
+      name: team.name,
+      shortName: team.shortName,
+      color: team.color || "#6bd26f",
+      seed: team.seed ?? index + 1,
+    }));
+}
+
+function selectedPlanTeams(config: ComposerState = composerState): PlanTeam[] {
+  const teams = sortedTeams();
+  const selectedIds = new Set(config.selectedTeamIds.length === 0 ? teams.map((team) => team.id) : config.selectedTeamIds);
+
+  return teams.filter((team) => selectedIds.has(team.id));
+}
+
+function defaultStageName(mode: CompetitionMode): string {
+  switch (mode) {
+    case "group":
+      return "小组赛";
+    case "swiss":
+      return "瑞士轮";
+    case "double_elimination":
+      return "双败淘汰赛";
+  }
+}
+
+function modeLabel(mode: CompetitionMode): string {
+  switch (mode) {
+    case "group":
+      return "小组赛联赛";
+    case "swiss":
+      return "瑞士轮";
+    case "double_elimination":
+      return "双败淘汰赛";
+  }
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function nextPowerOfTwo(value: number): number {
+  let size = 1;
+
+  while (size < value) {
+    size *= 2;
+  }
+
+  return size;
+}
+
+function normalizeBoType(value: string): SeriesBoType {
+  return value === "BO1" || value === "BO2" || value === "BO3" || value === "BO5" ? value : "BO3";
+}
+
+function normalizeCompetitionMode(value: string): CompetitionMode {
+  return value === "group" || value === "swiss" || value === "double_elimination" ? value : "swiss";
+}
+
+function composerStateFromPayload(payload: AdminFormPayload): ComposerState {
+  return {
+    mode: normalizeCompetitionMode(payloadString(payload, "mode", composerState.mode)),
+    stageName: payloadString(payload, "stageName"),
+    boType: normalizeBoType(payloadString(payload, "boType", composerState.boType)),
+    scheduledAt: payloadString(payload, "scheduledAt"),
+    groupCount: clampNumber(payloadNumber(payload, "groupCount") ?? composerState.groupCount, 1, 8),
+    groupLoops: clampNumber(payloadNumber(payload, "groupLoops") ?? composerState.groupLoops, 1, 2),
+    advancePerGroup: clampNumber(payloadNumber(payload, "advancePerGroup") ?? composerState.advancePerGroup, 1, 8),
+    swissRounds: clampNumber(payloadNumber(payload, "swissRounds") ?? composerState.swissRounds, 1, 9),
+    bracketSize: clampNumber(payloadNumber(payload, "bracketSize") ?? composerState.bracketSize, 4, 16),
+    selectedTeamIds: payloadStrings(payload, "teamIds"),
+  };
+}
+
+function buildCompetitionPlan(config: ComposerState = composerState): CompetitionPlan {
+  const teams = selectedPlanTeams(config);
+  const mode = config.mode;
+  const stageName = config.stageName || defaultStageName(mode);
+  const warnings: string[] = [];
+
+  if (teams.length < 2) {
+    warnings.push("至少需要 2 支队伍才能生成对阵。");
+  }
+
+  if (mode === "group") {
+    return buildGroupPlan(config, stageName, teams, warnings);
+  }
+
+  if (mode === "double_elimination") {
+    return buildDoubleEliminationPlan(config, stageName, teams, warnings);
+  }
+
+  return buildSwissPlan(config, stageName, teams, warnings);
+}
+
+function buildGroupPlan(config: ComposerState, stageName: string, teams: PlanTeam[], warnings: string[]): CompetitionPlan {
+  const groupCount = clampNumber(config.groupCount, 1, Math.max(1, Math.min(teams.length, 8)));
+  const groups = splitIntoGroups(teams, groupCount);
+  const groupedRounds = groups.map((group) => ({
+    group,
+    rounds: buildRoundRobinSeries(group.teams, group.name, config.groupLoops),
+  }));
+  const maxRoundCount = Math.max(0, ...groupedRounds.map((group) => group.rounds.length));
+  const rounds: PlanRound[] = [];
+  const byes: PlanBye[] = [];
+
+  for (let roundIndex = 0; roundIndex < maxRoundCount; roundIndex += 1) {
+    const series = groupedRounds.flatMap(({ rounds: groupRounds }) => groupRounds[roundIndex]?.series ?? []);
+
+    byes.push(...groupedRounds.flatMap(({ rounds: groupRounds }) => groupRounds[roundIndex]?.byes ?? []));
+    rounds.push({
+      name: `小组赛第 ${roundIndex + 1} 轮`,
+      roundNumber: roundIndex + 1,
+      kind: "group",
+      series,
+      placeholderCount: Math.max(1, series.length),
+    });
+  }
+
+  if (groups.some((group) => group.teams.length < 3)) {
+    warnings.push("存在少于 3 支队伍的小组，建议调整分组数或补齐参赛队。");
+  }
+
+  return {
+    mode: "group",
+    stageType: "group",
+    stageName,
+    boType: config.boType,
+    advancementRule: `小组赛 · ${groupCount} 组 · ${config.groupLoops === 2 ? "双循环" : "单循环"} · 每组前 ${config.advancePerGroup} 晋级 · ${config.boType}`,
+    teams,
+    groups,
+    rounds,
+    byes,
+    bracketColumns: [],
+    warnings,
+  };
+}
+
+function splitIntoGroups(teams: PlanTeam[], groupCount: number): PlanGroup[] {
+  const groups = Array.from({ length: groupCount }, (_, index) => ({
+    name: `${String.fromCharCode(65 + index)} 组`,
+    teams: [] as PlanTeam[],
+  }));
+
+  teams.forEach((team, index) => {
+    const row = Math.floor(index / groupCount);
+    const offset = index % groupCount;
+    const groupIndex = row % 2 === 0 ? offset : groupCount - 1 - offset;
+
+    groups[groupIndex]?.teams.push(team);
+  });
+
+  return groups;
+}
+
+function buildRoundRobinSeries(
+  groupTeams: PlanTeam[],
+  groupName: string,
+  loopCount: number,
+): Array<{ series: PlanSeries[]; byes: PlanBye[] }> {
+  if (groupTeams.length < 2) {
+    return [];
+  }
+
+  const slots: Array<PlanTeam | null> = groupTeams.length % 2 === 0 ? [...groupTeams] : [...groupTeams, null];
+  const rounds: Array<{ series: PlanSeries[]; byes: PlanBye[] }> = [];
+
+  for (let loopIndex = 0; loopIndex < loopCount; loopIndex += 1) {
+    let rotation = [...slots];
+    const roundCount = rotation.length - 1;
+
+    for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
+      const series: PlanSeries[] = [];
+      const byes: PlanBye[] = [];
+
+      for (let pairIndex = 0; pairIndex < rotation.length / 2; pairIndex += 1) {
+        const left = rotation[pairIndex];
+        const right = rotation[rotation.length - 1 - pairIndex];
+
+        if (left == null || right == null) {
+          const byeTeam = left ?? right;
+
+          if (byeTeam) {
+            byes.push({ team: byeTeam, label: `${groupName} 第 ${roundIndex + 1} 轮轮空` });
+          }
+
+          continue;
+        }
+
+        const shouldSwap = (roundIndex + loopIndex) % 2 === 1;
+        const radiant = shouldSwap ? right : left;
+        const dire = shouldSwap ? left : right;
+
+        const draftSeries: PlanSeries = {
+          label: `${groupName}-${series.length + 1}`,
+          position: series.length + 1,
+          radiant,
+          dire,
+          groupName,
+        };
+
+        if (loopIndex === 1) {
+          draftSeries.note = "复循环";
+        }
+
+        series.push(draftSeries);
+      }
+
+      rounds.push({ series, byes });
+      rotation = [rotation[0] ?? null, rotation[rotation.length - 1] ?? null, ...rotation.slice(1, rotation.length - 1)];
+    }
+  }
+
+  return rounds;
+}
+
+function buildSwissPlan(config: ComposerState, stageName: string, teams: PlanTeam[], warnings: string[]): CompetitionPlan {
+  const sorted = [...teams];
+  const series: PlanSeries[] = [];
+  const byes: PlanBye[] = [];
+  let left = 0;
+  let right = sorted.length - 1;
+
+  while (left < right) {
+    const radiant = sorted[left];
+    const dire = sorted[right];
+
+    if (!radiant || !dire) {
+      break;
+    }
+
+    series.push({
+      label: `R1-${series.length + 1}`,
+      position: series.length + 1,
+      radiant,
+      dire,
+      note: "首轮按种子高低配对",
+    });
+    left += 1;
+    right -= 1;
+  }
+
+  const byeTeam = left === right ? sorted[left] : undefined;
+
+  if (byeTeam) {
+    byes.push({ team: byeTeam, label: "瑞士轮第 1 轮 BYE" });
+    warnings.push(`${byeTeam.name} 将在第 1 轮轮空，后续轮次需由后端按战绩重新生成草稿。`);
+  }
+
+  if (teams.length < 4) {
+    warnings.push("瑞士轮建议至少 4 支队伍；队伍过少时小组赛或直接淘汰更清晰。");
+  }
+
+  const rounds: PlanRound[] = [
+    {
+      name: "瑞士轮第 1 轮",
+      roundNumber: 1,
+      kind: "swiss",
+      series,
+      placeholderCount: Math.max(1, series.length),
+    },
+  ];
+
+  return {
+    mode: "swiss",
+    stageType: "swiss",
+    stageName,
+    boType: config.boType,
+    advancementRule: `瑞士轮 · ${config.swissRounds} 轮 · 避免重复交手 · 奇数队 BYE · ${config.boType}`,
+    teams,
+    groups: [],
+    rounds,
+    byes,
+    bracketColumns: [],
+    warnings,
+  };
+}
+
+function buildDoubleEliminationPlan(
+  config: ComposerState,
+  stageName: string,
+  teams: PlanTeam[],
+  warnings: string[],
+): CompetitionPlan {
+  const requestedSize = config.bracketSize <= 4 ? 4 : config.bracketSize <= 8 ? 8 : 16;
+  const bracketSize = Math.max(requestedSize, clampNumber(nextPowerOfTwo(Math.max(teams.length, 2)), 4, 16));
+  const seedOrder = seedSlotOrder(bracketSize);
+  const slots = seedOrder.map((seed) => teams[seed - 1] ?? null);
+  const firstRoundSeries: PlanSeries[] = [];
+  const byes: PlanBye[] = [];
+
+  for (let index = 0; index < slots.length; index += 2) {
+    const left = slots[index];
+    const right = slots[index + 1];
+
+    if (left && right) {
+      firstRoundSeries.push({
+        label: `WB-${firstRoundSeries.length + 1}`,
+        position: firstRoundSeries.length + 1,
+        radiant: left,
+        dire: right,
+        note: "胜者进入胜者组下一轮，败者落入败者组",
+      });
+    } else if (left ?? right) {
+      byes.push({ team: (left ?? right) as PlanTeam, label: "胜者组首轮 BYE" });
+    }
+  }
+
+  const winnerRoundCount = Math.log2(bracketSize);
+  const rounds: PlanRound[] = [
+    {
+      name: "胜者组第 1 轮",
+      roundNumber: 1,
+      kind: "winner",
+      series: firstRoundSeries,
+      placeholderCount: Math.max(1, bracketSize / 2),
+    },
+  ];
+
+  for (let roundIndex = 2; roundIndex <= winnerRoundCount; roundIndex += 1) {
+    rounds.push({
+      name: roundIndex === winnerRoundCount ? "胜者组决赛" : `胜者组第 ${roundIndex} 轮`,
+      roundNumber: rounds.length + 1,
+      kind: "winner",
+      series: [],
+      placeholderCount: Math.max(1, bracketSize / 2 ** roundIndex),
+    });
+  }
+
+  const loserRoundCount = Math.max(1, (winnerRoundCount - 1) * 2);
+
+  for (let roundIndex = 1; roundIndex <= loserRoundCount; roundIndex += 1) {
+    rounds.push({
+      name: roundIndex === loserRoundCount ? "败者组决赛" : `败者组第 ${roundIndex} 轮`,
+      roundNumber: rounds.length + 1,
+      kind: "loser",
+      series: [],
+      placeholderCount: Math.max(1, Math.floor(bracketSize / 2 ** Math.ceil((roundIndex + 2) / 2))),
+    });
+  }
+
+  rounds.push({
+    name: "总决赛",
+    roundNumber: rounds.length + 1,
+    kind: "grand_final",
+    series: [],
+    placeholderCount: 1,
+  });
+  rounds.push({
+    name: "总决赛重置（必要时）",
+    roundNumber: rounds.length + 1,
+    kind: "grand_final",
+    series: [],
+    placeholderCount: 1,
+  });
+
+  if (teams.length < bracketSize) {
+    warnings.push(`当前 ${teams.length} 队会进入 ${bracketSize} 队双败表，首轮含 ${bracketSize - teams.length} 个空种子 / BYE。`);
+  }
+
+  if (teams.length > 16) {
+    warnings.push("双败制当前对阵图最多按 16 队生成，更多队伍建议先经过瑞士轮或小组赛晋级。");
+  }
+
+  const plan: CompetitionPlan = {
+    mode: "double_elimination",
+    stageType: "knockout",
+    stageName,
+    boType: config.boType,
+    advancementRule: `双败淘汰 · ${bracketSize} 队表 · 胜者组 / 败者组 / 总决赛重置 · ${config.boType}`,
+    teams,
+    groups: [],
+    rounds,
+    byes,
+    bracketColumns: [],
+    warnings,
+  };
+
+  plan.bracketColumns = bracketColumnsFromPlan(plan);
+
+  return plan;
+}
+
+function seedSlotOrder(size: number): number[] {
+  if (size === 4) {
+    return [1, 4, 2, 3];
+  }
+
+  if (size === 8) {
+    return [1, 8, 4, 5, 2, 7, 3, 6];
+  }
+
+  return [1, 16, 8, 9, 4, 13, 5, 12, 2, 15, 7, 10, 3, 14, 6, 11];
+}
+
+function bracketColumnsFromPlan(plan: Pick<CompetitionPlan, "rounds">): BracketColumn[] {
+  return plan.rounds.map((round) => ({
+    title: round.name,
+    tone: round.kind === "winner" ? "good" : round.kind === "loser" ? "warn" : "info",
+    nodes:
+      round.series.length > 0
+        ? round.series.map((series) => ({
+            label: series.label,
+            top: series.radiant.shortName || series.radiant.name,
+            bottom: series.dire.shortName || series.dire.name,
+            meta: series.note ?? "草稿对阵",
+          }))
+        : Array.from({ length: round.placeholderCount }, (_, index) => ({
+            label: `${round.name}-${index + 1}`,
+            top: "待定",
+            bottom: "待定",
+            meta: round.kind === "grand_final" ? "由胜者组 / 败者组决出" : "等待上一轮推进",
+          })),
+  }));
 }
 
 function shell(content: string): string {
@@ -577,6 +1097,255 @@ function matchResultTable(matches: OpenDotaMatchListItem[], includeLink: boolean
   `;
 }
 
+function renderCompetitionComposer(): string {
+  const plan = buildCompetitionPlan();
+  const selectedIds = new Set(plan.teams.map((team) => team.id));
+
+  return `
+    <section class="panel composer-panel">
+      <div class="section-heading">
+        <div>
+          <h2>赛制编排器</h2>
+          <p>基于当前届次已有队伍生成小组赛、瑞士轮或双败淘汰赛草稿；写入后仍由管理员确认发布。</p>
+        </div>
+        <div class="toolbar">${badge(modeLabel(plan.mode), "info")}${badge(`${plan.teams.length} 队`, plan.teams.length >= 2 ? "good" : "warn")}</div>
+      </div>
+      <div class="composer-layout">
+        <form class="admin-form composer-form" data-action="generate-stage-plan">
+          <h2>创建赛制草稿</h2>
+          <input name="tournamentId" value="${escapeHtml(state.selectedTournamentId)}" readonly />
+          <div class="mode-segment" role="radiogroup" aria-label="赛制">
+            ${[
+              ["swiss", "瑞士轮"],
+              ["group", "小组赛"],
+              ["double_elimination", "双败制"],
+            ]
+              .map(
+                ([value, label]) => `
+                  <label>
+                    <input name="mode" value="${value}" type="radio" data-composer-field ${composerState.mode === value ? "checked" : ""} />
+                    <span>${label}</span>
+                  </label>
+                `,
+              )
+              .join("")}
+          </div>
+          <label>阶段名称<input name="stageName" data-composer-field value="${escapeHtml(composerState.stageName)}" placeholder="${escapeHtml(defaultStageName(composerState.mode))}" /></label>
+          <label>默认 BO
+            <select name="boType" data-composer-field>
+              ${["BO1", "BO2", "BO3", "BO5"].map((bo) => `<option value="${bo}" ${composerState.boType === bo ? "selected" : ""}>${bo}</option>`).join("")}
+            </select>
+          </label>
+          <label>计划起始时间<input name="scheduledAt" data-composer-field type="datetime-local" value="${escapeHtml(composerState.scheduledAt)}" /></label>
+          ${renderModeFields()}
+          <div class="team-picker">
+            <div>
+              <strong>参赛队伍</strong>
+              <small>默认按 seed 排序；取消勾选可临时排除退赛或未确认队伍。</small>
+            </div>
+            <div class="team-pick-grid">
+              ${sortedTeams()
+                .map(
+                  (team) => `
+                    <label class="team-pick">
+                      <input name="teamIds" value="${escapeHtml(team.id)}" type="checkbox" data-composer-field ${selectedIds.has(team.id) ? "checked" : ""} />
+                      <span style="background:${escapeHtml(team.color)}"></span>
+                      <strong>${escapeHtml(team.shortName || team.name)}</strong>
+                      <small>seed ${escapeHtml(team.seed ?? "-")}</small>
+                    </label>
+                  `,
+                )
+                .join("")}
+            </div>
+          </div>
+          <button class="primary-button" type="submit" ${plan.teams.length < 2 ? "disabled" : ""}>生成并写入草稿</button>
+        </form>
+        <div class="plan-preview">
+          ${renderPlanPreview(plan)}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderModeFields(): string {
+  if (composerState.mode === "group") {
+    return `
+      <div class="mode-field-grid">
+        <label>分组数<input name="groupCount" data-composer-field inputmode="numeric" value="${escapeHtml(composerState.groupCount)}" /></label>
+        <label>循环次数<select name="groupLoops" data-composer-field>
+          <option value="1" ${composerState.groupLoops === 1 ? "selected" : ""}>单循环</option>
+          <option value="2" ${composerState.groupLoops === 2 ? "selected" : ""}>双循环</option>
+        </select></label>
+        <label>每组晋级<input name="advancePerGroup" data-composer-field inputmode="numeric" value="${escapeHtml(composerState.advancePerGroup)}" /></label>
+      </div>
+    `;
+  }
+
+  if (composerState.mode === "double_elimination") {
+    return `
+      <div class="mode-field-grid">
+        <label>对阵图规模<select name="bracketSize" data-composer-field>
+          ${[4, 8, 16].map((size) => `<option value="${size}" ${composerState.bracketSize === size ? "selected" : ""}>${size} 队双败表</option>`).join("")}
+        </select></label>
+        <label>晋级规则<input value="胜者组 / 败者组 / 总决赛重置" readonly /></label>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="mode-field-grid">
+      <label>总轮数<input name="swissRounds" data-composer-field inputmode="numeric" value="${escapeHtml(composerState.swissRounds)}" /></label>
+      <label>配对策略<input value="首轮种子高低配，后续同分优先" readonly /></label>
+    </div>
+  `;
+}
+
+function renderPlanPreview(plan: CompetitionPlan): string {
+  return `
+    <div class="plan-summary">
+      <div>
+        <span>阶段</span>
+        <strong>${escapeHtml(plan.stageName)}</strong>
+        <small>${escapeHtml(plan.advancementRule)}</small>
+      </div>
+      <div>
+        <span>写入内容</span>
+        <strong>${escapeHtml(plan.rounds.length)} 轮 / ${escapeHtml(plan.rounds.reduce((count, round) => count + round.series.length, 0))} 场</strong>
+        <small>series 会以 draft 状态创建，等待管理员发布</small>
+      </div>
+      <div>
+        <span>轮空</span>
+        <strong>${escapeHtml(plan.byes.length)}</strong>
+        <small>${escapeHtml(plan.byes.map((bye) => bye.team.shortName || bye.team.name).join("、") || "无")}</small>
+      </div>
+    </div>
+    ${plan.warnings.length > 0 ? `<div class="warning-list">${plan.warnings.map((warning) => `<span>${escapeHtml(warning)}</span>`).join("")}</div>` : ""}
+    ${plan.groups.length > 0 ? renderGroupPreview(plan.groups) : ""}
+    ${plan.bracketColumns.length > 0 ? renderBracketColumns(plan.bracketColumns) : renderRoundPreview(plan.rounds)}
+  `;
+}
+
+function renderGroupPreview(groups: PlanGroup[]): string {
+  return `
+    <div class="group-preview">
+      ${groups
+        .map(
+          (group) => `
+            <div>
+              <strong>${escapeHtml(group.name)}</strong>
+              <small>${escapeHtml(group.teams.map((team) => team.shortName || team.name).join(" / ") || "暂无队伍")}</small>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderRoundPreview(rounds: PlanRound[]): string {
+  return `
+    <div class="round-preview">
+      ${rounds
+        .slice(0, 8)
+        .map(
+          (round) => `
+            <div class="round-preview-row">
+              <strong>${escapeHtml(round.name)}</strong>
+              <small>${escapeHtml(round.series.map((series) => `${series.radiant.shortName || series.radiant.name} vs ${series.dire.shortName || series.dire.name}`).join(" · ") || "待生成对阵")}</small>
+            </div>
+          `,
+        )
+        .join("")}
+      ${rounds.length > 8 ? `<div class="muted-copy">还有 ${escapeHtml(rounds.length - 8)} 轮会随草稿写入。</div>` : ""}
+    </div>
+  `;
+}
+
+function renderBracketColumns(columns: BracketColumn[]): string {
+  return `
+    <div class="bracket-board">
+      ${columns
+        .map(
+          (column) => `
+            <div class="bracket-column bracket-column-${column.tone}">
+              <strong>${escapeHtml(column.title)}</strong>
+              <div>
+                ${column.nodes
+                  .map(
+                    (node) => `
+                      <div class="bracket-node">
+                        <span>${escapeHtml(node.label)}</span>
+                        <b>${escapeHtml(node.top)}</b>
+                        <b>${escapeHtml(node.bottom)}</b>
+                        <small>${escapeHtml(node.meta)}</small>
+                      </div>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function existingBracketColumns(): BracketColumn[] {
+  if (state.bracket.length > 0) {
+    const grouped = new Map<string, BracketColumn>();
+
+    for (const node of state.bracket) {
+      const key = `${node.roundNumber}-${node.roundName}`;
+      const column =
+        grouped.get(key) ??
+        ({
+          title: node.roundName,
+          tone: "info",
+          nodes: [],
+        } satisfies BracketColumn);
+
+      column.nodes.push({
+        label: `#${node.position}`,
+        top: node.series?.radiantTeam.shortName || node.series?.radiantTeam.name || "待定",
+        bottom: node.series?.direTeam.shortName || node.series?.direTeam.name || "待定",
+        meta: node.status,
+      });
+      grouped.set(key, column);
+    }
+
+    return [...grouped.values()];
+  }
+
+  const stage = currentStage();
+
+  if (stage?.type !== "knockout" || state.rounds.length === 0) {
+    return [];
+  }
+
+  return state.rounds.map((round) => ({
+    title: round.name,
+    tone: round.name.includes("胜者") ? "good" : round.name.includes("败者") ? "warn" : "info",
+    nodes:
+      round.series.length > 0
+        ? round.series.map((series, index) => ({
+            label: `${round.roundNumber}-${index + 1}`,
+            top: series.radiantTeam.shortName || series.radiantTeam.name,
+            bottom: series.direTeam.shortName || series.direTeam.name,
+            meta: series.status,
+          }))
+        : [
+            {
+              label: `${round.roundNumber}-待定`,
+              top: "待定",
+              bottom: "待定",
+              meta: round.pairingStatus ?? round.status,
+            },
+          ],
+  }));
+}
+
 function renderStages(): string {
   const stages = state.detail?.stages ?? [];
   const stage = currentStage();
@@ -604,6 +1373,8 @@ function renderStages(): string {
           .join("")}
       </div>
     </section>
+
+    ${renderCompetitionComposer()}
 
     <section class="panel split-panel">
       <div>
@@ -733,6 +1504,7 @@ function renderSync(): string {
 
 function standingsTable(): string {
   const standings = state.standings;
+  const bracketColumns = existingBracketColumns();
 
   return `
     <div class="table-wrap">
@@ -760,9 +1532,7 @@ function standingsTable(): string {
         </tbody>
       </table>
     </div>
-    <div class="bracket-list">
-      ${state.bracket.length === 0 ? `<span class="muted-copy">当前阶段暂无 bracket 数据。</span>` : state.bracket.map((node) => `<span>${escapeHtml(node.roundName)} #${escapeHtml(node.position)} · ${escapeHtml(node.status)}</span>`).join("")}
-    </div>
+    ${bracketColumns.length === 0 ? `<div class="bracket-list"><span class="muted-copy">当前阶段暂无 bracket 数据。</span></div>` : renderBracketColumns(bracketColumns)}
   `;
 }
 
@@ -900,11 +1670,30 @@ function syncTaskToRow(task: SyncTask): SyncRow {
   };
 }
 
-function payloadFromForm(form: HTMLFormElement): Record<string, FormDataEntryValue> {
-  return Object.fromEntries(new FormData(form).entries());
+function payloadFromForm(form: HTMLFormElement): AdminFormPayload {
+  const payload: AdminFormPayload = {};
+
+  for (const [key, value] of new FormData(form).entries()) {
+    const existing = payload[key];
+
+    if (existing === undefined) {
+      payload[key] = value;
+    } else if (Array.isArray(existing)) {
+      existing.push(value);
+    } else {
+      payload[key] = [existing, value];
+    }
+  }
+
+  return payload;
 }
 
-async function submitAction(action: string, payload: Record<string, FormDataEntryValue>): Promise<void> {
+async function submitAction(action: string, payload: AdminFormPayload): Promise<void> {
+  if (action === "generate-stage-plan") {
+    await submitGeneratedStagePlan(payload);
+    return;
+  }
+
   const requests = buildAdminRequests(action, payload);
 
   if (requests.length === 0) {
@@ -947,7 +1736,103 @@ async function submitAction(action: string, payload: Record<string, FormDataEntr
   }
 }
 
-function buildAdminRequests(action: string, payload: Record<string, FormDataEntryValue>): AdminWriteRequest[] {
+async function submitGeneratedStagePlan(payload: AdminFormPayload): Promise<void> {
+  composerState = composerStateFromPayload(payload);
+  const plan = buildCompetitionPlan(composerState);
+
+  if (plan.teams.length < 2) {
+    state = { ...state, writeNotice: { tone: "warn", text: "至少选择 2 支队伍后才能生成赛制草稿。" } };
+    render();
+    return;
+  }
+
+  state = { ...state, writeNotice: { tone: "info", text: `正在创建 ${plan.stageName} 草稿...` } };
+  render();
+
+  const createdStage = await sendAdminRequest("/stages", "POST", {
+    tournamentId: state.selectedTournamentId,
+    type: plan.stageType,
+    name: plan.stageName,
+    advancementRule: plan.advancementRule,
+  });
+  const stageData = createdStage.data;
+
+  if (!createdStage.ok || !isStageSummary(stageData)) {
+    state = {
+      ...state,
+      writeNotice: { tone: "warn", text: `创建阶段失败：${createdStage.message}` },
+    };
+    render();
+    return;
+  }
+
+  let createdRoundCount = 0;
+  let createdSeriesCount = 0;
+
+  for (const round of plan.rounds) {
+    const createdRound = await sendAdminRequest("/rounds", "POST", {
+      stageId: stageData.id,
+      name: round.name,
+      roundNumber: round.roundNumber,
+      status: "draft",
+      pairingStatus: "draft",
+    });
+    const roundData = createdRound.data;
+
+    if (!createdRound.ok || !isStageRound(roundData)) {
+      state = {
+        ...state,
+        writeNotice: { tone: "warn", text: `创建轮次 ${round.name} 失败：${createdRound.message}` },
+      };
+      render();
+      return;
+    }
+
+    createdRoundCount += 1;
+
+    for (const series of round.series) {
+      const createdSeries = await sendAdminRequest("/series", "POST", {
+        stageId: stageData.id,
+        roundId: roundData.id,
+        boType: plan.boType,
+        status: "draft",
+        scheduledAt: normalizeDateTimeLocal(composerState.scheduledAt),
+        radiantTeamId: series.radiant.id,
+        direTeamId: series.dire.id,
+      });
+
+      if (!createdSeries.ok) {
+        state = {
+          ...state,
+          writeNotice: { tone: "warn", text: `创建 ${series.radiant.name} vs ${series.dire.name} 失败：${createdSeries.message}` },
+        };
+        render();
+        return;
+      }
+
+      createdSeriesCount += 1;
+    }
+  }
+
+  const writeNotice = {
+    tone: "good",
+    text: `已创建 ${plan.stageName}：${createdRoundCount} 个轮次、${createdSeriesCount} 场 draft 对阵。`,
+  } satisfies LoadState["writeNotice"];
+
+  await loadDashboard(state.selectedTournamentId, stageData.id);
+  state = { ...state, writeNotice };
+  render();
+}
+
+function isStageSummary(value: unknown): value is StageSummary {
+  return typeof value === "object" && value !== null && typeof (value as StageSummary).id === "string";
+}
+
+function isStageRound(value: unknown): value is StageRound {
+  return typeof value === "object" && value !== null && typeof (value as StageRound).id === "string";
+}
+
+function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWriteRequest[] {
   switch (action) {
     case "create-tournament":
       return [
@@ -1077,7 +1962,7 @@ function buildAdminRequests(action: string, payload: Record<string, FormDataEntr
   }
 }
 
-function buildResultRequests(payload: Record<string, FormDataEntryValue>): AdminWriteRequest[] {
+function buildResultRequests(payload: AdminFormPayload): AdminWriteRequest[] {
   const seriesId = payloadString(payload, "seriesId");
 
   if (!seriesId) {
@@ -1105,7 +1990,7 @@ function buildResultRequests(payload: Record<string, FormDataEntryValue>): Admin
   });
 }
 
-function buildSyncTaskPayload(payload: Record<string, FormDataEntryValue>): Record<string, unknown> {
+function buildSyncTaskPayload(payload: AdminFormPayload): Record<string, unknown> {
   const leagueId = payloadNumber(payload, "leagueId") ?? state.detail?.league?.opendotaLeagueId;
   const matchId = payloadString(payload, "matchId");
   const targetType = matchId ? "match" : "league";
@@ -1141,13 +2026,21 @@ function normalizeSyncKind(value: string): string {
   }
 }
 
-function payloadString(payload: Record<string, FormDataEntryValue>, fieldName: string, fallback = ""): string {
+function payloadString(payload: AdminFormPayload, fieldName: string, fallback = ""): string {
   const value = payload[fieldName];
+  const firstValue = Array.isArray(value) ? value[0] : value;
 
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : fallback;
+  return typeof firstValue === "string" && firstValue.trim().length > 0 ? firstValue.trim() : fallback;
 }
 
-function payloadNumber(payload: Record<string, FormDataEntryValue>, fieldName: string): number | undefined {
+function payloadStrings(payload: AdminFormPayload, fieldName: string): string[] {
+  const value = payload[fieldName];
+  const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+
+  return values.flatMap((item) => (typeof item === "string" && item.trim().length > 0 ? [item.trim()] : []));
+}
+
+function payloadNumber(payload: AdminFormPayload, fieldName: string): number | undefined {
   const value = payloadString(payload, fieldName);
   const numberValue = Number(value);
 
@@ -1250,6 +2143,16 @@ document.addEventListener("change", (event) => {
 
   if (target instanceof HTMLSelectElement && target.matches("[data-tournament-select]")) {
     void loadDashboard(target.value, "");
+    return;
+  }
+
+  if (target instanceof HTMLElement && target.matches("[data-composer-field]")) {
+    const form = target.closest<HTMLFormElement>('[data-action="generate-stage-plan"]');
+
+    if (form) {
+      composerState = composerStateFromPayload(payloadFromForm(form));
+      render();
+    }
   }
 });
 

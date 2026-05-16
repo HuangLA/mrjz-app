@@ -424,15 +424,24 @@ function bodyToCreateRoundInput(body: Record<string, unknown>) {
 
 function bodyToCreateSeriesInput(body: Record<string, unknown>) {
   const boType = stringField(body, "boType");
+  const status = optionalStringField(body, "status");
 
   if (!["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
     throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  if (
+    status !== undefined &&
+    !["draft", "scheduled", "live", "result_pending", "completed", "conflict", "postponed"].includes(status)
+  ) {
+    throw new Error("status must be a valid series status");
   }
 
   return withoutUndefined({
     stageId: stringField(body, "stageId"),
     roundId: stringField(body, "roundId"),
     boType: boType as "BO1" | "BO2" | "BO3" | "BO5",
+    status: status as Parameters<typeof createSeries>[0]["status"],
     scheduledAt: optionalStringField(body, "scheduledAt"),
     radiantTeamId: stringField(body, "radiantTeamId"),
     direTeamId: stringField(body, "direTeamId"),

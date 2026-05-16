@@ -282,6 +282,7 @@ export type CreateSeriesInput = {
   stageId: string;
   roundId: string;
   boType: SeriesSummary["boType"];
+  status?: SeriesSummary["status"];
   scheduledAt?: string;
   radiantTeamId: string;
   direTeamId: string;
@@ -1284,6 +1285,7 @@ export class SqliteTournamentRepository {
     const roundId = requiredString(input.roundId, "roundId");
     const radiantTeamId = requiredString(input.radiantTeamId, "radiantTeamId");
     const direTeamId = requiredString(input.direTeamId, "direTeamId");
+    const status = input.status ?? "scheduled";
     const id = uniqueId("series", `${roundId}-${radiantTeamId}-${direTeamId}-${Date.now()}`);
     const scheduledAt = input.scheduledAt ?? new Date().toISOString();
 
@@ -1296,10 +1298,10 @@ export class SqliteTournamentRepository {
             INSERT INTO series (
               id, round_id, stage_id, bo_type, status, scheduled_at, radiant_team_id, dire_team_id
             )
-            VALUES (?, ?, ?, ?, 'scheduled', ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `,
         )
-        .run(id, roundId, stageId, input.boType, scheduledAt, radiantTeamId, direTeamId);
+        .run(id, roundId, stageId, input.boType, status, scheduledAt, radiantTeamId, direTeamId);
 
       const gameCount = gameCountForBo(input.boType);
       const gameInsert = this.database.prepare(`

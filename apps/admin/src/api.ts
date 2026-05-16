@@ -234,6 +234,7 @@ export interface WriteResult {
   ok: boolean;
   status: number;
   message: string;
+  data?: unknown;
 }
 
 type ApiSuccess<T> = {
@@ -283,10 +284,12 @@ export async function sendAdminRequest(path: string, method: "POST" | "PATCH", p
     });
 
     let message = response.statusText;
+    let data: unknown;
 
     try {
-      const body = (await response.json()) as Partial<ApiFailure>;
-      message = body.error?.message ?? message;
+      const body = (await response.json()) as ApiSuccess<unknown> | ApiFailure;
+      data = body.success === true ? body.data : undefined;
+      message = body.success === false ? body.error?.message ?? message : message;
     } catch {
       // Empty or non-JSON responses are common while backend write routes are still being wired.
     }
@@ -303,6 +306,7 @@ export async function sendAdminRequest(path: string, method: "POST" | "PATCH", p
       ok: response.ok,
       status: response.status,
       message: response.ok ? "请求已提交。" : message || "请求失败，请稍后重试。",
+      data,
     };
   } catch (error) {
     return {
