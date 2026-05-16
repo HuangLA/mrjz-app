@@ -1501,6 +1501,8 @@ function renderSignatureHeroes(heroes: Array<{ hero: string; portrait: string; p
 }
 
 function renderProfileMatches(matches: ProfileMatchSummary[], title: string): string {
+  const recordsByMatchId = new Map(currentData().matchRecords.map((record) => [record.matchId, record]));
+
   return `
     <section class="section-panel">
       <div class="section-title compact">
@@ -1510,28 +1512,60 @@ function renderProfileMatches(matches: ProfileMatchSummary[], title: string): st
         </div>
         <span class="sync-pill">${matches.length} 场</span>
       </div>
-      <div class="profile-match-list">
+      <div class="profile-record-list">
         ${
           matches.length > 0
-            ? matches
-                .map(
-                  (match) => `
-                    <button type="button" data-match-id="${escapeHtml(match.matchId)}" class="${match.result}">
-                      ${match.heroPortrait ? `<img src="${escapeHtml(match.heroPortrait)}" alt="${escapeHtml(match.hero ?? "英雄")}" loading="lazy" onerror="${heroImageFallbackHandler()}">` : "<span></span>"}
-                      <div>
-                        <b>${escapeHtml(match.radiantTeamName)} ${escapeHtml(match.score)} ${escapeHtml(match.direTeamName)}</b>
-                        <small>${escapeHtml(match.startTime)} · ${escapeHtml(match.duration)}</small>
-                      </div>
-                      <strong>${escapeHtml(match.kda ?? resultLabel(match.result))}</strong>
-                    </button>
-                  `,
-                )
-                .join("")
+            ? matches.map((match, index) => renderProfileMatchRecordCard(match, recordsByMatchId, index)).join("")
             : renderEmptyState("暂无比赛记录")
         }
       </div>
     </section>
   `;
+}
+
+function renderProfileMatchRecordCard(
+  match: ProfileMatchSummary,
+  recordsByMatchId: Map<string, MatchRecord>,
+  index: number,
+): string {
+  return renderMatchRecordCard(recordsByMatchId.get(match.matchId) ?? profileMatchToRecord(match), index);
+}
+
+function profileMatchToRecord(match: ProfileMatchSummary): MatchRecord {
+  const [radiantScore, direScore] = parseProfileScore(match.score);
+  const radiantWin =
+    match.side === null || match.result === "unknown"
+      ? null
+      : match.side === "radiant"
+        ? match.result === "win"
+        : match.result === "loss";
+
+  return {
+    matchId: match.matchId,
+    leagueName: "",
+    tournamentName: "",
+    startTime: match.startTime,
+    duration: match.duration,
+    radiantTeamName: match.radiantTeamName,
+    direTeamName: match.direTeamName,
+    radiantScore,
+    direScore,
+    radiantWin,
+    parseStatus: "比赛记录",
+    playerCount: 0,
+    heroLineups: { radiant: [], dire: [] },
+    hasDraft: false,
+    hasVision: false,
+    hasChat: false,
+  };
+}
+
+function parseProfileScore(score: string): [number | null, number | null] {
+  const parts = score.split(":");
+  const left = Number(parts[0]?.trim() ?? "");
+  const right = Number(parts[1]?.trim() ?? "");
+
+  return [Number.isFinite(left) ? left : null, Number.isFinite(right) ? right : null];
 }
 
 function renderProfileTagsPlaceholder(type: "player" | "team"): string {
@@ -1546,14 +1580,6 @@ function renderProfileTagsPlaceholder(type: "player" | "team"): string {
       ${renderEmptyState("标签添加和点赞接口接入后，这里展示用户互动产生的标签云。")}
     </section>
   `;
-}
-
-function resultLabel(result: "win" | "loss" | "unknown"): string {
-  if (result === "win") {
-    return "胜";
-  }
-
-  return result === "loss" ? "负" : "-";
 }
 
 function sortTournamentPlayers(players: PlayerDirectoryItem[]): PlayerDirectoryItem[] {

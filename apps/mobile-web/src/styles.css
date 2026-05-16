@@ -3326,9 +3326,14 @@ button {
 
 .signature-heroes,
 .roster-list,
-.profile-match-list {
+.profile-match-list,
+.profile-record-list {
   display: grid;
   gap: 7px;
+}
+
+.profile-record-list {
+  gap: 9px;
 }
 
 .signature-heroes article,
