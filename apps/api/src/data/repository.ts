@@ -3,6 +3,7 @@ import {
   type CreateRoundInput,
   type CreateSeriesInput,
   type CreateStageInput,
+  type CreateKnockoutBracketInput,
   type CreateSyncTaskInput,
   type CreateTeamInput,
   type CreatePlayerInput,
@@ -22,6 +23,8 @@ import {
   type UpdateGameResultInput,
   type UpsertOpenDotaMatchInput,
   type AddTeamMemberInput,
+  type AdvanceBracketNodeInput,
+  type KnockoutBracketResult,
   type RemoveTeamMemberInput,
   type UpdateTeamInput,
   type EntityBackfillSummary,
@@ -71,6 +74,8 @@ type Repository = {
   addTeamMember(input: AddTeamMemberInput): unknown;
   removeTeamMember(input: RemoveTeamMemberInput): unknown;
   createStage(input: CreateStageInput): unknown;
+  createKnockoutBracket(tournamentId: string, input: CreateKnockoutBracketInput): KnockoutBracketResult;
+  advanceBracketNode(nodeId: string, input: AdvanceBracketNodeInput): BracketNode[];
   createRound(input: CreateRoundInput): unknown;
   createSeries(input: CreateSeriesInput): unknown;
   updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput): unknown;
@@ -194,6 +199,14 @@ export function removeTeamMember(input: RemoveTeamMemberInput) {
 
 export function createStage(input: CreateStageInput) {
   return repository.createStage(input);
+}
+
+export function createKnockoutBracket(tournamentId: string, input: CreateKnockoutBracketInput) {
+  return repository.createKnockoutBracket(tournamentId, input);
+}
+
+export function advanceBracketNode(nodeId: string, input: AdvanceBracketNodeInput) {
+  return repository.advanceBracketNode(nodeId, input);
 }
 
 export function createRound(input: CreateRoundInput) {

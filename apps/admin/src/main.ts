@@ -27,9 +27,9 @@ type AdminWriteRequest = {
 
 type AdminFormValue = FormDataEntryValue | FormDataEntryValue[];
 type AdminFormPayload = Record<string, AdminFormValue>;
-type CompetitionMode = "group" | "swiss" | "double_elimination";
+type CompetitionMode = "group" | "swiss" | "single_elimination" | "double_elimination";
 type SeriesBoType = "BO1" | "BO2" | "BO3" | "BO5";
-type PlanRoundKind = "group" | "swiss" | "winner" | "loser" | "grand_final";
+type PlanRoundKind = "group" | "swiss" | "single" | "winner" | "loser" | "grand_final";
 
 interface LoadState {
   source: ApiSource;
@@ -289,9 +289,16 @@ function sortedTeams(): PlanTeam[] {
 
 function selectedPlanTeams(config: ComposerState = composerState): PlanTeam[] {
   const teams = sortedTeams();
-  const selectedIds = new Set(config.selectedTeamIds.length === 0 ? teams.map((team) => team.id) : config.selectedTeamIds);
+  const defaultIds = isEliminationMode(config.mode)
+    ? teams.slice(0, config.bracketSize).map((team) => team.id)
+    : teams.map((team) => team.id);
+  const selectedIds = new Set(config.selectedTeamIds.length === 0 ? defaultIds : config.selectedTeamIds);
 
   return teams.filter((team) => selectedIds.has(team.id));
+}
+
+function isEliminationMode(mode: CompetitionMode): boolean {
+  return mode === "single_elimination" || mode === "double_elimination";
 }
 
 function defaultStageName(mode: CompetitionMode): string {
@@ -300,6 +307,8 @@ function defaultStageName(mode: CompetitionMode): string {
       return "小组赛";
     case "swiss":
       return "瑞士轮";
+    case "single_elimination":
+      return "单败淘汰赛";
     case "double_elimination":
       return "双败淘汰赛";
   }
@@ -311,6 +320,8 @@ function modeLabel(mode: CompetitionMode): string {
       return "小组赛联赛";
     case "swiss":
       return "瑞士轮";
+    case "single_elimination":
+      return "单败淘汰赛";
     case "double_elimination":
       return "双败淘汰赛";
   }
@@ -335,7 +346,9 @@ function normalizeBoType(value: string): SeriesBoType {
 }
 
 function normalizeCompetitionMode(value: string): CompetitionMode {
-  return value === "group" || value === "swiss" || value === "double_elimination" ? value : "swiss";
+  return value === "group" || value === "swiss" || value === "single_elimination" || value === "double_elimination"
+    ? value
+    : "swiss";
 }
 
 function composerStateFromPayload(payload: AdminFormPayload): ComposerState {
@@ -365,6 +378,10 @@ function buildCompetitionPlan(config: ComposerState = composerState): Competitio
 
   if (mode === "group") {
     return buildGroupPlan(config, stageName, teams, warnings);
+  }
+
+  if (mode === "single_elimination") {
+    return buildSingleEliminationPlan(config, stageName, teams, warnings);
   }
 
   if (mode === "double_elimination") {
@@ -557,6 +574,80 @@ function buildSwissPlan(config: ComposerState, stageName: string, teams: PlanTea
   };
 }
 
+function buildSingleEliminationPlan(
+  config: ComposerState,
+  stageName: string,
+  teams: PlanTeam[],
+  warnings: string[],
+): CompetitionPlan {
+  const requestedSize = config.bracketSize <= 4 ? 4 : config.bracketSize <= 8 ? 8 : 16;
+  const bracketSize = Math.max(requestedSize, clampNumber(nextPowerOfTwo(Math.max(teams.length, 2)), 4, 16));
+  const seedOrder = seedSlotOrder(bracketSize);
+  const slots = seedOrder.map((seed) => teams[seed - 1] ?? null);
+  const firstRoundSeries: PlanSeries[] = [];
+  const byes: PlanBye[] = [];
+
+  for (let index = 0; index < slots.length; index += 2) {
+    const left = slots[index];
+    const right = slots[index + 1];
+
+    if (left && right) {
+      firstRoundSeries.push({
+        label: `SE-${firstRoundSeries.length + 1}`,
+        position: firstRoundSeries.length + 1,
+        radiant: left,
+        dire: right,
+        note: "胜者自动进入下一轮",
+      });
+    } else if (left ?? right) {
+      byes.push({ team: (left ?? right) as PlanTeam, label: "首轮 BYE" });
+    }
+  }
+
+  const roundCount = Math.log2(bracketSize);
+  const rounds: PlanRound[] = [
+    {
+      name: "淘汰赛第 1 轮",
+      roundNumber: 1,
+      kind: "single",
+      series: firstRoundSeries,
+      placeholderCount: Math.max(1, bracketSize / 2),
+    },
+  ];
+
+  for (let roundIndex = 2; roundIndex <= roundCount; roundIndex += 1) {
+    rounds.push({
+      name: roundIndex === roundCount ? "决赛" : roundIndex === roundCount - 1 ? "半决赛" : `淘汰赛第 ${roundIndex} 轮`,
+      roundNumber: roundIndex,
+      kind: "single",
+      series: [],
+      placeholderCount: Math.max(1, bracketSize / 2 ** roundIndex),
+    });
+  }
+
+  if (teams.length < bracketSize) {
+    warnings.push(`当前 ${teams.length} 队会进入 ${bracketSize} 队单败表，首轮含 ${bracketSize - teams.length} 个空种子 / BYE。`);
+  }
+
+  const plan: CompetitionPlan = {
+    mode: "single_elimination",
+    stageType: "knockout",
+    stageName,
+    boType: config.boType,
+    advancementRule: `单败淘汰 · ${bracketSize} 队表 · 选择胜者后自动推进 · ${config.boType}`,
+    teams,
+    groups: [],
+    rounds,
+    byes,
+    bracketColumns: [],
+    warnings,
+  };
+
+  plan.bracketColumns = bracketColumnsFromPlan(plan);
+
+  return plan;
+}
+
 function buildDoubleEliminationPlan(
   config: ComposerState,
   stageName: string,
@@ -677,7 +768,7 @@ function seedSlotOrder(size: number): number[] {
 function bracketColumnsFromPlan(plan: Pick<CompetitionPlan, "rounds">): BracketColumn[] {
   return plan.rounds.map((round) => ({
     title: round.name,
-    tone: round.kind === "winner" ? "good" : round.kind === "loser" ? "warn" : "info",
+    tone: round.kind === "winner" || round.kind === "single" ? "good" : round.kind === "loser" ? "warn" : "info",
     nodes:
       round.series.length > 0
         ? round.series.map((series) => ({
@@ -1170,6 +1261,7 @@ function renderCompetitionComposer(): string {
             ${[
               ["swiss", "瑞士轮"],
               ["group", "小组赛"],
+              ["single_elimination", "单败制"],
               ["double_elimination", "双败制"],
             ]
               .map(
@@ -1210,7 +1302,7 @@ function renderCompetitionComposer(): string {
                 .join("")}
             </div>
           </div>
-          <button class="primary-button" type="submit" ${plan.teams.length < 2 ? "disabled" : ""}>生成并写入草稿</button>
+          <button class="primary-button" type="submit" ${plan.teams.length < 2 ? "disabled" : ""}>${isEliminationMode(plan.mode) ? "生成对阵图" : "生成并写入草稿"}</button>
         </form>
         <div class="plan-preview">
           ${renderPlanPreview(plan)}
@@ -1234,13 +1326,13 @@ function renderModeFields(): string {
     `;
   }
 
-  if (composerState.mode === "double_elimination") {
+  if (isEliminationMode(composerState.mode)) {
     return `
       <div class="mode-field-grid">
         <label>对阵图规模<select name="bracketSize" data-composer-field>
-          ${[4, 8, 16].map((size) => `<option value="${size}" ${composerState.bracketSize === size ? "selected" : ""}>${size} 队双败表</option>`).join("")}
+          ${[4, 8, 16].map((size) => `<option value="${size}" ${composerState.bracketSize === size ? "selected" : ""}>${size} 支队伍</option>`).join("")}
         </select></label>
-        <label>晋级规则<input value="胜者组 / 败者组 / 总决赛重置" readonly /></label>
+        <label>晋级规则<input value="${composerState.mode === "double_elimination" ? "胜者组 / 败者组 / 总决赛" : "胜者直接进入下一轮"}" readonly /></label>
       </div>
     `;
   }
@@ -1360,9 +1452,9 @@ function existingBracketColumns(): BracketColumn[] {
 
       column.nodes.push({
         label: `#${node.position}`,
-        top: node.series?.radiantTeam.name || "待定",
-        bottom: node.series?.direTeam.name || "待定",
-        meta: node.status,
+        top: bracketNodeRadiantTeam(node)?.name || "待定",
+        bottom: bracketNodeDireTeam(node)?.name || "待定",
+        meta: node.winnerTeamId ? `胜者 ${bracketNodeWinnerName(node)}` : node.status,
       });
       grouped.set(key, column);
     }
@@ -1398,6 +1490,158 @@ function existingBracketColumns(): BracketColumn[] {
   }));
 }
 
+function bracketNodeRadiantTeam(node: BracketNode): BracketNode["radiantTeam"] {
+  return node.radiantTeam ?? node.series?.radiantTeam ?? null;
+}
+
+function bracketNodeDireTeam(node: BracketNode): BracketNode["direTeam"] {
+  return node.direTeam ?? node.series?.direTeam ?? null;
+}
+
+function bracketNodeWinnerName(node: BracketNode): string {
+  const winnerId = node.winnerTeamId;
+
+  if (!winnerId) {
+    return "待定";
+  }
+
+  return bracketNodeRadiantTeam(node)?.id === winnerId
+    ? bracketNodeRadiantTeam(node)?.name ?? "待定"
+    : bracketNodeDireTeam(node)?.id === winnerId
+      ? bracketNodeDireTeam(node)?.name ?? "待定"
+      : "待定";
+}
+
+function renderKnockoutManager(): string {
+  const stage = currentStage();
+
+  if (stage?.type !== "knockout") {
+    return "";
+  }
+
+  if (state.bracket.length === 0) {
+    return `
+      <section class="panel knockout-manager">
+        <div class="section-heading">
+          <div>
+            <h2>淘汰赛对阵图</h2>
+            <p>先用上方编排器选择入围队伍并生成对阵图。</p>
+          </div>
+          ${badge("尚未生成", "warn")}
+        </div>
+        ${emptyState("当前淘汰赛阶段还没有 bracket 节点。")}
+      </section>
+    `;
+  }
+
+  const pendingPickCount = state.bracket.filter((node) => {
+    const radiant = bracketNodeRadiantTeam(node);
+    const dire = bracketNodeDireTeam(node);
+    return node.winnerTeamId === null && radiant !== null && dire !== null;
+  }).length;
+
+  return `
+    <section class="panel knockout-manager">
+      <div class="section-heading">
+        <div>
+          <h2>淘汰赛对阵图</h2>
+          <p>每个节点只需要点选胜者；后端会更新 series 并把胜者推进到下一轮。</p>
+        </div>
+        <div class="toolbar">${badge(`${state.bracket.length} 个节点`, "info")}${badge(`${pendingPickCount} 场待选胜者`, pendingPickCount > 0 ? "warn" : "good")}</div>
+      </div>
+      ${renderLiveBracketBoard()}
+    </section>
+  `;
+}
+
+function renderLiveBracketBoard(): string {
+  const grouped = new Map<string, BracketNode[]>();
+
+  for (const node of state.bracket) {
+    const key = `${node.roundNumber}-${node.roundName}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), node]);
+  }
+
+  return `
+    <div class="live-bracket-board">
+      ${[...grouped.entries()]
+        .map(([key, nodes]) => {
+          const roundName = key.replace(/^\d+-/, "");
+          const tone = nodes.some((node) => node.bracketGroup === "loser")
+            ? "warn"
+            : nodes.some((node) => node.bracketGroup === "winner" || node.bracketGroup === "single")
+              ? "good"
+              : "info";
+
+          return `
+            <div class="live-bracket-column bracket-column-${tone}">
+              <strong>${escapeHtml(roundName)}</strong>
+              <div>
+                ${nodes.map(renderLiveBracketNode).join("")}
+              </div>
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderLiveBracketNode(node: BracketNode): string {
+  const radiant = bracketNodeRadiantTeam(node);
+  const dire = bracketNodeDireTeam(node);
+  const canPickWinner = node.winnerTeamId === null && radiant !== null && dire !== null;
+  const winnerName = bracketNodeWinnerName(node);
+
+  return `
+    <div class="live-bracket-node ${node.winnerTeamId ? "is-completed" : ""}">
+      <div class="node-head">
+        <span>#${escapeHtml(node.position)}</span>
+        ${badge(node.winnerTeamId ? "已完成" : canPickWinner ? "等待选择" : "等待晋级", node.winnerTeamId ? "good" : canPickWinner ? "warn" : "neutral")}
+      </div>
+      ${renderBracketTeamLine(node, radiant, "radiant")}
+      ${renderBracketTeamLine(node, dire, "dire")}
+      ${
+        node.winnerTeamId
+          ? `<div class="winner-chip">胜者：${escapeHtml(winnerName)}</div>`
+          : canPickWinner
+            ? `
+              <div class="winner-actions">
+                ${renderWinnerForm(node.id, radiant)}
+                ${renderWinnerForm(node.id, dire)}
+              </div>
+            `
+            : `<small class="muted-copy">上一轮结束后自动落位</small>`
+      }
+    </div>
+  `;
+}
+
+function renderBracketTeamLine(node: BracketNode, team: BracketNode["radiantTeam"], slot: "radiant" | "dire"): string {
+  const winner = team !== null && node.winnerTeamId === team.id;
+
+  return `
+    <div class="bracket-team-line ${winner ? "is-winner" : ""}">
+      <span>${slot === "radiant" ? "上位" : "下位"}</span>
+      <strong>${escapeHtml(team?.name ?? "待定")}</strong>
+    </div>
+  `;
+}
+
+function renderWinnerForm(nodeId: string, team: BracketNode["radiantTeam"]): string {
+  if (team === null) {
+    return "";
+  }
+
+  return `
+    <form data-action="advance-bracket-node">
+      <input type="hidden" name="nodeId" value="${escapeHtml(nodeId)}" />
+      <input type="hidden" name="winnerTeamId" value="${escapeHtml(team.id)}" />
+      <button class="secondary-button winner-button" type="submit">${escapeHtml(team.name)} 胜</button>
+    </form>
+  `;
+}
+
 function renderStages(): string {
   const stages = state.detail?.stages ?? [];
   const stage = currentStage();
@@ -1427,6 +1671,8 @@ function renderStages(): string {
     </section>
 
     ${renderCompetitionComposer()}
+
+    ${renderKnockoutManager()}
 
     <section class="panel split-panel">
       <div>
@@ -1801,6 +2047,40 @@ async function submitGeneratedStagePlan(payload: AdminFormPayload): Promise<void
   state = { ...state, writeNotice: { tone: "info", text: `正在创建 ${plan.stageName} 草稿...` } };
   render();
 
+  if (isEliminationMode(plan.mode)) {
+    const createdBracket = await sendAdminRequest(
+      `/tournaments/${encodeURIComponent(state.selectedTournamentId)}/knockout-bracket`,
+      "POST",
+      {
+        name: plan.stageName,
+        bracketType: plan.mode,
+        bracketSize: composerState.bracketSize,
+        boType: plan.boType,
+        scheduledAt: normalizeDateTimeLocal(composerState.scheduledAt),
+        teamIds: plan.teams.map((team) => team.id),
+      },
+    );
+
+    if (!createdBracket.ok || !isKnockoutBracketResult(createdBracket.data)) {
+      state = {
+        ...state,
+        writeNotice: { tone: "warn", text: `生成淘汰赛对阵图失败：${createdBracket.message}` },
+      };
+      render();
+      return;
+    }
+
+    const writeNotice = {
+      tone: "good",
+      text: `已生成 ${plan.stageName} 对阵图：${plan.teams.length} 支队伍，管理员现在只需要选择每场胜者。`,
+    } satisfies LoadState["writeNotice"];
+
+    await loadDashboard(state.selectedTournamentId, createdBracket.data.stage.id);
+    state = { ...state, writeNotice };
+    render();
+    return;
+  }
+
   const createdStage = await sendAdminRequest("/stages", "POST", {
     tournamentId: state.selectedTournamentId,
     type: plan.stageType,
@@ -1882,6 +2162,16 @@ function isStageSummary(value: unknown): value is StageSummary {
 
 function isStageRound(value: unknown): value is StageRound {
   return typeof value === "object" && value !== null && typeof (value as StageRound).id === "string";
+}
+
+function isKnockoutBracketResult(value: unknown): value is { stage: StageSummary; rounds: StageRound[]; bracket: BracketNode[] } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    isStageSummary((value as { stage?: unknown }).stage) &&
+    Array.isArray((value as { rounds?: unknown }).rounds) &&
+    Array.isArray((value as { bracket?: unknown }).bracket)
+  );
 }
 
 function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWriteRequest[] {
@@ -2035,6 +2325,20 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
       ];
     case "submit-result":
       return buildResultRequests(payload);
+    case "advance-bracket-node":
+      if (!payloadString(payload, "nodeId") || !payloadString(payload, "winnerTeamId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "POST",
+          path: `/bracket-nodes/${encodeURIComponent(payloadString(payload, "nodeId"))}/winner`,
+          payload: {
+            winnerTeamId: payloadString(payload, "winnerTeamId"),
+          },
+        },
+      ];
     case "enqueue-sync":
       return [
         {
@@ -2237,6 +2541,29 @@ document.addEventListener("change", (event) => {
 
     if (form) {
       composerState = composerStateFromPayload(payloadFromForm(form));
+
+      if (
+        target instanceof HTMLSelectElement &&
+        target.name === "bracketSize" &&
+        isEliminationMode(composerState.mode)
+      ) {
+        composerState = {
+          ...composerState,
+          selectedTeamIds: sortedTeams()
+            .slice(0, composerState.bracketSize)
+            .map((team) => team.id),
+        };
+      }
+
+      if (target instanceof HTMLInputElement && target.name === "mode" && isEliminationMode(composerState.mode)) {
+        composerState = {
+          ...composerState,
+          selectedTeamIds: sortedTeams()
+            .slice(0, composerState.bracketSize)
+            .map((team) => team.id),
+        };
+      }
+
       render();
     }
   }

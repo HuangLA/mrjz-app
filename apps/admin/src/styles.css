@@ -823,6 +823,120 @@ td small,
   overflow-wrap: anywhere;
 }
 
+.knockout-manager {
+  overflow: hidden;
+}
+
+.live-bracket-board {
+  display: grid;
+  grid-auto-columns: minmax(220px, 260px);
+  grid-auto-flow: column;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 12px;
+}
+
+.live-bracket-column {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.live-bracket-column > strong {
+  position: sticky;
+  left: 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: #eef2f7;
+  color: #253149;
+  font-size: 12px;
+}
+
+.live-bracket-column > div {
+  display: grid;
+  gap: 10px;
+}
+
+.live-bracket-node {
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  padding: 10px;
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.live-bracket-node.is-completed {
+  border-color: #bfe8ca;
+  background: #fbfffc;
+}
+
+.node-head,
+.bracket-team-line,
+.winner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-head {
+  justify-content: space-between;
+}
+
+.node-head > span,
+.bracket-team-line > span {
+  color: #69778c;
+  font-size: 11px;
+}
+
+.bracket-team-line {
+  justify-content: space-between;
+  padding: 7px 8px;
+  border-radius: 7px;
+  background: #f6f8fb;
+}
+
+.bracket-team-line strong {
+  min-width: 0;
+  color: #253149;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.bracket-team-line.is-winner {
+  background: #e8f8ec;
+}
+
+.winner-actions {
+  align-items: stretch;
+}
+
+.winner-actions form {
+  flex: 1;
+  min-width: 0;
+}
+
+.winner-button {
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.winner-chip {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: #e8f8ec;
+  color: #1f7a44;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .match-link-list {
   display: grid;
   gap: 8px;

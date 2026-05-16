@@ -287,6 +287,28 @@ export type CreateStageInput = {
   sortOrder?: number;
 };
 
+export type BracketType = "single_elimination" | "double_elimination";
+export type BracketSlot = "radiant" | "dire";
+
+export type CreateKnockoutBracketInput = {
+  name?: string;
+  bracketType?: BracketType;
+  bracketSize?: number;
+  boType?: SeriesSummary["boType"];
+  scheduledAt?: string;
+  teamIds: string[];
+};
+
+export type AdvanceBracketNodeInput = {
+  winnerTeamId: string;
+};
+
+export type KnockoutBracketResult = {
+  stage: StageSummary;
+  rounds: StageRound[];
+  bracket: BracketNode[];
+};
+
 export type UpdateTournamentLifecycleInput = {
   status: TournamentLifecycleStatus;
   startsAt?: string | null;
@@ -357,6 +379,11 @@ export class SqliteTournamentRepository {
     this.ensureColumn("teams", "opendota_team_id", "INTEGER");
     this.ensureColumn("teams", "source", "TEXT NOT NULL DEFAULT 'manual'");
     this.ensureColumn("players", "steam_id64", "TEXT");
+    this.ensureColumn("bracket_nodes", "bracket_group", "TEXT NOT NULL DEFAULT 'single'");
+    this.ensureColumn("bracket_nodes", "radiant_team_id", "TEXT");
+    this.ensureColumn("bracket_nodes", "dire_team_id", "TEXT");
+    this.ensureColumn("bracket_nodes", "loser_next_node_id", "TEXT");
+    this.ensureColumn("bracket_nodes", "loser_next_slot", "TEXT");
     this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
     this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
     this.ensureEntityTables();
@@ -572,10 +599,25 @@ export class SqliteTournamentRepository {
     const rows = this.database
       .prepare(
         `
-          SELECT *
-          FROM bracket_nodes
-          WHERE stage_id = ?
-          ORDER BY round_number ASC, position ASC
+          SELECT
+            bn.*,
+            bn.radiant_team_id AS bracket_radiant_team_id,
+            bn.dire_team_id AS bracket_dire_team_id,
+            rt.id AS radiant_team_id,
+            rt.name AS radiant_team_name,
+            rt.short_name AS radiant_team_short_name,
+            rt.logo_url AS radiant_team_logo_url,
+            rt.color AS radiant_team_color,
+            dt.id AS dire_team_id,
+            dt.name AS dire_team_name,
+            dt.short_name AS dire_team_short_name,
+            dt.logo_url AS dire_team_logo_url,
+            dt.color AS dire_team_color
+          FROM bracket_nodes bn
+          LEFT JOIN teams rt ON rt.id = bn.radiant_team_id
+          LEFT JOIN teams dt ON dt.id = bn.dire_team_id
+          WHERE bn.stage_id = ?
+          ORDER BY bn.round_number ASC, bn.position ASC
         `,
       )
       .all(stageId);
@@ -590,13 +632,18 @@ export class SqliteTournamentRepository {
       return {
         id: text(row, "id"),
         stageId: text(row, "stage_id"),
+        bracketGroup: text(row, "bracket_group") as BracketNode["bracketGroup"],
         roundNumber: numberValue(row, "round_number"),
         roundName: text(row, "round_name"),
         position: numberValue(row, "position"),
         status: text(row, "status") as BracketNode["status"],
+        radiantTeam: nullableText(row, "bracket_radiant_team_id") === null ? null : teamFromPrefixedRow(row, "radiant"),
+        direTeam: nullableText(row, "bracket_dire_team_id") === null ? null : teamFromPrefixedRow(row, "dire"),
         series: seriesId === null ? null : this.getSeriesById(seriesId) ?? null,
         nextNodeId: nullableText(row, "next_node_id"),
         nextSlot: nullableText(row, "next_slot") as BracketNode["nextSlot"],
+        loserNextNodeId: nullableText(row, "loser_next_node_id"),
+        loserNextSlot: nullableText(row, "loser_next_slot") as BracketNode["loserNextSlot"],
         winnerTeamId: nullableText(row, "winner_team_id"),
       };
     });
@@ -1407,33 +1454,21 @@ export class SqliteTournamentRepository {
     const radiantTeamId = requiredString(input.radiantTeamId, "radiantTeamId");
     const direTeamId = requiredString(input.direTeamId, "direTeamId");
     const status = input.status ?? "scheduled";
-    const id = uniqueId("series", `${roundId}-${radiantTeamId}-${direTeamId}-${Date.now()}`);
     const scheduledAt = input.scheduledAt ?? new Date().toISOString();
+    let id = "";
 
     this.database.exec("BEGIN;");
 
     try {
-      this.database
-        .prepare(
-          `
-            INSERT INTO series (
-              id, round_id, stage_id, bo_type, status, scheduled_at, radiant_team_id, dire_team_id
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-        )
-        .run(id, roundId, stageId, input.boType, status, scheduledAt, radiantTeamId, direTeamId);
-
-      const gameCount = gameCountForBo(input.boType);
-      const gameInsert = this.database.prepare(`
-        INSERT INTO series_games (id, series_id, game_index)
-        VALUES (?, ?, ?)
-      `);
-
-      for (let gameIndex = 1; gameIndex <= gameCount; gameIndex += 1) {
-        gameInsert.run(`${id}_g${gameIndex}`, id, gameIndex);
-      }
-
+      id = this.insertSeries({
+        stageId,
+        roundId,
+        boType: input.boType,
+        status,
+        scheduledAt,
+        radiantTeamId,
+        direTeamId,
+      });
       this.database.exec("COMMIT;");
     } catch (error) {
       this.database.exec("ROLLBACK;");
@@ -1447,6 +1482,183 @@ export class SqliteTournamentRepository {
     }
 
     return series;
+  }
+
+  createKnockoutBracket(tournamentIdParam: string, input: CreateKnockoutBracketInput): KnockoutBracketResult {
+    const tournament = this.getTournamentDetail(requiredString(tournamentIdParam, "tournamentId"));
+
+    if (tournament === undefined) {
+      throw new Error("Tournament not found");
+    }
+
+    const teamIds = uniqueStrings(input.teamIds);
+
+    if (teamIds.length < 2) {
+      throw new Error("At least 2 teams are required for a knockout bracket");
+    }
+
+    const bracketType = input.bracketType ?? "single_elimination";
+    const bracketSize = normalizeBracketSize(input.bracketSize, teamIds.length);
+    const boType = input.boType ?? "BO3";
+    const scheduledAt = input.scheduledAt ?? new Date().toISOString();
+    const name =
+      input.name?.trim() || (bracketType === "double_elimination" ? "双败淘汰赛" : "单败淘汰赛");
+
+    if (teamIds.length > bracketSize) {
+      throw new Error(`teamIds cannot contain more than ${bracketSize} teams for this bracket`);
+    }
+
+    for (const teamId of teamIds) {
+      this.ensureTournamentTeam(tournament.id, teamId);
+    }
+
+    const stageId = uniqueId("stage", `${tournament.id}-${bracketType}-${name}`);
+    const sortOrder = this.nextStageSortOrder(tournament.id);
+    const stageRule =
+      bracketType === "double_elimination"
+        ? `双败淘汰 · ${bracketSize} 队 · 胜者组 / 败者组 / 总决赛 · ${boType}`
+        : `单败淘汰 · ${bracketSize} 队 · 胜者自动推进 · ${boType}`;
+    const roundSpecs =
+      bracketType === "double_elimination"
+        ? doubleEliminationRoundSpecs(bracketSize)
+        : singleEliminationRoundSpecs(bracketSize);
+    const nodeDrafts =
+      bracketType === "double_elimination"
+        ? doubleEliminationNodeDrafts(bracketSize, teamIds)
+        : singleEliminationNodeDrafts(bracketSize, teamIds);
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.database
+        .prepare(
+          `
+            INSERT INTO stages (id, tournament_id, type, name, status, sort_order, advancement_rule, config_json)
+            VALUES (?, ?, 'knockout', ?, 'draft', ?, ?, ?)
+          `,
+        )
+        .run(
+          stageId,
+          tournament.id,
+          name,
+          sortOrder,
+          stageRule,
+          JSON.stringify({
+            bracketType,
+            bracketSize,
+            boType,
+            teamIds,
+          }),
+        );
+
+      const roundIds = new Map<string, string>();
+
+      for (const round of roundSpecs) {
+        const roundId = uniqueId("round", `${round.roundNumber}-${round.name}-${stageId}`);
+        roundIds.set(round.key, roundId);
+        this.database
+          .prepare(
+            `
+              INSERT INTO rounds (id, stage_id, round_number, name, status, pairing_status)
+              VALUES (?, ?, ?, ?, 'draft', 'draft')
+            `,
+          )
+          .run(roundId, stageId, round.roundNumber, round.name);
+      }
+
+      const nodeIds = new Map<string, string>();
+
+      for (const draft of nodeDrafts) {
+        nodeIds.set(draft.key, uniqueId("bracket", `${draft.key}-${stageId}`));
+      }
+
+      const insertNode = this.database.prepare(`
+        INSERT INTO bracket_nodes (
+          id, stage_id, bracket_group, round_number, round_name, position, status,
+          radiant_team_id, dire_team_id, series_id, next_node_id, next_slot,
+          loser_next_node_id, loser_next_slot, winner_team_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)
+      `);
+
+      for (const draft of nodeDrafts) {
+        const id = nodeIds.get(draft.key);
+
+        if (id === undefined) {
+          throw new Error("Bracket node id was not prepared");
+        }
+
+        insertNode.run(
+          id,
+          stageId,
+          draft.bracketGroup,
+          draft.roundNumber,
+          draft.roundName,
+          draft.position,
+          draft.radiantTeamId !== null && draft.direTeamId !== null ? "scheduled" : "pending",
+          draft.radiantTeamId,
+          draft.direTeamId,
+          draft.nextNodeKey === null ? null : nodeIds.get(draft.nextNodeKey) ?? null,
+          draft.nextSlot,
+          draft.loserNextNodeKey === null ? null : nodeIds.get(draft.loserNextNodeKey) ?? null,
+          draft.loserNextSlot,
+        );
+      }
+
+      this.createReadyBracketSeries(stageId, boType, scheduledAt, roundIds);
+      this.autoAdvanceBracketByes(stageId, boType, scheduledAt, roundIds);
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const stage = this.getStageSummaryById(stageId);
+
+    if (stage === undefined) {
+      throw new Error("Created bracket stage could not be loaded");
+    }
+
+    return {
+      stage,
+      rounds: this.getStageRounds(stageId) ?? [],
+      bracket: this.getStageBracket(stageId) ?? [],
+    };
+  }
+
+  advanceBracketNode(nodeIdParam: string, input: AdvanceBracketNodeInput): BracketNode[] {
+    const nodeId = requiredString(nodeIdParam, "nodeId");
+    const winnerTeamId = requiredString(input.winnerTeamId, "winnerTeamId");
+    const row = this.getBracketNodeRow(nodeId);
+
+    if (row === undefined) {
+      throw new Error("Bracket node not found");
+    }
+
+    const stageId = text(row, "stage_id");
+    const stage = this.getStageSummaryById(stageId);
+
+    if (stage === undefined) {
+      throw new Error("Stage not found");
+    }
+
+    const config = parseJson<{ boType?: SeriesSummary["boType"] }>(this.stageConfigJson(stageId), {});
+    const boType = config.boType ?? "BO3";
+    const scheduledAt = new Date().toISOString();
+    const roundIds = this.roundIdsByBracketNodeRound(stageId);
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.completeBracketNode(nodeId, winnerTeamId, boType, scheduledAt, roundIds, true);
+      this.autoAdvanceBracketByes(stageId, boType, scheduledAt, roundIds);
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.getStageBracket(stageId) ?? [];
   }
 
   updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput): SeriesSummary {
@@ -1652,6 +1864,318 @@ export class SqliteTournamentRepository {
       nextRunAt: null,
       updatedAt: new Date().toISOString(),
     };
+  }
+
+  private insertSeries(input: Required<CreateSeriesInput> & { status: SeriesSummary["status"] }): string {
+    const id = uniqueId(
+      "series",
+      `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}-${input.radiantTeamId}-${input.direTeamId}-${input.roundId}`,
+    );
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO series (
+            id, round_id, stage_id, bo_type, status, scheduled_at, radiant_team_id, dire_team_id
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        id,
+        input.roundId,
+        input.stageId,
+        input.boType,
+        input.status,
+        input.scheduledAt,
+        input.radiantTeamId,
+        input.direTeamId,
+      );
+
+    const gameCount = gameCountForBo(input.boType);
+    const gameInsert = this.database.prepare(`
+      INSERT INTO series_games (id, series_id, game_index)
+      VALUES (?, ?, ?)
+    `);
+
+    for (let gameIndex = 1; gameIndex <= gameCount; gameIndex += 1) {
+      gameInsert.run(`${id}_g${gameIndex}`, id, gameIndex);
+    }
+
+    return id;
+  }
+
+  private createReadyBracketSeries(
+    stageId: string,
+    boType: SeriesSummary["boType"],
+    scheduledAt: string,
+    roundIds?: Map<string, string>,
+  ): void {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT id, bracket_group, round_number, round_name, radiant_team_id, dire_team_id, series_id
+          FROM bracket_nodes
+          WHERE stage_id = ?
+            AND winner_team_id IS NULL
+            AND series_id IS NULL
+            AND radiant_team_id IS NOT NULL
+            AND dire_team_id IS NOT NULL
+        `,
+      )
+      .all(stageId);
+
+    for (const row of rows) {
+      const roundId =
+        roundIds?.get(bracketRoundKey(text(row, "bracket_group") as BracketNode["bracketGroup"], numberValue(row, "round_number"))) ??
+        this.roundIdForBracketNode(stageId, numberValue(row, "round_number"));
+
+      if (roundId === null) {
+        throw new Error("Round not found for bracket node");
+      }
+
+      const seriesId = this.insertSeries({
+        stageId,
+        roundId,
+        boType,
+        status: "draft",
+        scheduledAt,
+        radiantTeamId: text(row, "radiant_team_id"),
+        direTeamId: text(row, "dire_team_id"),
+      });
+
+      this.database
+        .prepare(
+          `
+            UPDATE bracket_nodes
+            SET
+              series_id = ?,
+              status = 'scheduled',
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(seriesId, text(row, "id"));
+    }
+  }
+
+  private autoAdvanceBracketByes(
+    stageId: string,
+    boType: SeriesSummary["boType"],
+    scheduledAt: string,
+    roundIds?: Map<string, string>,
+  ): void {
+    let advanced = true;
+
+    while (advanced) {
+      advanced = false;
+      const rows = this.database
+        .prepare(
+          `
+            SELECT id, radiant_team_id, dire_team_id
+            FROM bracket_nodes
+            WHERE stage_id = ?
+              AND winner_team_id IS NULL
+              AND series_id IS NULL
+              AND (
+                (radiant_team_id IS NOT NULL AND dire_team_id IS NULL)
+                OR (radiant_team_id IS NULL AND dire_team_id IS NOT NULL)
+              )
+            ORDER BY round_number ASC, position ASC
+          `,
+        )
+        .all(stageId);
+
+      for (const row of rows) {
+        const winnerTeamId = nullableText(row, "radiant_team_id") ?? nullableText(row, "dire_team_id");
+
+        if (winnerTeamId !== null) {
+          this.completeBracketNode(text(row, "id"), winnerTeamId, boType, scheduledAt, roundIds, false);
+          advanced = true;
+        }
+      }
+    }
+  }
+
+  private completeBracketNode(
+    nodeId: string,
+    winnerTeamId: string,
+    boType: SeriesSummary["boType"],
+    scheduledAt: string,
+    roundIds: Map<string, string> | undefined,
+    updateSeries: boolean,
+  ): void {
+    const row = this.getBracketNodeRow(nodeId);
+
+    if (row === undefined) {
+      throw new Error("Bracket node not found");
+    }
+
+    const radiantTeamId = nullableText(row, "radiant_team_id");
+    const direTeamId = nullableText(row, "dire_team_id");
+
+    if (winnerTeamId !== radiantTeamId && winnerTeamId !== direTeamId) {
+      throw new Error("winnerTeamId must be one of the bracket node teams");
+    }
+
+    if (nullableText(row, "winner_team_id") !== null) {
+      throw new Error("Bracket node already has a winner");
+    }
+
+    const loserTeamId = winnerTeamId === radiantTeamId ? direTeamId : radiantTeamId;
+    const seriesId = nullableText(row, "series_id");
+
+    if (updateSeries && seriesId !== null) {
+      this.markSeriesWinner(seriesId, winnerTeamId);
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE bracket_nodes
+          SET
+            winner_team_id = ?,
+            status = 'completed',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(winnerTeamId, nodeId);
+
+    const stageId = text(row, "stage_id");
+    const nextNodeId = nullableText(row, "next_node_id");
+    const nextSlot = nullableText(row, "next_slot") as BracketSlot | null;
+
+    if (nextNodeId !== null && nextSlot !== null) {
+      this.assignTeamToBracketNode(nextNodeId, nextSlot, winnerTeamId, boType, scheduledAt, roundIds);
+    }
+
+    const loserNextNodeId = nullableText(row, "loser_next_node_id");
+    const loserNextSlot = nullableText(row, "loser_next_slot") as BracketSlot | null;
+
+    if (loserTeamId !== null && loserNextNodeId !== null && loserNextSlot !== null) {
+      this.assignTeamToBracketNode(loserNextNodeId, loserNextSlot, loserTeamId, boType, scheduledAt, roundIds);
+    }
+
+    this.createReadyBracketSeries(stageId, boType, scheduledAt, roundIds);
+  }
+
+  private assignTeamToBracketNode(
+    nodeId: string,
+    slot: BracketSlot,
+    teamId: string,
+    boType: SeriesSummary["boType"],
+    scheduledAt: string,
+    roundIds: Map<string, string> | undefined,
+  ): void {
+    const column = slot === "radiant" ? "radiant_team_id" : "dire_team_id";
+    const row = this.getBracketNodeRow(nodeId);
+
+    if (row === undefined) {
+      throw new Error("Next bracket node not found");
+    }
+
+    const currentTeamId = nullableText(row, column);
+
+    if (currentTeamId !== null && currentTeamId !== teamId) {
+      throw new Error("Bracket slot already contains another team");
+    }
+
+    if (currentTeamId === teamId) {
+      return;
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE bracket_nodes
+          SET
+            ${column} = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(teamId, nodeId);
+
+    this.createReadyBracketSeries(text(row, "stage_id"), boType, scheduledAt, roundIds);
+  }
+
+  private markSeriesWinner(seriesId: string, winnerTeamId: string): void {
+    const series = this.getSeriesById(seriesId);
+
+    if (series === undefined) {
+      throw new Error("Series not found");
+    }
+
+    if (winnerTeamId !== series.radiantTeam.id && winnerTeamId !== series.direTeam.id) {
+      throw new Error("winnerTeamId must be one of the series teams");
+    }
+
+    const requiredWins = Math.floor(gameCountForBo(series.boType) / 2) + 1;
+    const radiantScore = winnerTeamId === series.radiantTeam.id ? requiredWins : 0;
+    const direScore = winnerTeamId === series.direTeam.id ? requiredWins : 0;
+
+    this.database
+      .prepare(
+        `
+          UPDATE series
+          SET
+            radiant_score = ?,
+            dire_score = ?,
+            winner_team_id = ?,
+            status = 'completed',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(radiantScore, direScore, winnerTeamId, seriesId);
+    this.database
+      .prepare(
+        `
+          UPDATE series_games
+          SET
+            winner_team_id = CASE WHEN game_index <= ? THEN ? ELSE winner_team_id END,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE series_id = ?
+        `,
+      )
+      .run(requiredWins, winnerTeamId, seriesId);
+  }
+
+  private getBracketNodeRow(nodeId: string): DbRow | undefined {
+    return this.database.prepare("SELECT * FROM bracket_nodes WHERE id = ?").get(nodeId);
+  }
+
+  private stageConfigJson(stageId: string): string {
+    const row = this.database.prepare("SELECT config_json FROM stages WHERE id = ?").get(stageId);
+
+    return row === undefined ? "{}" : text(row, "config_json");
+  }
+
+  private roundIdsByBracketNodeRound(stageId: string): Map<string, string> {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT DISTINCT bn.bracket_group, bn.round_number, r.id AS round_id
+          FROM bracket_nodes bn
+          JOIN rounds r ON r.stage_id = bn.stage_id AND r.round_number = bn.round_number
+          WHERE bn.stage_id = ?
+        `,
+      )
+      .all(stageId);
+    const roundIds = new Map<string, string>();
+
+    for (const row of rows) {
+      roundIds.set(bracketRoundKey(text(row, "bracket_group") as BracketNode["bracketGroup"], numberValue(row, "round_number")), text(row, "round_id"));
+    }
+
+    return roundIds;
+  }
+
+  private roundIdForBracketNode(stageId: string, roundNumber: number): string | null {
+    const row = this.database.prepare("SELECT id FROM rounds WHERE stage_id = ? AND round_number = ?").get(stageId, roundNumber);
+
+    return row === undefined ? null : text(row, "id");
   }
 
   private uniqueSlug(name: string, opendotaLeagueId: number): string {
@@ -3139,6 +3663,248 @@ export class SqliteTournamentRepository {
         direScore: nullableNumber(row, "dire_score"),
       }));
   }
+}
+
+type BracketRoundSpec = {
+  key: string;
+  bracketGroup: BracketNode["bracketGroup"];
+  roundNumber: number;
+  name: string;
+};
+
+type BracketNodeDraft = {
+  key: string;
+  bracketGroup: BracketNode["bracketGroup"];
+  roundNumber: number;
+  roundName: string;
+  position: number;
+  radiantTeamId: string | null;
+  direTeamId: string | null;
+  nextNodeKey: string | null;
+  nextSlot: BracketSlot | null;
+  loserNextNodeKey: string | null;
+  loserNextSlot: BracketSlot | null;
+};
+
+function singleEliminationRoundSpecs(bracketSize: number): BracketRoundSpec[] {
+  const roundCount = Math.log2(bracketSize);
+
+  return Array.from({ length: roundCount }, (_, index) => {
+    const roundNumber = index + 1;
+
+    return {
+      key: bracketRoundKey("single", roundNumber),
+      bracketGroup: "single",
+      roundNumber,
+      name: roundNumber === roundCount ? "决赛" : roundNumber === roundCount - 1 ? "半决赛" : `淘汰赛第 ${roundNumber} 轮`,
+    };
+  });
+}
+
+function doubleEliminationRoundSpecs(bracketSize: number): BracketRoundSpec[] {
+  const winnerRoundCount = Math.log2(bracketSize);
+  const loserRoundCount = Math.max(1, (winnerRoundCount - 1) * 2);
+  const rounds: BracketRoundSpec[] = [];
+  let roundNumber = 1;
+
+  for (let index = 1; index <= winnerRoundCount; index += 1) {
+    rounds.push({
+      key: bracketRoundKey("winner", index),
+      bracketGroup: "winner",
+      roundNumber,
+      name: index === winnerRoundCount ? "胜者组决赛" : `胜者组第 ${index} 轮`,
+    });
+    roundNumber += 1;
+  }
+
+  for (let index = 1; index <= loserRoundCount; index += 1) {
+    rounds.push({
+      key: bracketRoundKey("loser", index),
+      bracketGroup: "loser",
+      roundNumber,
+      name: index === loserRoundCount ? "败者组决赛" : `败者组第 ${index} 轮`,
+    });
+    roundNumber += 1;
+  }
+
+  rounds.push({
+    key: bracketRoundKey("grand_final", 1),
+    bracketGroup: "grand_final",
+    roundNumber,
+    name: "总决赛",
+  });
+
+  return rounds;
+}
+
+function singleEliminationNodeDrafts(bracketSize: number, teamIds: string[]): BracketNodeDraft[] {
+  const seedSlots = seedSlotOrder(bracketSize).map((seed) => teamIds[seed - 1] ?? null);
+  const roundCount = Math.log2(bracketSize);
+  const specs = singleEliminationRoundSpecs(bracketSize);
+  const drafts: BracketNodeDraft[] = [];
+
+  for (let roundIndex = 1; roundIndex <= roundCount; roundIndex += 1) {
+    const nodeCount = bracketSize / 2 ** roundIndex;
+    const spec = specs[roundIndex - 1];
+
+    if (spec === undefined) {
+      continue;
+    }
+
+    for (let position = 1; position <= nodeCount; position += 1) {
+      const slotIndex = (position - 1) * 2;
+      drafts.push({
+        key: bracketNodeKey("single", roundIndex, position),
+        bracketGroup: "single",
+        roundNumber: spec.roundNumber,
+        roundName: spec.name,
+        position,
+        radiantTeamId: roundIndex === 1 ? seedSlots[slotIndex] ?? null : null,
+        direTeamId: roundIndex === 1 ? seedSlots[slotIndex + 1] ?? null : null,
+        nextNodeKey: roundIndex === roundCount ? null : bracketNodeKey("single", roundIndex + 1, Math.ceil(position / 2)),
+        nextSlot: roundIndex === roundCount ? null : position % 2 === 1 ? "radiant" : "dire",
+        loserNextNodeKey: null,
+        loserNextSlot: null,
+      });
+    }
+  }
+
+  return drafts;
+}
+
+function doubleEliminationNodeDrafts(bracketSize: number, teamIds: string[]): BracketNodeDraft[] {
+  const seedSlots = seedSlotOrder(bracketSize).map((seed) => teamIds[seed - 1] ?? null);
+  const winnerRoundCount = Math.log2(bracketSize);
+  const loserRoundCount = Math.max(1, (winnerRoundCount - 1) * 2);
+  const specs = new Map(doubleEliminationRoundSpecs(bracketSize).map((round) => [round.key, round]));
+  const drafts: BracketNodeDraft[] = [];
+
+  for (let roundIndex = 1; roundIndex <= winnerRoundCount; roundIndex += 1) {
+    const nodeCount = bracketSize / 2 ** roundIndex;
+    const spec = specs.get(bracketRoundKey("winner", roundIndex));
+
+    if (spec === undefined) {
+      continue;
+    }
+
+    for (let position = 1; position <= nodeCount; position += 1) {
+      const slotIndex = (position - 1) * 2;
+      const isWinnerFinal = roundIndex === winnerRoundCount;
+      const loserRoundIndex = roundIndex === 1 ? 1 : Math.min(loserRoundCount, (roundIndex - 1) * 2);
+
+      drafts.push({
+        key: bracketNodeKey("winner", roundIndex, position),
+        bracketGroup: "winner",
+        roundNumber: spec.roundNumber,
+        roundName: spec.name,
+        position,
+        radiantTeamId: roundIndex === 1 ? seedSlots[slotIndex] ?? null : null,
+        direTeamId: roundIndex === 1 ? seedSlots[slotIndex + 1] ?? null : null,
+        nextNodeKey: isWinnerFinal
+          ? bracketNodeKey("grand_final", 1, 1)
+          : bracketNodeKey("winner", roundIndex + 1, Math.ceil(position / 2)),
+        nextSlot: isWinnerFinal ? "radiant" : position % 2 === 1 ? "radiant" : "dire",
+        loserNextNodeKey:
+          roundIndex === 1
+            ? bracketNodeKey("loser", 1, Math.ceil(position / 2))
+            : bracketNodeKey("loser", loserRoundIndex, position),
+        loserNextSlot: roundIndex === 1 ? (position % 2 === 1 ? "radiant" : "dire") : "dire",
+      });
+    }
+  }
+
+  for (let roundIndex = 1; roundIndex <= loserRoundCount; roundIndex += 1) {
+    const spec = specs.get(bracketRoundKey("loser", roundIndex));
+    const nodeCount = bracketSize / 2 ** (Math.floor((roundIndex + 1) / 2) + 1);
+
+    if (spec === undefined) {
+      continue;
+    }
+
+    for (let position = 1; position <= nodeCount; position += 1) {
+      const isLoserFinal = roundIndex === loserRoundCount;
+      drafts.push({
+        key: bracketNodeKey("loser", roundIndex, position),
+        bracketGroup: "loser",
+        roundNumber: spec.roundNumber,
+        roundName: spec.name,
+        position,
+        radiantTeamId: null,
+        direTeamId: null,
+        nextNodeKey: isLoserFinal
+          ? bracketNodeKey("grand_final", 1, 1)
+          : bracketNodeKey(
+              "loser",
+              roundIndex + 1,
+              roundIndex % 2 === 1 ? position : Math.ceil(position / 2),
+            ),
+        nextSlot: isLoserFinal ? "dire" : roundIndex % 2 === 1 ? "radiant" : position % 2 === 1 ? "radiant" : "dire",
+        loserNextNodeKey: null,
+        loserNextSlot: null,
+      });
+    }
+  }
+
+  const grandFinal = specs.get(bracketRoundKey("grand_final", 1));
+
+  if (grandFinal !== undefined) {
+    drafts.push({
+      key: bracketNodeKey("grand_final", 1, 1),
+      bracketGroup: "grand_final",
+      roundNumber: grandFinal.roundNumber,
+      roundName: grandFinal.name,
+      position: 1,
+      radiantTeamId: null,
+      direTeamId: null,
+      nextNodeKey: null,
+      nextSlot: null,
+      loserNextNodeKey: null,
+      loserNextSlot: null,
+    });
+  }
+
+  return drafts;
+}
+
+function bracketRoundKey(group: BracketNode["bracketGroup"], roundNumber: number): string {
+  return `${group}:${roundNumber}`;
+}
+
+function bracketNodeKey(group: BracketNode["bracketGroup"], roundNumber: number, position: number): string {
+  return `${group}:${roundNumber}:${position}`;
+}
+
+function seedSlotOrder(size: number): number[] {
+  if (size === 4) {
+    return [1, 4, 2, 3];
+  }
+
+  if (size === 8) {
+    return [1, 8, 4, 5, 2, 7, 3, 6];
+  }
+
+  return [1, 16, 8, 9, 4, 13, 5, 12, 2, 15, 7, 10, 3, 14, 6, 11];
+}
+
+function normalizeBracketSize(value: number | undefined, teamCount: number): number {
+  const requestedSize = value === undefined ? nextPowerOfTwo(teamCount) : value <= 4 ? 4 : value <= 8 ? 8 : 16;
+  const requiredSize = nextPowerOfTwo(Math.max(2, teamCount));
+
+  return Math.max(4, Math.min(16, Math.max(requestedSize, requiredSize)));
+}
+
+function nextPowerOfTwo(value: number): number {
+  let size = 1;
+
+  while (size < value) {
+    size *= 2;
+  }
+
+  return size;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
 }
 
 function roundFromRow(row: DbRow): RoundBrief {

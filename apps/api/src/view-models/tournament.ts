@@ -79,12 +79,17 @@ export type StageRound = RoundBrief & {
 export type BracketNode = {
   id: string;
   stageId: string;
+  bracketGroup: "single" | "winner" | "loser" | "grand_final";
   roundNumber: number;
   roundName: string;
   position: number;
   status: "pending" | "scheduled" | "completed";
+  radiantTeam: TeamBrief | null;
+  direTeam: TeamBrief | null;
   series: SeriesSummary | null;
   nextNodeId: string | null;
   nextSlot: "radiant" | "dire" | null;
+  loserNextNodeId: string | null;
+  loserNextSlot: "radiant" | "dire" | null;
   winnerTeamId: string | null;
 };

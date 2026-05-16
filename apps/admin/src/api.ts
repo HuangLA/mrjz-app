@@ -208,13 +208,18 @@ export interface StandingRow {
 export interface BracketNode {
   id: string;
   stageId: string;
+  bracketGroup: "single" | "winner" | "loser" | "grand_final" | string;
   roundNumber: number;
   roundName: string;
   position: number;
   status: string;
+  radiantTeam: TeamBrief | null;
+  direTeam: TeamBrief | null;
   series: SeriesSummary | null;
   nextNodeId: string | null;
   nextSlot: "radiant" | "dire" | null;
+  loserNextNodeId: string | null;
+  loserNextSlot: "radiant" | "dire" | null;
   winnerTeamId: string | null;
 }
 

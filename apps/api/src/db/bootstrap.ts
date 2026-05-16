@@ -112,6 +112,11 @@ function applySchemaPatches(): void {
   ensureColumn("teams", "opendota_team_id", "INTEGER");
   ensureColumn("teams", "source", "TEXT NOT NULL DEFAULT 'manual'");
   ensureColumn("players", "steam_id64", "TEXT");
+  ensureColumn("bracket_nodes", "bracket_group", "TEXT NOT NULL DEFAULT 'single'");
+  ensureColumn("bracket_nodes", "radiant_team_id", "TEXT");
+  ensureColumn("bracket_nodes", "dire_team_id", "TEXT");
+  ensureColumn("bracket_nodes", "loser_next_node_id", "TEXT");
+  ensureColumn("bracket_nodes", "loser_next_slot", "TEXT");
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
   ensureEntityTables();

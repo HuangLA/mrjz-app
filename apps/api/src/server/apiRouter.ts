@@ -1,4 +1,6 @@
 import {
+  advanceBracketNode,
+  createKnockoutBracket,
   createRound,
   createSeries,
   createStage,
@@ -147,6 +149,15 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(team);
+  });
+
+  router.post("/api/tournaments/:id/knockout-bracket", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createKnockoutBracket(params.id ?? "", bodyToCreateKnockoutBracketInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
   });
 
   router.post("/api/tournaments/:id/opendota-matches/:matchId/link-series", async ({ request, params }) => {
@@ -319,6 +330,15 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
   });
 
+  router.post("/api/bracket-nodes/:nodeId/winner", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(advanceBracketNode(params.nodeId ?? "", bodyToAdvanceBracketNodeInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.post("/api/sync-tasks", async ({ request }) => {
     try {
       const body = await readJsonBody(request);
@@ -340,6 +360,35 @@ function bodyToCreateTeamInput(body: Record<string, unknown>) {
     opendotaTeamId: optionalNumberOrNullField(body, "opendotaTeamId"),
     tournamentId: optionalStringField(body, "tournamentId"),
   }) as Parameters<typeof createTeam>[0];
+}
+
+function bodyToCreateKnockoutBracketInput(body: Record<string, unknown>) {
+  const bracketType = optionalStringField(body, "bracketType") ?? "single_elimination";
+
+  if (!["single_elimination", "double_elimination"].includes(bracketType)) {
+    throw new Error("bracketType must be single_elimination or double_elimination");
+  }
+
+  const boType = optionalStringField(body, "boType") ?? "BO3";
+
+  if (!["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
+    throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  return withoutUndefined({
+    name: optionalStringField(body, "name"),
+    bracketType: bracketType as "single_elimination" | "double_elimination",
+    bracketSize: optionalNumberField(body, "bracketSize"),
+    boType: boType as "BO1" | "BO2" | "BO3" | "BO5",
+    scheduledAt: optionalStringField(body, "scheduledAt"),
+    teamIds: stringArrayField(body, "teamIds"),
+  }) as Parameters<typeof createKnockoutBracket>[1];
+}
+
+function bodyToAdvanceBracketNodeInput(body: Record<string, unknown>) {
+  return {
+    winnerTeamId: stringField(body, "winnerTeamId"),
+  } satisfies Parameters<typeof advanceBracketNode>[1];
 }
 
 async function resolveTeamMemberProfile(input: Parameters<typeof addTeamMember>[0]): Promise<Parameters<typeof addTeamMember>[0]> {
@@ -551,6 +600,16 @@ function optionalStringField(body: Record<string, unknown>, fieldName: string): 
   const value = body[fieldName];
 
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function stringArrayField(body: Record<string, unknown>, fieldName: string): string[] {
+  const value = body[fieldName];
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${fieldName} must be an array`);
+  }
+
+  return value.flatMap((item) => (typeof item === "string" && item.trim().length > 0 ? [item.trim()] : []));
 }
 
 function optionalStringOrNullField(body: Record<string, unknown>, fieldName: string): string | null | undefined {
