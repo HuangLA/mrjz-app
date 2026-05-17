@@ -24,14 +24,21 @@ import {
   type UpsertOpenDotaMatchInput,
   type AddTeamMemberInput,
   type AdvanceBracketNodeInput,
+  type AddStageGroupTeamInput,
+  type ClearTournamentMatchRecordsResult,
+  type CreateStageGroupInput,
   type KnockoutBracketResult,
   type RemoveTeamMemberInput,
+  type UpdateStageGroupInput,
+  type UpdateSeriesInput,
+  type UpdateSeriesResultInput,
   type UpdateTeamInput,
   type EntityBackfillSummary,
   type SteamPlayerProfileInput,
 } from "./sqliteRepository.js";
 import type {
   BracketNode,
+  StageGroup,
   StageRound,
   StandingRow,
   TournamentDetail,
@@ -74,10 +81,20 @@ type Repository = {
   addTeamMember(input: AddTeamMemberInput): unknown;
   removeTeamMember(input: RemoveTeamMemberInput): unknown;
   createStage(input: CreateStageInput): unknown;
+  listStageGroups(stageId: string): StageGroup[] | undefined;
+  createStageGroup(input: CreateStageGroupInput): StageGroup;
+  updateStageGroup(groupId: string, input: UpdateStageGroupInput): StageGroup;
+  deleteStageGroup(groupId: string): { deleted: true; groupId: string };
+  addStageGroupTeam(input: AddStageGroupTeamInput): StageGroup;
+  removeStageGroupTeam(groupId: string, teamId: string): StageGroup;
   createKnockoutBracket(tournamentId: string, input: CreateKnockoutBracketInput): KnockoutBracketResult;
   advanceBracketNode(nodeId: string, input: AdvanceBracketNodeInput): BracketNode[];
   createRound(input: CreateRoundInput): unknown;
   createSeries(input: CreateSeriesInput): unknown;
+  updateSeries(seriesId: string, input: UpdateSeriesInput): unknown;
+  updateSeriesResult(seriesId: string, input: UpdateSeriesResultInput): unknown;
+  deleteSeries(seriesId: string): { deleted: true; seriesId: string };
+  clearTournamentMatchRecords(tournamentId: string): ClearTournamentMatchRecordsResult;
   updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput): unknown;
   linkOpenDotaMatchToSeries(tournamentId: string, matchId: number, input: LinkOpenDotaMatchInput): unknown;
   createSyncTask(input: CreateSyncTaskInput): SyncTaskView;
@@ -201,6 +218,30 @@ export function createStage(input: CreateStageInput) {
   return repository.createStage(input);
 }
 
+export function listStageGroups(stageId: string) {
+  return repository.listStageGroups(stageId);
+}
+
+export function createStageGroup(input: CreateStageGroupInput) {
+  return repository.createStageGroup(input);
+}
+
+export function updateStageGroup(groupId: string, input: UpdateStageGroupInput) {
+  return repository.updateStageGroup(groupId, input);
+}
+
+export function deleteStageGroup(groupId: string) {
+  return repository.deleteStageGroup(groupId);
+}
+
+export function addStageGroupTeam(input: AddStageGroupTeamInput) {
+  return repository.addStageGroupTeam(input);
+}
+
+export function removeStageGroupTeam(groupId: string, teamId: string) {
+  return repository.removeStageGroupTeam(groupId, teamId);
+}
+
 export function createKnockoutBracket(tournamentId: string, input: CreateKnockoutBracketInput) {
   return repository.createKnockoutBracket(tournamentId, input);
 }
@@ -215,6 +256,22 @@ export function createRound(input: CreateRoundInput) {
 
 export function createSeries(input: CreateSeriesInput) {
   return repository.createSeries(input);
+}
+
+export function updateSeries(seriesId: string, input: UpdateSeriesInput) {
+  return repository.updateSeries(seriesId, input);
+}
+
+export function updateSeriesResult(seriesId: string, input: UpdateSeriesResultInput) {
+  return repository.updateSeriesResult(seriesId, input);
+}
+
+export function deleteSeries(seriesId: string) {
+  return repository.deleteSeries(seriesId);
+}
+
+export function clearTournamentMatchRecords(tournamentId: string) {
+  return repository.clearTournamentMatchRecords(tournamentId);
 }
 
 export function updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput) {

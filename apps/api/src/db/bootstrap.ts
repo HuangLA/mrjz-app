@@ -117,8 +117,10 @@ function applySchemaPatches(): void {
   ensureColumn("bracket_nodes", "dire_team_id", "TEXT");
   ensureColumn("bracket_nodes", "loser_next_node_id", "TEXT");
   ensureColumn("bracket_nodes", "loser_next_slot", "TEXT");
+  ensureColumn("series", "group_id", "TEXT");
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
+  database.exec("CREATE INDEX IF NOT EXISTS idx_series_group ON series(group_id);");
   ensureEntityTables();
 }
 
@@ -133,6 +135,24 @@ function ensureColumn(tableName: string, columnName: string, definition: string)
 
 function ensureEntityTables(): void {
   database.exec(`
+    CREATE TABLE IF NOT EXISTS stage_groups (
+      id TEXT PRIMARY KEY,
+      stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (stage_id, name)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS stage_group_teams (
+      group_id TEXT NOT NULL REFERENCES stage_groups(id) ON DELETE CASCADE,
+      team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      seed INTEGER,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (group_id, team_id)
+    ) STRICT;
+
     CREATE TABLE IF NOT EXISTS tournament_players (
       tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
       player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
@@ -165,6 +185,8 @@ function ensureEntityTables(): void {
     ) STRICT;
 
     CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
+    CREATE INDEX IF NOT EXISTS idx_stage_groups_stage ON stage_groups(stage_id);
+    CREATE INDEX IF NOT EXISTS idx_stage_group_teams_team ON stage_group_teams(team_id);
   `);
 }
 

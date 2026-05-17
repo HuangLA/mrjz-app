@@ -166,6 +166,16 @@ export interface StandingRow {
   status: "晋级区" | "观察区" | "淘汰区";
 }
 
+export interface BracketPreviewNode {
+  roundName: string;
+  groupName: string;
+  position: number;
+  topTeam: string;
+  bottomTeam: string;
+  winner: string;
+  status: string;
+}
+
 export interface StageView {
   key: StageKey;
   name: string;
@@ -173,6 +183,7 @@ export interface StageView {
   currentRound: string;
   note: string;
   standings: StandingRow[];
+  bracket: BracketPreviewNode[];
 }
 
 export interface ScheduleGroup {

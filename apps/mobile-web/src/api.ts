@@ -1,5 +1,6 @@
 import type {
   AghanimState,
+  BracketPreviewNode,
   ComparisonMetric,
   DraftStep,
   HeroPickSummary,
@@ -187,6 +188,8 @@ type ApiSeries = {
   id: string;
   roundId?: string;
   stageId?: string;
+  groupId?: string | null;
+  groupName?: string | null;
   boType?: string;
   status?: string;
   scheduledAt?: string;
@@ -201,6 +204,20 @@ type ApiSeries = {
     radiantScore?: number | null;
     direScore?: number | null;
   }>;
+};
+
+type ApiBracketNode = {
+  id: string;
+  stageId?: string;
+  bracketGroup?: "single" | "winner" | "loser" | "grand_final" | string;
+  roundNumber?: number;
+  roundName?: string;
+  position?: number;
+  status?: string;
+  radiantTeam?: ApiTeam | null;
+  direTeam?: ApiTeam | null;
+  series?: ApiSeries | null;
+  winnerTeamId?: string | null;
 };
 
 type ApiStanding = {
@@ -538,16 +555,17 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
   const stages = tournament.stages?.length ? tournament.stages : [tournament.currentStage].filter(isDefined);
   const stagePayloads = await Promise.all(
     stages.map(async (stage) => {
-      const [standings, rounds] = await Promise.all([
+      const [standings, rounds, bracket] = await Promise.all([
         fetchApi<ApiStanding[]>(apiBaseUrl, `/stages/${stage.id}/standings`).catch(() => null),
         fetchApi<ApiRound[]>(apiBaseUrl, `/stages/${stage.id}/rounds`).catch(() => null),
+        fetchApi<ApiBracketNode[]>(apiBaseUrl, `/stages/${stage.id}/bracket`).catch(() => null),
       ]);
 
-      return { stage, standings, rounds };
+      return { stage, standings, rounds, bracket };
     }),
   );
 
-  const scheduleGroups = normalizeScheduleGroups(stagePayloads.flatMap((payload) => payload.rounds ?? []));
+  const scheduleGroups = normalizeScheduleGroups(stagePayloads);
   const matchRecords = await fetchApi<ApiMatchRecord[]>(
     apiBaseUrl,
     `/tournaments/${selectedTournamentId}/matches?limit=80`,
@@ -1001,7 +1019,7 @@ function normalizeTournamentMeta(tournament: ApiTournament): TournamentMeta {
 }
 
 function normalizeStageViews(
-  payloads: Array<{ stage: ApiStage; standings: ApiStanding[] | null; rounds: ApiRound[] | null }>,
+  payloads: Array<{ stage: ApiStage; standings: ApiStanding[] | null; rounds: ApiRound[] | null; bracket: ApiBracketNode[] | null }>,
 ): Record<StageKey, StageView> {
   const next = emptyStageViews();
 
@@ -1021,6 +1039,7 @@ function normalizeStageViews(
       currentRound: activeRound?.name ?? next[stageKey].currentRound,
       note: payload.stage.advancementRule ?? next[stageKey].note,
       standings: payload.standings?.map(normalizeStanding).sort((a, b) => a.rank - b.rank) ?? [],
+      bracket: payload.bracket?.map(normalizeBracketNode) ?? [],
     };
   }
 
@@ -1036,6 +1055,7 @@ function emptyStageViews(): Record<StageKey, StageView> {
       currentRound: "暂无轮次",
       note: "管理员尚未录入小组赛阶段。",
       standings: [],
+      bracket: [],
     },
     swiss: {
       key: "swiss",
@@ -1044,6 +1064,7 @@ function emptyStageViews(): Record<StageKey, StageView> {
       currentRound: "暂无轮次",
       note: "管理员尚未录入瑞士轮阶段。",
       standings: [],
+      bracket: [],
     },
     knockout: {
       key: "knockout",
@@ -1052,6 +1073,7 @@ function emptyStageViews(): Record<StageKey, StageView> {
       currentRound: "暂无轮次",
       note: "管理员尚未录入淘汰赛阶段。",
       standings: [],
+      bracket: [],
     },
   };
 }
@@ -1071,9 +1093,35 @@ function normalizeStanding(row: ApiStanding): StandingRow {
   };
 }
 
-function normalizeScheduleGroups(rounds: ApiRound[]): ScheduleGroup[] {
-  const items = rounds.flatMap((round) =>
-    (round.series ?? []).map((series) => normalizeScheduleItem(round, series)).filter(isDefined),
+function normalizeBracketNode(node: ApiBracketNode): BracketPreviewNode {
+  const topTeam = node.radiantTeam ?? node.series?.radiantTeam ?? null;
+  const bottomTeam = node.direTeam ?? node.series?.direTeam ?? null;
+  const winnerId = node.winnerTeamId ?? null;
+  const winner =
+    winnerId === topTeam?.id
+      ? topTeam.name ?? "待定"
+      : winnerId === bottomTeam?.id
+        ? bottomTeam.name ?? "待定"
+        : "待定";
+
+  return {
+    roundName: node.roundName ?? `第 ${node.roundNumber ?? "-"} 轮`,
+    groupName: bracketGroupText(node.bracketGroup),
+    position: node.position ?? 0,
+    topTeam: topTeam?.name ?? "待定",
+    bottomTeam: bottomTeam?.name ?? "待定",
+    winner,
+    status: node.winnerTeamId ? "已完赛" : node.status === "scheduled" ? "待开赛" : "待定",
+  };
+}
+
+function normalizeScheduleGroups(
+  payloads: Array<{ stage: ApiStage; rounds: ApiRound[] | null }>,
+): ScheduleGroup[] {
+  const items = payloads.flatMap((payload) =>
+    (payload.rounds ?? []).flatMap((round) =>
+      (round.series ?? []).map((series) => normalizeScheduleItem(payload.stage, round, series)).filter(isDefined),
+    ),
   );
   const byDate = new Map<string, ScheduleItem[]>();
 
@@ -1090,7 +1138,7 @@ function normalizeScheduleGroups(rounds: ApiRound[]): ScheduleGroup[] {
   }));
 }
 
-function normalizeScheduleItem(round: ApiRound, series: ApiSeries): (ScheduleItem & { timeDate: string }) | null {
+function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeries): (ScheduleItem & { timeDate: string }) | null {
   const scheduledAt = series.scheduledAt ? new Date(series.scheduledAt) : null;
   const date = scheduledAt === null || Number.isNaN(scheduledAt.getTime()) ? "待定日期" : formatDate(scheduledAt);
   const time = scheduledAt === null || Number.isNaN(scheduledAt.getTime()) ? "--:--" : formatTime(scheduledAt);
@@ -1103,8 +1151,8 @@ function normalizeScheduleItem(round: ApiRound, series: ApiSeries): (ScheduleIte
   const item: ScheduleItem & { timeDate: string } = {
     time,
     timeDate: date,
-    stage: stageNameFromId(series.stageId ?? round.stageId),
-    round: round.name ?? `R${round.roundNumber ?? "-"}`,
+    stage: stage.name ?? stageNameFromId(series.stageId ?? round.stageId),
+    round: [series.groupName, round.name ?? `R${round.roundNumber ?? "-"}`].filter(Boolean).join(" · "),
     teamA: series.radiantTeam?.name ?? "待定",
     teamB: series.direTeam?.name ?? "待定",
     bo: series.boType ?? "BO1",
@@ -1594,6 +1642,21 @@ function stageNameFromId(stageId: string): string {
     return "小组赛";
   }
   return "赛事阶段";
+}
+
+function bracketGroupText(group: string | undefined): string {
+  switch (group) {
+    case "single":
+      return "单败";
+    case "winner":
+      return "胜者组";
+    case "loser":
+      return "败者组";
+    case "grand_final":
+      return "总决赛";
+    default:
+      return "淘汰赛";
+  }
 }
 
 function laneRoleText(laneRole: number | null | undefined): string {

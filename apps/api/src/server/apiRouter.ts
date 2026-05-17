@@ -1,15 +1,21 @@
 import {
   advanceBracketNode,
+  addStageGroupTeam,
   createKnockoutBracket,
   createRound,
   createSeries,
   createStage,
+  createStageGroup,
   createSyncTask,
   createTeam,
   createPlayer,
   createTournament,
+  clearTournamentMatchRecords,
+  deleteSeries,
+  deleteStageGroup,
   getMatchDetail,
   getStageBracket,
+  listStageGroups,
   getStageRounds,
   getStageStandings,
   getTournamentPlayerDetail,
@@ -26,9 +32,13 @@ import {
   addTeamMember,
   backfillCachedTournamentEntities,
   removeTeamMember,
+  removeStageGroupTeam,
   updateTeam,
   updateTournamentLifecycle,
+  updateSeries,
   updateSeriesGameResult,
+  updateSeriesResult,
+  updateStageGroup,
 } from "../data/repository.js";
 import { resolvePlayerProfileBySteamId } from "../opendota/playerProfiles.js";
 import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
@@ -105,6 +115,14 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(matches);
+  });
+
+  router.delete("/api/tournaments/:id/match-records", ({ params }) => {
+    try {
+      return ok(clearTournamentMatchRecords(params.id ?? ""));
+    } catch (error) {
+      return validationError(error);
+    }
   });
 
   router.get("/api/tournaments/:id/teams", ({ params }) => {
@@ -233,6 +251,16 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(bracket);
   });
 
+  router.get("/api/stages/:stageId/groups", ({ params }) => {
+    const groups = listStageGroups(params.stageId ?? "");
+
+    if (groups === undefined) {
+      return fail(404, "STAGE_NOT_FOUND", "Stage groups not found");
+    }
+
+    return ok(groups);
+  });
+
   router.get("/api/matches/:matchId", ({ params }) => {
     const match = getMatchDetail(params.matchId ?? "");
 
@@ -297,6 +325,49 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
   });
 
+  router.post("/api/stages/:stageId/groups", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createStageGroup(bodyToCreateStageGroupInput(params.stageId ?? "", body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.patch("/api/stage-groups/:groupId", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateStageGroup(params.groupId ?? "", bodyToUpdateStageGroupInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.delete("/api/stage-groups/:groupId", ({ params }) => {
+    try {
+      return ok(deleteStageGroup(params.groupId ?? ""));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/stage-groups/:groupId/teams", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(addStageGroupTeam(bodyToAddStageGroupTeamInput(params.groupId ?? "", body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.delete("/api/stage-groups/:groupId/teams/:teamId", ({ params }) => {
+    try {
+      return ok(removeStageGroupTeam(params.groupId ?? "", params.teamId ?? ""));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.post("/api/rounds", async ({ request }) => {
     try {
       const body = await readJsonBody(request);
@@ -310,6 +381,32 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     try {
       const body = await readJsonBody(request);
       return ok(createSeries(bodyToCreateSeriesInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.patch("/api/series/:seriesId", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateSeries(params.seriesId ?? "", bodyToUpdateSeriesInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.patch("/api/series/:seriesId/result", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateSeriesResult(params.seriesId ?? "", bodyToUpdateSeriesResultInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.delete("/api/series/:seriesId", ({ params }) => {
+    try {
+      return ok(deleteSeries(params.seriesId ?? ""));
     } catch (error) {
       return validationError(error);
     }
@@ -389,6 +486,29 @@ function bodyToAdvanceBracketNodeInput(body: Record<string, unknown>) {
   return {
     winnerTeamId: stringField(body, "winnerTeamId"),
   } satisfies Parameters<typeof advanceBracketNode>[1];
+}
+
+function bodyToCreateStageGroupInput(stageId: string, body: Record<string, unknown>) {
+  return withoutUndefined({
+    stageId,
+    name: stringField(body, "name"),
+    sortOrder: optionalNumberField(body, "sortOrder"),
+  }) as Parameters<typeof createStageGroup>[0];
+}
+
+function bodyToUpdateStageGroupInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    name: optionalStringField(body, "name"),
+    sortOrder: optionalNumberField(body, "sortOrder"),
+  }) as Parameters<typeof updateStageGroup>[1];
+}
+
+function bodyToAddStageGroupTeamInput(groupId: string, body: Record<string, unknown>) {
+  return withoutUndefined({
+    groupId,
+    teamId: stringField(body, "teamId"),
+    seed: optionalNumberOrNullField(body, "seed"),
+  }) as Parameters<typeof addStageGroupTeam>[0];
 }
 
 async function resolveTeamMemberProfile(input: Parameters<typeof addTeamMember>[0]): Promise<Parameters<typeof addTeamMember>[0]> {
@@ -492,6 +612,7 @@ function bodyToCreateStageInput(body: Record<string, unknown>) {
     name: stringField(body, "name"),
     advancementRule: optionalStringField(body, "advancementRule"),
     sortOrder: optionalNumberField(body, "sortOrder"),
+    config: optionalObjectField(body, "config"),
   }) as Parameters<typeof createStage>[0];
 }
 
@@ -548,12 +669,46 @@ function bodyToCreateSeriesInput(body: Record<string, unknown>) {
   return withoutUndefined({
     stageId: stringField(body, "stageId"),
     roundId: stringField(body, "roundId"),
+    groupId: optionalStringOrNullField(body, "groupId"),
     boType: boType as "BO1" | "BO2" | "BO3" | "BO5",
     status: status as Parameters<typeof createSeries>[0]["status"],
     scheduledAt: optionalStringField(body, "scheduledAt"),
     radiantTeamId: stringField(body, "radiantTeamId"),
     direTeamId: stringField(body, "direTeamId"),
   }) as Parameters<typeof createSeries>[0];
+}
+
+function bodyToUpdateSeriesInput(body: Record<string, unknown>) {
+  const boType = optionalStringField(body, "boType");
+  const status = optionalStringField(body, "status");
+
+  if (boType !== undefined && !["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
+    throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  if (
+    status !== undefined &&
+    !["draft", "scheduled", "live", "result_pending", "completed", "conflict", "postponed"].includes(status)
+  ) {
+    throw new Error("status must be a valid series status");
+  }
+
+  return withoutUndefined({
+    roundId: optionalStringField(body, "roundId"),
+    groupId: optionalStringOrNullField(body, "groupId"),
+    boType: boType as Parameters<typeof updateSeries>[1]["boType"],
+    status: status as Parameters<typeof updateSeries>[1]["status"],
+    scheduledAt: optionalStringOrNullField(body, "scheduledAt"),
+    radiantTeamId: optionalStringField(body, "radiantTeamId"),
+    direTeamId: optionalStringField(body, "direTeamId"),
+  }) as Parameters<typeof updateSeries>[1];
+}
+
+function bodyToUpdateSeriesResultInput(body: Record<string, unknown>) {
+  return {
+    radiantScore: nonNegativeIntegerField(body, "radiantScore"),
+    direScore: nonNegativeIntegerField(body, "direScore"),
+  } satisfies Parameters<typeof updateSeriesResult>[1];
 }
 
 function bodyToUpdateGameResultInput(body: Record<string, unknown>) {
@@ -646,11 +801,27 @@ function optionalNumberOrNullField(body: Record<string, unknown>, fieldName: str
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function optionalObjectField(body: Record<string, unknown>, fieldName: string): Record<string, unknown> | undefined {
+  const value = body[fieldName];
+
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
 function numberField(body: Record<string, unknown>, fieldName: string): number {
   const value = body[fieldName];
 
   if (typeof value !== "number" || !Number.isSafeInteger(value)) {
     throw new Error(`${fieldName} must be an integer`);
+  }
+
+  return value;
+}
+
+function nonNegativeIntegerField(body: Record<string, unknown>, fieldName: string): number {
+  const value = numberField(body, fieldName);
+
+  if (value < 0) {
+    throw new Error(`${fieldName} must be a non-negative integer`);
   }
 
   return value;

@@ -626,9 +626,44 @@ button {
   align-items: center;
 }
 
+.bracket-mini-board {
+  display: grid;
+  grid-auto-columns: minmax(148px, 1fr);
+  grid-auto-flow: column;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
 .bracket-column {
   display: grid;
   gap: 6px;
+}
+
+.bracket-column > strong {
+  color: #f4f7fb;
+  font-size: 10px;
+}
+
+.bracket-node {
+  display: grid;
+  gap: 4px;
+}
+
+.bracket-node b,
+.bracket-node small {
+  display: block;
+}
+
+.bracket-node b {
+  overflow-wrap: anywhere;
+  color: #f4f7fb;
+  font-size: 10px;
+}
+
+.bracket-node small {
+  color: #8e99ac;
+  font-size: 9px;
 }
 
 .bracket-rail {

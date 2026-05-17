@@ -170,6 +170,8 @@ export interface SeriesSummary {
   id: string;
   roundId: string;
   stageId: string;
+  groupId: string | null;
+  groupName: string | null;
   boType: string;
   status: string;
   scheduledAt: string;
@@ -184,6 +186,14 @@ export interface SeriesSummary {
 export interface StageRound extends RoundBrief {
   pairingStatus?: "draft" | "published" | "confirmed" | string;
   series: SeriesSummary[];
+}
+
+export interface StageGroup {
+  id: string;
+  stageId: string;
+  name: string;
+  sortOrder: number;
+  teams: TeamBrief[];
 }
 
 export interface StandingRow {

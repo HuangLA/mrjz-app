@@ -6,6 +6,7 @@ import {
   type ApiSource,
   type BracketNode,
   type OpenDotaMatchListItem,
+  type StageGroup,
   type StageRound,
   type StageSummary,
   type StandingRow,
@@ -45,6 +46,7 @@ interface LoadState {
   rounds: StageRound[];
   standings: StandingRow[];
   bracket: BracketNode[];
+  groups: StageGroup[];
   syncRows: SyncRow[];
   writeNotice: {
     tone: Tone;
@@ -149,7 +151,7 @@ const views: Array<{ key: ViewKey; label: string; hint: string }> = [
 
 let activeView: ViewKey = "overview";
 let composerState: ComposerState = {
-  mode: "swiss",
+  mode: "single_elimination",
   stageName: "",
   boType: "BO3",
   scheduledAt: "",
@@ -174,6 +176,7 @@ let state: LoadState = {
   rounds: [],
   standings: [],
   bracket: [],
+  groups: [],
   syncRows: [],
   writeNotice: null,
 };
@@ -1241,26 +1244,27 @@ function matchResultTable(matches: OpenDotaMatchListItem[], includeLink: boolean
 }
 
 function renderCompetitionComposer(): string {
-  const plan = buildCompetitionPlan();
+  const plan = buildCompetitionPlan({
+    ...composerState,
+    mode: isEliminationMode(composerState.mode) ? composerState.mode : "single_elimination",
+  });
   const selectedIds = new Set(plan.teams.map((team) => team.id));
 
   return `
     <section class="panel composer-panel">
       <div class="section-heading">
         <div>
-          <h2>赛制编排器</h2>
-          <p>基于当前届次已有队伍生成小组赛、瑞士轮或双败淘汰赛草稿；写入后仍由管理员确认发布。</p>
+          <h2>淘汰赛对阵图生成</h2>
+          <p>选择进入淘汰赛的队伍后直接生成单败或双败对阵图；后续每场只需要点选胜者。</p>
         </div>
-        <div class="toolbar">${badge(modeLabel(plan.mode), "info")}${badge(`${plan.teams.length} 队`, plan.teams.length >= 2 ? "good" : "warn")}</div>
+        <div class="toolbar">${badge(modeLabel(plan.mode), "info")}${badge(`${plan.teams.length} 支队伍`, plan.teams.length >= 2 ? "good" : "warn")}</div>
       </div>
       <div class="composer-layout">
         <form class="admin-form composer-form" data-action="generate-stage-plan">
-          <h2>创建赛制草稿</h2>
+          <h2>生成淘汰赛阶段</h2>
           <input name="tournamentId" value="${escapeHtml(state.selectedTournamentId)}" readonly />
           <div class="mode-segment" role="radiogroup" aria-label="赛制">
             ${[
-              ["swiss", "瑞士轮"],
-              ["group", "小组赛"],
               ["single_elimination", "单败制"],
               ["double_elimination", "双败制"],
             ]
@@ -1284,8 +1288,8 @@ function renderCompetitionComposer(): string {
           ${renderModeFields()}
           <div class="team-picker">
             <div>
-              <strong>参赛队伍</strong>
-              <small>默认按 seed 排序；取消勾选可临时排除退赛或未确认队伍。</small>
+              <strong>进入淘汰赛的队伍</strong>
+              <small>默认按 seed 选前 N 支，也可以手动勾选。这里显示完整队伍名称。</small>
             </div>
             <div class="team-pick-grid">
               ${sortedTeams()
@@ -1302,7 +1306,7 @@ function renderCompetitionComposer(): string {
                 .join("")}
             </div>
           </div>
-          <button class="primary-button" type="submit" ${plan.teams.length < 2 ? "disabled" : ""}>${isEliminationMode(plan.mode) ? "生成对阵图" : "生成并写入草稿"}</button>
+          <button class="primary-button" type="submit" ${plan.teams.length < 2 ? "disabled" : ""}>生成对阵图</button>
         </form>
         <div class="plan-preview">
           ${renderPlanPreview(plan)}
@@ -1642,6 +1646,115 @@ function renderWinnerForm(nodeId: string, team: BracketNode["radiantTeam"]): str
   `;
 }
 
+function renderManualStageTools(): string {
+  const stage = currentStage();
+
+  if (stage === null || stage.type === "knockout") {
+    return "";
+  }
+
+  return `
+    <section class="panel manual-stage-panel">
+      <div class="section-heading">
+        <div>
+          <h2>${escapeHtml(stage.type === "group" ? "小组赛手动管理" : "瑞士轮手动管理")}</h2>
+          <p>${escapeHtml(stage.type === "group" ? "先建任意数量的小组，再把队伍手动加入小组；对阵和结果都由管理员维护。" : "设置轮次后手动添加每轮对阵；胜负平会按 1-2-1 这种格式同步到 H5。")}</p>
+        </div>
+        ${badge("胜 3 / 平 1 / 负 0", "info")}
+      </div>
+      ${stage.type === "group" ? renderGroupManager(stage) : ""}
+      ${renderManualSeriesManager(stage)}
+    </section>
+  `;
+}
+
+function renderGroupManager(stage: StageSummary): string {
+  return `
+    <div class="manual-grid">
+      <div class="stack">
+        <form class="admin-form" data-action="create-stage-group">
+          <h2>创建小组</h2>
+          <input type="hidden" name="stageId" value="${escapeHtml(stage.id)}" />
+          <label>小组名称<input name="name" placeholder="例如 A 组" required /></label>
+          <label>排序<input name="sortOrder" inputmode="numeric" placeholder="可留空" /></label>
+          <button class="primary-button" type="submit">添加小组</button>
+        </form>
+        <form class="admin-form" data-action="add-stage-group-team">
+          <h2>把队伍加入小组</h2>
+          <label>小组<select name="groupId" required>${groupOptions()}</select></label>
+          <label>队伍<select name="teamId" required><option value="">选择完整队伍名称</option>${teamOptions()}</select></label>
+          <label>组内 seed<input name="seed" inputmode="numeric" placeholder="可留空" /></label>
+          <button class="secondary-button" type="submit" ${state.groups.length === 0 || state.teams.length === 0 ? "disabled" : ""}>加入小组</button>
+        </form>
+      </div>
+      <div class="group-admin-list">
+        ${
+          state.groups.length === 0
+            ? emptyState("还没有小组。先创建 A 组、B 组等，再手动加入队伍。")
+            : state.groups.map(renderStageGroupCard).join("")
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderStageGroupCard(group: StageGroup): string {
+  return `
+    <article class="group-admin-card">
+      <form class="group-head-form" data-action="update-stage-group">
+        <input type="hidden" name="groupId" value="${escapeHtml(group.id)}" />
+        <label>小组名称<input name="name" value="${escapeHtml(group.name)}" required /></label>
+        <label>排序<input name="sortOrder" inputmode="numeric" value="${escapeHtml(group.sortOrder)}" /></label>
+        <button class="secondary-button" type="submit">保存</button>
+      </form>
+      <div class="group-team-list">
+        ${
+          group.teams.length === 0
+            ? `<span class="muted-copy">这个小组还没有队伍。</span>`
+            : group.teams
+                .map(
+                  (team) => `
+                    <form class="group-team-chip" data-action="remove-stage-group-team">
+                      <input type="hidden" name="groupId" value="${escapeHtml(group.id)}" />
+                      <input type="hidden" name="teamId" value="${escapeHtml(team.id)}" />
+                      <strong>${escapeHtml(team.name)}</strong>
+                      <button class="link-button danger-link" type="submit">移除</button>
+                    </form>
+                  `,
+                )
+                .join("")
+        }
+      </div>
+      <form data-action="delete-stage-group">
+        <input type="hidden" name="groupId" value="${escapeHtml(group.id)}" />
+        <button class="link-button danger-link" type="submit">删除这个小组</button>
+      </form>
+    </article>
+  `;
+}
+
+function renderManualSeriesManager(stage: StageSummary): string {
+  return `
+    <div class="manual-series-panel">
+      <form class="admin-form inline-form manual-series-form" data-action="create-manual-series">
+        <h2>手动添加对阵</h2>
+        <input type="hidden" name="stageId" value="${escapeHtml(stage.id)}" />
+        <label>轮次<select name="roundId" required>${roundOptions()}</select></label>
+        ${
+          stage.type === "group"
+            ? `<label>小组<select name="groupId"><option value="">不指定小组</option>${groupOptions()}</select></label>`
+            : `<input type="hidden" name="groupId" value="" />`
+        }
+        <label>队伍 1<select name="radiantTeamId" required><option value="">选择完整队伍名称</option>${teamOptions()}</select></label>
+        <label>队伍 2<select name="direTeamId" required><option value="">选择完整队伍名称</option>${teamOptions()}</select></label>
+        <label>BO<select name="boType">${boOptions("BO2")}</select></label>
+        <label>开赛时间<input name="scheduledAt" type="datetime-local" /></label>
+        <button class="primary-button" type="submit" ${state.rounds.length === 0 || state.teams.length < 2 ? "disabled" : ""}>添加对阵</button>
+      </form>
+    </div>
+  `;
+}
+
 function renderStages(): string {
   const stages = state.detail?.stages ?? [];
   const stage = currentStage();
@@ -1651,7 +1764,7 @@ function renderStages(): string {
       <div class="section-heading">
         <div>
           <h2>阶段配置</h2>
-          <p>阶段、轮次和 series 仍然归后端管理；后台只提交配置和人工确认。</p>
+          <p>先创建小组赛 / 瑞士轮 / 淘汰赛阶段，再由管理员手动维护小组、轮次、对阵和赛果。</p>
         </div>
         ${badge("后端计算排名与晋级", "info")}
       </div>
@@ -1672,6 +1785,8 @@ function renderStages(): string {
 
     ${renderCompetitionComposer()}
 
+    ${renderManualStageTools()}
+
     ${renderKnockoutManager()}
 
     <section class="panel split-panel">
@@ -1688,9 +1803,10 @@ function renderStages(): string {
         <form class="admin-form" data-action="create-stage">
           <h2>创建阶段</h2>
           <input name="tournamentId" value="${escapeHtml(state.selectedTournamentId)}" readonly />
-          <label>名称<input name="name" placeholder="例如 瑞士轮" required /></label>
+          <label>名称<input name="name" placeholder="例如 小组赛 / 瑞士轮预赛" required /></label>
           <label>赛制<select name="type"><option value="group">普通小组赛</option><option value="swiss">瑞士轮</option><option value="knockout">淘汰赛</option></select></label>
           <label>默认 BO<input name="boType" placeholder="例如 BO3" /></label>
+          <label>瑞士轮轮数<input name="swissRounds" inputmode="numeric" placeholder="瑞士轮可填，例如 5" /></label>
           <button class="primary-button" type="submit">提交阶段</button>
         </form>
         <form class="admin-form" data-action="create-round">
@@ -1699,6 +1815,12 @@ function renderStages(): string {
           <label>轮次名称<input name="name" placeholder="例如 第 1 轮" required /></label>
           <label>轮次数字<input name="roundNumber" inputmode="numeric" placeholder="可留空" /></label>
           <button class="secondary-button" type="submit">提交轮次</button>
+        </form>
+        <form class="admin-form" data-action="clear-match-records">
+          <h2>清空比赛记录</h2>
+          <input name="tournamentId" value="${escapeHtml(state.selectedTournamentId)}" readonly />
+          <p class="muted-copy">会删除当前届次已有 rounds / series / bracket / standings 和 OpenDota 缓存比赛记录，保留队伍、阶段和小组配置。</p>
+          <button class="secondary-button danger-link" type="submit">清空当前届比赛记录</button>
         </form>
       </div>
     </section>
@@ -1725,7 +1847,7 @@ function scheduleTable(): string {
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>时间</th><th>阶段 / 轮次</th><th>对阵</th><th>BO</th><th>状态</th><th>match_id</th></tr></thead>
+        <thead><tr><th>时间</th><th>阶段 / 轮次</th><th>对阵</th><th>BO</th><th>状态</th><th>match_id</th><th>管理</th></tr></thead>
         <tbody>
           ${rows
             .map((row) => {
@@ -1734,17 +1856,45 @@ function scheduleTable(): string {
               return `
                 <tr>
                   <td>${escapeHtml(formatDate(row.scheduledAt))}</td>
-                  <td>${escapeHtml(currentStage()?.name ?? row.stageId)}<small>${escapeHtml(round?.name ?? row.roundId)}</small></td>
+                  <td>${escapeHtml(currentStage()?.name ?? row.stageId)}<small>${escapeHtml([row.groupName, round?.name ?? row.roundId].filter(Boolean).join(" · "))}</small></td>
                   <td>${escapeHtml(row.radiantTeam.name)} vs ${escapeHtml(row.direTeam.name)}<small>${escapeHtml(row.radiantScore)} : ${escapeHtml(row.direScore)}</small></td>
                   <td>${escapeHtml(row.boType)}</td>
                   <td>${badge(row.status, toneForStatus(row.status))}</td>
                   <td>${escapeHtml(row.games.map((game) => game.matchId ?? "待关联").join(" / "))}</td>
+                  <td>${renderSeriesAdminForms(row)}</td>
                 </tr>
               `;
             })
             .join("")}
         </tbody>
       </table>
+    </div>
+  `;
+}
+
+function renderSeriesAdminForms(row: StageRound["series"][number]): string {
+  return `
+    <div class="series-admin-actions">
+      <form data-action="update-series-result">
+        <input type="hidden" name="seriesId" value="${escapeHtml(row.id)}" />
+        <input name="radiantScore" inputmode="numeric" value="${escapeHtml(row.radiantScore)}" aria-label="${escapeHtml(row.radiantTeam.name)} 比分" />
+        <input name="direScore" inputmode="numeric" value="${escapeHtml(row.direScore)}" aria-label="${escapeHtml(row.direTeam.name)} 比分" />
+        <button class="secondary-button" type="submit">保存比分</button>
+      </form>
+      <form data-action="update-series">
+        <input type="hidden" name="seriesId" value="${escapeHtml(row.id)}" />
+        <select name="roundId" aria-label="轮次">${roundOptions(row.roundId)}</select>
+        <select name="groupId" aria-label="小组"><option value="">无小组</option>${groupOptions(row.groupId ?? "")}</select>
+        <select name="radiantTeamId" aria-label="队伍 1">${teamOptions(row.radiantTeam.id)}</select>
+        <select name="direTeamId" aria-label="队伍 2">${teamOptions(row.direTeam.id)}</select>
+        <select name="boType" aria-label="BO">${boOptions(row.boType as SeriesBoType)}</select>
+        <input name="scheduledAt" type="datetime-local" value="${escapeHtml(dateTimeLocalValue(row.scheduledAt))}" aria-label="开赛时间" />
+        <button class="secondary-button" type="submit">修改</button>
+      </form>
+      <form data-action="delete-series">
+        <input type="hidden" name="seriesId" value="${escapeHtml(row.id)}" />
+        <button class="link-button danger-link" type="submit">删除对阵</button>
+      </form>
     </div>
   `;
 }
@@ -1807,16 +1957,17 @@ function standingsTable(): string {
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>队伍</th><th>赛果</th><th>小分</th><th>积分</th><th>状态</th></tr></thead>
+        <thead><tr><th>#</th><th>小组</th><th>队伍</th><th>赛果</th><th>小分</th><th>积分</th><th>状态</th></tr></thead>
         <tbody>
           ${
             standings.length === 0
-              ? `<tr><td colspan="6"><span class="muted-copy">当前阶段暂无积分榜。</span></td></tr>`
+              ? `<tr><td colspan="7"><span class="muted-copy">当前阶段暂无积分榜。</span></td></tr>`
               : standings
                   .map(
                     (row) => `
                       <tr>
                         <td>${escapeHtml(row.rank)}</td>
+                        <td>${escapeHtml(row.groupName ?? "-")}</td>
                         <td>${escapeHtml(row.team?.name ?? row.teamId ?? "未知队伍")}</td>
                         <td>${escapeHtml(row.seriesWins)}-${escapeHtml(row.seriesDraws)}-${escapeHtml(row.seriesLosses)}</td>
                         <td>${escapeHtml(row.gameWins)}-${escapeHtml(row.gameLosses)}</td>
@@ -1883,6 +2034,7 @@ async function loadDashboard(preferredTournamentId = state.selectedTournamentId,
         rounds: [],
         standings: [],
         bracket: [],
+        groups: [],
         syncRows: apiSyncTasks.map(syncTaskToRow),
       };
       render();
@@ -1931,6 +2083,7 @@ async function loadDashboard(preferredTournamentId = state.selectedTournamentId,
       rounds: [],
       standings: [],
       bracket: [],
+      groups: [],
       syncRows: [],
     };
   }
@@ -1942,18 +2095,19 @@ async function loadTournamentDetail(id: string): Promise<TournamentDetail> {
   return getJson<TournamentDetail>(`/tournaments/${encodeURIComponent(id)}`);
 }
 
-async function loadStageData(stageId: string): Promise<Pick<LoadState, "rounds" | "standings" | "bracket">> {
+async function loadStageData(stageId: string): Promise<Pick<LoadState, "rounds" | "standings" | "bracket" | "groups">> {
   if (!stageId) {
-    return { rounds: [], standings: [], bracket: [] };
+    return { rounds: [], standings: [], bracket: [], groups: [] };
   }
 
-  const [rounds, standings, bracket] = await Promise.all([
+  const [rounds, standings, bracket, groups] = await Promise.all([
     getJson<StageRound[]>(`/stages/${encodeURIComponent(stageId)}/rounds`).catch(() => []),
     getJson<StandingRow[]>(`/stages/${encodeURIComponent(stageId)}/standings`).catch(() => []),
     getJson<BracketNode[]>(`/stages/${encodeURIComponent(stageId)}/bracket`).catch(() => []),
+    getJson<StageGroup[]>(`/stages/${encodeURIComponent(stageId)}/groups`).catch(() => []),
   ]);
 
-  return { rounds, standings, bracket };
+  return { rounds, standings, bracket, groups };
 }
 
 function syncTaskToRow(task: SyncTask): SyncRow {
@@ -2306,7 +2460,74 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
             name: payloadString(payload, "name"),
             type: payloadString(payload, "type"),
             advancementRule: payloadString(payload, "boType") ? `默认 ${payloadString(payload, "boType")}` : undefined,
+            config: compactPayload({
+              boType: payloadString(payload, "boType") || undefined,
+              swissRounds: payloadNumber(payload, "swissRounds"),
+            }),
           }),
+        },
+      ];
+    case "create-stage-group":
+      return [
+        {
+          method: "POST",
+          path: `/stages/${encodeURIComponent(payloadString(payload, "stageId", state.selectedStageId))}/groups`,
+          payload: compactPayload({
+            name: payloadString(payload, "name"),
+            sortOrder: payloadNumber(payload, "sortOrder"),
+          }),
+        },
+      ];
+    case "update-stage-group":
+      if (!payloadString(payload, "groupId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "PATCH",
+          path: `/stage-groups/${encodeURIComponent(payloadString(payload, "groupId"))}`,
+          payload: compactPayload({
+            name: payloadString(payload, "name") || undefined,
+            sortOrder: payloadNumber(payload, "sortOrder"),
+          }),
+        },
+      ];
+    case "delete-stage-group":
+      if (!payloadString(payload, "groupId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "DELETE",
+          path: `/stage-groups/${encodeURIComponent(payloadString(payload, "groupId"))}`,
+        },
+      ];
+    case "add-stage-group-team":
+      if (!payloadString(payload, "groupId") || !payloadString(payload, "teamId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "POST",
+          path: `/stage-groups/${encodeURIComponent(payloadString(payload, "groupId"))}/teams`,
+          payload: compactPayload({
+            teamId: payloadString(payload, "teamId"),
+            seed: payloadNumber(payload, "seed"),
+          }),
+        },
+      ];
+    case "remove-stage-group-team":
+      if (!payloadString(payload, "groupId") || !payloadString(payload, "teamId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "DELETE",
+          path: `/stage-groups/${encodeURIComponent(payloadString(payload, "groupId"))}/teams/${encodeURIComponent(payloadString(payload, "teamId"))}`,
         },
       ];
     case "create-round":
@@ -2321,6 +2542,79 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
             status: "draft",
             pairingStatus: "draft",
           }),
+        },
+      ];
+    case "create-manual-series":
+      if (!payloadString(payload, "roundId") || !payloadString(payload, "radiantTeamId") || !payloadString(payload, "direTeamId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "POST",
+          path: "/series",
+          payload: compactPayload({
+            stageId: payloadString(payload, "stageId", state.selectedStageId),
+            roundId: payloadString(payload, "roundId"),
+            groupId: payloadString(payload, "groupId") || null,
+            boType: normalizeBoType(payloadString(payload, "boType", "BO2")),
+            status: "scheduled",
+            scheduledAt: normalizeDateTimeLocal(payloadString(payload, "scheduledAt")),
+            radiantTeamId: payloadString(payload, "radiantTeamId"),
+            direTeamId: payloadString(payload, "direTeamId"),
+          }),
+        },
+      ];
+    case "update-series":
+      if (!payloadString(payload, "seriesId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "PATCH",
+          path: `/series/${encodeURIComponent(payloadString(payload, "seriesId"))}`,
+          payload: compactPayload({
+            roundId: payloadString(payload, "roundId") || undefined,
+            groupId: payloadString(payload, "groupId") || null,
+            boType: normalizeBoType(payloadString(payload, "boType", "BO2")),
+            scheduledAt: normalizeDateTimeLocal(payloadString(payload, "scheduledAt")),
+            radiantTeamId: payloadString(payload, "radiantTeamId") || undefined,
+            direTeamId: payloadString(payload, "direTeamId") || undefined,
+          }),
+        },
+      ];
+    case "update-series-result":
+      if (!payloadString(payload, "seriesId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "PATCH",
+          path: `/series/${encodeURIComponent(payloadString(payload, "seriesId"))}/result`,
+          payload: {
+            radiantScore: payloadNumber(payload, "radiantScore") ?? 0,
+            direScore: payloadNumber(payload, "direScore") ?? 0,
+          },
+        },
+      ];
+    case "delete-series":
+      if (!payloadString(payload, "seriesId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "DELETE",
+          path: `/series/${encodeURIComponent(payloadString(payload, "seriesId"))}`,
+        },
+      ];
+    case "clear-match-records":
+      return [
+        {
+          method: "DELETE",
+          path: `/tournaments/${encodeURIComponent(payloadString(payload, "tournamentId", state.selectedTournamentId))}/match-records`,
         },
       ];
     case "submit-result":
@@ -2465,8 +2759,10 @@ function emptyState(text: string): string {
   return `<div class="empty-state">${escapeHtml(text)}</div>`;
 }
 
-function teamOptions(): string {
-  return state.teams.map((team) => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.name)}</option>`).join("");
+function teamOptions(selectedTeamId = ""): string {
+  return state.teams
+    .map((team) => `<option value="${escapeHtml(team.id)}" ${team.id === selectedTeamId ? "selected" : ""}>${escapeHtml(team.name)}</option>`)
+    .join("");
 }
 
 function playerOptions(): string {
@@ -2476,6 +2772,24 @@ function playerOptions(): string {
 function stageOptions(): string {
   return (state.detail?.stages ?? [])
     .map((stage) => `<option value="${escapeHtml(stage.id)}" ${stage.id === state.selectedStageId ? "selected" : ""}>${escapeHtml(stage.name)}</option>`)
+    .join("");
+}
+
+function roundOptions(selectedRoundId = ""): string {
+  return state.rounds
+    .map((round) => `<option value="${escapeHtml(round.id)}" ${round.id === selectedRoundId ? "selected" : ""}>${escapeHtml(round.name)}</option>`)
+    .join("");
+}
+
+function groupOptions(selectedGroupId = ""): string {
+  return state.groups
+    .map((group) => `<option value="${escapeHtml(group.id)}" ${group.id === selectedGroupId ? "selected" : ""}>${escapeHtml(group.name)}</option>`)
+    .join("");
+}
+
+function boOptions(selectedBo: SeriesBoType): string {
+  return ["BO1", "BO2", "BO3", "BO5"]
+    .map((bo) => `<option value="${bo}" ${bo === selectedBo ? "selected" : ""}>${bo}</option>`)
     .join("");
 }
 
@@ -2504,7 +2818,7 @@ document.addEventListener("click", (event) => {
   const stageId = target.closest<HTMLElement>("[data-stage-id]")?.dataset.stageId;
 
   if (stageId) {
-    state = { ...state, selectedStageId: stageId, rounds: [], standings: [], bracket: [] };
+    state = { ...state, selectedStageId: stageId, rounds: [], standings: [], bracket: [], groups: [] };
     void loadStageData(stageId).then((stageData) => {
       state = { ...state, ...stageData };
       render();

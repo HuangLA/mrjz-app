@@ -20,6 +20,7 @@ import {
   type PlayerStats,
   type ProfileMatchSummary,
   type StageKey,
+  type StageView,
   type TeamProfile,
   type TeamSide,
 } from "./data";
@@ -851,6 +852,9 @@ function renderTournamentScope(): string {
 
 function renderStagePage(): string {
   const currentStage = currentData().stageViews[appState.stage];
+  const stageMatches = currentData().scheduleGroups
+    .flatMap((group) => group.matches)
+    .filter((match) => match.stage === currentStage.name);
 
   return `
     ${renderDataNotice()}
@@ -910,7 +914,9 @@ function renderStagePage(): string {
         </div>
         <span class="status-tag blue">${escapeHtml(currentStage.currentRound)}</span>
       </div>
-      ${renderEmptyState("暂无管理员录入的真实轮次赛程")}
+      <div class="schedule-list">
+        ${stageMatches.length > 0 ? stageMatches.slice(0, 6).map(renderScheduleCard).join("") : renderEmptyState("暂无管理员录入的真实轮次赛程")}
+      </div>
     </section>
 
     <section class="section-panel">
@@ -921,8 +927,42 @@ function renderStagePage(): string {
         </div>
         <span class="tiny-meta">真实节点</span>
       </div>
-      ${renderEmptyState("暂无管理员录入的真实淘汰赛节点")}
+      ${currentStage.bracket.length > 0 ? renderStageBracketPreview(currentStage.bracket) : renderEmptyState("暂无管理员录入的真实淘汰赛节点")}
     </section>
+  `;
+}
+
+function renderStageBracketPreview(nodes: StageView["bracket"]): string {
+  const grouped = new Map<string, StageView["bracket"]>();
+
+  for (const node of nodes) {
+    grouped.set(node.roundName, [...(grouped.get(node.roundName) ?? []), node]);
+  }
+
+  return `
+    <div class="bracket-mini-board">
+      ${[...grouped.entries()]
+        .map(
+          ([roundName, roundNodes]) => `
+            <div class="bracket-column">
+              <strong>${escapeHtml(roundName)}</strong>
+              ${roundNodes.map(renderStageBracketNode).join("")}
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderStageBracketNode(node: StageView["bracket"][number]): string {
+  return `
+    <article class="bracket-node">
+      <span>${escapeHtml(node.groupName)} · #${escapeHtml(node.position)}</span>
+      <b>${escapeHtml(node.topTeam)}</b>
+      <b>${escapeHtml(node.bottomTeam)}</b>
+      <small>${escapeHtml(node.winner === "待定" ? node.status : `胜者 ${node.winner}`)}</small>
+    </article>
   `;
 }
 
@@ -2722,6 +2762,7 @@ function emptyStageViews(): MobileData["stageViews"] {
       currentRound: "暂无轮次",
       note: "管理员尚未录入真实小组赛。",
       standings: [],
+      bracket: [],
     },
     swiss: {
       key: "swiss",
@@ -2730,6 +2771,7 @@ function emptyStageViews(): MobileData["stageViews"] {
       currentRound: "暂无轮次",
       note: "管理员尚未录入真实瑞士轮。",
       standings: [],
+      bracket: [],
     },
     knockout: {
       key: "knockout",
@@ -2738,6 +2780,7 @@ function emptyStageViews(): MobileData["stageViews"] {
       currentRound: "暂无轮次",
       note: "管理员尚未录入真实淘汰赛。",
       standings: [],
+      bracket: [],
     },
   };
 }

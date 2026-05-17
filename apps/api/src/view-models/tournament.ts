@@ -55,6 +55,8 @@ export type SeriesSummary = {
   id: string;
   roundId: string;
   stageId: string;
+  groupId: string | null;
+  groupName: string | null;
   boType: SeriesContext["boType"];
   status: string;
   scheduledAt: string;
@@ -74,6 +76,14 @@ export type SeriesSummary = {
 export type StageRound = RoundBrief & {
   pairingStatus: "draft" | "published" | "confirmed";
   series: SeriesSummary[];
+};
+
+export type StageGroup = {
+  id: string;
+  stageId: string;
+  name: string;
+  sortOrder: number;
+  teams: TeamBrief[];
 };
 
 export type BracketNode = {

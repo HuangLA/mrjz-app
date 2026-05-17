@@ -115,10 +115,29 @@ CREATE TABLE IF NOT EXISTS rounds (
   UNIQUE (stage_id, round_number)
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS stage_groups (
+  id TEXT PRIMARY KEY,
+  stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (stage_id, name)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS stage_group_teams (
+  group_id TEXT NOT NULL REFERENCES stage_groups(id) ON DELETE CASCADE,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  seed INTEGER,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (group_id, team_id)
+) STRICT;
+
 CREATE TABLE IF NOT EXISTS series (
   id TEXT PRIMARY KEY,
   round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
   stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  group_id TEXT REFERENCES stage_groups(id) ON DELETE SET NULL,
   bo_type TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('draft', 'scheduled', 'live', 'result_pending', 'completed', 'conflict', 'postponed')),
   scheduled_at TEXT,
