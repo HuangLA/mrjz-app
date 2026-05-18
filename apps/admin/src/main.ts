@@ -1930,6 +1930,8 @@ function renderStages(): string {
   const stage = currentStage();
 
   return `
+    ${renderScheduleManagementConsole()}
+
     <section class="panel">
       <div class="section-heading">
         <div>
