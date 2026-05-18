@@ -330,6 +330,16 @@ export type UpdateStageManualRanksInput = {
   actor?: string;
 };
 
+export type GenerateSwissPairingsInput = {
+  roundNumber?: number;
+  boType?: SeriesSummary["boType"];
+  actor?: string;
+};
+
+export type ConfirmSwissRoundInput = {
+  actor?: string;
+};
+
 export type UpdateStageGroupInput = {
   name?: string;
   sortOrder?: number;
@@ -590,12 +600,21 @@ export class SqliteTournamentRepository {
         PRIMARY KEY (stage_id, team_id)
       ) STRICT;
 
+      CREATE TABLE IF NOT EXISTS swiss_byes (
+        stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+        round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (stage_id, round_id, team_id)
+      ) STRICT;
+
       CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
       CREATE INDEX IF NOT EXISTS idx_stage_groups_stage ON stage_groups(stage_id);
       CREATE INDEX IF NOT EXISTS idx_stage_group_teams_team ON stage_group_teams(team_id);
       CREATE INDEX IF NOT EXISTS idx_tournament_schedule_teams_team ON tournament_schedule_teams(team_id);
       CREATE INDEX IF NOT EXISTS idx_schedule_operation_logs_tournament ON schedule_operation_logs(tournament_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_stage_manual_ranks_stage ON stage_manual_ranks(stage_id);
+      CREATE INDEX IF NOT EXISTS idx_swiss_byes_stage ON swiss_byes(stage_id);
     `);
   }
 
@@ -1185,8 +1204,29 @@ export class SqliteTournamentRepository {
     return rows.map((row) => ({
       ...roundFromRow(row),
       pairingStatus: text(row, "pairing_status") as StageRound["pairingStatus"],
+      byes: this.getSwissByesByRoundId(text(row, "id")),
       series: this.getSeriesByRoundId(text(row, "id")),
     }));
+  }
+
+  private getSwissByesByRoundId(roundId: string): TeamBrief[] {
+    return this.database
+      .prepare(
+        `
+          SELECT
+            tm.id AS team_team_id,
+            tm.name AS team_team_name,
+            tm.short_name AS team_team_short_name,
+            tm.logo_url AS team_team_logo_url,
+            tm.color AS team_team_color
+          FROM swiss_byes sb
+          JOIN teams tm ON tm.id = sb.team_id
+          WHERE sb.round_id = ?
+          ORDER BY tm.name ASC
+        `,
+      )
+      .all(roundId)
+      .map((row) => teamFromPrefixedRow(row, "team"));
   }
 
   getStageBracket(stageId: string): BracketNode[] | undefined {
@@ -2340,6 +2380,159 @@ export class SqliteTournamentRepository {
     return this.getStageStandings(stageId) ?? [];
   }
 
+  generateSwissPairings(stageIdParam: string, input: GenerateSwissPairingsInput): StageRound {
+    const stageId = requiredString(stageIdParam, "stageId");
+    const stage = this.getStageSummaryById(stageId);
+
+    if (stage === undefined) {
+      throw new Error("Stage not found");
+    }
+
+    if (stage.type !== "swiss") {
+      throw new Error("Swiss pairings can only be generated for swiss stages");
+    }
+
+    const teamIds = this.officialOrTournamentTeamIds(stage.tournamentId);
+
+    if (teamIds.length < 2) {
+      throw new Error("At least 2 teams are required to generate swiss pairings");
+    }
+
+    const roundNumber = input.roundNumber ?? this.nextSwissRoundNumber(stageId);
+    const boType = input.boType ?? "BO2";
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.clearSwissRoundAndLater(stageId, roundNumber);
+      this.recalculateStageStandings(stageId);
+
+      const roundId = this.ensureStageRound(stageId, `瑞士轮第 ${roundNumber} 轮`, roundNumber);
+      const pairings = this.buildSwissPairings(stageId, teamIds);
+      let createdSeries = 0;
+
+      for (const pairing of pairings.pairs) {
+        this.insertSeries({
+          stageId,
+          roundId,
+          seriesKind: "regular",
+          boType,
+          status: "draft",
+          scheduledAt: "",
+          radiantTeamId: pairing[0],
+          direTeamId: pairing[1],
+        });
+        createdSeries += 1;
+      }
+
+      if (pairings.byeTeamId !== null) {
+        this.database
+          .prepare("INSERT INTO swiss_byes (stage_id, round_id, team_id) VALUES (?, ?, ?)")
+          .run(stageId, roundId, pairings.byeTeamId);
+      }
+
+      this.recalculateStageStandings(stageId);
+      this.insertScheduleLog(stage.tournamentId, input.actor ?? "admin", "swiss_pairings_generated", {
+        stageId,
+        roundNumber,
+        createdSeries,
+        byeTeamId: pairings.byeTeamId,
+        repeatedPairRisk: pairings.repeatedPairRisk,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const round = this.getStageRounds(stageId)?.find((item) => item.roundNumber === roundNumber);
+
+    if (round === undefined) {
+      throw new Error("Generated swiss round could not be loaded");
+    }
+
+    return round;
+  }
+
+  confirmSwissRound(roundIdParam: string, input: ConfirmSwissRoundInput): StageRound {
+    const roundId = requiredString(roundIdParam, "roundId");
+    const row = this.database.prepare("SELECT * FROM rounds WHERE id = ?").get(roundId);
+
+    if (row === undefined) {
+      throw new Error("Round not found");
+    }
+
+    const stage = this.getStageSummaryById(text(row, "stage_id"));
+
+    if (stage === undefined || stage.type !== "swiss") {
+      throw new Error("Round does not belong to a swiss stage");
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.database
+        .prepare(
+          `
+            UPDATE rounds
+            SET pairing_status = 'confirmed', status = 'published', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(roundId);
+      this.insertScheduleLog(stage.tournamentId, input.actor ?? "admin", "swiss_round_confirmed", {
+        stageId: stage.id,
+        roundId,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.getStageRounds(stage.id)?.find((round) => round.id === roundId) ?? {
+      ...roundFromRow(row),
+      pairingStatus: "confirmed",
+      byes: this.getSwissByesByRoundId(roundId),
+      series: [],
+    };
+  }
+
+  retractSwissRound(roundIdParam: string, input: ConfirmSwissRoundInput): StageRound[] {
+    const roundId = requiredString(roundIdParam, "roundId");
+    const row = this.database.prepare("SELECT * FROM rounds WHERE id = ?").get(roundId);
+
+    if (row === undefined) {
+      throw new Error("Round not found");
+    }
+
+    const stage = this.getStageSummaryById(text(row, "stage_id"));
+
+    if (stage === undefined || stage.type !== "swiss") {
+      throw new Error("Round does not belong to a swiss stage");
+    }
+
+    const roundNumber = numberValue(row, "round_number");
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.clearSwissRoundAndLater(stage.id, roundNumber);
+      this.recalculateStageStandings(stage.id);
+      this.insertScheduleLog(stage.tournamentId, input.actor ?? "admin", "swiss_round_retracted", {
+        stageId: stage.id,
+        roundId,
+        roundNumber,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.getStageRounds(stage.id) ?? [];
+  }
+
   removeStageGroupTeam(groupIdParam: string, teamIdParam: string): StageGroup {
     const groupId = requiredString(groupIdParam, "groupId");
     const teamId = requiredString(teamIdParam, "teamId");
@@ -2384,6 +2577,7 @@ export class SqliteTournamentRepository {
       name,
       status,
       pairingStatus,
+      byes: [],
       series: [],
     };
   }
@@ -4760,6 +4954,124 @@ export class SqliteTournamentRepository {
       .map((row) => text(row, "team_id"));
   }
 
+  private officialOrTournamentTeamIds(tournamentId: string): string[] {
+    const roster = this.listOfficialScheduleTeams(tournamentId).map((item) => item.team.id);
+
+    return roster.length > 0 ? roster : this.listTournamentTeamIds(tournamentId);
+  }
+
+  private nextSwissRoundNumber(stageId: string): number {
+    const row = this.database
+      .prepare(
+        `
+          SELECT COALESCE(MAX(round_number), 0) + 1 AS next_round_number
+          FROM rounds
+          WHERE stage_id = ?
+        `,
+      )
+      .get(stageId);
+
+    return numberValue(row ?? {}, "next_round_number");
+  }
+
+  private clearSwissRoundAndLater(stageId: string, roundNumber: number): void {
+    const rows = this.database
+      .prepare("SELECT id FROM rounds WHERE stage_id = ? AND round_number >= ?")
+      .all(stageId, roundNumber);
+    const roundIds = rows.map((row) => text(row, "id"));
+
+    if (roundIds.length === 0) {
+      return;
+    }
+
+    const placeholders = roundIds.map(() => "?").join(", ");
+
+    this.database.prepare(`DELETE FROM swiss_byes WHERE round_id IN (${placeholders})`).run(...roundIds);
+    this.database.prepare(`DELETE FROM series WHERE round_id IN (${placeholders})`).run(...roundIds);
+    this.database.prepare(`DELETE FROM rounds WHERE id IN (${placeholders})`).run(...roundIds);
+  }
+
+  private buildSwissPairings(
+    stageId: string,
+    teamIds: string[],
+  ): { pairs: Array<[string, string]>; byeTeamId: string | null; repeatedPairRisk: boolean } {
+    const standings = new Map((this.getStageStandings(stageId) ?? []).map((standing) => [standing.team.id, standing]));
+    const byeTeamIds = new Set(
+      this.database.prepare("SELECT team_id FROM swiss_byes WHERE stage_id = ?").all(stageId).map((row) => text(row, "team_id")),
+    );
+    const playedPairs = new Set<string>();
+
+    for (const row of this.database
+      .prepare("SELECT radiant_team_id, dire_team_id FROM series WHERE stage_id = ?")
+      .all(stageId)) {
+      playedPairs.add(pairKey(text(row, "radiant_team_id"), text(row, "dire_team_id")));
+    }
+
+    const sorted = [...teamIds].sort((left, right) => {
+      const leftStanding = standings.get(left);
+      const rightStanding = standings.get(right);
+      const leftWins = leftStanding?.seriesWins ?? 0;
+      const rightWins = rightStanding?.seriesWins ?? 0;
+
+      if (leftWins !== rightWins) {
+        return rightWins - leftWins;
+      }
+
+      const leftDraws = leftStanding?.seriesDraws ?? 0;
+      const rightDraws = rightStanding?.seriesDraws ?? 0;
+
+      if (leftDraws !== rightDraws) {
+        return rightDraws - leftDraws;
+      }
+
+      const leftLosses = leftStanding?.seriesLosses ?? 0;
+      const rightLosses = rightStanding?.seriesLosses ?? 0;
+
+      if (leftLosses !== rightLosses) {
+        return leftLosses - rightLosses;
+      }
+
+      return left.localeCompare(right);
+    });
+    let byeTeamId: string | null = null;
+
+    if (sorted.length % 2 === 1) {
+      const byeCandidate =
+        [...sorted].reverse().find((teamId) => !byeTeamIds.has(teamId)) ?? sorted[sorted.length - 1] ?? null;
+
+      if (byeCandidate !== null) {
+        byeTeamId = byeCandidate;
+        sorted.splice(sorted.indexOf(byeCandidate), 1);
+      }
+    }
+
+    const pairs: Array<[string, string]> = [];
+    let repeatedPairRisk = false;
+
+    while (sorted.length >= 2) {
+      const left = sorted.shift();
+
+      if (left === undefined) {
+        break;
+      }
+
+      let opponentIndex = sorted.findIndex((right) => !playedPairs.has(pairKey(left, right)));
+
+      if (opponentIndex === -1) {
+        opponentIndex = 0;
+        repeatedPairRisk = true;
+      }
+
+      const right = sorted.splice(opponentIndex, 1)[0];
+
+      if (right !== undefined) {
+        pairs.push([left, right]);
+      }
+    }
+
+    return { pairs, byeTeamId, repeatedPairRisk };
+  }
+
   private ensureStageRound(stageId: string, name: string, roundNumber: number): string {
     const existing = this.database
       .prepare("SELECT id FROM rounds WHERE stage_id = ? AND round_number = ?")
@@ -4858,6 +5170,13 @@ export class SqliteTournamentRepository {
       }
     }
 
+    if (stage.type === "swiss") {
+      for (const teamId of this.officialOrTournamentTeamIds(stage.tournamentId)) {
+        const team = this.requireTeam(teamId);
+        ensureStanding(team, null);
+      }
+    }
+
     const rows = this.database
       .prepare(
         `
@@ -4902,17 +5221,42 @@ export class SqliteTournamentRepository {
 
       if (radiantScore > direScore) {
         radiant.seriesWins += 1;
-        radiant.points += 3;
+        radiant.points += stage.type === "swiss" ? 0 : 3;
         dire.seriesLosses += 1;
       } else if (direScore > radiantScore) {
         dire.seriesWins += 1;
-        dire.points += 3;
+        dire.points += stage.type === "swiss" ? 0 : 3;
         radiant.seriesLosses += 1;
       } else {
         radiant.seriesDraws += 1;
-        radiant.points += 1;
+        radiant.points += stage.type === "swiss" ? 0 : 1;
         dire.seriesDraws += 1;
-        dire.points += 1;
+        dire.points += stage.type === "swiss" ? 0 : 1;
+      }
+    }
+
+    if (stage.type === "swiss") {
+      const byeRows = this.database
+        .prepare(
+          `
+            SELECT
+              tm.id AS team_team_id,
+              tm.name AS team_team_name,
+              tm.short_name AS team_team_short_name,
+              tm.logo_url AS team_team_logo_url,
+              tm.color AS team_team_color
+            FROM swiss_byes sb
+            JOIN teams tm ON tm.id = sb.team_id
+            WHERE sb.stage_id = ?
+          `,
+        )
+        .all(stageId);
+
+      for (const row of byeRows) {
+        const standing = ensureStanding(teamFromPrefixedRow(row, "team"), null);
+        standing.seriesPlayed += 1;
+        standing.seriesWins += 1;
+        standing.gameWins += 2;
       }
     }
 
@@ -4960,6 +5304,26 @@ export class SqliteTournamentRepository {
           return 1;
         }
 
+        if (stage.type === "swiss") {
+          const winDiff = right.seriesWins - left.seriesWins;
+
+          if (winDiff !== 0) {
+            return winDiff;
+          }
+
+          const drawDiff = right.seriesDraws - left.seriesDraws;
+
+          if (drawDiff !== 0) {
+            return drawDiff;
+          }
+
+          const lossDiff = left.seriesLosses - right.seriesLosses;
+
+          if (lossDiff !== 0) {
+            return lossDiff;
+          }
+        }
+
         const pointDiff = right.points - left.points;
 
         if (pointDiff !== 0) {
@@ -4985,7 +5349,7 @@ export class SqliteTournamentRepository {
         const rank = index + 1;
         const status: StandingRow["status"] = entries.length > 2 && rank <= 2 ? "advance" : "safe";
         insertStanding.run(
-          uniqueId("standing", `${stageId}-${standing.team.id}`),
+          uniqueId("standing", `${standing.team.id}-${stageId}`),
           stageId,
           standing.team.id,
           rank,
@@ -5427,6 +5791,10 @@ function shuffle<T>(values: T[]): T[] {
   return next;
 }
 
+function pairKey(left: string, right: string): string {
+  return [left, right].sort().join("::");
+}
+
 function roundFromRow(row: DbRow): RoundBrief {
   return {
     id: text(row, "id"),
@@ -5742,7 +6110,7 @@ function average(total: number, count: number): number | null {
 function defaultAdvancementRule(type: CreateStageInput["type"]): string {
   const rules: Record<CreateStageInput["type"], string> = {
     group: "小组赛排名按积分、净胜局、胜场、直接交手排序",
-    swiss: "瑞士轮按积分、对手分、净胜局排序",
+    swiss: "瑞士轮按胜平负排序，后端生成下一轮配对草稿",
     knockout: "淘汰赛按 bracket 胜者推进",
   };
 

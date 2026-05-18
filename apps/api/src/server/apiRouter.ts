@@ -11,6 +11,7 @@ import {
   createPlayer,
   createTournament,
   clearTournamentMatchRecords,
+  confirmSwissRound,
   deleteSeries,
   deleteStageGroup,
   getMatchDetail,
@@ -21,6 +22,7 @@ import {
   getStageRounds,
   getStageStandings,
   generateGroupRoundRobin,
+  generateSwissPairings,
   getTournamentPlayerDetail,
   getTournamentTeamDetail,
   getTournamentDetail,
@@ -38,6 +40,7 @@ import {
   backfillCachedTournamentEntities,
   removeTeamMember,
   removeStageGroupTeam,
+  retractSwissRound,
   updateTeam,
   updateTournamentLifecycle,
   updateSeries,
@@ -363,6 +366,35 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
   });
 
+  router.post("/api/stages/:stageId/swiss-pairings", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(generateSwissPairings(params.stageId ?? "", bodyToGenerateSwissPairingsInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/rounds/:roundId/confirm-swiss", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request).catch(() => ({}));
+      const actor = optionalStringField(body, "actor");
+      return ok(confirmSwissRound(params.roundId ?? "", actor === undefined ? {} : { actor }));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/rounds/:roundId/retract-swiss", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request).catch(() => ({}));
+      const actor = optionalStringField(body, "actor");
+      return ok(retractSwissRound(params.roundId ?? "", actor === undefined ? {} : { actor }));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.get("/api/matches/:matchId", ({ params }) => {
     const match = getMatchDetail(params.matchId ?? "");
 
@@ -672,6 +704,20 @@ function bodyToUpdateStageManualRanksInput(body: Record<string, unknown>) {
     }),
     actor: optionalStringField(body, "actor"),
   } as Parameters<typeof updateStageManualRanks>[1];
+}
+
+function bodyToGenerateSwissPairingsInput(body: Record<string, unknown>) {
+  const boType = optionalStringField(body, "boType");
+
+  if (boType !== undefined && !["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
+    throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  return withoutUndefined({
+    roundNumber: optionalNumberField(body, "roundNumber"),
+    boType: boType as Parameters<typeof generateSwissPairings>[1]["boType"],
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof generateSwissPairings>[1];
 }
 
 function bodyToUpdateStageGroupInput(body: Record<string, unknown>) {

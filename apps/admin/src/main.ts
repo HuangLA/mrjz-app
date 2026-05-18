@@ -1669,8 +1669,63 @@ function renderManualStageTools(): string {
         ${badge("胜 3 / 平 1 / 负 0", "info")}
       </div>
       ${stage.type === "group" ? renderGroupManager(stage) : ""}
+      ${stage.type === "swiss" ? renderSwissManager(stage) : ""}
       ${renderManualSeriesManager(stage)}
     </section>
+  `;
+}
+
+function renderSwissManager(stage: StageSummary): string {
+  const nextRoundNumber = Math.max(1, ...state.rounds.map((round) => round.roundNumber + 1));
+
+  return `
+    <div class="swiss-manager">
+      <form class="admin-form inline-form swiss-generate-form" data-action="generate-swiss-pairings">
+        <h2>自动生成瑞士轮配对</h2>
+        <input type="hidden" name="stageId" value="${escapeHtml(stage.id)}" />
+        <label>轮次<input name="roundNumber" inputmode="numeric" value="${escapeHtml(nextRoundNumber)}" /></label>
+        <label>BO<select name="boType">${boOptions("BO2")}</select></label>
+        <button class="primary-button" type="submit" ${state.teams.length < 2 ? "disabled" : ""}>生成配对草稿</button>
+      </form>
+      <div class="swiss-round-list">
+        ${
+          state.rounds.length === 0
+            ? emptyState("还没有瑞士轮。生成第 1 轮后，管理员确认配对再录入结果。")
+            : state.rounds.map(renderSwissRoundCard).join("")
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderSwissRoundCard(round: StageRound): string {
+  const byes = round.byes ?? [];
+
+  return `
+    <article class="swiss-round-card">
+      <div>
+        <strong>${escapeHtml(round.name)}</strong>
+        <small>${escapeHtml(round.series.length)} 场${byes.length > 0 ? ` · ${escapeHtml(byes.length)} 支轮空` : ""} · ${escapeHtml(round.pairingStatus ?? "draft")}</small>
+        ${
+          byes.length === 0
+            ? ""
+            : `<div class="swiss-bye-list">${byes
+                .map((team) => `<span>${escapeHtml(team.name)} 轮空胜</span>`)
+                .join("")}</div>`
+        }
+      </div>
+      <div class="toolbar">
+        ${badge(round.pairingStatus === "confirmed" ? "已确认" : "草稿", round.pairingStatus === "confirmed" ? "good" : "warn")}
+        <form data-action="confirm-swiss-round">
+          <input type="hidden" name="roundId" value="${escapeHtml(round.id)}" />
+          <button class="secondary-button" type="submit" ${round.pairingStatus === "confirmed" ? "disabled" : ""}>确认本轮</button>
+        </form>
+        <form data-action="retract-swiss-round">
+          <input type="hidden" name="roundId" value="${escapeHtml(round.id)}" />
+          <button class="link-button danger-link" type="submit">撤回并清空后续</button>
+        </form>
+      </div>
+    </article>
   `;
 }
 
@@ -2851,6 +2906,42 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
           }),
         },
       ];
+    case "generate-swiss-pairings":
+      return [
+        {
+          method: "POST",
+          path: `/stages/${encodeURIComponent(payloadString(payload, "stageId", state.selectedStageId))}/swiss-pairings`,
+          payload: compactPayload({
+            roundNumber: payloadNumber(payload, "roundNumber"),
+            boType: normalizeBoType(payloadString(payload, "boType", "BO2")),
+            actor: "admin",
+          }),
+        },
+      ];
+    case "confirm-swiss-round":
+      if (!payloadString(payload, "roundId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "POST",
+          path: `/rounds/${encodeURIComponent(payloadString(payload, "roundId"))}/confirm-swiss`,
+          payload: { actor: "admin" },
+        },
+      ];
+    case "retract-swiss-round":
+      if (!payloadString(payload, "roundId")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "POST",
+          path: `/rounds/${encodeURIComponent(payloadString(payload, "roundId"))}/retract-swiss`,
+          payload: { actor: "admin" },
+        },
+      ];
     case "update-manual-ranks":
       return [
         {
@@ -3372,6 +3463,10 @@ function confirmSensitiveAction(action: string): boolean {
       return window.confirm("撤回后 H5 赛程页会显示赛程暂未发布。确认撤回？");
     case "publish-official-schedule":
       return window.confirm("发布后 H5 赛程页将展示官方赛程。确认发布？");
+    case "generate-swiss-pairings":
+      return window.confirm("生成瑞士轮配对会覆盖所选轮次及后续轮次草稿。确认继续？");
+    case "retract-swiss-round":
+      return window.confirm("撤回本轮会清空该轮及后续瑞士轮配对。确认继续？");
     case "clear-match-records":
       return window.confirm("这会清空当前届比赛记录和 OpenDota 缓存。确认继续？");
     default:

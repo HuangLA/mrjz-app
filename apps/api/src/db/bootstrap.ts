@@ -225,12 +225,21 @@ function ensureEntityTables(): void {
       PRIMARY KEY (stage_id, team_id)
     ) STRICT;
 
+    CREATE TABLE IF NOT EXISTS swiss_byes (
+      stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+      round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+      team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (stage_id, round_id, team_id)
+    ) STRICT;
+
     CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
     CREATE INDEX IF NOT EXISTS idx_stage_groups_stage ON stage_groups(stage_id);
     CREATE INDEX IF NOT EXISTS idx_stage_group_teams_team ON stage_group_teams(team_id);
     CREATE INDEX IF NOT EXISTS idx_tournament_schedule_teams_team ON tournament_schedule_teams(team_id);
     CREATE INDEX IF NOT EXISTS idx_schedule_operation_logs_tournament ON schedule_operation_logs(tournament_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_stage_manual_ranks_stage ON stage_manual_ranks(stage_id);
+    CREATE INDEX IF NOT EXISTS idx_swiss_byes_stage ON swiss_byes(stage_id);
   `);
 }
 

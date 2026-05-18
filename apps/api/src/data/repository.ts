@@ -30,6 +30,8 @@ import {
   type KnockoutBracketResult,
   type LockOfficialScheduleRosterInput,
   type GenerateGroupRoundRobinInput,
+  type GenerateSwissPairingsInput,
+  type ConfirmSwissRoundInput,
   type OfficialSchedulePublicStatus,
   type RandomizeStageGroupsInput,
   type RemoveTeamMemberInput,
@@ -102,6 +104,9 @@ type Repository = {
   randomizeStageGroups(stageId: string, input: RandomizeStageGroupsInput): StageGroup[];
   generateGroupRoundRobin(stageId: string, input: GenerateGroupRoundRobinInput): StageRound[];
   updateStageManualRanks(stageId: string, input: UpdateStageManualRanksInput): StandingRow[];
+  generateSwissPairings(stageId: string, input: GenerateSwissPairingsInput): StageRound;
+  confirmSwissRound(roundId: string, input: ConfirmSwissRoundInput): StageRound;
+  retractSwissRound(roundId: string, input: ConfirmSwissRoundInput): StageRound[];
   addStageGroupTeam(input: AddStageGroupTeamInput): StageGroup;
   removeStageGroupTeam(groupId: string, teamId: string): StageGroup;
   createKnockoutBracket(tournamentId: string, input: CreateKnockoutBracketInput): KnockoutBracketResult;
@@ -289,6 +294,18 @@ export function generateGroupRoundRobin(stageId: string, input: GenerateGroupRou
 
 export function updateStageManualRanks(stageId: string, input: UpdateStageManualRanksInput) {
   return repository.updateStageManualRanks(stageId, input);
+}
+
+export function generateSwissPairings(stageId: string, input: GenerateSwissPairingsInput) {
+  return repository.generateSwissPairings(stageId, input);
+}
+
+export function confirmSwissRound(roundId: string, input: ConfirmSwissRoundInput) {
+  return repository.confirmSwissRound(roundId, input);
+}
+
+export function retractSwissRound(roundId: string, input: ConfirmSwissRoundInput) {
+  return repository.retractSwissRound(roundId, input);
 }
 
 export function addStageGroupTeam(input: AddStageGroupTeamInput) {

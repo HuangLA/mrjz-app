@@ -78,6 +78,7 @@
 - 本地 SQLite 已按运营重建需求清空三届已有比赛记录：第三届删除 4 条平台 series 和 47 条 OpenDota match，第二届删除 42 条 OpenDota match，第一届删除 30 条 OpenDota match。
 - 官方赛程管理第一阶段落地：API 增加官方赛程状态、参赛名单锁定 / 解锁、发布 / 撤回和操作日志；Web Admin 新增赛程管理控制台；H5 赛程页按发布状态显示官方赛程或“赛程暂未发布”，不影响比赛列表、比赛记录和比赛详情。
 - 小组赛管理第二阶段落地：API 支持随机分组、种子分散、BO2 单循环生成、加赛不计积分和手动排名；Web Admin 支持拖拽换组、一键生成小组赛程和手动排序；H5 赛程卡片可标注加赛。
+- 瑞士轮管理第三阶段落地：API 支持按胜平负生成指定轮次配对草稿、奇数队轮空胜、确认发布和撤回清空后续轮次；Web Admin 新增一键生成、确认、撤回入口；H5 赛程页可显示轮空胜。
 
 ## 最近提交
 
@@ -86,6 +87,8 @@
 | `e3ab432` | Update progress after database setup |
 | `6cb020f` | Add SQLite database baseline |
 | `ce89101` | Build API admin and H5 prototypes |
+| `46bdaf3` | Add official schedule management shell |
+| `5e6a910` | Add group stage schedule tooling |
 
 ## 当前目录状态
 
@@ -137,7 +140,7 @@ docs/
 | 风险 | 当前状态 | 应对 |
 | --- | --- | --- |
 | OpenDota 数据不完整 | 已缓解 | 三届比赛已 backfill；第一届仍有 23 场处于 parse requested，继续通过定时 worker 刷新 |
-| 瑞士轮配对规则复杂 | 已识别 | MVP 采用可解释的同分优先配对，复杂 Buchholz 后置 |
+| 瑞士轮配对规则复杂 | 部分缓解 | 已支持同战绩优先、避免重复交手、奇数队轮空和管理员草稿确认；复杂 Buchholz 后置 |
 | 双败淘汰自动推进复杂 | 部分缓解 | 已支持胜者组推进和败者组落位；复杂种子避让和总决赛重置赛触发后续补齐 |
 | 小程序上线延迟 | 已识别 | H5 同步实现公开浏览 |
 | 前端页面密度不符合预期 | 进行中 | 设计稿已降字号，后续继续按真实 App 调整 |

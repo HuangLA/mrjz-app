@@ -448,7 +448,9 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | PATCH | `/api/admin/stages/:id` | 修改阶段规则、状态和可见性 |
 | POST | `/api/admin/stages/:id/teams` | 配置阶段参赛队 |
 | POST | `/api/admin/stages/:id/generate-series` | 生成小组赛赛程草稿 |
-| POST | `/api/admin/stages/:id/generate-swiss-round` | 生成瑞士轮下一轮配对草稿 |
+| POST | `/api/stages/:id/swiss-pairings` | 生成或重生成瑞士轮指定轮次配对草稿 |
+| POST | `/api/rounds/:id/confirm-swiss` | 确认瑞士轮配对并发布该轮 |
+| POST | `/api/rounds/:id/retract-swiss` | 撤回该轮及后续瑞士轮配对 |
 | POST | `/api/admin/stages/:id/generate-bracket` | 生成淘汰赛 bracket 草稿 |
 | POST | `/api/admin/stages/:id/publish` | 发布阶段和草稿对阵 |
 | POST | `/api/admin/stages/:id/recalculate-standings` | 重算阶段积分榜 |

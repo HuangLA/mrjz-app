@@ -1133,6 +1133,59 @@ td small,
   color: #253149;
 }
 
+.swiss-manager {
+  display: grid;
+  gap: 12px;
+}
+
+.swiss-generate-form {
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 160px) auto;
+  align-items: end;
+}
+
+.swiss-round-list {
+  display: grid;
+  gap: 10px;
+}
+
+.swiss-round-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid #e0e7f1;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.swiss-round-card > div:first-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.swiss-round-card strong,
+.swiss-round-card small {
+  overflow-wrap: anywhere;
+}
+
+.swiss-bye-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.swiss-bye-list span {
+  padding: 4px 7px;
+  border: 1px solid #cfebd5;
+  border-radius: 7px;
+  background: #f3fbf4;
+  color: #2c6e42;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .bracket-board {
   display: grid;
   grid-auto-columns: minmax(180px, 220px);

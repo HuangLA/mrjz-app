@@ -76,6 +76,7 @@ export type SeriesSummary = {
 
 export type StageRound = RoundBrief & {
   pairingStatus: "draft" | "published" | "confirmed";
+  byes: TeamBrief[];
   series: SeriesSummary[];
 };
 

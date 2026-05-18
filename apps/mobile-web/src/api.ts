@@ -183,6 +183,7 @@ type ApiRound = {
   name?: string;
   status?: string;
   pairingStatus?: string;
+  byes?: ApiTeam[];
   series?: ApiSeries[];
 };
 
@@ -1155,9 +1156,10 @@ function normalizeScheduleGroups(
   payloads: Array<{ stage: ApiStage; rounds: ApiRound[] | null }>,
 ): ScheduleGroup[] {
   const items = payloads.flatMap((payload) =>
-    (payload.rounds ?? []).flatMap((round) =>
-      (round.series ?? []).map((series) => normalizeScheduleItem(payload.stage, round, series)).filter(isDefined),
-    ),
+    (payload.rounds ?? []).flatMap((round) => [
+      ...(round.series ?? []).map((series) => normalizeScheduleItem(payload.stage, round, series)),
+      ...(round.byes ?? []).map((team) => normalizeByeScheduleItem(payload.stage, round, team)),
+    ].filter(isDefined)),
   );
   const byDate = new Map<string, ScheduleItem[]>();
 
@@ -1207,6 +1209,21 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
   }
 
   return item;
+}
+
+function normalizeByeScheduleItem(stage: ApiStage, round: ApiRound, team: ApiTeam): ScheduleItem & { timeDate: string } {
+  return {
+    time: "--:--",
+    timeDate: "待定日期",
+    stage: stage.name ?? stageNameFromId(round.stageId),
+    round: round.name ?? `R${round.roundNumber ?? "-"}`,
+    kind: "regular",
+    teamA: team.name ?? "待定",
+    teamB: "轮空",
+    bo: "BYE",
+    status: "已完赛",
+    score: "轮空胜",
+  };
 }
 
 function normalizeMatchDetail(detail: ApiMatchDetail): MatchData {

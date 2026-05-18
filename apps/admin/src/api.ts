@@ -186,6 +186,7 @@ export interface SeriesSummary {
 
 export interface StageRound extends RoundBrief {
   pairingStatus?: "draft" | "published" | "confirmed" | string;
+  byes?: TeamBrief[];
   series: SeriesSummary[];
 }
 

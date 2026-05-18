@@ -192,6 +192,14 @@ CREATE TABLE IF NOT EXISTS stage_manual_ranks (
   PRIMARY KEY (stage_id, team_id)
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS swiss_byes (
+  stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (stage_id, round_id, team_id)
+) STRICT;
+
 CREATE TABLE IF NOT EXISTS series_games (
   id TEXT PRIMARY KEY,
   series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
