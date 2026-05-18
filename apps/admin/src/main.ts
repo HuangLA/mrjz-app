@@ -6,6 +6,7 @@ import {
   type ApiSource,
   type BracketNode,
   type OpenDotaMatchListItem,
+  type OfficialScheduleManagement,
   type StageGroup,
   type StageRound,
   type StageSummary,
@@ -47,6 +48,7 @@ interface LoadState {
   standings: StandingRow[];
   bracket: BracketNode[];
   groups: StageGroup[];
+  scheduleManagement: OfficialScheduleManagement | null;
   syncRows: SyncRow[];
   writeNotice: {
     tone: Tone;
@@ -177,6 +179,7 @@ let state: LoadState = {
   standings: [],
   bracket: [],
   groups: [],
+  scheduleManagement: null,
   syncRows: [],
   writeNotice: null,
 };
@@ -864,6 +867,8 @@ function renderOverview(): string {
   const recentMatches = state.matches.slice(0, 8);
 
   return `
+    ${renderScheduleManagementConsole()}
+
     <section class="panel">
       <div class="section-heading">
         <div>
@@ -1899,6 +1904,233 @@ function renderSeriesAdminForms(row: StageRound["series"][number]): string {
   `;
 }
 
+function renderScheduleManagementConsole(): string {
+  const schedule = state.scheduleManagement;
+  const status = schedule?.status ?? "unconfigured";
+  const rosterIds = new Set(schedule?.teams.map((item) => item.team.id) ?? []);
+  const seededIds = new Set(schedule?.teams.filter((item) => item.isSeeded).map((item) => item.team.id) ?? []);
+  const checks = officialScheduleChecks();
+
+  return `
+    <section class="panel schedule-console">
+      <div class="section-heading">
+        <div>
+          <h2>官方赛程管理</h2>
+          <p>这里管理 H5 赛程页会展示的官方赛程；比赛列表、比赛记录和战报仍然读取 OpenDota 数据。</p>
+        </div>
+        <div class="toolbar">
+          ${badge(scheduleStatusLabel(status), toneForStatus(status))}
+          ${badge(schedule?.rosterLocked ? "名单已锁定" : "名单未锁定", schedule?.rosterLocked ? "good" : "warn")}
+        </div>
+      </div>
+
+      <div class="schedule-console-grid">
+        <div class="schedule-step">
+          <div class="step-head">
+            <span>1</span>
+            <div>
+              <strong>参赛名单</strong>
+              <small>从当前届次已有战队里勾选。名单锁定后才进入赛制配置。</small>
+            </div>
+          </div>
+          ${
+            schedule?.rosterLocked
+              ? renderLockedRoster(schedule)
+              : renderRosterLockForm(rosterIds, seededIds)
+          }
+        </div>
+
+        <div class="schedule-step">
+          <div class="step-head">
+            <span>2</span>
+            <div>
+              <strong>赛制选择</strong>
+              <small>一届比赛固定一个预赛和一个淘汰赛。这里只保存选择，具体编排在下方完成。</small>
+            </div>
+          </div>
+          ${renderScheduleConfigForm(schedule)}
+        </div>
+
+        <div class="schedule-step">
+          <div class="step-head">
+            <span>3</span>
+            <div>
+              <strong>发布检查</strong>
+              <small>发布后 H5 赛程页才会显示官方赛程；撤回后显示“赛程暂未发布”。</small>
+            </div>
+          </div>
+          <div class="check-list">
+            ${checks.map((check) => `<span class="${check.ok ? "is-ok" : "is-missing"}">${escapeHtml(check.text)}</span>`).join("")}
+          </div>
+          <div class="publish-actions">
+            <form data-action="publish-official-schedule">
+              <button class="primary-button" type="submit" ${schedule?.rosterLocked ? "" : "disabled"}>发布到 H5 赛程页</button>
+            </form>
+            <form data-action="withdraw-official-schedule">
+              <button class="secondary-button danger-link" type="submit" ${status === "published" ? "" : "disabled"}>撤回发布</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      ${renderScheduleLogList(schedule)}
+    </section>
+  `;
+}
+
+function renderLockedRoster(schedule: OfficialScheduleManagement): string {
+  return `
+    <div class="locked-roster">
+      <div class="roster-chip-list">
+        ${
+          schedule.teams.length === 0
+            ? `<span class="muted-copy">名单已锁定，但没有参赛队伍，请解锁后重新选择。</span>`
+            : schedule.teams
+                .map(
+                  (item) => `
+                    <span class="roster-chip ${item.isSeeded ? "is-seeded" : ""}">
+                      <strong>${escapeHtml(item.team.name)}</strong>
+                      <small>${escapeHtml(item.isSeeded ? "种子队" : `Seed ${item.seed ?? "-"}`)}</small>
+                    </span>
+                  `,
+                )
+                .join("")
+        }
+      </div>
+      <form data-action="unlock-official-roster">
+        <button class="secondary-button danger-link" type="submit">解锁名单并清空官方赛程草稿</button>
+      </form>
+    </div>
+  `;
+}
+
+function renderRosterLockForm(rosterIds: Set<string>, seededIds: Set<string>): string {
+  if (state.teams.length === 0) {
+    return emptyState("当前届次还没有战队。先到战队管理添加战队，再回来锁定参赛名单。");
+  }
+
+  return `
+    <form class="roster-lock-form" data-action="lock-official-roster">
+      <div class="roster-pick-list">
+        ${state.teams
+          .map(
+            (team, index) => `
+              <label class="roster-pick-row">
+                <input type="checkbox" name="teamIds" value="${escapeHtml(team.id)}" ${rosterIds.size === 0 || rosterIds.has(team.id) ? "checked" : ""} />
+                <span>
+                  <strong>${escapeHtml(team.name)}</strong>
+                  <small>${escapeHtml(team.members.length)} 名队员 · seed ${escapeHtml(team.seed ?? index + 1)}</small>
+                </span>
+                <em>
+                  <input type="checkbox" name="seededTeamIds" value="${escapeHtml(team.id)}" ${seededIds.has(team.id) ? "checked" : ""} />
+                  种子
+                </em>
+              </label>
+            `,
+          )
+          .join("")}
+      </div>
+      <button class="primary-button" type="submit">锁定参赛名单</button>
+    </form>
+  `;
+}
+
+function renderScheduleConfigForm(schedule: OfficialScheduleManagement | null): string {
+  return `
+    <form class="schedule-config-form" data-action="update-official-schedule-config">
+      <label>预赛赛制
+        <select name="preliminaryType">
+          <option value="group" ${schedule?.preliminaryType === "group" ? "selected" : ""}>小组赛</option>
+          <option value="swiss" ${schedule?.preliminaryType === "swiss" ? "selected" : ""}>瑞士轮</option>
+        </select>
+      </label>
+      <label>淘汰赛赛制
+        <select name="knockoutType">
+          <option value="single_elimination" ${schedule?.knockoutType === "single_elimination" ? "selected" : ""}>单败淘汰</option>
+          <option value="double_elimination" ${schedule?.knockoutType === "double_elimination" ? "selected" : ""}>双败淘汰</option>
+        </select>
+      </label>
+      <button class="secondary-button" type="submit">保存赛制选择</button>
+    </form>
+  `;
+}
+
+function renderScheduleLogList(schedule: OfficialScheduleManagement | null): string {
+  const logs = schedule?.logs ?? [];
+
+  return `
+    <div class="schedule-log-list">
+      <div class="section-heading compact">
+        <div>
+          <h2>操作日志</h2>
+          <p>先记录后台动作，后续接管理员登录后再写入真实账号。</p>
+        </div>
+        ${badge(`${logs.length} 条`, "info")}
+      </div>
+      ${
+        logs.length === 0
+          ? emptyState("暂无赛程管理操作记录。")
+          : logs
+              .map(
+                (log) => `
+                  <div class="log-row">
+                    <strong>${escapeHtml(scheduleLogLabel(log.action))}</strong>
+                    <span>${escapeHtml(log.actor)} · ${escapeHtml(formatDate(log.createdAt))}</span>
+                  </div>
+                `,
+              )
+              .join("")
+      }
+    </div>
+  `;
+}
+
+function officialScheduleChecks(): Array<{ ok: boolean; text: string }> {
+  const schedule = state.scheduleManagement;
+  const hasOfficialStage = (state.detail?.stages ?? []).some((stage) => {
+    return stage.name !== "真实比赛记录" && ["group", "swiss", "knockout"].includes(stage.type);
+  });
+
+  return [
+    { ok: Boolean(schedule?.rosterLocked), text: "参赛名单已锁定" },
+    { ok: Boolean(schedule?.preliminaryType), text: "已选择预赛赛制" },
+    { ok: Boolean(schedule?.knockoutType), text: "已选择淘汰赛赛制" },
+    { ok: hasOfficialStage, text: "已创建至少一个官方赛程阶段" },
+  ];
+}
+
+function scheduleStatusLabel(status: string): string {
+  switch (status) {
+    case "unconfigured":
+      return "未配置";
+    case "draft":
+      return "草稿";
+    case "published":
+      return "已发布";
+    case "withdrawn":
+      return "已撤回";
+    default:
+      return status;
+  }
+}
+
+function scheduleLogLabel(action: string): string {
+  switch (action) {
+    case "schedule_config_updated":
+      return "赛制选择已更新";
+    case "roster_locked":
+      return "参赛名单已锁定";
+    case "roster_unlocked":
+      return "参赛名单已解锁";
+    case "schedule_published":
+      return "官方赛程已发布";
+    case "schedule_withdrawn":
+      return "官方赛程已撤回";
+    default:
+      return action;
+  }
+}
+
 function renderSync(): string {
   const leagueId = state.detail?.league?.opendotaLeagueId ?? "";
 
@@ -2035,6 +2267,7 @@ async function loadDashboard(preferredTournamentId = state.selectedTournamentId,
         standings: [],
         bracket: [],
         groups: [],
+        scheduleManagement: null,
         syncRows: apiSyncTasks.map(syncTaskToRow),
       };
       render();
@@ -2045,11 +2278,12 @@ async function loadDashboard(preferredTournamentId = state.selectedTournamentId,
     const selectedStageId = detail.stages.some((stage) => stage.id === preferredStageId)
       ? preferredStageId
       : detail.currentStageId ?? detail.currentStage?.id ?? detail.stages[0]?.id ?? "";
-    const [stageData, teams, players, matches] = await Promise.all([
+    const [stageData, teams, players, matches, scheduleManagement] = await Promise.all([
       loadStageData(selectedStageId),
       getJson<TournamentTeamListItem[]>(`/tournaments/${encodeURIComponent(selectedTournamentId)}/teams`).catch(() => []),
       getJson<TournamentPlayerListItem[]>(`/tournaments/${encodeURIComponent(selectedTournamentId)}/players`).catch(() => []),
       getJson<OpenDotaMatchListItem[]>(`/tournaments/${encodeURIComponent(selectedTournamentId)}/matches?limit=300`).catch(() => []),
+      getJson<OfficialScheduleManagement>(`/tournaments/${encodeURIComponent(selectedTournamentId)}/schedule-management`).catch(() => null),
     ]);
 
     state = {
@@ -2064,6 +2298,7 @@ async function loadDashboard(preferredTournamentId = state.selectedTournamentId,
       teams,
       players,
       matches,
+      scheduleManagement,
       syncRows: apiSyncTasks.map(syncTaskToRow),
       ...stageData,
     };
@@ -2084,6 +2319,7 @@ async function loadDashboard(preferredTournamentId = state.selectedTournamentId,
       standings: [],
       bracket: [],
       groups: [],
+      scheduleManagement: null,
       syncRows: [],
     };
   }
@@ -2240,6 +2476,11 @@ async function submitGeneratedStagePlan(payload: AdminFormPayload): Promise<void
     type: plan.stageType,
     name: plan.stageName,
     advancementRule: plan.advancementRule,
+    config: {
+      officialSchedule: true,
+      mode: plan.mode,
+      boType: plan.boType,
+    },
   });
   const stageData = createdStage.data;
 
@@ -2356,6 +2597,54 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
           }),
         },
       ];
+    case "update-official-schedule-config":
+      return [
+        {
+          method: "PATCH",
+          path: `/tournaments/${encodeURIComponent(state.selectedTournamentId)}/schedule-management`,
+          payload: compactPayload({
+            preliminaryType: payloadString(payload, "preliminaryType"),
+            knockoutType: payloadString(payload, "knockoutType"),
+            actor: "admin",
+          }),
+        },
+      ];
+    case "lock-official-roster":
+      return [
+        {
+          method: "POST",
+          path: `/tournaments/${encodeURIComponent(state.selectedTournamentId)}/schedule-management/lock-roster`,
+          payload: {
+            teamIds: payloadStrings(payload, "teamIds"),
+            seededTeamIds: payloadStrings(payload, "seededTeamIds"),
+            actor: "admin",
+          },
+        },
+      ];
+    case "unlock-official-roster":
+      return [
+        {
+          method: "POST",
+          path: `/tournaments/${encodeURIComponent(state.selectedTournamentId)}/schedule-management/unlock-roster`,
+          payload: { actor: "admin" },
+        },
+      ];
+    case "publish-official-schedule":
+      return [
+        {
+          method: "POST",
+          path: `/tournaments/${encodeURIComponent(state.selectedTournamentId)}/schedule-management/publish`,
+          payload: { actor: "admin" },
+        },
+      ];
+    case "withdraw-official-schedule":
+      return [
+        {
+          method: "POST",
+          path: `/tournaments/${encodeURIComponent(state.selectedTournamentId)}/schedule-management/withdraw`,
+          payload: { actor: "admin" },
+        },
+      ];
     case "create-team":
       return [
         {
@@ -2461,6 +2750,7 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
             type: payloadString(payload, "type"),
             advancementRule: payloadString(payload, "boType") ? `默认 ${payloadString(payload, "boType")}` : undefined,
             config: compactPayload({
+              officialSchedule: true,
               boType: payloadString(payload, "boType") || undefined,
               swissRounds: payloadNumber(payload, "swissRounds"),
             }),
@@ -2897,7 +3187,27 @@ document.addEventListener("submit", (event) => {
   }
 
   event.preventDefault();
+
+  if (!confirmSensitiveAction(action)) {
+    return;
+  }
+
   void submitAction(action, payloadFromForm(form));
 });
 
 void loadDashboard();
+
+function confirmSensitiveAction(action: string): boolean {
+  switch (action) {
+    case "unlock-official-roster":
+      return window.confirm("解锁名单会清空官方赛程草稿。确认继续？");
+    case "withdraw-official-schedule":
+      return window.confirm("撤回后 H5 赛程页会显示赛程暂未发布。确认撤回？");
+    case "publish-official-schedule":
+      return window.confirm("发布后 H5 赛程页将展示官方赛程。确认发布？");
+    case "clear-match-records":
+      return window.confirm("这会清空当前届比赛记录和 OpenDota 缓存。确认继续？");
+    default:
+      return true;
+  }
+}

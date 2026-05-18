@@ -534,6 +534,212 @@ td small,
   color: #69778c;
 }
 
+.schedule-console {
+  display: grid;
+  gap: 14px;
+  border-color: #cfdce9;
+}
+
+.schedule-console-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 1.1fr) minmax(260px, .75fr) minmax(260px, .75fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.schedule-step {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e0e7f1;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.step-head {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.step-head > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #e8f8ec;
+  color: #1f7a44;
+  font-weight: 800;
+}
+
+.step-head strong,
+.step-head small {
+  display: block;
+}
+
+.step-head small {
+  margin-top: 3px;
+  color: #69778c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.roster-lock-form,
+.locked-roster,
+.schedule-config-form,
+.publish-actions,
+.schedule-log-list {
+  display: grid;
+  gap: 10px;
+}
+
+.roster-pick-list {
+  display: grid;
+  gap: 8px;
+  max-height: 330px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.roster-pick-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid #dce4ee;
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.roster-pick-row strong,
+.roster-pick-row small {
+  display: block;
+}
+
+.roster-pick-row strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.roster-pick-row small,
+.roster-pick-row em {
+  color: #69778c;
+  font-size: 11px;
+}
+
+.roster-pick-row em {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-style: normal;
+}
+
+.roster-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.roster-chip {
+  display: grid;
+  gap: 2px;
+  min-width: 150px;
+  padding: 8px 10px;
+  border: 1px solid #dce4ee;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.roster-chip.is-seeded {
+  border-color: #b8ebc2;
+  background: #effaf1;
+}
+
+.roster-chip strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.roster-chip small {
+  color: #69778c;
+  font-size: 11px;
+}
+
+.schedule-config-form label {
+  display: grid;
+  gap: 5px;
+  color: #69778c;
+  font-size: 12px;
+}
+
+.schedule-config-form select {
+  width: 100%;
+  height: 35px;
+  border: 1px solid #d8e1ec;
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fff;
+  color: #253149;
+}
+
+.check-list {
+  display: grid;
+  gap: 7px;
+}
+
+.check-list span {
+  padding: 8px 9px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.check-list .is-ok {
+  border: 1px solid #b8ebc2;
+  background: #effaf1;
+  color: #1f7a44;
+}
+
+.check-list .is-missing {
+  border: 1px solid #f4d999;
+  background: #fff8e8;
+  color: #926111;
+}
+
+.publish-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.publish-actions form,
+.publish-actions button {
+  width: 100%;
+}
+
+.schedule-log-list {
+  padding-top: 12px;
+  border-top: 1px solid #e7edf5;
+}
+
+.log-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid #e0e7f1;
+  border-radius: 7px;
+  background: #fbfcfe;
+  font-size: 12px;
+}
+
+.log-row span {
+  color: #69778c;
+}
+
 .composer-panel {
   border-color: #cfdce9;
   background: #fbfcfe;

@@ -233,6 +233,37 @@ export interface BracketNode {
   winnerTeamId: string | null;
 }
 
+export type OfficialScheduleStatus = "unconfigured" | "draft" | "published" | "withdrawn" | string;
+
+export interface OfficialScheduleTeam {
+  team: TeamBrief;
+  seed: number | null;
+  isSeeded: boolean;
+}
+
+export interface OfficialScheduleLogEntry {
+  id: string;
+  tournamentId: string;
+  actor: string;
+  action: string;
+  detail: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface OfficialScheduleManagement {
+  tournamentId: string;
+  status: OfficialScheduleStatus;
+  rosterLocked: boolean;
+  preliminaryType: "group" | "swiss" | null;
+  knockoutType: "single_elimination" | "double_elimination" | null;
+  lockedAt: string | null;
+  publishedAt: string | null;
+  withdrawnAt: string | null;
+  updatedAt: string | null;
+  teams: OfficialScheduleTeam[];
+  logs: OfficialScheduleLogEntry[];
+}
+
 export interface SyncTask {
   id: string;
   kind: string;

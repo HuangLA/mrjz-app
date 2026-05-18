@@ -8,6 +8,7 @@ import type {
   MatchRecord,
   MatchRecordHero,
   MatchData,
+  OfficialScheduleStatus,
   PlayerDirectoryItem,
   PlayerProfile,
   PlayerStats,
@@ -49,6 +50,7 @@ export type MobileData = {
   tournamentStats: TournamentStat[];
   stageViews: Record<StageKey, StageView>;
   scheduleGroups: ScheduleGroup[];
+  officialSchedule: OfficialScheduleStatus;
   matchRecords: MatchRecord[];
   tournamentRecentRecords: Record<string, MatchRecord[]>;
   players: PlayerDirectoryItem[];
@@ -218,6 +220,14 @@ type ApiBracketNode = {
   direTeam?: ApiTeam | null;
   series?: ApiSeries | null;
   winnerTeamId?: string | null;
+};
+
+type ApiOfficialScheduleStatus = {
+  status?: "unconfigured" | "draft" | "published" | "withdrawn" | string;
+  isPublished?: boolean;
+  rosterLocked?: boolean;
+  publishedAt?: string | null;
+  withdrawnAt?: string | null;
 };
 
 type ApiStanding = {
@@ -566,6 +576,9 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
   );
 
   const scheduleGroups = normalizeScheduleGroups(stagePayloads);
+  const officialSchedule = normalizeOfficialScheduleStatus(
+    await fetchApi<ApiOfficialScheduleStatus>(apiBaseUrl, `/tournaments/${selectedTournamentId}/official-schedule`).catch(() => null),
+  );
   const matchRecords = await fetchApi<ApiMatchRecord[]>(
     apiBaseUrl,
     `/tournaments/${selectedTournamentId}/matches?limit=80`,
@@ -588,6 +601,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     tournamentStats: normalizeTournamentStats(tournament, scheduleGroups, match, normalizedRecords),
     stageViews: normalizeStageViews(stagePayloads),
     scheduleGroups,
+    officialSchedule,
     matchRecords: normalizedRecords,
     tournamentRecentRecords,
     players: [],
@@ -674,6 +688,7 @@ function emptyMobileData(
     tournamentStats: [],
     stageViews: emptyStageViews(),
     scheduleGroups: [],
+    officialSchedule: emptyOfficialScheduleStatus(),
     matchRecords: [],
     tournamentRecentRecords: {},
     players: [],
@@ -1075,6 +1090,26 @@ function emptyStageViews(): Record<StageKey, StageView> {
       standings: [],
       bracket: [],
     },
+  };
+}
+
+function normalizeOfficialScheduleStatus(status: ApiOfficialScheduleStatus | null): OfficialScheduleStatus {
+  return {
+    status: status?.status ?? "unconfigured",
+    isPublished: status?.isPublished === true,
+    rosterLocked: status?.rosterLocked === true,
+    publishedAt: status?.publishedAt ?? null,
+    withdrawnAt: status?.withdrawnAt ?? null,
+  };
+}
+
+function emptyOfficialScheduleStatus(): OfficialScheduleStatus {
+  return {
+    status: "unconfigured",
+    isPublished: false,
+    rosterLocked: false,
+    publishedAt: null,
+    withdrawnAt: null,
   };
 }
 

@@ -968,6 +968,25 @@ function renderStageBracketNode(node: StageView["bracket"][number]): string {
 
 function renderSchedulePage(): string {
   const groups = currentData().scheduleGroups;
+  const officialSchedule = currentData().officialSchedule;
+
+  if (!officialSchedule.isPublished) {
+    return `
+      ${renderDataNotice()}
+      ${renderTournamentScope()}
+      <section class="section-panel schedule-unpublished">
+        <div class="section-title compact">
+          <div>
+            <p class="eyebrow">Official Schedule</p>
+            <h2>赛程暂未发布</h2>
+          </div>
+          <span class="sync-pill">${escapeHtml(officialScheduleStatusText(officialSchedule.status))}</span>
+        </div>
+        <p class="muted">管理员尚未发布这届比赛的官方赛程。比赛列表、比赛记录和战报仍可在其它页面查看。</p>
+      </section>
+    `;
+  }
+
   return `
     ${renderDataNotice()}
     ${renderTournamentScope()}
@@ -987,9 +1006,12 @@ function renderSchedulePage(): string {
         <span class="filter">延期</span>
       </div>
     </section>
-    ${groups
-      .map(
-        (group) => `
+    ${
+      groups.length === 0
+        ? `<section class="section-panel">${renderEmptyState("官方赛程已发布，但暂时没有可展示的对阵。")}</section>`
+        : groups
+            .map(
+              (group) => `
           <section class="section-panel schedule-group">
             <div class="date-row">
               <b>${escapeHtml(group.date)}</b>
@@ -1000,9 +1022,25 @@ function renderSchedulePage(): string {
             </div>
           </section>
         `,
-      )
-      .join("")}
+            )
+            .join("")
+    }
   `;
+}
+
+function officialScheduleStatusText(status: string): string {
+  switch (status) {
+    case "draft":
+      return "草稿";
+    case "withdrawn":
+      return "已撤回";
+    case "published":
+      return "已发布";
+    case "unconfigured":
+      return "未配置";
+    default:
+      return status;
+  }
 }
 
 function renderRecordsPage(): string {
@@ -2743,6 +2781,13 @@ function currentData(): MobileData {
       tournamentStats: [],
       stageViews: emptyStageViews(),
       scheduleGroups: [],
+      officialSchedule: {
+        status: "unconfigured",
+        isPublished: false,
+        rosterLocked: false,
+        publishedAt: null,
+        withdrawnAt: null,
+      },
       matchRecords: [],
       tournamentRecentRecords: {},
       players: [],

@@ -28,7 +28,10 @@ import {
   type ClearTournamentMatchRecordsResult,
   type CreateStageGroupInput,
   type KnockoutBracketResult,
+  type LockOfficialScheduleRosterInput,
+  type OfficialSchedulePublicStatus,
   type RemoveTeamMemberInput,
+  type UpdateOfficialScheduleConfigInput,
   type UpdateStageGroupInput,
   type UpdateSeriesInput,
   type UpdateSeriesResultInput,
@@ -38,6 +41,7 @@ import {
 } from "./sqliteRepository.js";
 import type {
   BracketNode,
+  OfficialScheduleManagement,
   StageGroup,
   StageRound,
   StandingRow,
@@ -69,6 +73,13 @@ type Repository = {
   listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
   getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined;
   getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined;
+  getOfficialScheduleManagement(tournamentId: string): OfficialScheduleManagement | undefined;
+  getOfficialSchedulePublicStatus(tournamentId: string): OfficialSchedulePublicStatus | undefined;
+  updateOfficialScheduleConfig(tournamentId: string, input: UpdateOfficialScheduleConfigInput): OfficialScheduleManagement;
+  lockOfficialScheduleRoster(tournamentId: string, input: LockOfficialScheduleRosterInput): OfficialScheduleManagement;
+  unlockOfficialScheduleRoster(tournamentId: string, actor?: string): OfficialScheduleManagement;
+  publishOfficialSchedule(tournamentId: string, actor?: string): OfficialScheduleManagement;
+  withdrawOfficialSchedule(tournamentId: string, actor?: string): OfficialScheduleManagement;
   backfillCachedTournamentEntities(tournamentId?: string): EntityBackfillSummary;
   listTournamentPlayerAccountIds(tournamentId: string): number[];
   updatePlayerSteamProfiles(profiles: SteamPlayerProfileInput[]): number;
@@ -168,6 +179,34 @@ export function getTournamentTeamDetail(tournamentId: string, teamId: string) {
 
 export function getTournamentPlayerDetail(tournamentId: string, playerId: string) {
   return repository.getTournamentPlayerDetail(tournamentId, playerId);
+}
+
+export function getOfficialScheduleManagement(tournamentId: string) {
+  return repository.getOfficialScheduleManagement(tournamentId);
+}
+
+export function getOfficialSchedulePublicStatus(tournamentId: string) {
+  return repository.getOfficialSchedulePublicStatus(tournamentId);
+}
+
+export function updateOfficialScheduleConfig(tournamentId: string, input: UpdateOfficialScheduleConfigInput) {
+  return repository.updateOfficialScheduleConfig(tournamentId, input);
+}
+
+export function lockOfficialScheduleRoster(tournamentId: string, input: LockOfficialScheduleRosterInput) {
+  return repository.lockOfficialScheduleRoster(tournamentId, input);
+}
+
+export function unlockOfficialScheduleRoster(tournamentId: string, actor?: string) {
+  return repository.unlockOfficialScheduleRoster(tournamentId, actor);
+}
+
+export function publishOfficialSchedule(tournamentId: string, actor?: string) {
+  return repository.publishOfficialSchedule(tournamentId, actor);
+}
+
+export function withdrawOfficialSchedule(tournamentId: string, actor?: string) {
+  return repository.withdrawOfficialSchedule(tournamentId, actor);
 }
 
 export function backfillCachedTournamentEntities(tournamentId?: string) {

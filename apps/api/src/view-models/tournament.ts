@@ -103,3 +103,34 @@ export type BracketNode = {
   loserNextSlot: "radiant" | "dire" | null;
   winnerTeamId: string | null;
 };
+
+export type OfficialScheduleStatus = "unconfigured" | "draft" | "published" | "withdrawn";
+
+export type OfficialScheduleTeam = {
+  team: TeamBrief;
+  seed: number | null;
+  isSeeded: boolean;
+};
+
+export type OfficialScheduleLogEntry = {
+  id: string;
+  tournamentId: string;
+  actor: string;
+  action: string;
+  detail: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type OfficialScheduleManagement = {
+  tournamentId: string;
+  status: OfficialScheduleStatus;
+  rosterLocked: boolean;
+  preliminaryType: "group" | "swiss" | null;
+  knockoutType: "single_elimination" | "double_elimination" | null;
+  lockedAt: string | null;
+  publishedAt: string | null;
+  withdrawnAt: string | null;
+  updatedAt: string | null;
+  teams: OfficialScheduleTeam[];
+  logs: OfficialScheduleLogEntry[];
+};

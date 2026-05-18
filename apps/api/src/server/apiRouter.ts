@@ -14,6 +14,8 @@ import {
   deleteSeries,
   deleteStageGroup,
   getMatchDetail,
+  getOfficialScheduleManagement,
+  getOfficialSchedulePublicStatus,
   getStageBracket,
   listStageGroups,
   getStageRounds,
@@ -29,6 +31,7 @@ import {
   listLeagues,
   listSyncTasks,
   listTournaments,
+  lockOfficialScheduleRoster,
   addTeamMember,
   backfillCachedTournamentEntities,
   removeTeamMember,
@@ -39,6 +42,10 @@ import {
   updateSeriesGameResult,
   updateSeriesResult,
   updateStageGroup,
+  publishOfficialSchedule,
+  unlockOfficialScheduleRoster,
+  updateOfficialScheduleConfig,
+  withdrawOfficialSchedule,
 } from "../data/repository.js";
 import { resolvePlayerProfileBySteamId } from "../opendota/playerProfiles.js";
 import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
@@ -167,6 +174,71 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(team);
+  });
+
+  router.get("/api/tournaments/:id/official-schedule", ({ params }) => {
+    const schedule = getOfficialSchedulePublicStatus(params.id ?? "");
+
+    if (schedule === undefined) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(schedule);
+  });
+
+  router.get("/api/tournaments/:id/schedule-management", ({ params }) => {
+    const management = getOfficialScheduleManagement(params.id ?? "");
+
+    if (management === undefined) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(management);
+  });
+
+  router.patch("/api/tournaments/:id/schedule-management", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateOfficialScheduleConfig(params.id ?? "", bodyToOfficialScheduleConfigInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/tournaments/:id/schedule-management/lock-roster", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(lockOfficialScheduleRoster(params.id ?? "", bodyToLockOfficialScheduleRosterInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/tournaments/:id/schedule-management/unlock-roster", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request).catch(() => ({}));
+      return ok(unlockOfficialScheduleRoster(params.id ?? "", optionalStringField(body, "actor") ?? "admin"));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/tournaments/:id/schedule-management/publish", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request).catch(() => ({}));
+      return ok(publishOfficialSchedule(params.id ?? "", optionalStringField(body, "actor") ?? "admin"));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/tournaments/:id/schedule-management/withdraw", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request).catch(() => ({}));
+      return ok(withdrawOfficialSchedule(params.id ?? "", optionalStringField(body, "actor") ?? "admin"));
+    } catch (error) {
+      return validationError(error);
+    }
   });
 
   router.post("/api/tournaments/:id/knockout-bracket", async ({ request, params }) => {
@@ -482,6 +554,37 @@ function bodyToCreateKnockoutBracketInput(body: Record<string, unknown>) {
   }) as Parameters<typeof createKnockoutBracket>[1];
 }
 
+function bodyToOfficialScheduleConfigInput(body: Record<string, unknown>) {
+  const preliminaryType = optionalStringOrNullField(body, "preliminaryType");
+  const knockoutType = optionalStringOrNullField(body, "knockoutType");
+
+  if (preliminaryType !== undefined && preliminaryType !== null && !["group", "swiss"].includes(preliminaryType)) {
+    throw new Error("preliminaryType must be group or swiss");
+  }
+
+  if (
+    knockoutType !== undefined &&
+    knockoutType !== null &&
+    !["single_elimination", "double_elimination"].includes(knockoutType)
+  ) {
+    throw new Error("knockoutType must be single_elimination or double_elimination");
+  }
+
+  return withoutUndefined({
+    preliminaryType: preliminaryType as "group" | "swiss" | null | undefined,
+    knockoutType: knockoutType as "single_elimination" | "double_elimination" | null | undefined,
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof updateOfficialScheduleConfig>[1];
+}
+
+function bodyToLockOfficialScheduleRosterInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    teamIds: stringArrayField(body, "teamIds"),
+    seededTeamIds: optionalStringArrayField(body, "seededTeamIds"),
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof lockOfficialScheduleRoster>[1];
+}
+
 function bodyToAdvanceBracketNodeInput(body: Record<string, unknown>) {
   return {
     winnerTeamId: stringField(body, "winnerTeamId"),
@@ -765,6 +868,14 @@ function stringArrayField(body: Record<string, unknown>, fieldName: string): str
   }
 
   return value.flatMap((item) => (typeof item === "string" && item.trim().length > 0 ? [item.trim()] : []));
+}
+
+function optionalStringArrayField(body: Record<string, unknown>, fieldName: string): string[] | undefined {
+  if (!(fieldName in body)) {
+    return undefined;
+  }
+
+  return stringArrayField(body, fieldName);
 }
 
 function optionalStringOrNullField(body: Record<string, unknown>, fieldName: string): string | null | undefined {

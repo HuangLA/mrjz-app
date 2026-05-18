@@ -4,6 +4,8 @@ import { accountIdToSteamId64, steamId64ToAccountId } from "../opendota/steamCli
 import type { OpenDotaMatchDetail, OpenDotaMatchPlayer } from "../opendota/types.js";
 import type {
   BracketNode,
+  OfficialScheduleLogEntry,
+  OfficialScheduleManagement,
   SeriesSummary,
   StageGroup,
   StageRound,
@@ -386,6 +388,27 @@ export type ClearTournamentMatchRecordsResult = {
   deletedOpenDotaMatches: number;
 };
 
+export type UpdateOfficialScheduleConfigInput = {
+  preliminaryType?: "group" | "swiss" | null;
+  knockoutType?: "single_elimination" | "double_elimination" | null;
+  actor?: string;
+};
+
+export type LockOfficialScheduleRosterInput = {
+  teamIds: string[];
+  seededTeamIds?: string[];
+  actor?: string;
+};
+
+export type OfficialSchedulePublicStatus = {
+  tournamentId: string;
+  status: OfficialScheduleManagement["status"];
+  isPublished: boolean;
+  rosterLocked: boolean;
+  publishedAt: string | null;
+  withdrawnAt: string | null;
+};
+
 export type UpdateGameResultInput = {
   matchId?: number | null;
   radiantScore?: number | null;
@@ -503,9 +526,43 @@ export class SqliteTournamentRepository {
         PRIMARY KEY (tournament_id, team_id)
       ) STRICT;
 
+      CREATE TABLE IF NOT EXISTS tournament_schedule_settings (
+        tournament_id TEXT PRIMARY KEY REFERENCES tournaments(id) ON DELETE CASCADE,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'withdrawn')),
+        roster_locked INTEGER NOT NULL DEFAULT 0 CHECK (roster_locked IN (0, 1)),
+        preliminary_type TEXT CHECK (preliminary_type IN ('group', 'swiss') OR preliminary_type IS NULL),
+        knockout_type TEXT CHECK (knockout_type IN ('single_elimination', 'double_elimination') OR knockout_type IS NULL),
+        locked_at TEXT,
+        published_at TEXT,
+        withdrawn_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS tournament_schedule_teams (
+        tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        seed INTEGER,
+        is_seeded INTEGER NOT NULL DEFAULT 0 CHECK (is_seeded IN (0, 1)),
+        locked_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (tournament_id, team_id)
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS schedule_operation_logs (
+        id TEXT PRIMARY KEY,
+        tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+        actor TEXT NOT NULL DEFAULT 'admin',
+        action TEXT NOT NULL,
+        detail_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
       CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
       CREATE INDEX IF NOT EXISTS idx_stage_groups_stage ON stage_groups(stage_id);
       CREATE INDEX IF NOT EXISTS idx_stage_group_teams_team ON stage_group_teams(team_id);
+      CREATE INDEX IF NOT EXISTS idx_tournament_schedule_teams_team ON tournament_schedule_teams(team_id);
+      CREATE INDEX IF NOT EXISTS idx_schedule_operation_logs_tournament ON schedule_operation_logs(tournament_id, created_at DESC);
     `);
   }
 
@@ -603,6 +660,435 @@ export class SqliteTournamentRepository {
       nextSeries: this.getNextSeries(summary.id),
       latestResult: this.getLatestResult(summary.id),
     };
+  }
+
+  getOfficialScheduleManagement(tournamentIdParam: string): OfficialScheduleManagement | undefined {
+    const tournament = this.getTournamentDetail(requiredString(tournamentIdParam, "tournamentId"));
+
+    if (tournament === undefined) {
+      return undefined;
+    }
+
+    const settings = this.getOfficialScheduleSettingsRow(tournament.id);
+    const teams = this.listOfficialScheduleTeams(tournament.id);
+    const logs = this.listOfficialScheduleLogs(tournament.id, 30);
+
+    if (settings === undefined) {
+      return {
+        tournamentId: tournament.id,
+        status: "unconfigured",
+        rosterLocked: false,
+        preliminaryType: null,
+        knockoutType: null,
+        lockedAt: null,
+        publishedAt: null,
+        withdrawnAt: null,
+        updatedAt: null,
+        teams,
+        logs,
+      };
+    }
+
+    return {
+      tournamentId: tournament.id,
+      status: text(settings, "status") as OfficialScheduleManagement["status"],
+      rosterLocked: numberValue(settings, "roster_locked") === 1,
+      preliminaryType: nullableText(settings, "preliminary_type") as OfficialScheduleManagement["preliminaryType"],
+      knockoutType: nullableText(settings, "knockout_type") as OfficialScheduleManagement["knockoutType"],
+      lockedAt: nullableText(settings, "locked_at"),
+      publishedAt: nullableText(settings, "published_at"),
+      withdrawnAt: nullableText(settings, "withdrawn_at"),
+      updatedAt: nullableText(settings, "updated_at"),
+      teams,
+      logs,
+    };
+  }
+
+  getOfficialSchedulePublicStatus(tournamentIdParam: string): OfficialSchedulePublicStatus | undefined {
+    const management = this.getOfficialScheduleManagement(tournamentIdParam);
+
+    if (management === undefined) {
+      return undefined;
+    }
+
+    return {
+      tournamentId: management.tournamentId,
+      status: management.status,
+      isPublished: management.status === "published",
+      rosterLocked: management.rosterLocked,
+      publishedAt: management.publishedAt,
+      withdrawnAt: management.withdrawnAt,
+    };
+  }
+
+  updateOfficialScheduleConfig(
+    tournamentIdParam: string,
+    input: UpdateOfficialScheduleConfigInput,
+  ): OfficialScheduleManagement {
+    const tournament = this.getTournamentDetail(requiredString(tournamentIdParam, "tournamentId"));
+
+    if (tournament === undefined) {
+      throw new Error("Tournament not found");
+    }
+
+    if (
+      input.preliminaryType !== undefined &&
+      input.preliminaryType !== null &&
+      input.preliminaryType !== "group" &&
+      input.preliminaryType !== "swiss"
+    ) {
+      throw new Error("preliminaryType must be group or swiss");
+    }
+
+    if (
+      input.knockoutType !== undefined &&
+      input.knockoutType !== null &&
+      input.knockoutType !== "single_elimination" &&
+      input.knockoutType !== "double_elimination"
+    ) {
+      throw new Error("knockoutType must be single_elimination or double_elimination");
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.ensureOfficialScheduleSettings(tournament.id);
+
+      if (input.preliminaryType !== undefined || input.knockoutType !== undefined) {
+        this.database
+          .prepare(
+            `
+              UPDATE tournament_schedule_settings
+              SET
+                preliminary_type = COALESCE(?, preliminary_type),
+                knockout_type = COALESCE(?, knockout_type),
+                status = CASE WHEN status = 'unconfigured' THEN 'draft' ELSE status END,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+              WHERE tournament_id = ?
+            `,
+          )
+          .run(input.preliminaryType ?? null, input.knockoutType ?? null, tournament.id);
+      }
+
+      this.insertScheduleLog(tournament.id, input.actor ?? "admin", "schedule_config_updated", {
+        preliminaryType: input.preliminaryType ?? null,
+        knockoutType: input.knockoutType ?? null,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.requireOfficialScheduleManagement(tournament.id);
+  }
+
+  lockOfficialScheduleRoster(
+    tournamentIdParam: string,
+    input: LockOfficialScheduleRosterInput,
+  ): OfficialScheduleManagement {
+    const tournament = this.getTournamentDetail(requiredString(tournamentIdParam, "tournamentId"));
+
+    if (tournament === undefined) {
+      throw new Error("Tournament not found");
+    }
+
+    const teamIds = uniqueStrings(input.teamIds);
+    const seededTeamIds = new Set(uniqueStrings(input.seededTeamIds ?? []));
+
+    if (teamIds.length < 2) {
+      throw new Error("At least 2 teams are required before locking the roster");
+    }
+
+    for (const teamId of teamIds) {
+      this.ensureTournamentTeam(tournament.id, teamId);
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.ensureOfficialScheduleSettings(tournament.id);
+      this.database.prepare("DELETE FROM tournament_schedule_teams WHERE tournament_id = ?").run(tournament.id);
+
+      const insertTeam = this.database.prepare(
+        `
+          INSERT INTO tournament_schedule_teams (tournament_id, team_id, seed, is_seeded, locked_at)
+          VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        `,
+      );
+
+      teamIds.forEach((teamId, index) => {
+        insertTeam.run(tournament.id, teamId, index + 1, seededTeamIds.has(teamId) ? 1 : 0);
+      });
+
+      this.database
+        .prepare(
+          `
+            UPDATE tournament_schedule_settings
+            SET
+              status = 'draft',
+              roster_locked = 1,
+              locked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              published_at = NULL,
+              withdrawn_at = NULL,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE tournament_id = ?
+          `,
+        )
+        .run(tournament.id);
+      this.insertScheduleLog(tournament.id, input.actor ?? "admin", "roster_locked", {
+        teamIds,
+        seededTeamIds: [...seededTeamIds],
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.requireOfficialScheduleManagement(tournament.id);
+  }
+
+  unlockOfficialScheduleRoster(tournamentIdParam: string, actor = "admin"): OfficialScheduleManagement {
+    const tournament = this.getTournamentDetail(requiredString(tournamentIdParam, "tournamentId"));
+
+    if (tournament === undefined) {
+      throw new Error("Tournament not found");
+    }
+
+    const deletedOfficialStages = this.officialScheduleStageIds(tournament.id).length;
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.ensureOfficialScheduleSettings(tournament.id);
+      this.clearOfficialScheduleDraftStages(tournament.id);
+      this.database.prepare("DELETE FROM tournament_schedule_teams WHERE tournament_id = ?").run(tournament.id);
+      this.database
+        .prepare(
+          `
+            UPDATE tournament_schedule_settings
+            SET
+              status = 'draft',
+              roster_locked = 0,
+              locked_at = NULL,
+              published_at = NULL,
+              withdrawn_at = NULL,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE tournament_id = ?
+          `,
+        )
+        .run(tournament.id);
+      this.insertScheduleLog(tournament.id, actor, "roster_unlocked", { deletedOfficialStages });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.requireOfficialScheduleManagement(tournament.id);
+  }
+
+  publishOfficialSchedule(tournamentIdParam: string, actor = "admin"): OfficialScheduleManagement {
+    const management = this.getOfficialScheduleManagement(tournamentIdParam);
+
+    if (management === undefined) {
+      throw new Error("Tournament not found");
+    }
+
+    if (!management.rosterLocked) {
+      throw new Error("Roster must be locked before publishing the official schedule");
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.ensureOfficialScheduleSettings(management.tournamentId);
+      this.database
+        .prepare(
+          `
+            UPDATE tournament_schedule_settings
+            SET
+              status = 'published',
+              published_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              withdrawn_at = NULL,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE tournament_id = ?
+          `,
+        )
+        .run(management.tournamentId);
+      this.insertScheduleLog(management.tournamentId, actor, "schedule_published", {
+        teamCount: management.teams.length,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.requireOfficialScheduleManagement(management.tournamentId);
+  }
+
+  withdrawOfficialSchedule(tournamentIdParam: string, actor = "admin"): OfficialScheduleManagement {
+    const management = this.getOfficialScheduleManagement(tournamentIdParam);
+
+    if (management === undefined) {
+      throw new Error("Tournament not found");
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.ensureOfficialScheduleSettings(management.tournamentId);
+      this.database
+        .prepare(
+          `
+            UPDATE tournament_schedule_settings
+            SET
+              status = 'withdrawn',
+              withdrawn_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE tournament_id = ?
+          `,
+        )
+        .run(management.tournamentId);
+      this.insertScheduleLog(management.tournamentId, actor, "schedule_withdrawn", {});
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.requireOfficialScheduleManagement(management.tournamentId);
+  }
+
+  private requireOfficialScheduleManagement(tournamentId: string): OfficialScheduleManagement {
+    const management = this.getOfficialScheduleManagement(tournamentId);
+
+    if (management === undefined) {
+      throw new Error("Tournament not found");
+    }
+
+    return management;
+  }
+
+  private getOfficialScheduleSettingsRow(tournamentId: string): DbRow | undefined {
+    return this.database.prepare("SELECT * FROM tournament_schedule_settings WHERE tournament_id = ?").get(tournamentId);
+  }
+
+  private ensureOfficialScheduleSettings(tournamentId: string): void {
+    this.database
+      .prepare("INSERT OR IGNORE INTO tournament_schedule_settings (tournament_id, status) VALUES (?, 'draft')")
+      .run(tournamentId);
+  }
+
+  private listOfficialScheduleTeams(tournamentId: string): OfficialScheduleManagement["teams"] {
+    return this.database
+      .prepare(
+        `
+          SELECT
+            tst.*,
+            tm.id AS team_id,
+            tm.name AS team_name,
+            tm.short_name AS team_short_name,
+            tm.logo_url AS team_logo_url,
+            tm.color AS team_color
+          FROM tournament_schedule_teams tst
+          JOIN teams tm ON tm.id = tst.team_id
+          WHERE tst.tournament_id = ?
+          ORDER BY tst.seed IS NULL ASC, tst.seed ASC, tm.name ASC
+        `,
+      )
+      .all(tournamentId)
+      .map((row) => ({
+        team: teamFromPrefixedRow(row, "team"),
+        seed: nullableNumber(row, "seed"),
+        isSeeded: numberValue(row, "is_seeded") === 1,
+      }));
+  }
+
+  private listOfficialScheduleLogs(tournamentId: string, limit: number): OfficialScheduleLogEntry[] {
+    return this.database
+      .prepare(
+        `
+          SELECT *
+          FROM schedule_operation_logs
+          WHERE tournament_id = ?
+          ORDER BY created_at DESC
+          LIMIT ?
+        `,
+      )
+      .all(tournamentId, limit)
+      .map((row) => ({
+        id: text(row, "id"),
+        tournamentId: text(row, "tournament_id"),
+        actor: text(row, "actor"),
+        action: text(row, "action"),
+        detail: parseJson<Record<string, unknown>>(text(row, "detail_json"), {}),
+        createdAt: text(row, "created_at"),
+      }));
+  }
+
+  private insertScheduleLog(
+    tournamentId: string,
+    actor: string,
+    action: string,
+    detail: Record<string, unknown>,
+  ): void {
+    this.database
+      .prepare(
+        `
+          INSERT INTO schedule_operation_logs (id, tournament_id, actor, action, detail_json)
+          VALUES (?, ?, ?, ?, ?)
+        `,
+      )
+      .run(uniqueId("schedule_log", `${tournamentId}-${action}-${Date.now()}`), tournamentId, actor, action, JSON.stringify(detail));
+  }
+
+  private officialScheduleStageIds(tournamentId: string): string[] {
+    return this.database
+      .prepare("SELECT id, config_json FROM stages WHERE tournament_id = ?")
+      .all(tournamentId)
+      .filter((row) => this.isOfficialScheduleStageRow(row))
+      .map((row) => text(row, "id"));
+  }
+
+  private isOfficialScheduleStageRow(row: DbRow): boolean {
+    const config = parseJson<Record<string, unknown>>(text(row, "config_json"), {});
+
+    return config.officialSchedule === true || config.scheduleManagement === true;
+  }
+
+  private clearOfficialScheduleDraftStages(tournamentId: string): void {
+    const stageIds = this.officialScheduleStageIds(tournamentId);
+
+    if (stageIds.length === 0) {
+      return;
+    }
+
+    const currentStage = this.database
+      .prepare("SELECT current_stage_id FROM tournaments WHERE id = ?")
+      .get(tournamentId);
+    const shouldMoveCurrentStage = stageIds.includes(nullableText(currentStage ?? {}, "current_stage_id") ?? "");
+    const placeholders = stageIds.map(() => "?").join(", ");
+
+    this.database.prepare(`DELETE FROM stages WHERE id IN (${placeholders})`).run(...stageIds);
+
+    if (shouldMoveCurrentStage) {
+      const nextStage = this.database
+        .prepare("SELECT id FROM stages WHERE tournament_id = ? ORDER BY sort_order ASC LIMIT 1")
+        .get(tournamentId);
+
+      this.database
+        .prepare(
+          `
+            UPDATE tournaments
+            SET current_stage_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(nullableText(nextStage ?? {}, "id"), tournamentId);
+    }
   }
 
   getStageStandings(stageId: string): StandingRow[] | undefined {
@@ -1986,6 +2472,7 @@ export class SqliteTournamentRepository {
           sortOrder,
           stageRule,
           JSON.stringify({
+            officialSchedule: true,
             bracketType,
             bracketSize,
             boType,

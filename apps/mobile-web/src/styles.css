@@ -680,6 +680,20 @@ button {
   padding-top: 8px;
 }
 
+.schedule-unpublished {
+  display: grid;
+  gap: 12px;
+  min-height: 180px;
+  align-content: center;
+}
+
+.schedule-unpublished .muted {
+  margin: 0;
+  color: #8e99ac;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .date-row {
   margin-bottom: 8px;
   font-size: 11px;

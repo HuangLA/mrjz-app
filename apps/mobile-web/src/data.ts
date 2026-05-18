@@ -204,6 +204,14 @@ export interface ScheduleItem {
   matchId?: string;
 }
 
+export interface OfficialScheduleStatus {
+  status: "unconfigured" | "draft" | "published" | "withdrawn" | string;
+  isPublished: boolean;
+  rosterLocked: boolean;
+  publishedAt: string | null;
+  withdrawnAt: string | null;
+}
+
 export interface PlayerStats {
   id: string;
   side: TeamSide;
