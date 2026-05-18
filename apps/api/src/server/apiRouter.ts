@@ -41,6 +41,7 @@ import {
   removeTeamMember,
   removeStageGroupTeam,
   retractSwissRound,
+  setBracketNodeSlot,
   updateTeam,
   updateTournamentLifecycle,
   updateSeries,
@@ -570,6 +571,15 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
   });
 
+  router.patch("/api/bracket-nodes/:nodeId/slot", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(setBracketNodeSlot(params.nodeId ?? "", bodyToSetBracketNodeSlotInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.post("/api/sync-tasks", async ({ request }) => {
     try {
       const body = await readJsonBody(request);
@@ -610,6 +620,8 @@ function bodyToCreateKnockoutBracketInput(body: Record<string, unknown>) {
     name: optionalStringField(body, "name"),
     bracketType: bracketType as "single_elimination" | "double_elimination",
     bracketSize: optionalNumberField(body, "bracketSize"),
+    winnerTeamCount: optionalNumberField(body, "winnerTeamCount"),
+    loserTeamCount: optionalNumberField(body, "loserTeamCount"),
     boType: boType as "BO1" | "BO2" | "BO3" | "BO5",
     scheduledAt: optionalStringField(body, "scheduledAt"),
     teamIds: stringArrayField(body, "teamIds"),
@@ -651,6 +663,20 @@ function bodyToAdvanceBracketNodeInput(body: Record<string, unknown>) {
   return {
     winnerTeamId: stringField(body, "winnerTeamId"),
   } satisfies Parameters<typeof advanceBracketNode>[1];
+}
+
+function bodyToSetBracketNodeSlotInput(body: Record<string, unknown>) {
+  const slot = stringField(body, "slot");
+
+  if (slot !== "radiant" && slot !== "dire") {
+    throw new Error("slot must be radiant or dire");
+  }
+
+  return withoutUndefined({
+    slot,
+    teamId: optionalStringOrNullField(body, "teamId"),
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof setBracketNodeSlot>[1];
 }
 
 function bodyToCreateStageGroupInput(stageId: string, body: Record<string, unknown>) {

@@ -76,6 +76,8 @@ interface ComposerState {
   advancePerGroup: number;
   swissRounds: number;
   bracketSize: number;
+  winnerTeamCount: number;
+  loserTeamCount: number;
   selectedTeamIds: string[];
 }
 
@@ -163,6 +165,8 @@ let composerState: ComposerState = {
   advancePerGroup: 2,
   swissRounds: 5,
   bracketSize: 8,
+  winnerTeamCount: 8,
+  loserTeamCount: 0,
   selectedTeamIds: [],
 };
 let state: LoadState = {
@@ -369,6 +373,8 @@ function composerStateFromPayload(payload: AdminFormPayload): ComposerState {
     advancePerGroup: clampNumber(payloadNumber(payload, "advancePerGroup") ?? composerState.advancePerGroup, 1, 8),
     swissRounds: clampNumber(payloadNumber(payload, "swissRounds") ?? composerState.swissRounds, 1, 9),
     bracketSize: clampNumber(payloadNumber(payload, "bracketSize") ?? composerState.bracketSize, 4, 16),
+    winnerTeamCount: clampNumber(payloadNumber(payload, "winnerTeamCount") ?? composerState.winnerTeamCount, 2, 16),
+    loserTeamCount: clampNumber(payloadNumber(payload, "loserTeamCount") ?? composerState.loserTeamCount, 0, 16),
     selectedTeamIds: payloadStrings(payload, "teamIds"),
   };
 }
@@ -664,8 +670,14 @@ function buildDoubleEliminationPlan(
   const requestedSize = config.bracketSize <= 4 ? 4 : config.bracketSize <= 8 ? 8 : 16;
   const bracketSize = Math.max(requestedSize, clampNumber(nextPowerOfTwo(Math.max(teams.length, 2)), 4, 16));
   const seedOrder = seedSlotOrder(bracketSize);
-  const slots = seedOrder.map((seed) => teams[seed - 1] ?? null);
+  const winnerTeamCount = clampNumber(config.winnerTeamCount, 2, Math.min(bracketSize, Math.max(2, teams.length)));
+  const loserTeamCount = clampNumber(config.loserTeamCount, 0, Math.min(Math.floor(bracketSize / 2), Math.max(0, teams.length - winnerTeamCount)));
+  const winnerTeams = teams.slice(0, winnerTeamCount);
+  const loserTeams = teams.slice(winnerTeamCount, winnerTeamCount + loserTeamCount);
+  const slots = seedOrder.map((seed) => winnerTeams[seed - 1] ?? null);
+  const loserOpeningSlots = Array.from({ length: Math.floor(bracketSize / 2) }, (_, index) => loserTeams[index] ?? null);
   const firstRoundSeries: PlanSeries[] = [];
+  const loserFirstRoundSeries: PlanSeries[] = [];
   const byes: PlanBye[] = [];
 
   for (let index = 0; index < slots.length; index += 2) {
@@ -682,6 +694,23 @@ function buildDoubleEliminationPlan(
       });
     } else if (left ?? right) {
       byes.push({ team: (left ?? right) as PlanTeam, label: "胜者组首轮 BYE" });
+    }
+  }
+
+  for (let index = 0; index < loserOpeningSlots.length; index += 2) {
+    const left = loserOpeningSlots[index];
+    const right = loserOpeningSlots[index + 1];
+
+    if (left && right) {
+      loserFirstRoundSeries.push({
+        label: `LB-${loserFirstRoundSeries.length + 1}`,
+        position: loserFirstRoundSeries.length + 1,
+        radiant: left,
+        dire: right,
+        note: "败者组初始对阵，失败即淘汰",
+      });
+    } else if (left ?? right) {
+      byes.push({ team: (left ?? right) as PlanTeam, label: "败者组首轮 BYE" });
     }
   }
 
@@ -713,7 +742,7 @@ function buildDoubleEliminationPlan(
       name: roundIndex === loserRoundCount ? "败者组决赛" : `败者组第 ${roundIndex} 轮`,
       roundNumber: rounds.length + 1,
       kind: "loser",
-      series: [],
+      series: roundIndex === 1 ? loserFirstRoundSeries : [],
       placeholderCount: Math.max(1, Math.floor(bracketSize / 2 ** Math.ceil((roundIndex + 2) / 2))),
     });
   }
@@ -725,16 +754,13 @@ function buildDoubleEliminationPlan(
     series: [],
     placeholderCount: 1,
   });
-  rounds.push({
-    name: "总决赛重置（必要时）",
-    roundNumber: rounds.length + 1,
-    kind: "grand_final",
-    series: [],
-    placeholderCount: 1,
-  });
 
   if (teams.length < bracketSize) {
     warnings.push(`当前 ${teams.length} 队会进入 ${bracketSize} 队双败表，首轮含 ${bracketSize - teams.length} 个空种子 / BYE。`);
+  }
+
+  if (loserTeamCount > 0) {
+    warnings.push(`前 ${winnerTeamCount} 支进入胜者组，后 ${loserTeamCount} 支直接进入败者组；生成后可在对阵图上拖拽换位置。`);
   }
 
   if (teams.length > 16) {
@@ -746,7 +772,7 @@ function buildDoubleEliminationPlan(
     stageType: "knockout",
     stageName,
     boType: config.boType,
-    advancementRule: `双败淘汰 · ${bracketSize} 队表 · 胜者组 / 败者组 / 总决赛重置 · ${config.boType}`,
+    advancementRule: `双败淘汰 · 胜者组 ${winnerTeamCount} 队 / 败者组 ${loserTeamCount} 队 · ${config.boType}`,
     teams,
     groups: [],
     rounds,
@@ -1343,6 +1369,14 @@ function renderModeFields(): string {
           ${[4, 8, 16].map((size) => `<option value="${size}" ${composerState.bracketSize === size ? "selected" : ""}>${size} 支队伍</option>`).join("")}
         </select></label>
         <label>晋级规则<input value="${composerState.mode === "double_elimination" ? "胜者组 / 败者组 / 总决赛" : "胜者直接进入下一轮"}" readonly /></label>
+        ${
+          composerState.mode === "double_elimination"
+            ? `
+              <label>胜者组初始队伍<input name="winnerTeamCount" data-composer-field inputmode="numeric" value="${escapeHtml(composerState.winnerTeamCount)}" /></label>
+              <label>败者组初始队伍<input name="loserTeamCount" data-composer-field inputmode="numeric" value="${escapeHtml(composerState.loserTeamCount)}" /></label>
+            `
+            : ""
+        }
       </div>
     `;
   }
@@ -1559,8 +1593,38 @@ function renderKnockoutManager(): string {
         </div>
         <div class="toolbar">${badge(`${state.bracket.length} 个节点`, "info")}${badge(`${pendingPickCount} 场待选胜者`, pendingPickCount > 0 ? "warn" : "good")}</div>
       </div>
+      ${renderBracketSeedDock()}
       ${renderLiveBracketBoard()}
     </section>
+  `;
+}
+
+function renderBracketSeedDock(): string {
+  const teams = sortedTeams();
+
+  if (teams.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="bracket-seed-dock">
+      <div>
+        <strong>拖拽调整队伍位置</strong>
+        <small>把队伍拖到任意上位/下位槽；已有真实胜者后会锁定位置。</small>
+      </div>
+      <div>
+        ${teams
+          .map(
+            (team) => `
+              <span class="bracket-seed-chip" draggable="true" data-drag-team="${escapeHtml(team.id)}">
+                <i style="background:${escapeHtml(team.color)}"></i>
+                <b>${escapeHtml(team.name)}</b>
+              </span>
+            `,
+          )
+          .join("")}
+      </div>
+    </div>
   `;
 }
 
@@ -1631,9 +1695,21 @@ function renderBracketTeamLine(node: BracketNode, team: BracketNode["radiantTeam
   const winner = team !== null && node.winnerTeamId === team.id;
 
   return `
-    <div class="bracket-team-line ${winner ? "is-winner" : ""}">
+    <div class="bracket-team-line ${winner ? "is-winner" : ""}" data-bracket-slot-drop="${escapeHtml(node.id)}:${escapeHtml(slot)}">
       <span>${slot === "radiant" ? "上位" : "下位"}</span>
       <strong>${escapeHtml(team?.name ?? "待定")}</strong>
+      ${
+        team === null || node.winnerTeamId
+          ? ""
+          : `
+            <form data-action="set-bracket-slot">
+              <input type="hidden" name="nodeId" value="${escapeHtml(node.id)}" />
+              <input type="hidden" name="slot" value="${escapeHtml(slot)}" />
+              <input type="hidden" name="teamId" value="" />
+              <button class="link-button danger-link" type="submit" title="清空槽位">清空</button>
+            </form>
+          `
+      }
     </div>
   `;
 }
@@ -2558,6 +2634,8 @@ async function submitGeneratedStagePlan(payload: AdminFormPayload): Promise<void
         name: plan.stageName,
         bracketType: plan.mode,
         bracketSize: composerState.bracketSize,
+        winnerTeamCount: plan.mode === "double_elimination" ? composerState.winnerTeamCount : undefined,
+        loserTeamCount: plan.mode === "double_elimination" ? composerState.loserTeamCount : undefined,
         boType: plan.boType,
         scheduledAt: normalizeDateTimeLocal(composerState.scheduledAt),
         teamIds: plan.teams.map((team) => team.id),
@@ -3110,6 +3188,22 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
           },
         },
       ];
+    case "set-bracket-slot":
+      if (!payloadString(payload, "nodeId") || !payloadString(payload, "slot")) {
+        return [];
+      }
+
+      return [
+        {
+          method: "PATCH",
+          path: `/bracket-nodes/${encodeURIComponent(payloadString(payload, "nodeId"))}/slot`,
+          payload: {
+            slot: payloadString(payload, "slot"),
+            teamId: payloadString(payload, "teamId") || null,
+            actor: "admin",
+          },
+        },
+      ];
     case "enqueue-sync":
       return [
         {
@@ -3366,6 +3460,8 @@ document.addEventListener("change", (event) => {
           selectedTeamIds: sortedTeams()
             .slice(0, composerState.bracketSize)
             .map((team) => team.id),
+          winnerTeamCount: composerState.mode === "double_elimination" ? composerState.bracketSize : composerState.winnerTeamCount,
+          loserTeamCount: composerState.mode === "double_elimination" ? 0 : composerState.loserTeamCount,
         };
       }
 
@@ -3375,6 +3471,8 @@ document.addEventListener("change", (event) => {
           selectedTeamIds: sortedTeams()
             .slice(0, composerState.bracketSize)
             .map((team) => team.id),
+          winnerTeamCount: composerState.mode === "double_elimination" ? composerState.bracketSize : composerState.winnerTeamCount,
+          loserTeamCount: composerState.mode === "double_elimination" ? 0 : composerState.loserTeamCount,
         };
       }
 
@@ -3404,7 +3502,7 @@ document.addEventListener("dragstart", (event) => {
 document.addEventListener("dragover", (event) => {
   const target = event.target;
 
-  if (target instanceof HTMLElement && target.closest("[data-group-drop]")) {
+  if (target instanceof HTMLElement && (target.closest("[data-group-drop]") || target.closest("[data-bracket-slot-drop]"))) {
     event.preventDefault();
   }
 });
@@ -3416,8 +3514,24 @@ document.addEventListener("drop", (event) => {
     return;
   }
 
+  const bracketSlot = target.closest<HTMLElement>("[data-bracket-slot-drop]")?.dataset.bracketSlotDrop;
   const groupId = target.closest<HTMLElement>("[data-group-drop]")?.dataset.groupDrop;
   const teamId = event.dataTransfer?.getData("text/plain") || draggedStageTeamId;
+
+  if (bracketSlot && teamId) {
+    const [nodeId, slot] = bracketSlot.split(":");
+
+    if (nodeId && (slot === "radiant" || slot === "dire")) {
+      event.preventDefault();
+      draggedStageTeamId = "";
+      void submitAction("set-bracket-slot", {
+        nodeId,
+        slot,
+        teamId,
+      });
+      return;
+    }
+  }
 
   if (!groupId || !teamId) {
     return;

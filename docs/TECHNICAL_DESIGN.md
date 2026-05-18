@@ -451,7 +451,9 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | POST | `/api/stages/:id/swiss-pairings` | 生成或重生成瑞士轮指定轮次配对草稿 |
 | POST | `/api/rounds/:id/confirm-swiss` | 确认瑞士轮配对并发布该轮 |
 | POST | `/api/rounds/:id/retract-swiss` | 撤回该轮及后续瑞士轮配对 |
-| POST | `/api/admin/stages/:id/generate-bracket` | 生成淘汰赛 bracket 草稿 |
+| POST | `/api/tournaments/:id/knockout-bracket` | 生成单败或双败淘汰赛 bracket 草稿 |
+| PATCH | `/api/bracket-nodes/:id/slot` | 拖拽修正 bracket 节点队伍槽位 |
+| POST | `/api/bracket-nodes/:id/winner` | 管理员确认 bracket 节点胜者并推进 |
 | POST | `/api/admin/stages/:id/publish` | 发布阶段和草稿对阵 |
 | POST | `/api/admin/stages/:id/recalculate-standings` | 重算阶段积分榜 |
 | PATCH | `/api/admin/stage-standings/:id` | 手动修正排名或晋级标记 |
