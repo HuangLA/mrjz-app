@@ -20,6 +20,7 @@ import {
   listStageGroups,
   getStageRounds,
   getStageStandings,
+  generateGroupRoundRobin,
   getTournamentPlayerDetail,
   getTournamentTeamDetail,
   getTournamentDetail,
@@ -32,6 +33,7 @@ import {
   listSyncTasks,
   listTournaments,
   lockOfficialScheduleRoster,
+  randomizeStageGroups,
   addTeamMember,
   backfillCachedTournamentEntities,
   removeTeamMember,
@@ -42,6 +44,7 @@ import {
   updateSeriesGameResult,
   updateSeriesResult,
   updateStageGroup,
+  updateStageManualRanks,
   publishOfficialSchedule,
   unlockOfficialScheduleRoster,
   updateOfficialScheduleConfig,
@@ -333,6 +336,33 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(groups);
   });
 
+  router.post("/api/stages/:stageId/groups/randomize", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(randomizeStageGroups(params.stageId ?? "", bodyToRandomizeStageGroupsInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/stages/:stageId/group-round-robin", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(generateGroupRoundRobin(params.stageId ?? "", bodyToGenerateGroupRoundRobinInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.patch("/api/stages/:stageId/manual-ranks", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateStageManualRanks(params.stageId ?? "", bodyToUpdateStageManualRanksInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.get("/api/matches/:matchId", ({ params }) => {
     const match = getMatchDetail(params.matchId ?? "");
 
@@ -599,6 +629,51 @@ function bodyToCreateStageGroupInput(stageId: string, body: Record<string, unkno
   }) as Parameters<typeof createStageGroup>[0];
 }
 
+function bodyToRandomizeStageGroupsInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    groupCount: optionalNumberField(body, "groupCount"),
+    groupSize: optionalNumberField(body, "groupSize"),
+    seededTeamIds: optionalStringArrayField(body, "seededTeamIds"),
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof randomizeStageGroups>[1];
+}
+
+function bodyToGenerateGroupRoundRobinInput(body: Record<string, unknown>) {
+  const boType = optionalStringField(body, "boType");
+
+  if (boType !== undefined && !["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
+    throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  return withoutUndefined({
+    boType: boType as Parameters<typeof generateGroupRoundRobin>[1]["boType"],
+    replaceExisting: optionalBooleanField(body, "replaceExisting"),
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof generateGroupRoundRobin>[1];
+}
+
+function bodyToUpdateStageManualRanksInput(body: Record<string, unknown>) {
+  const ranks = body.ranks;
+
+  if (!Array.isArray(ranks)) {
+    throw new Error("ranks must be an array");
+  }
+
+  return {
+    ranks: ranks.map((rank) => {
+      if (rank === null || typeof rank !== "object" || Array.isArray(rank)) {
+        throw new Error("rank item must be an object");
+      }
+
+      return {
+        teamId: stringField(rank as Record<string, unknown>, "teamId"),
+        manualRank: optionalNumberOrNullField(rank as Record<string, unknown>, "manualRank") ?? null,
+      };
+    }),
+    actor: optionalStringField(body, "actor"),
+  } as Parameters<typeof updateStageManualRanks>[1];
+}
+
 function bodyToUpdateStageGroupInput(body: Record<string, unknown>) {
   return withoutUndefined({
     name: optionalStringField(body, "name"),
@@ -757,9 +832,14 @@ function bodyToCreateRoundInput(body: Record<string, unknown>) {
 function bodyToCreateSeriesInput(body: Record<string, unknown>) {
   const boType = stringField(body, "boType");
   const status = optionalStringField(body, "status");
+  const seriesKind = optionalStringField(body, "seriesKind");
 
   if (!["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
     throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  if (seriesKind !== undefined && !["regular", "tiebreaker"].includes(seriesKind)) {
+    throw new Error("seriesKind must be regular or tiebreaker");
   }
 
   if (
@@ -773,6 +853,7 @@ function bodyToCreateSeriesInput(body: Record<string, unknown>) {
     stageId: stringField(body, "stageId"),
     roundId: stringField(body, "roundId"),
     groupId: optionalStringOrNullField(body, "groupId"),
+    seriesKind: seriesKind as Parameters<typeof createSeries>[0]["seriesKind"],
     boType: boType as "BO1" | "BO2" | "BO3" | "BO5",
     status: status as Parameters<typeof createSeries>[0]["status"],
     scheduledAt: optionalStringField(body, "scheduledAt"),
@@ -784,9 +865,14 @@ function bodyToCreateSeriesInput(body: Record<string, unknown>) {
 function bodyToUpdateSeriesInput(body: Record<string, unknown>) {
   const boType = optionalStringField(body, "boType");
   const status = optionalStringField(body, "status");
+  const seriesKind = optionalStringField(body, "seriesKind");
 
   if (boType !== undefined && !["BO1", "BO2", "BO3", "BO5"].includes(boType)) {
     throw new Error("boType must be BO1, BO2, BO3, or BO5");
+  }
+
+  if (seriesKind !== undefined && !["regular", "tiebreaker"].includes(seriesKind)) {
+    throw new Error("seriesKind must be regular or tiebreaker");
   }
 
   if (
@@ -799,6 +885,7 @@ function bodyToUpdateSeriesInput(body: Record<string, unknown>) {
   return withoutUndefined({
     roundId: optionalStringField(body, "roundId"),
     groupId: optionalStringOrNullField(body, "groupId"),
+    seriesKind: seriesKind as Parameters<typeof updateSeries>[1]["seriesKind"],
     boType: boType as Parameters<typeof updateSeries>[1]["boType"],
     status: status as Parameters<typeof updateSeries>[1]["status"],
     scheduledAt: optionalStringOrNullField(body, "scheduledAt"),
@@ -910,6 +997,12 @@ function optionalNumberOrNullField(body: Record<string, unknown>, fieldName: str
   }
 
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function optionalBooleanField(body: Record<string, unknown>, fieldName: string): boolean | undefined {
+  const value = body[fieldName];
+
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function optionalObjectField(body: Record<string, unknown>, fieldName: string): Record<string, unknown> | undefined {

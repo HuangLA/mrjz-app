@@ -57,6 +57,7 @@ export type SeriesSummary = {
   stageId: string;
   groupId: string | null;
   groupName: string | null;
+  seriesKind: "regular" | "tiebreaker";
   boType: SeriesContext["boType"];
   status: string;
   scheduledAt: string;

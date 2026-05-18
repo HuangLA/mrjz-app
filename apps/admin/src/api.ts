@@ -172,6 +172,7 @@ export interface SeriesSummary {
   stageId: string;
   groupId: string | null;
   groupName: string | null;
+  seriesKind: "regular" | "tiebreaker" | string;
   boType: string;
   status: string;
   scheduledAt: string;

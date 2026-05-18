@@ -29,8 +29,11 @@ import {
   type CreateStageGroupInput,
   type KnockoutBracketResult,
   type LockOfficialScheduleRosterInput,
+  type GenerateGroupRoundRobinInput,
   type OfficialSchedulePublicStatus,
+  type RandomizeStageGroupsInput,
   type RemoveTeamMemberInput,
+  type UpdateStageManualRanksInput,
   type UpdateOfficialScheduleConfigInput,
   type UpdateStageGroupInput,
   type UpdateSeriesInput,
@@ -96,6 +99,9 @@ type Repository = {
   createStageGroup(input: CreateStageGroupInput): StageGroup;
   updateStageGroup(groupId: string, input: UpdateStageGroupInput): StageGroup;
   deleteStageGroup(groupId: string): { deleted: true; groupId: string };
+  randomizeStageGroups(stageId: string, input: RandomizeStageGroupsInput): StageGroup[];
+  generateGroupRoundRobin(stageId: string, input: GenerateGroupRoundRobinInput): StageRound[];
+  updateStageManualRanks(stageId: string, input: UpdateStageManualRanksInput): StandingRow[];
   addStageGroupTeam(input: AddStageGroupTeamInput): StageGroup;
   removeStageGroupTeam(groupId: string, teamId: string): StageGroup;
   createKnockoutBracket(tournamentId: string, input: CreateKnockoutBracketInput): KnockoutBracketResult;
@@ -271,6 +277,18 @@ export function updateStageGroup(groupId: string, input: UpdateStageGroupInput) 
 
 export function deleteStageGroup(groupId: string) {
   return repository.deleteStageGroup(groupId);
+}
+
+export function randomizeStageGroups(stageId: string, input: RandomizeStageGroupsInput) {
+  return repository.randomizeStageGroups(stageId, input);
+}
+
+export function generateGroupRoundRobin(stageId: string, input: GenerateGroupRoundRobinInput) {
+  return repository.generateGroupRoundRobin(stageId, input);
+}
+
+export function updateStageManualRanks(stageId: string, input: UpdateStageManualRanksInput) {
+  return repository.updateStageManualRanks(stageId, input);
 }
 
 export function addStageGroupTeam(input: AddStageGroupTeamInput) {

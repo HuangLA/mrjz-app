@@ -118,6 +118,7 @@ function applySchemaPatches(): void {
   ensureColumn("bracket_nodes", "loser_next_node_id", "TEXT");
   ensureColumn("bracket_nodes", "loser_next_slot", "TEXT");
   ensureColumn("series", "group_id", "TEXT");
+  ensureColumn("series", "series_kind", "TEXT NOT NULL DEFAULT 'regular'");
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
   database.exec("CREATE INDEX IF NOT EXISTS idx_series_group ON series(group_id);");
@@ -216,11 +217,20 @@ function ensureEntityTables(): void {
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     ) STRICT;
 
+    CREATE TABLE IF NOT EXISTS stage_manual_ranks (
+      stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+      team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      manual_rank INTEGER,
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (stage_id, team_id)
+    ) STRICT;
+
     CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
     CREATE INDEX IF NOT EXISTS idx_stage_groups_stage ON stage_groups(stage_id);
     CREATE INDEX IF NOT EXISTS idx_stage_group_teams_team ON stage_group_teams(team_id);
     CREATE INDEX IF NOT EXISTS idx_tournament_schedule_teams_team ON tournament_schedule_teams(team_id);
     CREATE INDEX IF NOT EXISTS idx_schedule_operation_logs_tournament ON schedule_operation_logs(tournament_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_stage_manual_ranks_stage ON stage_manual_ranks(stage_id);
   `);
 }
 

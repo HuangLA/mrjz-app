@@ -309,6 +309,27 @@ export type CreateStageGroupInput = {
   sortOrder?: number;
 };
 
+export type RandomizeStageGroupsInput = {
+  groupCount?: number;
+  groupSize?: number;
+  seededTeamIds?: string[];
+  actor?: string;
+};
+
+export type GenerateGroupRoundRobinInput = {
+  boType?: SeriesSummary["boType"];
+  replaceExisting?: boolean;
+  actor?: string;
+};
+
+export type UpdateStageManualRanksInput = {
+  ranks: Array<{
+    teamId: string;
+    manualRank: number | null;
+  }>;
+  actor?: string;
+};
+
 export type UpdateStageGroupInput = {
   name?: string;
   sortOrder?: number;
@@ -360,6 +381,7 @@ export type CreateSeriesInput = {
   stageId: string;
   roundId: string;
   groupId?: string | null;
+  seriesKind?: SeriesSummary["seriesKind"];
   boType: SeriesSummary["boType"];
   status?: SeriesSummary["status"];
   scheduledAt?: string;
@@ -370,6 +392,7 @@ export type CreateSeriesInput = {
 export type UpdateSeriesInput = {
   roundId?: string;
   groupId?: string | null;
+  seriesKind?: SeriesSummary["seriesKind"];
   boType?: SeriesSummary["boType"];
   status?: SeriesSummary["status"];
   scheduledAt?: string | null;
@@ -461,6 +484,7 @@ export class SqliteTournamentRepository {
     this.ensureColumn("bracket_nodes", "loser_next_node_id", "TEXT");
     this.ensureColumn("bracket_nodes", "loser_next_slot", "TEXT");
     this.ensureColumn("series", "group_id", "TEXT");
+    this.ensureColumn("series", "series_kind", "TEXT NOT NULL DEFAULT 'regular'");
     this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
     this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
     this.database.exec("CREATE INDEX IF NOT EXISTS idx_series_group ON series(group_id);");
@@ -558,11 +582,20 @@ export class SqliteTournamentRepository {
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
       ) STRICT;
 
+      CREATE TABLE IF NOT EXISTS stage_manual_ranks (
+        stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+        team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        manual_rank INTEGER,
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (stage_id, team_id)
+      ) STRICT;
+
       CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
       CREATE INDEX IF NOT EXISTS idx_stage_groups_stage ON stage_groups(stage_id);
       CREATE INDEX IF NOT EXISTS idx_stage_group_teams_team ON stage_group_teams(team_id);
       CREATE INDEX IF NOT EXISTS idx_tournament_schedule_teams_team ON tournament_schedule_teams(team_id);
       CREATE INDEX IF NOT EXISTS idx_schedule_operation_logs_tournament ON schedule_operation_logs(tournament_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_stage_manual_ranks_stage ON stage_manual_ranks(stage_id);
     `);
   }
 
@@ -988,11 +1021,11 @@ export class SqliteTournamentRepository {
         `
           SELECT
             tst.*,
-            tm.id AS team_id,
-            tm.name AS team_name,
-            tm.short_name AS team_short_name,
-            tm.logo_url AS team_logo_url,
-            tm.color AS team_color
+            tm.id AS team_team_id,
+            tm.name AS team_team_name,
+            tm.short_name AS team_team_short_name,
+            tm.logo_url AS team_team_logo_url,
+            tm.color AS team_team_color
           FROM tournament_schedule_teams tst
           JOIN teams tm ON tm.id = tst.team_id
           WHERE tst.tournament_id = ?
@@ -1097,11 +1130,11 @@ export class SqliteTournamentRepository {
         `
           SELECT
             st.*,
-            tm.id AS team_id,
-            tm.name AS team_name,
-            tm.short_name AS team_short_name,
-            tm.logo_url AS team_logo_url,
-            tm.color AS team_color
+            tm.id AS team_team_id,
+            tm.name AS team_team_name,
+            tm.short_name AS team_team_short_name,
+            tm.logo_url AS team_team_logo_url,
+            tm.color AS team_team_color
           FROM standings st
           JOIN teams tm ON tm.id = st.team_id
           WHERE st.stage_id = ?
@@ -2093,6 +2126,15 @@ export class SqliteTournamentRepository {
     this.database
       .prepare(
         `
+          DELETE FROM stage_group_teams
+          WHERE team_id = ?
+            AND group_id IN (SELECT id FROM stage_groups WHERE stage_id = ? AND id <> ?)
+        `,
+      )
+      .run(teamId, stage.id, groupId);
+    this.database
+      .prepare(
+        `
           INSERT INTO stage_group_teams (group_id, team_id, seed)
           VALUES (?, ?, ?)
           ON CONFLICT(group_id, team_id) DO UPDATE SET seed = excluded.seed
@@ -2108,6 +2150,194 @@ export class SqliteTournamentRepository {
     }
 
     return group;
+  }
+
+  randomizeStageGroups(stageIdParam: string, input: RandomizeStageGroupsInput): StageGroup[] {
+    const stageId = requiredString(stageIdParam, "stageId");
+    const stage = this.getStageSummaryById(stageId);
+
+    if (stage === undefined) {
+      throw new Error("Stage not found");
+    }
+
+    if (stage.type !== "group") {
+      throw new Error("Random grouping is only available for group stages");
+    }
+
+    const roster = this.listOfficialScheduleTeams(stage.tournamentId);
+    const teamIds = roster.length > 0 ? roster.map((item) => item.team.id) : this.listTournamentTeamIds(stage.tournamentId);
+
+    if (teamIds.length < 2) {
+      throw new Error("At least 2 teams are required to randomize groups");
+    }
+
+    const requestedGroupCount =
+      input.groupCount !== undefined
+        ? requiredPositiveInteger(input.groupCount, "groupCount")
+        : input.groupSize !== undefined
+          ? Math.ceil(teamIds.length / requiredPositiveInteger(input.groupSize, "groupSize"))
+          : 2;
+    const groupCount = clampInteger(requestedGroupCount, 1, teamIds.length);
+    const seededTeamIds = new Set(uniqueStrings(input.seededTeamIds ?? roster.filter((item) => item.isSeeded).map((item) => item.team.id)));
+    const seededTeams = shuffle(teamIds.filter((teamId) => seededTeamIds.has(teamId)));
+    const otherTeams = shuffle(teamIds.filter((teamId) => !seededTeamIds.has(teamId)));
+    const groups = Array.from({ length: groupCount }, (_, index) => ({
+      id: uniqueId("group", `${stageId}-${index + 1}`),
+      name: `${String.fromCharCode(65 + index)} 组`,
+      teamIds: [] as string[],
+    }));
+
+    seededTeams.forEach((teamId, index) => {
+      groups[index % groupCount]?.teamIds.push(teamId);
+    });
+
+    for (const teamId of otherTeams) {
+      const target = [...groups].sort((left, right) => left.teamIds.length - right.teamIds.length)[0];
+      target?.teamIds.push(teamId);
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.database.prepare("DELETE FROM stage_groups WHERE stage_id = ?").run(stageId);
+      const groupInsert = this.database.prepare("INSERT INTO stage_groups (id, stage_id, name, sort_order) VALUES (?, ?, ?, ?)");
+      const teamInsert = this.database.prepare(
+        "INSERT INTO stage_group_teams (group_id, team_id, seed) VALUES (?, ?, ?)",
+      );
+
+      groups.forEach((group, groupIndex) => {
+        groupInsert.run(group.id, stageId, group.name, groupIndex + 1);
+        group.teamIds.forEach((teamId, teamIndex) => {
+          teamInsert.run(group.id, teamId, teamIndex + 1);
+        });
+      });
+      this.recalculateStageStandings(stageId);
+      this.insertScheduleLog(stage.tournamentId, input.actor ?? "admin", "group_stage_randomized", {
+        stageId,
+        groupCount,
+        teamCount: teamIds.length,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.listStageGroups(stageId) ?? [];
+  }
+
+  generateGroupRoundRobin(stageIdParam: string, input: GenerateGroupRoundRobinInput): StageRound[] {
+    const stageId = requiredString(stageIdParam, "stageId");
+    const stage = this.getStageSummaryById(stageId);
+
+    if (stage === undefined) {
+      throw new Error("Stage not found");
+    }
+
+    if (stage.type !== "group") {
+      throw new Error("Round robin generation is only available for group stages");
+    }
+
+    const groups = this.listStageGroups(stageId) ?? [];
+
+    if (groups.length === 0 || groups.every((group) => group.teams.length < 2)) {
+      throw new Error("Create groups with at least 2 teams before generating round robin series");
+    }
+
+    const boType = input.boType ?? "BO2";
+
+    this.database.exec("BEGIN;");
+
+    try {
+      if (input.replaceExisting !== false) {
+        this.database.prepare("DELETE FROM series WHERE stage_id = ? AND series_kind = 'regular'").run(stageId);
+      }
+
+      const roundId = this.ensureStageRound(stageId, "小组循环赛", 1);
+      let createdSeries = 0;
+
+      for (const group of groups) {
+        const teams = group.teams;
+
+        for (let leftIndex = 0; leftIndex < teams.length; leftIndex += 1) {
+          for (let rightIndex = leftIndex + 1; rightIndex < teams.length; rightIndex += 1) {
+            const left = teams[leftIndex];
+            const right = teams[rightIndex];
+
+            if (left === undefined || right === undefined) {
+              continue;
+            }
+
+            this.insertSeries({
+              stageId,
+              roundId,
+              groupId: group.id,
+              seriesKind: "regular",
+              boType,
+              status: "draft",
+              scheduledAt: "",
+              radiantTeamId: left.id,
+              direTeamId: right.id,
+            });
+            createdSeries += 1;
+          }
+        }
+      }
+
+      this.recalculateStageStandings(stageId);
+      this.insertScheduleLog(stage.tournamentId, input.actor ?? "admin", "group_round_robin_generated", {
+        stageId,
+        boType,
+        createdSeries,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.getStageRounds(stageId) ?? [];
+  }
+
+  updateStageManualRanks(stageIdParam: string, input: UpdateStageManualRanksInput): StandingRow[] {
+    const stageId = requiredString(stageIdParam, "stageId");
+    const stage = this.getStageSummaryById(stageId);
+
+    if (stage === undefined) {
+      throw new Error("Stage not found");
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      const upsert = this.database.prepare(
+        `
+          INSERT INTO stage_manual_ranks (stage_id, team_id, manual_rank)
+          VALUES (?, ?, ?)
+          ON CONFLICT(stage_id, team_id) DO UPDATE SET
+            manual_rank = excluded.manual_rank,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        `,
+      );
+
+      for (const rank of input.ranks) {
+        const teamId = requiredString(rank.teamId, "teamId");
+        this.ensureTournamentTeam(stage.tournamentId, teamId);
+        upsert.run(stageId, teamId, rank.manualRank === null ? null : requiredPositiveInteger(rank.manualRank, "manualRank"));
+      }
+
+      this.recalculateStageStandings(stageId);
+      this.insertScheduleLog(stage.tournamentId, input.actor ?? "admin", "manual_ranks_updated", {
+        stageId,
+        count: input.ranks.length,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.getStageStandings(stageId) ?? [];
   }
 
   removeStageGroupTeam(groupIdParam: string, teamIdParam: string): StageGroup {
@@ -2164,6 +2394,7 @@ export class SqliteTournamentRepository {
     const radiantTeamId = requiredString(input.radiantTeamId, "radiantTeamId");
     const direTeamId = requiredString(input.direTeamId, "direTeamId");
     const groupId = this.resolveSeriesGroupId(stageId, input.groupId);
+    const seriesKind = normalizeSeriesKind(input.seriesKind);
     const status = input.status ?? "scheduled";
     const scheduledAt = input.scheduledAt ?? new Date().toISOString();
     let id = "";
@@ -2175,6 +2406,7 @@ export class SqliteTournamentRepository {
         stageId,
         roundId,
         groupId,
+        seriesKind,
         boType: input.boType,
         status,
         scheduledAt,
@@ -2208,6 +2440,7 @@ export class SqliteTournamentRepository {
     const stageId = existing.stageId;
     const roundId = input.roundId === undefined ? existing.roundId : this.resolveSeriesRoundId(stageId, input.roundId);
     const groupId = input.groupId === undefined ? existing.groupId : this.resolveSeriesGroupId(stageId, input.groupId);
+    const seriesKind = input.seriesKind === undefined ? existing.seriesKind : normalizeSeriesKind(input.seriesKind);
     const radiantTeamId = input.radiantTeamId === undefined ? existing.radiantTeam.id : requiredString(input.radiantTeamId, "radiantTeamId");
     const direTeamId = input.direTeamId === undefined ? existing.direTeam.id : requiredString(input.direTeamId, "direTeamId");
 
@@ -2234,6 +2467,7 @@ export class SqliteTournamentRepository {
             SET
               round_id = ?,
               group_id = ?,
+              series_kind = ?,
               bo_type = ?,
               status = ?,
               scheduled_at = ?,
@@ -2246,6 +2480,7 @@ export class SqliteTournamentRepository {
         .run(
           roundId,
           groupId,
+          seriesKind,
           input.boType ?? existing.boType,
           input.status ?? existing.status,
           input.scheduledAt === undefined ? existing.scheduledAt : input.scheduledAt ?? existing.scheduledAt,
@@ -2801,6 +3036,7 @@ export class SqliteTournamentRepository {
     stageId: string;
     roundId: string;
     groupId?: string | null;
+    seriesKind?: SeriesSummary["seriesKind"];
     boType: SeriesSummary["boType"];
     status: SeriesSummary["status"];
     scheduledAt: string;
@@ -2835,9 +3071,9 @@ export class SqliteTournamentRepository {
       .prepare(
         `
           INSERT INTO series (
-            id, round_id, stage_id, group_id, bo_type, status, scheduled_at, radiant_team_id, dire_team_id
+            id, round_id, stage_id, group_id, series_kind, bo_type, status, scheduled_at, radiant_team_id, dire_team_id
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .run(
@@ -2845,6 +3081,7 @@ export class SqliteTournamentRepository {
         input.roundId,
         input.stageId,
         input.groupId ?? null,
+        normalizeSeriesKind(input.seriesKind),
         input.boType,
         input.status,
         input.scheduledAt,
@@ -4516,6 +4753,36 @@ export class SqliteTournamentRepository {
       .map((teamRow) => teamFromPrefixedRow(teamRow, "team"));
   }
 
+  private listTournamentTeamIds(tournamentId: string): string[] {
+    return this.database
+      .prepare("SELECT team_id FROM tournament_teams WHERE tournament_id = ? AND status = 'active' ORDER BY seed IS NULL ASC, seed ASC, team_id ASC")
+      .all(tournamentId)
+      .map((row) => text(row, "team_id"));
+  }
+
+  private ensureStageRound(stageId: string, name: string, roundNumber: number): string {
+    const existing = this.database
+      .prepare("SELECT id FROM rounds WHERE stage_id = ? AND round_number = ?")
+      .get(stageId, roundNumber);
+
+    if (existing !== undefined) {
+      return text(existing, "id");
+    }
+
+    const id = uniqueId("round", `${stageId}-${roundNumber}-${name}`);
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO rounds (id, stage_id, round_number, name, status, pairing_status)
+          VALUES (?, ?, ?, ?, 'draft', 'draft')
+        `,
+      )
+      .run(id, stageId, roundNumber, name);
+
+    return id;
+  }
+
   private resolveSeriesRoundId(stageId: string, roundIdParam: string): string {
     const roundId = requiredString(roundIdParam, "roundId");
     const row = this.database.prepare("SELECT id FROM rounds WHERE id = ? AND stage_id = ?").get(roundId, stageId);
@@ -4596,6 +4863,7 @@ export class SqliteTournamentRepository {
         `
           SELECT
             s.group_id,
+            s.series_kind,
             s.radiant_score,
             s.dire_score,
             sg.name AS group_name,
@@ -4613,7 +4881,7 @@ export class SqliteTournamentRepository {
           JOIN teams rt ON rt.id = s.radiant_team_id
           JOIN teams dt ON dt.id = s.dire_team_id
           LEFT JOIN stage_groups sg ON sg.id = s.group_id
-          WHERE s.stage_id = ? AND s.status = 'completed'
+          WHERE s.stage_id = ? AND s.status = 'completed' AND s.series_kind = 'regular'
         `,
       )
       .all(stageId);
@@ -4657,6 +4925,13 @@ export class SqliteTournamentRepository {
       groups.set(groupKey, entries);
     }
 
+    const manualRanks = new Map(
+      this.database
+        .prepare("SELECT team_id, manual_rank FROM stage_manual_ranks WHERE stage_id = ?")
+        .all(stageId)
+        .map((row) => [text(row, "team_id"), nullableNumber(row, "manual_rank")] as const),
+    );
+
     this.database.prepare("DELETE FROM standings WHERE stage_id = ?").run(stageId);
 
     const insertStanding = this.database.prepare(`
@@ -4665,11 +4940,26 @@ export class SqliteTournamentRepository {
         series_losses, game_wins, game_losses, points, opponent_score, head_to_head_score,
         manual_rank, status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
     `);
 
     for (const entries of groups.values()) {
       entries.sort((left, right) => {
+        const leftManualRank = manualRanks.get(left.team.id);
+        const rightManualRank = manualRanks.get(right.team.id);
+
+        if (leftManualRank !== null && leftManualRank !== undefined && rightManualRank !== null && rightManualRank !== undefined) {
+          return leftManualRank - rightManualRank;
+        }
+
+        if (leftManualRank !== null && leftManualRank !== undefined) {
+          return -1;
+        }
+
+        if (rightManualRank !== null && rightManualRank !== undefined) {
+          return 1;
+        }
+
         const pointDiff = right.points - left.points;
 
         if (pointDiff !== 0) {
@@ -4707,6 +4997,7 @@ export class SqliteTournamentRepository {
           standing.gameWins,
           standing.gameLosses,
           standing.points,
+          manualRanks.get(standing.team.id) ?? null,
           status,
         );
       });
@@ -4840,6 +5131,7 @@ export class SqliteTournamentRepository {
       stageId: text(row, "stage_id"),
       groupId: nullableText(row, "group_id"),
       groupName: nullableText(row, "group_name"),
+      seriesKind: normalizeSeriesKind(text(row, "series_kind") as SeriesSummary["seriesKind"]),
       boType: text(row, "bo_type") as SeriesSummary["boType"],
       status: text(row, "status"),
       scheduledAt: text(row, "scheduled_at"),
@@ -5112,6 +5404,27 @@ function nextPowerOfTwo(value: number): number {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
+}
+
+function normalizeSeriesKind(value: SeriesSummary["seriesKind"] | undefined): SeriesSummary["seriesKind"] {
+  return value === "tiebreaker" ? "tiebreaker" : "regular";
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function shuffle<T>(values: T[]): T[] {
+  const next = [...values];
+
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const value = next[index];
+    next[index] = next[swapIndex] as T;
+    next[swapIndex] = value as T;
+  }
+
+  return next;
 }
 
 function roundFromRow(row: DbRow): RoundBrief {

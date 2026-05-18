@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS series (
   round_id TEXT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
   stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
   group_id TEXT REFERENCES stage_groups(id) ON DELETE SET NULL,
+  series_kind TEXT NOT NULL DEFAULT 'regular' CHECK (series_kind IN ('regular', 'tiebreaker')),
   bo_type TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('draft', 'scheduled', 'live', 'result_pending', 'completed', 'conflict', 'postponed')),
   scheduled_at TEXT,
@@ -181,6 +182,14 @@ CREATE TABLE IF NOT EXISTS series (
   created_by TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS stage_manual_ranks (
+  stage_id TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  manual_rank INTEGER,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (stage_id, team_id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS series_games (

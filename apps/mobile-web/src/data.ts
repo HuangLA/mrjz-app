@@ -196,6 +196,7 @@ export interface ScheduleItem {
   time: string;
   stage: string;
   round: string;
+  kind: "regular" | "tiebreaker" | string;
   teamA: string;
   teamB: string;
   bo: string;

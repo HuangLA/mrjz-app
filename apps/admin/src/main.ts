@@ -152,6 +152,7 @@ const views: Array<{ key: ViewKey; label: string; hint: string }> = [
 ];
 
 let activeView: ViewKey = "overview";
+let draggedStageTeamId = "";
 let composerState: ComposerState = {
   mode: "single_elimination",
   stageName: "",
@@ -1674,9 +1675,41 @@ function renderManualStageTools(): string {
 }
 
 function renderGroupManager(stage: StageSummary): string {
+  const lockedRoster = state.scheduleManagement?.teams ?? [];
+
   return `
     <div class="manual-grid">
       <div class="stack">
+        <form class="admin-form" data-action="randomize-stage-groups">
+          <h2>随机分组</h2>
+          <input type="hidden" name="stageId" value="${escapeHtml(stage.id)}" />
+          <label>小组数量<input name="groupCount" inputmode="numeric" placeholder="例如 2" /></label>
+          <label>每组队伍数<input name="groupSize" inputmode="numeric" placeholder="也可填每组人数" /></label>
+          <div class="seed-pick-list">
+            ${
+              lockedRoster.length === 0
+                ? `<span class="muted-copy">未锁定官方名单时会使用当前届次全部战队。</span>`
+                : lockedRoster
+                    .map(
+                      (item) => `
+                        <label>
+                          <input type="checkbox" name="seededTeamIds" value="${escapeHtml(item.team.id)}" ${item.isSeeded ? "checked" : ""} />
+                          ${escapeHtml(item.team.name)}
+                        </label>
+                      `,
+                    )
+                    .join("")
+            }
+          </div>
+          <button class="secondary-button" type="submit" ${state.teams.length < 2 ? "disabled" : ""}>随机生成小组</button>
+        </form>
+        <form class="admin-form" data-action="generate-group-round-robin">
+          <h2>生成 BO2 单循环</h2>
+          <input type="hidden" name="stageId" value="${escapeHtml(stage.id)}" />
+          <label>BO<select name="boType">${boOptions("BO2")}</select></label>
+          <label class="checkbox-line"><input type="checkbox" name="replaceExisting" value="true" checked /> 替换已有积分赛对阵</label>
+          <button class="primary-button" type="submit" ${state.groups.length === 0 ? "disabled" : ""}>生成小组赛程</button>
+        </form>
         <form class="admin-form" data-action="create-stage-group">
           <h2>创建小组</h2>
           <input type="hidden" name="stageId" value="${escapeHtml(stage.id)}" />
@@ -1705,7 +1738,7 @@ function renderGroupManager(stage: StageSummary): string {
 
 function renderStageGroupCard(group: StageGroup): string {
   return `
-    <article class="group-admin-card">
+    <article class="group-admin-card" data-group-drop="${escapeHtml(group.id)}">
       <form class="group-head-form" data-action="update-stage-group">
         <input type="hidden" name="groupId" value="${escapeHtml(group.id)}" />
         <label>小组名称<input name="name" value="${escapeHtml(group.name)}" required /></label>
@@ -1719,7 +1752,7 @@ function renderStageGroupCard(group: StageGroup): string {
             : group.teams
                 .map(
                   (team) => `
-                    <form class="group-team-chip" data-action="remove-stage-group-team">
+                    <form class="group-team-chip" data-action="remove-stage-group-team" draggable="true" data-drag-team="${escapeHtml(team.id)}">
                       <input type="hidden" name="groupId" value="${escapeHtml(group.id)}" />
                       <input type="hidden" name="teamId" value="${escapeHtml(team.id)}" />
                       <strong>${escapeHtml(team.name)}</strong>
@@ -1752,6 +1785,7 @@ function renderManualSeriesManager(stage: StageSummary): string {
         }
         <label>队伍 1<select name="radiantTeamId" required><option value="">选择完整队伍名称</option>${teamOptions()}</select></label>
         <label>队伍 2<select name="direTeamId" required><option value="">选择完整队伍名称</option>${teamOptions()}</select></label>
+        <label>类型<select name="seriesKind"><option value="regular">积分赛</option><option value="tiebreaker">加赛</option></select></label>
         <label>BO<select name="boType">${boOptions("BO2")}</select></label>
         <label>开赛时间<input name="scheduledAt" type="datetime-local" /></label>
         <button class="primary-button" type="submit" ${state.rounds.length === 0 || state.teams.length < 2 ? "disabled" : ""}>添加对阵</button>
@@ -1862,7 +1896,7 @@ function scheduleTable(): string {
                 <tr>
                   <td>${escapeHtml(formatDate(row.scheduledAt))}</td>
                   <td>${escapeHtml(currentStage()?.name ?? row.stageId)}<small>${escapeHtml([row.groupName, round?.name ?? row.roundId].filter(Boolean).join(" · "))}</small></td>
-                  <td>${escapeHtml(row.radiantTeam.name)} vs ${escapeHtml(row.direTeam.name)}<small>${escapeHtml(row.radiantScore)} : ${escapeHtml(row.direScore)}</small></td>
+                  <td>${escapeHtml(row.radiantTeam.name)} vs ${escapeHtml(row.direTeam.name)}<small>${escapeHtml(row.seriesKind === "tiebreaker" ? "加赛" : "积分赛")} · ${escapeHtml(row.radiantScore)} : ${escapeHtml(row.direScore)}</small></td>
                   <td>${escapeHtml(row.boType)}</td>
                   <td>${badge(row.status, toneForStatus(row.status))}</td>
                   <td>${escapeHtml(row.games.map((game) => game.matchId ?? "待关联").join(" / "))}</td>
@@ -1890,6 +1924,7 @@ function renderSeriesAdminForms(row: StageRound["series"][number]): string {
         <input type="hidden" name="seriesId" value="${escapeHtml(row.id)}" />
         <select name="roundId" aria-label="轮次">${roundOptions(row.roundId)}</select>
         <select name="groupId" aria-label="小组"><option value="">无小组</option>${groupOptions(row.groupId ?? "")}</select>
+        <select name="seriesKind" aria-label="类型"><option value="regular" ${row.seriesKind === "regular" ? "selected" : ""}>积分赛</option><option value="tiebreaker" ${row.seriesKind === "tiebreaker" ? "selected" : ""}>加赛</option></select>
         <select name="radiantTeamId" aria-label="队伍 1">${teamOptions(row.radiantTeam.id)}</select>
         <select name="direTeamId" aria-label="队伍 2">${teamOptions(row.direTeam.id)}</select>
         <select name="boType" aria-label="BO">${boOptions(row.boType as SeriesBoType)}</select>
@@ -2213,7 +2248,30 @@ function standingsTable(): string {
         </tbody>
       </table>
     </div>
+    ${standings.length === 0 ? "" : renderManualRankForm(standings)}
     ${bracketColumns.length === 0 ? `<div class="bracket-list"><span class="muted-copy">当前阶段暂无 bracket 数据。</span></div>` : renderBracketColumns(bracketColumns)}
+  `;
+}
+
+function renderManualRankForm(standings: StandingRow[]): string {
+  return `
+    <form class="manual-rank-form" data-action="update-manual-ranks">
+      <input type="hidden" name="stageId" value="${escapeHtml(state.selectedStageId)}" />
+      <strong>手动排序</strong>
+      <div>
+        ${standings
+          .map(
+            (row) => `
+              <label>
+                <span>${escapeHtml(row.team?.name ?? row.teamId ?? "未知队伍")}</span>
+                <input name="rank:${escapeHtml(row.team?.id ?? row.teamId ?? "")}" inputmode="numeric" value="${escapeHtml(row.manualRank ?? row.rank)}" />
+              </label>
+            `,
+          )
+          .join("")}
+      </div>
+      <button class="secondary-button" type="submit">保存手动排名</button>
+    </form>
   `;
 }
 
@@ -2768,6 +2826,42 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
           }),
         },
       ];
+    case "randomize-stage-groups":
+      return [
+        {
+          method: "POST",
+          path: `/stages/${encodeURIComponent(payloadString(payload, "stageId", state.selectedStageId))}/groups/randomize`,
+          payload: compactPayload({
+            groupCount: payloadNumber(payload, "groupCount"),
+            groupSize: payloadNumber(payload, "groupSize"),
+            seededTeamIds: payloadStrings(payload, "seededTeamIds"),
+            actor: "admin",
+          }),
+        },
+      ];
+    case "generate-group-round-robin":
+      return [
+        {
+          method: "POST",
+          path: `/stages/${encodeURIComponent(payloadString(payload, "stageId", state.selectedStageId))}/group-round-robin`,
+          payload: compactPayload({
+            boType: normalizeBoType(payloadString(payload, "boType", "BO2")),
+            replaceExisting: payloadString(payload, "replaceExisting") === "true",
+            actor: "admin",
+          }),
+        },
+      ];
+    case "update-manual-ranks":
+      return [
+        {
+          method: "PATCH",
+          path: `/stages/${encodeURIComponent(payloadString(payload, "stageId", state.selectedStageId))}/manual-ranks`,
+          payload: {
+            ranks: manualRankPayload(payload),
+            actor: "admin",
+          },
+        },
+      ];
     case "update-stage-group":
       if (!payloadString(payload, "groupId")) {
         return [];
@@ -2847,6 +2941,7 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
             stageId: payloadString(payload, "stageId", state.selectedStageId),
             roundId: payloadString(payload, "roundId"),
             groupId: payloadString(payload, "groupId") || null,
+            seriesKind: payloadString(payload, "seriesKind", "regular"),
             boType: normalizeBoType(payloadString(payload, "boType", "BO2")),
             status: "scheduled",
             scheduledAt: normalizeDateTimeLocal(payloadString(payload, "scheduledAt")),
@@ -2867,6 +2962,7 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
           payload: compactPayload({
             roundId: payloadString(payload, "roundId") || undefined,
             groupId: payloadString(payload, "groupId") || null,
+            seriesKind: payloadString(payload, "seriesKind", "regular"),
             boType: normalizeBoType(payloadString(payload, "boType", "BO2")),
             scheduledAt: normalizeDateTimeLocal(payloadString(payload, "scheduledAt")),
             radiantTeamId: payloadString(payload, "radiantTeamId") || undefined,
@@ -2978,6 +3074,29 @@ function buildSyncTaskPayload(payload: AdminFormPayload): Record<string, unknown
       source: "admin",
       tournamentId: state.selectedTournamentId,
     },
+  });
+}
+
+function manualRankPayload(payload: AdminFormPayload): Array<{ teamId: string; manualRank: number | null }> {
+  return Object.entries(payload).flatMap(([key, value]) => {
+    if (!key.startsWith("rank:")) {
+      return [];
+    }
+
+    const teamId = key.slice("rank:".length);
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    const manualRank = typeof firstValue === "string" && firstValue.trim().length > 0 ? Number(firstValue) : null;
+
+    if (!teamId) {
+      return [];
+    }
+
+    return [
+      {
+        teamId,
+        manualRank: Number.isSafeInteger(manualRank) ? manualRank : null,
+      },
+    ];
   });
 }
 
@@ -3171,6 +3290,54 @@ document.addEventListener("change", (event) => {
       render();
     }
   }
+});
+
+document.addEventListener("dragstart", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const teamId = target.closest<HTMLElement>("[data-drag-team]")?.dataset.dragTeam;
+
+  if (!teamId) {
+    return;
+  }
+
+  draggedStageTeamId = teamId;
+  event.dataTransfer?.setData("text/plain", teamId);
+  event.dataTransfer?.setDragImage(target, 12, 12);
+});
+
+document.addEventListener("dragover", (event) => {
+  const target = event.target;
+
+  if (target instanceof HTMLElement && target.closest("[data-group-drop]")) {
+    event.preventDefault();
+  }
+});
+
+document.addEventListener("drop", (event) => {
+  const target = event.target;
+
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const groupId = target.closest<HTMLElement>("[data-group-drop]")?.dataset.groupDrop;
+  const teamId = event.dataTransfer?.getData("text/plain") || draggedStageTeamId;
+
+  if (!groupId || !teamId) {
+    return;
+  }
+
+  event.preventDefault();
+  draggedStageTeamId = "";
+  void submitAction("add-stage-group-team", {
+    groupId,
+    teamId,
+  });
 });
 
 document.addEventListener("submit", (event) => {

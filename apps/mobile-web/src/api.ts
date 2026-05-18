@@ -192,6 +192,7 @@ type ApiSeries = {
   stageId?: string;
   groupId?: string | null;
   groupName?: string | null;
+  seriesKind?: "regular" | "tiebreaker" | string;
   boType?: string;
   status?: string;
   scheduledAt?: string;
@@ -1188,6 +1189,7 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
     timeDate: date,
     stage: stage.name ?? stageNameFromId(series.stageId ?? round.stageId),
     round: [series.groupName, round.name ?? `R${round.roundNumber ?? "-"}`].filter(Boolean).join(" · "),
+    kind: series.seriesKind ?? "regular",
     teamA: series.radiantTeam?.name ?? "待定",
     teamB: series.direTeam?.name ?? "待定",
     bo: series.boType ?? "BO1",

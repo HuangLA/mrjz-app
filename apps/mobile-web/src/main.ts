@@ -1895,6 +1895,7 @@ function renderScheduleCard(match: {
   time: string;
   stage: string;
   round: string;
+  kind?: string;
   teamA: string;
   teamB: string;
   bo: string;
@@ -1910,7 +1911,7 @@ function renderScheduleCard(match: {
     <article class="schedule-card ${isFinished ? "finished" : ""}">
       <div class="schedule-time">
         <b>${escapeHtml(match.time)}</b>
-        <span>${escapeHtml(match.stage)} · ${escapeHtml(match.round)}</span>
+        <span>${escapeHtml(match.stage)} · ${escapeHtml(match.kind === "tiebreaker" ? `加赛 · ${match.round}` : match.round)}</span>
       </div>
       <div class="schedule-vs">
         <span>${escapeHtml(match.teamA)}</span>
