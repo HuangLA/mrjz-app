@@ -139,6 +139,14 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
   });
 
+  router.delete("/api/tournaments/:id/schedule-records", ({ params }) => {
+    try {
+      return ok(clearTournamentMatchRecords(params.id ?? ""));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.get("/api/tournaments/:id/teams", ({ params }) => {
     const teams = listTournamentTeams(params.id ?? "");
 

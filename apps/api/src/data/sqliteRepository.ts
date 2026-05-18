@@ -426,7 +426,9 @@ export type UpdateSeriesResultInput = {
 export type ClearTournamentMatchRecordsResult = {
   tournamentId: string;
   deletedSeries: number;
-  deletedOpenDotaMatches: number;
+  deletedRounds: number;
+  deletedBracketNodes: number;
+  deletedStandings: number;
 };
 
 export type UpdateOfficialScheduleConfigInput = {
@@ -2817,11 +2819,19 @@ export class SqliteTournamentRepository {
         `,
       )
       .get(target.tournamentId);
-    const matchCountRow = this.database
-      .prepare("SELECT COUNT(*) AS count FROM opendota_matches WHERE league_id = ?")
-      .get(target.league.opendotaLeagueId);
+    const roundCountRow = this.database
+      .prepare("SELECT COUNT(*) AS count FROM rounds WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
+      .get(target.tournamentId);
+    const bracketCountRow = this.database
+      .prepare("SELECT COUNT(*) AS count FROM bracket_nodes WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
+      .get(target.tournamentId);
+    const standingCountRow = this.database
+      .prepare("SELECT COUNT(*) AS count FROM standings WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
+      .get(target.tournamentId);
     const deletedSeries = numberValue(seriesCountRow ?? {}, "count");
-    const deletedOpenDotaMatches = numberValue(matchCountRow ?? {}, "count");
+    const deletedRounds = numberValue(roundCountRow ?? {}, "count");
+    const deletedBracketNodes = numberValue(bracketCountRow ?? {}, "count");
+    const deletedStandings = numberValue(standingCountRow ?? {}, "count");
 
     this.database.exec("BEGIN;");
 
@@ -2832,10 +2842,10 @@ export class SqliteTournamentRepository {
       this.database
         .prepare("DELETE FROM standings WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
         .run(target.tournamentId);
+      this.database
+        .prepare("DELETE FROM stage_manual_ranks WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
+        .run(target.tournamentId);
       this.database.prepare("DELETE FROM rounds WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)").run(target.tournamentId);
-      this.database.prepare("DELETE FROM opendota_matches WHERE league_id = ?").run(target.league.opendotaLeagueId);
-      this.database.prepare("DELETE FROM tournament_player_stats WHERE tournament_id = ?").run(target.tournamentId);
-      this.database.prepare("DELETE FROM tournament_team_stats WHERE tournament_id = ?").run(target.tournamentId);
       this.database.exec("COMMIT;");
     } catch (error) {
       this.database.exec("ROLLBACK;");
@@ -2845,7 +2855,9 @@ export class SqliteTournamentRepository {
     return {
       tournamentId: target.tournamentId,
       deletedSeries,
-      deletedOpenDotaMatches,
+      deletedRounds,
+      deletedBracketNodes,
+      deletedStandings,
     };
   }
 

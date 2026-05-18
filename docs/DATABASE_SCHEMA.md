@@ -36,7 +36,7 @@ npm run db:reset
 
 ## 当前本地 backfill 结果
 
-截至 2026-05-14，本机 `apps/api/var/mrjz.sqlite` 已固化前三届比赛：
+截至 2026-05-19，本机 `apps/api/var/mrjz.sqlite` 已重新 backfill 前三届比赛：
 
 | league_id | 本地赛事 | 状态 | 比赛数 | 解析状态 |
 | --- | --- | --- | --- | --- |

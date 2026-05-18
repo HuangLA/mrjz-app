@@ -1986,11 +1986,11 @@ function renderStages(): string {
           <label>轮次数字<input name="roundNumber" inputmode="numeric" placeholder="可留空" /></label>
           <button class="secondary-button" type="submit">提交轮次</button>
         </form>
-        <form class="admin-form" data-action="clear-match-records">
-          <h2>清空比赛记录</h2>
+        <form class="admin-form" data-action="clear-stage-schedule">
+          <h2>清空阶段赛程</h2>
           <input name="tournamentId" value="${escapeHtml(state.selectedTournamentId)}" readonly />
-          <p class="muted-copy">会删除当前届次已有 rounds / series / bracket / standings 和 OpenDota 缓存比赛记录，保留队伍、阶段和小组配置。</p>
-          <button class="secondary-button danger-link" type="submit">清空当前届比赛记录</button>
+          <p class="muted-copy">只删除当前届次在阶段赛程页创建的 rounds / series / bracket / standings，保留 OpenDota 比赛结果、队伍、选手、阶段和小组配置。</p>
+          <button class="secondary-button danger-link" type="submit">清空当前届阶段赛程</button>
         </form>
       </div>
     </section>
@@ -3165,11 +3165,11 @@ function buildAdminRequests(action: string, payload: AdminFormPayload): AdminWri
           path: `/series/${encodeURIComponent(payloadString(payload, "seriesId"))}`,
         },
       ];
-    case "clear-match-records":
+    case "clear-stage-schedule":
       return [
         {
           method: "DELETE",
-          path: `/tournaments/${encodeURIComponent(payloadString(payload, "tournamentId", state.selectedTournamentId))}/match-records`,
+          path: `/tournaments/${encodeURIComponent(payloadString(payload, "tournamentId", state.selectedTournamentId))}/schedule-records`,
         },
       ];
     case "submit-result":
@@ -3581,8 +3581,8 @@ function confirmSensitiveAction(action: string): boolean {
       return window.confirm("生成瑞士轮配对会覆盖所选轮次及后续轮次草稿。确认继续？");
     case "retract-swiss-round":
       return window.confirm("撤回本轮会清空该轮及后续瑞士轮配对。确认继续？");
-    case "clear-match-records":
-      return window.confirm("这会清空当前届比赛记录和 OpenDota 缓存。确认继续？");
+    case "clear-stage-schedule":
+      return window.confirm("这只会清空当前届阶段赛程草稿和积分 / bracket，不会删除 OpenDota 比赛结果。确认继续？");
     default:
       return true;
   }
