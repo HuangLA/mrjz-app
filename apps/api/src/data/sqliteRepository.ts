@@ -425,10 +425,14 @@ export type UpdateSeriesResultInput = {
 
 export type ClearTournamentMatchRecordsResult = {
   tournamentId: string;
+  deletedStages: number;
+  deletedGroups: number;
   deletedSeries: number;
   deletedRounds: number;
   deletedBracketNodes: number;
   deletedStandings: number;
+  deletedScheduleTeams: number;
+  deletedScheduleSettings: number;
 };
 
 export type UpdateOfficialScheduleConfigInput = {
@@ -2809,6 +2813,12 @@ export class SqliteTournamentRepository {
       throw new Error("Tournament not found");
     }
 
+    const generatedStageCountRow = this.database
+      .prepare("SELECT COUNT(*) AS count FROM stages WHERE tournament_id = ? AND name <> '真实比赛记录'")
+      .get(target.tournamentId);
+    const groupCountRow = this.database
+      .prepare("SELECT COUNT(*) AS count FROM stage_groups WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
+      .get(target.tournamentId);
     const seriesCountRow = this.database
       .prepare(
         `
@@ -2828,14 +2838,45 @@ export class SqliteTournamentRepository {
     const standingCountRow = this.database
       .prepare("SELECT COUNT(*) AS count FROM standings WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
       .get(target.tournamentId);
+    const scheduleTeamCountRow = this.database
+      .prepare("SELECT COUNT(*) AS count FROM tournament_schedule_teams WHERE tournament_id = ?")
+      .get(target.tournamentId);
+    const scheduleSettingsCountRow = this.database
+      .prepare("SELECT COUNT(*) AS count FROM tournament_schedule_settings WHERE tournament_id = ?")
+      .get(target.tournamentId);
+    const recordStageRow = this.database
+      .prepare("SELECT id FROM stages WHERE tournament_id = ? AND name = '真实比赛记录' ORDER BY sort_order ASC LIMIT 1")
+      .get(target.tournamentId);
+    const deletedStages = numberValue(generatedStageCountRow ?? {}, "count");
+    const deletedGroups = numberValue(groupCountRow ?? {}, "count");
     const deletedSeries = numberValue(seriesCountRow ?? {}, "count");
     const deletedRounds = numberValue(roundCountRow ?? {}, "count");
     const deletedBracketNodes = numberValue(bracketCountRow ?? {}, "count");
     const deletedStandings = numberValue(standingCountRow ?? {}, "count");
+    const deletedScheduleTeams = numberValue(scheduleTeamCountRow ?? {}, "count");
+    const deletedScheduleSettings = numberValue(scheduleSettingsCountRow ?? {}, "count");
 
     this.database.exec("BEGIN;");
 
     try {
+      if (recordStageRow !== undefined) {
+        this.database
+          .prepare(
+            `
+              UPDATE tournaments
+              SET current_stage_id = ?
+              WHERE id = ?
+                AND current_stage_id IN (
+                  SELECT id
+                  FROM stages
+                  WHERE tournament_id = ?
+                    AND name <> '真实比赛记录'
+                )
+            `,
+          )
+          .run(text(recordStageRow, "id"), target.tournamentId, target.tournamentId);
+      }
+
       this.database
         .prepare("DELETE FROM bracket_nodes WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
         .run(target.tournamentId);
@@ -2845,7 +2886,13 @@ export class SqliteTournamentRepository {
       this.database
         .prepare("DELETE FROM stage_manual_ranks WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
         .run(target.tournamentId);
+      this.database
+        .prepare("DELETE FROM stage_groups WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)")
+        .run(target.tournamentId);
       this.database.prepare("DELETE FROM rounds WHERE stage_id IN (SELECT id FROM stages WHERE tournament_id = ?)").run(target.tournamentId);
+      this.database.prepare("DELETE FROM stages WHERE tournament_id = ? AND name <> '真实比赛记录'").run(target.tournamentId);
+      this.database.prepare("DELETE FROM tournament_schedule_teams WHERE tournament_id = ?").run(target.tournamentId);
+      this.database.prepare("DELETE FROM tournament_schedule_settings WHERE tournament_id = ?").run(target.tournamentId);
       this.database.exec("COMMIT;");
     } catch (error) {
       this.database.exec("ROLLBACK;");
@@ -2854,10 +2901,14 @@ export class SqliteTournamentRepository {
 
     return {
       tournamentId: target.tournamentId,
+      deletedStages,
+      deletedGroups,
       deletedSeries,
       deletedRounds,
       deletedBracketNodes,
       deletedStandings,
+      deletedScheduleTeams,
+      deletedScheduleSettings,
     };
   }
 

@@ -577,10 +577,13 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     }),
   );
 
-  const scheduleGroups = normalizeScheduleGroups(stagePayloads);
   const officialSchedule = normalizeOfficialScheduleStatus(
     await fetchApi<ApiOfficialScheduleStatus>(apiBaseUrl, `/tournaments/${selectedTournamentId}/official-schedule`).catch(() => null),
   );
+  const officialStagePayloads = officialSchedule.isPublished
+    ? stagePayloads.filter(isOfficialScheduleStagePayload)
+    : [];
+  const scheduleGroups = officialSchedule.isPublished ? normalizeScheduleGroups(officialStagePayloads) : [];
   const matchRecords = await fetchApi<ApiMatchRecord[]>(
     apiBaseUrl,
     `/tournaments/${selectedTournamentId}/matches?limit=80`,
@@ -601,7 +604,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     selectedTournamentMeta: normalizeTournamentMeta(tournament),
     tournamentOptions: tournamentOptions(tournamentList),
     tournamentStats: normalizeTournamentStats(tournament, scheduleGroups, match, normalizedRecords),
-    stageViews: normalizeStageViews(stagePayloads),
+    stageViews: normalizeStageViews(officialStagePayloads, officialSchedule),
     scheduleGroups,
     officialSchedule,
     matchRecords: normalizedRecords,
@@ -1037,7 +1040,12 @@ function normalizeTournamentMeta(tournament: ApiTournament): TournamentMeta {
 
 function normalizeStageViews(
   payloads: Array<{ stage: ApiStage; standings: ApiStanding[] | null; rounds: ApiRound[] | null; bracket: ApiBracketNode[] | null }>,
+  officialSchedule: OfficialScheduleStatus,
 ): Record<StageKey, StageView> {
+  if (!officialSchedule.isPublished) {
+    return unpublishedStageViews();
+  }
+
   const next = emptyStageViews();
 
   for (const payload of payloads) {
@@ -1058,6 +1066,21 @@ function normalizeStageViews(
       standings: payload.standings?.map(normalizeStanding).sort((a, b) => a.rank - b.rank) ?? [],
       bracket: payload.bracket?.map(normalizeBracketNode) ?? [],
     };
+  }
+
+  return next;
+}
+
+function isOfficialScheduleStagePayload(payload: { stage: ApiStage }): boolean {
+  return payload.stage.name !== "真实比赛记录";
+}
+
+function unpublishedStageViews(): Record<StageKey, StageView> {
+  const next = emptyStageViews();
+
+  for (const view of Object.values(next)) {
+    view.status = "赛程暂未发布";
+    view.note = "管理员发布官方赛程后，这里会展示真实阶段和排名。";
   }
 
   return next;

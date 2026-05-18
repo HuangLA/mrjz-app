@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MRJZ 后台赛程管理 Demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #172033;
+        --muted: #5d6b82;
+        --line: #dbe4ef;
+        --green: #2f8f46;
+        --blue: #2b6cbf;
+        --amber: #aa6b00;
+        --bg: #f5f8fb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 720px;
+        overflow: hidden;
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          "PingFang SC",
+          "Hiragino Sans GB",
+          "Microsoft YaHei",
+          sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+      }
+
+      .slide {
+        display: none;
+        width: 1280px;
+        height: 720px;
+        padding: 48px 56px;
+        background:
+          linear-gradient(90deg, rgba(47, 143, 70, .08), transparent 34%),
+          var(--bg);
+      }
+
+      .slide.active {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 32px;
+      }
+
+      .rail {
+        display: grid;
+        align-content: space-between;
+        padding: 28px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+      }
+
+      .kicker {
+        margin: 0 0 12px;
+        color: var(--green);
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 46px;
+        line-height: 1.12;
+        letter-spacing: 0;
+      }
+
+      .rail p {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 1.5;
+      }
+
+      .badge {
+        display: inline-flex;
+        width: max-content;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #e8f6ec;
+        color: #236b36;
+        font-weight: 800;
+      }
+
+      .board {
+        display: grid;
+        gap: 18px;
+      }
+
+      .panel {
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 12px 30px rgba(23, 32, 51, .06);
+      }
+
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      .panel p,
+      .panel li {
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 1.48;
+      }
+
+      .steps {
+        display: grid;
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .steps li {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 12px;
+        align-items: start;
+        color: var(--ink);
+      }
+
+      .steps b {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #edf7f0;
+        color: var(--green);
+        font-size: 16px;
+      }
+
+      .mock {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid #d8e1ec;
+        border-radius: 12px;
+        background: #f9fbfd;
+      }
+
+      .mock-row,
+      .mock-tabs {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .mock-tabs span,
+      .chip {
+        padding: 8px 12px;
+        border: 1px solid #dce6f1;
+        border-radius: 9px;
+        background: #fff;
+        color: #34435a;
+        font-weight: 700;
+      }
+
+      .mock-tabs .active,
+      .chip.green {
+        border-color: #b9e4c2;
+        background: #effaf2;
+        color: #236b36;
+      }
+
+      .chip.blue {
+        border-color: #b7d5f5;
+        background: #edf5ff;
+        color: var(--blue);
+      }
+
+      .chip.amber {
+        border-color: #f1d296;
+        background: #fff7e7;
+        color: var(--amber);
+      }
+
+      .bracket {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+
+      .bracket > div {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid #dce6f1;
+        border-radius: 12px;
+        background: #fff;
+      }
+
+      .match {
+        display: grid;
+        gap: 6px;
+        padding: 10px;
+        border-radius: 10px;
+        background: #f4f7fb;
+      }
+
+      .match strong {
+        font-size: 16px;
+      }
+
+      code {
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: #edf2f7;
+        color: #213049;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="slide active" data-slide="1">
+      <aside class="rail">
+        <div>
+          <p class="kicker">MRJZ Admin Demo</p>
+          <h1>如何创建并发布一届比赛赛程</h1>
+          <p>入口是 Admin 的「阶段赛程」页；OpenDota 比赛记录和官方赛程是两套数据。</p>
+        </div>
+        <span class="badge">演示目标：小组赛 + 淘汰赛</span>
+      </aside>
+      <main class="board">
+        <div class="panel">
+          <h2>先记住这个边界</h2>
+          <ul class="steps">
+            <li><b>1</b><span>「届次 / 联赛」只负责创建比赛壳，填入 OpenDota league_id。</span></li>
+            <li><b>2</b><span>「比赛结果库」显示 OpenDota 已同步的真实比赛，不等于官方赛程。</span></li>
+            <li><b>3</b><span>「阶段赛程」才是运营要发布给 H5 的官方赛程。</span></li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-tabs"><span>届次 / 联赛</span><span>比赛结果库</span><span class="active">阶段赛程</span></div>
+          <div class="mock-row"><span class="chip blue">OpenDota 结果保留</span><span class="chip green">官方赛程草稿</span><span class="chip amber">发布后 H5 可见</span></div>
+        </div>
+      </main>
+    </section>
+
+    <section class="slide" data-slide="2">
+      <aside class="rail">
+        <div>
+          <p class="kicker">Step 1</p>
+          <h1>进入阶段赛程</h1>
+          <p>选择要运营的届次，例如「每日节奏第三届社区赛」。</p>
+        </div>
+        <span class="badge">Admin: http://127.0.0.1:5173</span>
+      </aside>
+      <main class="board">
+        <div class="panel">
+          <h2>后台操作</h2>
+          <ul class="steps">
+            <li><b>1</b><span>打开左侧「阶段赛程」。</span></li>
+            <li><b>2</b><span>确认顶部当前届次正确。</span></li>
+            <li><b>3</b><span>如果页面有旧草稿，点击「清空当前届阶段赛程」。这不会删除 OpenDota 比赛结果。</span></li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-tabs"><span class="active">阶段赛程</span><span>战队管理</span><span>同步任务</span></div>
+          <div class="mock-row"><span class="chip">当前届次：第三届</span><span class="chip amber">清空阶段赛程</span><span class="chip green">OpenDota 119 场保留</span></div>
+        </div>
+      </main>
+    </section>
+
+    <section class="slide" data-slide="3">
+      <aside class="rail">
+        <div>
+          <p class="kicker">Step 2</p>
+          <h1>配置官方赛程</h1>
+          <p>先决定这届比赛的结构：预赛用小组赛或瑞士轮，淘汰赛用单败或双败。</p>
+        </div>
+        <span class="badge">草稿不可见</span>
+      </aside>
+      <main class="board">
+        <div class="panel">
+          <h2>推荐顺序</h2>
+          <ul class="steps">
+            <li><b>1</b><span>在「官方赛程控制台」选择预赛：小组赛 / 瑞士轮。</span></li>
+            <li><b>2</b><span>选择淘汰赛：单败 / 双败。</span></li>
+            <li><b>3</b><span>勾选参赛队伍并锁定名单。</span></li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-row"><span class="chip green">预赛：小组赛</span><span class="chip blue">淘汰赛：单败</span></div>
+          <div class="mock-row"><span class="chip">勾选队伍</span><span class="chip">锁定参赛名单</span><span class="chip amber">填错可解锁</span></div>
+        </div>
+      </main>
+    </section>
+
+    <section class="slide" data-slide="4">
+      <aside class="rail">
+        <div>
+          <p class="kicker">Step 3A</p>
+          <h1>如果预赛是小组赛</h1>
+          <p>小组可以随机生成，也可以手动拖队伍调整。</p>
+        </div>
+        <span class="badge">BO2 单循环</span>
+      </aside>
+      <main class="board">
+        <div class="panel">
+          <h2>小组赛操作</h2>
+          <ul class="steps">
+            <li><b>1</b><span>创建小组，或用「随机分组」生成 A/B/C 组。</span></li>
+            <li><b>2</b><span>把队伍拖进任意小组，生成后仍可手动换组。</span></li>
+            <li><b>3</b><span>点击「生成 BO2 单循环」。需要加赛时手动添加 series，类型选「加赛」。</span></li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-row"><span class="chip green">A 组</span><span class="chip">队伍 1</span><span class="chip">队伍 2</span><span class="chip">队伍 3</span></div>
+          <div class="mock-row"><span class="chip blue">B 组</span><span class="chip">队伍 4</span><span class="chip">队伍 5</span><span class="chip">队伍 6</span></div>
+        </div>
+      </main>
+    </section>
+
+    <section class="slide" data-slide="5">
+      <aside class="rail">
+        <div>
+          <p class="kicker">Step 3B</p>
+          <h1>如果预赛是瑞士轮</h1>
+          <p>管理员设置轮数，系统按当前胜平负生成下一轮草稿。</p>
+        </div>
+        <span class="badge">允许平局和轮空胜</span>
+      </aside>
+      <main class="board">
+        <div class="panel">
+          <h2>瑞士轮操作</h2>
+          <ul class="steps">
+            <li><b>1</b><span>创建瑞士轮阶段。</span></li>
+            <li><b>2</b><span>点击「生成配对草稿」，确认后再录入结果。</span></li>
+            <li><b>3</b><span>每轮打完后再生成下一轮。系统避免重复交手，管理员可以撤回重排。</span></li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-row"><span class="chip">队伍 A 1-0-0</span><span class="chip">队伍 B 0-1-0</span></div>
+          <div class="mock-row"><span class="chip green">生成第 2 轮草稿</span><span class="chip amber">确认本轮</span><span class="chip">撤回并清空后续</span></div>
+        </div>
+      </main>
+    </section>
+
+    <section class="slide" data-slide="6">
+      <aside class="rail">
+        <div>
+          <p class="kicker">Step 4</p>
+          <h1>生成淘汰赛对阵图</h1>
+          <p>选入围队伍，选择单败或双败，然后生成 bracket。</p>
+        </div>
+        <span class="badge">管理员只需点胜者</span>
+      </aside>
+      <main class="board">
+        <div class="panel">
+          <h2>淘汰赛操作</h2>
+          <ul class="steps">
+            <li><b>1</b><span>勾选进入淘汰赛的队伍，选择 4 / 8 / 16 队表。</span></li>
+            <li><b>2</b><span>双败可设置初始胜者组几队、败者组几队。</span></li>
+            <li><b>3</b><span>生成后拖动队伍到任意槽位，比赛结束后点「某队胜」。</span></li>
+          </ul>
+        </div>
+        <div class="bracket">
+          <div><strong>第一轮</strong><span class="match"><strong>队伍 A</strong><strong>队伍 B</strong></span><span class="match"><strong>队伍 C</strong><strong>队伍 D</strong></span></div>
+          <div><strong>半决赛</strong><span class="match"><strong>胜者等待</strong><strong>待定</strong></span></div>
+          <div><strong>决赛</strong><span class="match"><strong>待定</strong><strong>待定</strong></span></div>
+        </div>
+      </main>
+    </section>
+
+    <section class="slide" data-slide="7">
+      <aside class="rail">
+        <div>
+          <p class="kicker">Step 5</p>
+          <h1>录入赛果和 Dota2 match_id</h1>
+          <p>平台 series 的胜负由管理员填写，单局详情来自 OpenDota。</p>
+        </div>
+        <span class="badge">series 权威，OpenDota 补详情</span>
+      </aside>
+      <main class="board">
+        <div class="panel">
+          <h2>赛果操作</h2>
+          <ul class="steps">
+            <li><b>1</b><span>在赛程表里找到 series，填写大比分和胜者。</span></li>
+            <li><b>2</b><span>每一局可填真实 Dota2 match_id，用于 H5 进入战报详情。</span></li>
+            <li><b>3</b><span>小组赛自动算积分，瑞士轮显示胜平负，淘汰赛自动推进 bracket。</span></li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-row"><span class="chip">队伍 A 2 : 0 队伍 B</span><span class="chip green">胜者：队伍 A</span></div>
+          <div class="mock-row"><span class="chip blue">match_id: 8772653377</span><span class="chip">打开战报详情</span></div>
+        </div>
+      </main>
+    </section>
+
+    <section class="slide" data-slide="8">
+      <aside class="rail">
+        <div>
+          <p class="kicker">Step 6</p>
+          <h1>发布到 H5</h1>
+          <p>草稿不会出现在 H5。确认无误后点击发布；填错时可撤回。</p>
+        </div>
+        <span class="badge">H5: http://127.0.0.1:5174</span>
+      </aside>
+      <main class="board">
+        <div class="panel">
+          <h2>发布规则</h2>
+          <ul class="steps">
+            <li><b>1</b><span>草稿状态：H5 赛程页和赛事阶段页显示暂未发布。</span></li>
+            <li><b>2</b><span>点击「发布官方赛程」后，H5 显示赛程、阶段、积分和 bracket。</span></li>
+            <li><b>3</b><span>如果发现填错，后台撤回，H5 重新显示暂未发布。</span></li>
+          </ul>
+        </div>
+        <div class="mock">
+          <div class="mock-row"><span class="chip amber">草稿不可见</span><span class="chip green">发布后可见</span><span class="chip blue">撤回后隐藏</span></div>
+          <div class="mock-row"><span class="chip">比赛记录库始终读取 OpenDota</span></div>
+        </div>
+      </main>
+    </section>
+
+    <script>
+      const slide = String(location.hash || "#1").replace("#", "");
+      document.querySelectorAll(".slide").forEach((node) => {
+        node.classList.toggle("active", node.dataset.slide === slide);
+      });
+    </script>
+  </body>
+</html>
