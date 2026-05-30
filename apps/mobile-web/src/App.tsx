@@ -89,9 +89,138 @@ const playerSortKeySet = new Set<PlayerSortKey>(playerSortOptions.map((option) =
 
 const defaultApiBaseUrl = "http://127.0.0.1:3001/api";
 const emptyIcon: IconRef = { label: "-", imageUrl: "" };
+const allHomeHeroPortraits = [
+  "/static/dota/heroes/shredder.png",
+  "/static/dota/heroes/disruptor.png",
+  "/static/dota/heroes/jakiro.png",
+  "/static/dota/heroes/tiny.png",
+  "/static/dota/heroes/puck.png",
+  "/static/dota/heroes/earthshaker.png",
+  "/static/dota/heroes/lich.png",
+  "/static/dota/heroes/hoodwink.png",
+  "/static/dota/heroes/enigma.png",
+  "/static/dota/heroes/templar_assassin.png",
+  "/static/dota/heroes/kunkka.png",
+  "/static/dota/heroes/largo.png",
+  "/static/dota/heroes/bristleback.png",
+  "/static/dota/heroes/death_prophet.png",
+  "/static/dota/heroes/huskar.png",
+  "/static/dota/heroes/snapfire.png",
+  "/static/dota/heroes/kez.png",
+  "/static/dota/heroes/treant.png",
+  "/static/dota/heroes/spectre.png",
+  "/static/dota/heroes/venomancer.png",
+  "/static/dota/heroes/obsidian_destroyer.png",
+  "/static/dota/heroes/phoenix.png",
+  "/static/dota/heroes/night_stalker.png",
+  "/static/dota/heroes/ursa.png",
+  "/static/dota/heroes/razor.png",
+  "/static/dota/heroes/nyx_assassin.png",
+  "/static/dota/heroes/sand_king.png",
+  "/static/dota/heroes/techies.png",
+  "/static/dota/heroes/dawnbreaker.png",
+  "/static/dota/heroes/tinker.png",
+  "/static/dota/heroes/ringmaster.png",
+  "/static/dota/heroes/lina.png",
+  "/static/dota/heroes/wisp.png",
+  "/static/dota/heroes/ember_spirit.png",
+  "/static/dota/heroes/riki.png",
+  "/static/dota/heroes/bounty_hunter.png",
+  "/static/dota/heroes/spirit_breaker.png",
+  "/static/dota/heroes/abaddon.png",
+  "/static/dota/heroes/phantom_assassin.png",
+  "/static/dota/heroes/chaos_knight.png",
+  "/static/dota/heroes/primal_beast.png",
+  "/static/dota/heroes/sniper.png",
+  "/static/dota/heroes/muerta.png",
+  "/static/dota/heroes/legion_commander.png",
+  "/static/dota/heroes/invoker.png",
+  "/static/dota/heroes/arc_warden.png",
+  "/static/dota/heroes/skywrath_mage.png",
+  "/static/dota/heroes/tusk.png",
+  "/static/dota/heroes/viper.png",
+  "/static/dota/heroes/enchantress.png",
+  "/static/dota/heroes/brewmaster.png",
+  "/static/dota/heroes/abyssal_underlord.png",
+  "/static/dota/heroes/warlock.png",
+  "/static/dota/heroes/void_spirit.png",
+  "/static/dota/heroes/vengefulspirit.png",
+  "/static/dota/heroes/pugna.png",
+  "/static/dota/heroes/leshrac.png",
+  "/static/dota/heroes/centaur.png",
+  "/static/dota/heroes/visage.png",
+  "/static/dota/heroes/earth_spirit.png",
+  "/static/dota/heroes/magnataur.png",
+  "/static/dota/heroes/axe.png",
+  "/static/dota/heroes/undying.png",
+  "/static/dota/heroes/ancient_apparition.png",
+  "/static/dota/heroes/medusa.png",
+  "/static/dota/heroes/alchemist.png",
+  "/static/dota/heroes/broodmother.png",
+  "/static/dota/heroes/skeleton_king.png",
+  "/static/dota/heroes/storm_spirit.png",
+  "/static/dota/heroes/dark_seer.png",
+  "/static/dota/heroes/shadow_demon.png",
+  "/static/dota/heroes/phantom_lancer.png",
+  "/static/dota/heroes/keeper_of_the_light.png",
+  "/static/dota/heroes/shadow_shaman.png",
+  "/static/dota/heroes/drow_ranger.png",
+  "/static/dota/heroes/juggernaut.png",
+  "/static/dota/heroes/lycan.png",
+  "/static/dota/heroes/witch_doctor.png",
+  "/static/dota/heroes/elder_titan.png",
+  "/static/dota/heroes/luna.png",
+  "/static/dota/heroes/marci.png",
+  "/static/dota/heroes/sven.png",
+  "/static/dota/heroes/gyrocopter.png",
+  "/static/dota/heroes/queenofpain.png",
+  "/static/dota/heroes/necrolyte.png",
+  "/static/dota/heroes/life_stealer.png",
+  "/static/dota/heroes/pangolier.png",
+  "/static/dota/heroes/chen.png",
+  "/static/dota/heroes/meepo.png",
+  "/static/dota/heroes/pudge.png",
+  "/static/dota/heroes/monkey_king.png",
+  "/static/dota/heroes/grimstroke.png",
+  "/static/dota/heroes/windrunner.png",
+  "/static/dota/heroes/omniknight.png",
+  "/static/dota/heroes/crystal_maiden.png",
+  "/static/dota/heroes/dark_willow.png",
+  "/static/dota/heroes/batrider.png",
+  "/static/dota/heroes/morphling.png",
+  "/static/dota/heroes/naga_siren.png",
+  "/static/dota/heroes/faceless_void.png",
+  "/static/dota/heroes/rattletrap.png",
+  "/static/dota/heroes/antimage.png",
+  "/static/dota/heroes/winter_wyvern.png",
+  "/static/dota/heroes/terrorblade.png",
+  "/static/dota/heroes/bloodseeker.png",
+  "/static/dota/heroes/furion.png",
+  "/static/dota/heroes/nevermore.png",
+  "/static/dota/heroes/dazzle.png",
+  "/static/dota/heroes/beastmaster.png",
+  "/static/dota/heroes/oracle.png",
+  "/static/dota/heroes/zuus.png",
+  "/static/dota/heroes/mirana.png",
+  "/static/dota/heroes/troll_warlord.png",
+  "/static/dota/heroes/silencer.png",
+  "/static/dota/heroes/slardar.png",
+  "/static/dota/heroes/doom_bringer.png",
+  "/static/dota/heroes/rubick.png",
+  "/static/dota/heroes/lion.png",
+  "/static/dota/heroes/dragon_knight.png",
+  "/static/dota/heroes/weaver.png",
+  "/static/dota/heroes/ogre_magi.png",
+  "/static/dota/heroes/mars.png",
+  "/static/dota/heroes/lone_druid.png",
+  "/static/dota/heroes/tidehunter.png",
+  "/static/dota/heroes/clinkz.png",
+  "/static/dota/heroes/slark.png",
+  "/static/dota/heroes/bane.png",
+];
 const fallbackHomeHeroes: Record<TeamSide, string[]> = {
-  radiant: ["/static/dota/heroes/pudge.png", "/static/dota/heroes/windrunner.png", "/static/dota/heroes/juggernaut.png"],
-  dire: ["/static/dota/heroes/earthshaker.png", "/static/dota/heroes/lina.png", "/static/dota/heroes/nevermore.png"],
+  radiant: allHomeHeroPortraits,
+  dire: [...allHomeHeroPortraits].reverse(),
 };
 
 export function App() {
@@ -639,7 +768,6 @@ function HomePage({
 }) {
   const activeTournament =
     data.tournamentOptions.find((option) => option.id === data.selectedTournamentId) ?? data.tournamentOptions[0] ?? null;
-  const activeRecords = activeTournament ? data.tournamentRecentRecords[activeTournament.id] ?? [] : [];
   const recordTotal = data.tournamentOptions.reduce(
     (sum, option) => sum + (data.tournamentRecentRecords[option.id]?.length ?? 0),
     0,
@@ -649,8 +777,7 @@ function HomePage({
     <>
       <DataNotice data={data} loading={loading} />
       <HomeHero
-        tournament={activeTournament}
-        latestRecord={activeRecords[0] ?? null}
+        selectedTournamentId={activeTournament?.id ?? null}
         tournamentCount={data.tournamentOptions.length}
         recordCount={recordTotal}
         onSelect={onSelectTournament}
@@ -677,53 +804,50 @@ function HomePage({
 }
 
 function HomeHero({
-  tournament,
-  latestRecord,
+  selectedTournamentId,
   tournamentCount,
   recordCount,
   onSelect,
 }: {
-  tournament: MobileData["tournamentOptions"][number] | null;
-  latestRecord: MatchRecord | null;
+  selectedTournamentId: string | null;
   tournamentCount: number;
   recordCount: number;
   onSelect: (tournamentId: string, targetRoute?: AppRoute) => void;
 }) {
-  const score =
-    latestRecord === null || latestRecord.radiantScore === null || latestRecord.direScore === null
-      ? "--"
-      : `${latestRecord.radiantScore}:${latestRecord.direScore}`;
-  const radiantHeroes = latestRecord?.heroLineups.radiant ?? [];
-  const direHeroes = latestRecord?.heroLineups.dire ?? [];
+  const navigate = (targetRoute: AppRoute) => {
+    if (selectedTournamentId !== null) {
+      onSelect(selectedTournamentId, targetRoute);
+    }
+  };
 
   return (
     <section className="home-hero">
       <div className="home-hero-backdrop" aria-hidden="true">
-        <HomeHeroRail heroes={radiantHeroes} side="radiant" />
-        <HomeHeroRail heroes={direHeroes} side="dire" />
+        <HomeHeroRail side="radiant" />
+        <HomeHeroRail side="dire" />
+        <div className="home-arena-lines" />
       </div>
       <div className="home-hero-content">
         <div className="home-hero-kicker">
-          <span>{tournament ? lifecycleLabel(tournament.status) : "MRJZ"}</span>
+          <span>MRJZ</span>
           <i />
-          <span>{tournament ? `League ${tournament.leagueId}` : "DOTA 2"}</span>
+          <span>DOTA 2</span>
         </div>
-        <h1>{tournament?.name ?? "MRJZ"}</h1>
-        <div className="home-score-core">
-          <span>{latestRecord?.radiantTeamName ?? "Radiant"}</span>
-          <strong>{score}</strong>
-          <span>{latestRecord?.direTeamName ?? "Dire"}</span>
+        <div className="home-brand-core">
+          <span className="home-brand-season">COMMUNITY LEAGUE</span>
+          <strong>每日节奏杯</strong>
+          <span className="home-brand-sub">DRAFT · FIGHT · RECORD</span>
         </div>
         <div className="home-quick-actions">
-          {tournament ? (
+          {selectedTournamentId !== null ? (
             <>
-              <button type="button" onClick={() => onSelect(tournament.id, "stage")}>
+              <button type="button" onClick={() => navigate("stage")}>
                 阶段
               </button>
-              <button type="button" onClick={() => onSelect(tournament.id, "records")}>
+              <button type="button" onClick={() => navigate("records")}>
                 记录
               </button>
-              <button type="button" onClick={() => onSelect(tournament.id, "players")}>
+              <button type="button" onClick={() => navigate("players")}>
                 选手
               </button>
             </>
@@ -733,25 +857,26 @@ function HomeHero({
       <div className="home-hero-stats">
         <HomeHeroStat label="届次" value={String(tournamentCount)} />
         <HomeHeroStat label="比赛" value={String(recordCount)} />
-        <HomeHeroStat label="最新" value={latestRecord?.duration ?? "--"} />
+        <HomeHeroStat label="战场" value="DOTA2" />
       </div>
     </section>
   );
 }
 
-function HomeHeroRail({ heroes, side }: { heroes: MatchRecord["heroLineups"][TeamSide]; side: TeamSide }) {
-  const visibleHeroes =
-    heroes.length > 0
-      ? heroes.slice(0, 5).map((hero) => ({ src: hero.portrait || hero.icon, alt: hero.hero }))
-      : fallbackHomeHeroes[side].map((src) => ({ src, alt: "" }));
+function HomeHeroRail({ side }: { side: TeamSide }) {
+  const rowHeroes = fallbackHomeHeroes[side];
+  const visibleHeroes = [...rowHeroes, ...rowHeroes].map((src) => ({ src, alt: "" }));
+  const railDistance = rowHeroes.length * 80 - 3;
 
   return (
     <div className={`home-hero-rail ${side}`}>
-      {visibleHeroes.map((hero, index) => (
-        <span key={`${hero.src}:${index}`} style={cssVars({ "--hero-delay": `${index * 70}ms` })}>
-          <ImageWithFallback src={hero.src} fallback="/static/dota/heroes/unknown.svg" alt={hero.alt} loading="lazy" />
-        </span>
-      ))}
+      <div className="home-hero-track" style={cssVars({ "--hero-rail-distance": `${railDistance}px` })}>
+        {visibleHeroes.map((hero, index) => (
+          <span key={`${hero.src}:${index}`}>
+            <ImageWithFallback src={hero.src} fallback="/static/dota/heroes/unknown.svg" alt={hero.alt} loading="eager" />
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
