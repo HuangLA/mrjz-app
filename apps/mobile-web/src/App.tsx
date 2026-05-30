@@ -89,7 +89,7 @@ const playerSortKeySet = new Set<PlayerSortKey>(playerSortOptions.map((option) =
 
 const defaultApiBaseUrl = "http://127.0.0.1:3001/api";
 const emptyIcon: IconRef = { label: "-", imageUrl: "" };
-const homeHeroRailCardWidth = 136;
+const homeHeroRailCardWidth = 148;
 const homeHeroRailGap = 8;
 const homeHeroPortraitRows: Record<TeamSide, string[]> = {
   radiant: [
@@ -596,6 +596,7 @@ export function App() {
 
   return (
     <div className={`app-shell ${isHome ? "route-home" : "route-secondary"}`}>
+      {isHome ? <HomeBackgroundMarquee /> : null}
       <AppBar isHome={isHome} onBack={goBack} />
       <main className="view" aria-live="polite">
         {routeView}
@@ -611,6 +612,15 @@ export function App() {
           ↑
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function HomeBackgroundMarquee() {
+  return (
+    <div className="home-background-marquee" aria-hidden="true">
+      <HomeHeroRail side="radiant" />
+      <HomeHeroRail side="dire" />
     </div>
   );
 }
@@ -725,11 +735,6 @@ function HomeHero({
 
   return (
     <section className="home-hero">
-      <div className="home-hero-backdrop" aria-hidden="true">
-        <HomeHeroRail side="radiant" />
-        <HomeHeroRail side="dire" />
-        <div className="home-arena-lines" />
-      </div>
       <div className="home-hero-content">
         <div className="home-hero-kicker">
           <span>MRJZ</span>

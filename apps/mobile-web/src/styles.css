@@ -48,6 +48,7 @@ button {
 .app-shell::before {
   position: absolute;
   inset: 0;
+  z-index: 0;
   content: "";
   pointer-events: none;
   background:
@@ -60,6 +61,7 @@ button {
 .app-shell::after {
   position: absolute;
   inset: auto 0 0;
+  z-index: 0;
   height: 220px;
   content: "";
   pointer-events: none;
@@ -68,6 +70,25 @@ button {
 
 .app-shell.route-home {
   padding-bottom: 18px;
+}
+
+.home-background-marquee {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  min-height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.home-background-marquee::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: "";
+  background:
+    linear-gradient(180deg, rgba(7, 9, 12, .22), rgba(7, 9, 12, .56) 46%, rgba(7, 9, 12, .34)),
+    linear-gradient(90deg, rgba(7, 9, 12, .76), transparent 18%, transparent 82%, rgba(7, 9, 12, .76));
 }
 
 .app-bar {
@@ -219,7 +240,7 @@ button {
 
 .view {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   padding: 8px 8px 86px;
 }
 
@@ -395,14 +416,14 @@ button {
   margin-bottom: 8px;
   padding: 14px;
   overflow: hidden;
-  border: 1px solid rgba(213, 166, 79, .18);
+  border: 1px solid rgba(213, 166, 79, .22);
   border-radius: 8px;
   background:
-    linear-gradient(145deg, rgba(8, 11, 15, .82), rgba(16, 21, 31, .72) 46%, rgba(42, 18, 20, .72)),
-    #10151f;
+    linear-gradient(145deg, rgba(8, 11, 15, .64), rgba(16, 21, 31, .46) 46%, rgba(42, 18, 20, .46));
   box-shadow:
-    0 22px 46px rgba(0, 0, 0, .32),
-    inset 0 1px 0 rgba(255, 255, 255, .07);
+    0 22px 46px rgba(0, 0, 0, .24),
+    inset 0 1px 0 rgba(255, 255, 255, .09);
+  backdrop-filter: blur(2px);
 }
 
 .home-hero::before {
@@ -411,11 +432,11 @@ button {
   content: "";
   pointer-events: none;
   background:
-    linear-gradient(120deg, rgba(118, 217, 109, .12), transparent 32%),
-    linear-gradient(300deg, rgba(237, 104, 107, .14), transparent 34%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 48px),
-    repeating-linear-gradient(0deg, transparent 0 35px, rgba(255, 255, 255, .028) 35px 36px);
-  opacity: .9;
+    linear-gradient(120deg, rgba(118, 217, 109, .08), transparent 32%),
+    linear-gradient(300deg, rgba(237, 104, 107, .10), transparent 34%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(0deg, transparent 0 35px, rgba(255, 255, 255, .022) 35px 36px);
+  opacity: .72;
 }
 
 .home-hero::after {
@@ -423,33 +444,28 @@ button {
   inset: 48% -20% -38% -20%;
   content: "";
   pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(213, 166, 79, .16), transparent);
+  background: linear-gradient(90deg, transparent, rgba(213, 166, 79, .10), transparent);
   transform: rotate(-8deg);
-}
-
-.home-hero-backdrop {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
 }
 
 .home-hero-rail {
   position: absolute;
+  z-index: 0;
   width: max-content;
-  opacity: .72;
-  filter: saturate(1.08) contrast(1.08);
+  opacity: .84;
+  filter: saturate(1.1) contrast(1.08);
 }
 
 .home-hero-rail.radiant {
-  top: 22px;
-  left: -76px;
-  transform: rotate(-11deg);
+  top: 96px;
+  left: -118px;
+  transform: rotate(-12deg);
 }
 
 .home-hero-rail.dire {
-  right: -76px;
-  bottom: 26px;
-  transform: rotate(-11deg);
+  top: 406px;
+  right: -118px;
+  transform: rotate(-12deg);
 }
 
 .home-hero-track {
@@ -469,9 +485,9 @@ button {
 
 .home-hero-track span {
   display: block;
-  flex: 0 0 136px;
-  width: 136px;
-  height: 76px;
+  flex: 0 0 148px;
+  width: 148px;
+  height: 83px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .14);
   border-radius: 8px;
@@ -483,30 +499,6 @@ button {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.home-arena-lines {
-  position: absolute;
-  inset: 52px 36px 48px;
-  border: 1px solid rgba(213, 166, 79, .16);
-  transform: skewY(-7deg);
-}
-
-.home-arena-lines::before,
-.home-arena-lines::after {
-  position: absolute;
-  content: "";
-  background: rgba(213, 166, 79, .2);
-}
-
-.home-arena-lines::before {
-  inset: 50% 0 auto;
-  height: 1px;
-}
-
-.home-arena-lines::after {
-  inset: 0 auto 0 50%;
-  width: 1px;
 }
 
 .home-hero-content {
