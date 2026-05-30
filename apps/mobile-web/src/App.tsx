@@ -870,7 +870,13 @@ function HomeHeroRail({ side }: { side: TeamSide }) {
 
   return (
     <div className={`home-hero-rail ${side}`}>
-      <div className="home-hero-track" style={cssVars({ "--hero-rail-distance": `${railDistance}px` })}>
+      <div
+        className="home-hero-track"
+        style={cssVars({
+          "--hero-rail-distance": `${railDistance}px`,
+          "--hero-rail-offset": `-${railDistance}px`,
+        })}
+      >
         {visibleHeroes.map((hero, index) => (
           <span key={`${hero.src}:${index}`}>
             <ImageWithFallback src={hero.src} fallback="/static/dota/heroes/unknown.svg" alt={hero.alt} loading="eager" />

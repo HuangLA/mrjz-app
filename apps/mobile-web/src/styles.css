@@ -436,7 +436,7 @@ button {
 .home-hero-rail {
   position: absolute;
   width: max-content;
-  opacity: .46;
+  opacity: .56;
   filter: saturate(1.04) contrast(1.08);
 }
 
@@ -460,11 +460,11 @@ button {
 }
 
 .home-hero-rail.radiant .home-hero-track {
-  animation: home-hero-scroll-left 92s linear infinite;
+  animation: home-hero-scroll-left 36s linear infinite;
 }
 
 .home-hero-rail.dire .home-hero-track {
-  animation: home-hero-scroll-right 106s linear infinite;
+  animation: home-hero-scroll-right 42s linear infinite;
 }
 
 .home-hero-track span {
@@ -649,13 +649,13 @@ button {
   }
 
   to {
-    transform: translate3d(calc(-1 * var(--hero-rail-distance)), 0, 0);
+    transform: translate3d(var(--hero-rail-offset), 0, 0);
   }
 }
 
 @keyframes home-hero-scroll-right {
   from {
-    transform: translate3d(calc(-1 * var(--hero-rail-distance)), 0, 0);
+    transform: translate3d(var(--hero-rail-offset), 0, 0);
   }
 
   to {
