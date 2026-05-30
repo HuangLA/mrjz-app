@@ -436,42 +436,42 @@ button {
 .home-hero-rail {
   position: absolute;
   width: max-content;
-  opacity: .56;
-  filter: saturate(1.04) contrast(1.08);
+  opacity: .72;
+  filter: saturate(1.08) contrast(1.08);
 }
 
 .home-hero-rail.radiant {
-  top: 20px;
-  left: -46px;
+  top: 22px;
+  left: -76px;
   transform: rotate(-11deg);
 }
 
 .home-hero-rail.dire {
-  right: -46px;
-  bottom: 22px;
+  right: -76px;
+  bottom: 26px;
   transform: rotate(-11deg);
 }
 
 .home-hero-track {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   width: max-content;
   will-change: transform;
 }
 
 .home-hero-rail.radiant .home-hero-track {
-  animation: home-hero-scroll-left 36s linear infinite;
+  animation: home-hero-scroll-left 16s linear infinite;
 }
 
 .home-hero-rail.dire .home-hero-track {
-  animation: home-hero-scroll-right 42s linear infinite;
+  animation: home-hero-scroll-right 18s linear infinite;
 }
 
 .home-hero-track span {
   display: block;
-  flex: 0 0 74px;
-  width: 74px;
-  height: 98px;
+  flex: 0 0 136px;
+  width: 136px;
+  height: 76px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .14);
   border-radius: 8px;
