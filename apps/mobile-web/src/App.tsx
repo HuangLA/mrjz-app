@@ -773,8 +773,8 @@ function HomeHero({
 
 function HomeHeroRail({ side }: { side: TeamSide }) {
   const rowHeroes = homeHeroPortraitRows[side];
-  const visibleHeroes = [...rowHeroes, ...rowHeroes].map((src) => ({ src, alt: "" }));
-  const railDistance = rowHeroes.length * (homeHeroRailCardWidth + homeHeroRailGap) - homeHeroRailGap;
+  const visibleHeroes = [...rowHeroes, ...rowHeroes, ...rowHeroes].map((src) => ({ src, alt: "" }));
+  const railDistance = rowHeroes.length * (homeHeroRailCardWidth + homeHeroRailGap);
 
   return (
     <div className={`home-hero-rail ${side}`}>
