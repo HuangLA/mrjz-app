@@ -89,6 +89,10 @@ const playerSortKeySet = new Set<PlayerSortKey>(playerSortOptions.map((option) =
 
 const defaultApiBaseUrl = "http://127.0.0.1:3001/api";
 const emptyIcon: IconRef = { label: "-", imageUrl: "" };
+const fallbackHomeHeroes: Record<TeamSide, string[]> = {
+  radiant: ["/static/dota/heroes/pudge.png", "/static/dota/heroes/windrunner.png", "/static/dota/heroes/juggernaut.png"],
+  dire: ["/static/dota/heroes/earthshaker.png", "/static/dota/heroes/lina.png", "/static/dota/heroes/nevermore.png"],
+};
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(() => readRouteFromHash());
@@ -298,7 +302,7 @@ export function App() {
       );
     } catch (error) {
       console.error(error);
-      setProfileErrors((previous) => ({ ...previous, [key]: "读取选手数据失败，请确认后端服务仍在运行。" }));
+      setProfileErrors((previous) => ({ ...previous, [key]: "读取失败" }));
     } finally {
       loadingKeysRef.current.delete(key);
       setProfileLoading((previous) => withoutKey(previous, key));
@@ -324,7 +328,7 @@ export function App() {
       );
     } catch (error) {
       console.error(error);
-      setProfileErrors((previous) => ({ ...previous, [key]: "读取队伍数据失败，请确认后端服务仍在运行。" }));
+      setProfileErrors((previous) => ({ ...previous, [key]: "读取失败" }));
     } finally {
       loadingKeysRef.current.delete(key);
       setProfileLoading((previous) => withoutKey(previous, key));
@@ -351,7 +355,7 @@ export function App() {
         console.error(error);
         setProfileErrors((previous) => ({
           ...previous,
-          [key]: "这个选手主页暂时没有读到，请稍后重试或重新同步实体数据。",
+          [key]: "读取失败",
         }));
       } finally {
         loadingKeysRef.current.delete(key);
@@ -381,7 +385,7 @@ export function App() {
         console.error(error);
         setProfileErrors((previous) => ({
           ...previous,
-          [key]: "这个队伍主页暂时没有读到，请稍后重试或重新同步实体数据。",
+          [key]: "读取失败",
         }));
       } finally {
         loadingKeysRef.current.delete(key);
@@ -560,7 +564,7 @@ export function App() {
 
   return (
     <div className={`app-shell ${isHome ? "route-home" : "route-secondary"}`}>
-      <AppBar onBack={goBack} />
+      <AppBar isHome={isHome} onBack={goBack} />
       <main className="view" aria-live="polite">
         {routeView}
       </main>
@@ -579,13 +583,17 @@ export function App() {
   );
 }
 
-function AppBar({ onBack }: { onBack: () => void }) {
+function AppBar({ isHome, onBack }: { isHome: boolean; onBack: () => void }) {
   return (
-    <header className="app-bar">
+    <header className={`app-bar ${isHome ? "home-bar" : ""}`}>
       <div className="title-line top-only">
-        <button className="icon-button" type="button" aria-label="返回上一页" onClick={onBack}>
-          ‹
-        </button>
+        {isHome ? (
+          <span className="brand-mark">MRJZ</span>
+        ) : (
+          <button className="icon-button" type="button" aria-label="返回上一页" onClick={onBack}>
+            ‹
+          </button>
+        )}
       </div>
     </header>
   );
@@ -629,18 +637,25 @@ function HomePage({
   loading: boolean;
   onSelectTournament: (tournamentId: string, targetRoute?: AppRoute) => void;
 }) {
+  const activeTournament =
+    data.tournamentOptions.find((option) => option.id === data.selectedTournamentId) ?? data.tournamentOptions[0] ?? null;
+  const activeRecords = activeTournament ? data.tournamentRecentRecords[activeTournament.id] ?? [] : [];
+  const recordTotal = data.tournamentOptions.reduce(
+    (sum, option) => sum + (data.tournamentRecentRecords[option.id]?.length ?? 0),
+    0,
+  );
+
   return (
     <>
       <DataNotice data={data} loading={loading} />
+      <HomeHero
+        tournament={activeTournament}
+        latestRecord={activeRecords[0] ?? null}
+        tournamentCount={data.tournamentOptions.length}
+        recordCount={recordTotal}
+        onSelect={onSelectTournament}
+      />
       <section className="section-panel tournament-gateway">
-        <div className="section-title compact">
-          <div>
-            <p className="eyebrow">MRJZ Dota 2 Community</p>
-            <h2>选择赛事</h2>
-          </div>
-          <span className="sync-pill">{data.tournamentOptions.length} 届</span>
-        </div>
-        <p className="gateway-lead">先选定要查看的届数，再进入阶段、赛程、比赛记录、选手和队伍数据。</p>
         <div className="tournament-entry-list">
           {data.tournamentOptions.length > 0 ? (
             data.tournamentOptions.map((option) => (
@@ -661,6 +676,95 @@ function HomePage({
   );
 }
 
+function HomeHero({
+  tournament,
+  latestRecord,
+  tournamentCount,
+  recordCount,
+  onSelect,
+}: {
+  tournament: MobileData["tournamentOptions"][number] | null;
+  latestRecord: MatchRecord | null;
+  tournamentCount: number;
+  recordCount: number;
+  onSelect: (tournamentId: string, targetRoute?: AppRoute) => void;
+}) {
+  const score =
+    latestRecord === null || latestRecord.radiantScore === null || latestRecord.direScore === null
+      ? "--"
+      : `${latestRecord.radiantScore}:${latestRecord.direScore}`;
+  const radiantHeroes = latestRecord?.heroLineups.radiant ?? [];
+  const direHeroes = latestRecord?.heroLineups.dire ?? [];
+
+  return (
+    <section className="home-hero">
+      <div className="home-hero-backdrop" aria-hidden="true">
+        <HomeHeroRail heroes={radiantHeroes} side="radiant" />
+        <HomeHeroRail heroes={direHeroes} side="dire" />
+      </div>
+      <div className="home-hero-content">
+        <div className="home-hero-kicker">
+          <span>{tournament ? lifecycleLabel(tournament.status) : "MRJZ"}</span>
+          <i />
+          <span>{tournament ? `League ${tournament.leagueId}` : "DOTA 2"}</span>
+        </div>
+        <h1>{tournament?.name ?? "MRJZ"}</h1>
+        <div className="home-score-core">
+          <span>{latestRecord?.radiantTeamName ?? "Radiant"}</span>
+          <strong>{score}</strong>
+          <span>{latestRecord?.direTeamName ?? "Dire"}</span>
+        </div>
+        <div className="home-quick-actions">
+          {tournament ? (
+            <>
+              <button type="button" onClick={() => onSelect(tournament.id, "stage")}>
+                阶段
+              </button>
+              <button type="button" onClick={() => onSelect(tournament.id, "records")}>
+                记录
+              </button>
+              <button type="button" onClick={() => onSelect(tournament.id, "players")}>
+                选手
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+      <div className="home-hero-stats">
+        <HomeHeroStat label="届次" value={String(tournamentCount)} />
+        <HomeHeroStat label="比赛" value={String(recordCount)} />
+        <HomeHeroStat label="最新" value={latestRecord?.duration ?? "--"} />
+      </div>
+    </section>
+  );
+}
+
+function HomeHeroRail({ heroes, side }: { heroes: MatchRecord["heroLineups"][TeamSide]; side: TeamSide }) {
+  const visibleHeroes =
+    heroes.length > 0
+      ? heroes.slice(0, 5).map((hero) => ({ src: hero.portrait || hero.icon, alt: hero.hero }))
+      : fallbackHomeHeroes[side].map((src) => ({ src, alt: "" }));
+
+  return (
+    <div className={`home-hero-rail ${side}`}>
+      {visibleHeroes.map((hero, index) => (
+        <span key={`${hero.src}:${index}`} style={cssVars({ "--hero-delay": `${index * 70}ms` })}>
+          <ImageWithFallback src={hero.src} fallback="/static/dota/heroes/unknown.svg" alt={hero.alt} loading="lazy" />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function HomeHeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <span>
+      <small>{label}</small>
+      <b>{value}</b>
+    </span>
+  );
+}
+
 function TournamentEntry({
   option,
   active,
@@ -678,13 +782,12 @@ function TournamentEntry({
       ? "暂无赛果"
       : `${latest.radiantScore}:${latest.direScore}`;
   const latestText =
-    latest === undefined ? "暂无比赛记录" : `${latest.radiantTeamName} ${score} ${latest.direTeamName}`;
+    latest === undefined ? "--" : `${latest.radiantTeamName} ${score} ${latest.direTeamName}`;
 
   return (
     <article className={`tournament-entry ${active ? "active" : ""}`}>
       <button className="tournament-entry-main" type="button" onClick={() => onSelect(option.id, "stage")}>
         <div>
-          <p className="eyebrow">League {option.leagueId}</p>
           <h3>{option.name}</h3>
           <span>
             {lifecycleLabel(option.status)} · {option.startsAt}
@@ -726,10 +829,8 @@ function StagePage({
       <section className="stage-switch section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Tournament Map</p>
-            <h2>阶段切换概念</h2>
+            <h2>赛事阶段</h2>
           </div>
-          <span className="sync-pill">后端权威排名</span>
         </div>
         <div className="segmented" role="tablist" aria-label="阶段切换">
           {stageOptions.map((option) => (
@@ -747,11 +848,9 @@ function StagePage({
         </div>
         <div className="stage-head">
           <div>
-            <p className="eyebrow">{currentStage.status}</p>
             <h2>
               {currentStage.name} · {currentStage.currentRound}
             </h2>
-            <p className="muted">{currentStage.note}</p>
           </div>
         </div>
       </section>
@@ -759,16 +858,14 @@ function StagePage({
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Standings</p>
             <h2>积分榜</h2>
           </div>
-          <span className="tiny-meta">不在前端计算晋级</span>
         </div>
         <div className="standing-list">
           {currentStage.standings.length > 0 ? (
             currentStage.standings.map((row) => <StandingRow key={`${row.rank}:${row.team}`} row={row} />)
           ) : (
-            <EmptyState text="该阶段暂无后端积分榜" />
+            <EmptyState text="暂无" />
           )}
         </div>
       </section>
@@ -776,7 +873,6 @@ function StagePage({
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Current Round</p>
             <h2>当前轮</h2>
           </div>
           <span className="status-tag blue">{currentStage.currentRound}</span>
@@ -787,7 +883,7 @@ function StagePage({
               <ScheduleCard key={`${match.stage}:${match.round}:${match.teamA}:${match.teamB}:${match.time}`} match={match} onOpenMatch={onOpenMatch} />
             ))
           ) : (
-            <EmptyState text="暂无管理员录入的真实轮次赛程" />
+            <EmptyState text="暂无" />
           )}
         </div>
       </section>
@@ -795,15 +891,13 @@ function StagePage({
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Bracket</p>
-            <h2>淘汰赛缩略图</h2>
+            <h2>淘汰赛</h2>
           </div>
-          <span className="tiny-meta">真实节点</span>
         </div>
         {currentStage.bracket.length > 0 ? (
           <StageBracketPreview nodes={currentStage.bracket} />
         ) : (
-          <EmptyState text="暂无管理员录入的真实淘汰赛节点" />
+          <EmptyState text="暂无" />
         )}
       </section>
     </>
@@ -857,12 +951,10 @@ function SchedulePage({
         <section className="section-panel schedule-unpublished">
           <div className="section-title compact">
             <div>
-              <p className="eyebrow">Official Schedule</p>
               <h2>赛程暂未发布</h2>
             </div>
             <span className="sync-pill">{officialScheduleStatusText(data.officialSchedule.status)}</span>
           </div>
-          <p className="muted">管理员尚未发布这届比赛的官方赛程。比赛列表、比赛记录和战报仍可在其它页面查看。</p>
         </section>
       </>
     );
@@ -875,16 +967,14 @@ function SchedulePage({
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Schedule</p>
             <h2>赛程列表</h2>
           </div>
-          <span className="sync-pill">只读公开</span>
         </div>
         <FilterRow labels={["全部", "未开始", "待补录", "已完赛", "延期"]} />
       </section>
       {data.scheduleGroups.length === 0 ? (
         <section className="section-panel">
-          <EmptyState text="官方赛程已发布，但暂时没有可展示的对阵。" />
+          <EmptyState text="暂无" />
         </section>
       ) : (
         data.scheduleGroups.map((group) => (
@@ -923,7 +1013,6 @@ function RecordsPage({
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">OpenDota Archive</p>
             <h2>比赛记录</h2>
           </div>
           <span className="sync-pill">{data.matchRecords.length} 场</span>
@@ -936,7 +1025,7 @@ function RecordsPage({
             <MatchRecordCard key={record.matchId} record={record} index={index} onOpenMatch={onOpenMatch} />
           ))
         ) : (
-          <EmptyState text="暂无已同步比赛记录" />
+          <EmptyState text="暂无" />
         )}
       </section>
     </>
@@ -974,10 +1063,8 @@ function MatchDetailPage({
       <section className="section-panel player-section">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Players</p>
             <h2>双方数据</h2>
           </div>
-          <span className="tiny-meta">装备 / 技能 / KDA</span>
         </div>
         <TeamPanel
           side="radiant"
@@ -1000,7 +1087,6 @@ function MatchDetailPage({
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Vision</p>
             <h2>视野地图</h2>
           </div>
           <span className="tiny-meta">{match.wardTimeline.length} 条</span>
@@ -1012,18 +1098,17 @@ function MatchDetailPage({
             onChange={(seconds) => onWardSecondChange(match.id, seconds)}
           />
         ) : (
-          <EmptyState text="该比赛暂无眼位时间轴" />
+          <EmptyState text="暂无" />
         )}
       </section>
 
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Trend</p>
             <h2>战况趋势</h2>
           </div>
           <span className={`status-tag ${match.trends.hasTrends ? "green" : ""}`}>
-            {match.trends.hasTrends ? "真实曲线" : "暂无数据"}
+            {match.trends.hasTrends ? "曲线" : "暂无"}
           </span>
         </div>
         <TrendSection match={match} />
@@ -1032,16 +1117,14 @@ function MatchDetailPage({
       <section className="section-panel chat-section">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Chat</p>
             <h2>聊天记录</h2>
           </div>
-          <span className="tiny-meta">公开聊天</span>
         </div>
         <div className="chat-list">
           {match.chat.length > 0 ? (
             match.chat.map((line, index) => <ChatLine key={`${line.time}:${line.player}:${index}`} line={line} />)
           ) : (
-            <EmptyState text="该比赛暂无公开聊天" />
+            <EmptyState text="暂无" />
           )}
         </div>
       </section>
@@ -1079,7 +1162,6 @@ function PlayersPage({
       <section className="section-panel player-board-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Players</p>
             <h2>选手数据榜</h2>
           </div>
           <span className="sync-pill">{players.length} 名</span>
@@ -1093,7 +1175,7 @@ function PlayersPage({
           {players.length > 0 ? (
             players.map((player) => <PlayerDirectoryCard key={player.id} player={player} onNavigate={onNavigate} />)
           ) : (
-            <EmptyState text={error ?? (profileLoading.players ? "正在读取选手数据" : "暂无选手数据")} />
+            <EmptyState text={error ?? (profileLoading.players ? "读取中" : "暂无")} />
           )}
         </div>
       </section>
@@ -1127,7 +1209,6 @@ function TeamsPage({
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Teams</p>
             <h2>队伍主页</h2>
           </div>
           <span className="sync-pill">{topTeams.length} 支</span>
@@ -1136,7 +1217,7 @@ function TeamsPage({
           {topTeams.length > 0 ? (
             topTeams.map((team) => <TeamDirectoryCard key={team.id} team={team} onNavigate={onNavigate} />)
           ) : (
-            <EmptyState text={error ?? (profileLoading.teams ? "正在读取队伍数据" : "暂无队伍数据")} />
+            <EmptyState text={error ?? (profileLoading.teams ? "读取中" : "暂无")} />
           )}
         </div>
       </section>
@@ -1166,19 +1247,19 @@ function PlayerProfilePage({
   const playerId = profileId ?? data.players[0]?.id ?? null;
 
   if (playerId === null) {
-    return <EmptyState text="暂无选手数据" />;
+    return <EmptyState text="暂无" />;
   }
 
   const error = profileErrors[`player:${playerId}`];
 
   if (error) {
-    return <ProfileError title="选手主页读取失败" message={error} type="player" profileId={playerId} onRetry={onRetry} />;
+    return <ProfileError title="读取失败" message={error} type="player" profileId={playerId} onRetry={onRetry} />;
   }
 
   const profile = profiles[playerId];
 
   if (!profile) {
-    return <ProfileLoading text="正在读取选手主页" />;
+    return <ProfileLoading text="读取中" />;
   }
 
   const team = profile.currentTeam ?? profile.teams[0] ?? null;
@@ -1191,7 +1272,6 @@ function PlayerProfilePage({
         <div className="profile-hero-main">
           <SteamAvatar player={profile} size="large" />
           <div>
-            <p className="eyebrow">Player Profile</p>
             <div className="profile-name-row">
               <h2>{profile.displayName}</h2>
               <PlayerTeamBadge team={team} />
@@ -1254,19 +1334,19 @@ function TeamProfilePage({
   const teamId = profileId ?? data.teams[0]?.id ?? null;
 
   if (teamId === null) {
-    return <EmptyState text="暂无队伍数据" />;
+    return <EmptyState text="暂无" />;
   }
 
   const error = profileErrors[`team:${teamId}`];
 
   if (error) {
-    return <ProfileError title="队伍主页读取失败" message={error} type="team" profileId={teamId} onRetry={onRetry} />;
+    return <ProfileError title="读取失败" message={error} type="team" profileId={teamId} onRetry={onRetry} />;
   }
 
   const profile = profiles[teamId];
 
   if (!profile) {
-    return <ProfileLoading text="正在读取队伍主页" />;
+    return <ProfileLoading text="读取中" />;
   }
 
   return (
@@ -1277,10 +1357,9 @@ function TeamProfilePage({
         <div className="profile-hero-main">
           <span className="profile-avatar-fallback large team">{profile.shortName.slice(0, 2).toUpperCase()}</span>
           <div>
-            <p className="eyebrow">Team Profile</p>
             <h2>{profile.name}</h2>
             <p>
-              {profile.memberCount} 名成员 · {profile.status} · {profile.stats.linkedMatches} 场真实比赛
+              {profile.memberCount} 名成员 · {profile.status} · {profile.stats.linkedMatches} 场
             </p>
           </div>
         </div>
@@ -1307,7 +1386,6 @@ function TeamProfilePage({
       <section className="section-panel">
         <div className="section-title compact">
           <div>
-            <p className="eyebrow">Roster</p>
             <h2>成员名单</h2>
           </div>
         </div>
@@ -1325,7 +1403,7 @@ function TeamProfilePage({
               </button>
             ))
           ) : (
-            <EmptyState text="暂无成员" />
+            <EmptyState text="暂无" />
           )}
         </div>
       </section>
@@ -1349,7 +1427,6 @@ function TournamentScope({
   return (
     <section className="tournament-scope">
       <div>
-        <p className="eyebrow">当前赛事</p>
         <b>{data.selectedTournamentName}</b>
         <span>
           League {meta.leagueId} · {meta.statusText}
@@ -1362,8 +1439,8 @@ function TournamentScope({
   );
 }
 
-function DataNotice({ data, loading }: { data: MobileData; loading: boolean }) {
-  const text = loading ? "正在读取公开 API..." : data.notice;
+function DataNotice({ loading }: { data: MobileData; loading: boolean }) {
+  const text = loading ? "读取中" : null;
 
   return text ? <section className="api-notice">{text}</section> : null;
 }
@@ -1420,7 +1497,7 @@ function ScheduleCard({
             打开战报
           </button>
         ) : (
-          <small>等待后台确认</small>
+          <small>--</small>
         )}
       </div>
     </article>
@@ -1743,7 +1820,6 @@ function TeamDirectoryCard({
 function ProfileLoading({ text }: { text: string }) {
   return (
     <section className="section-panel profile-loading">
-      <p className="eyebrow">Loading</p>
       <h2>{text}</h2>
     </section>
   );
@@ -1764,7 +1840,6 @@ function ProfileError({
 }) {
   return (
     <section className="section-panel profile-loading profile-error">
-      <p className="eyebrow">Error</p>
       <h2>{title}</h2>
       <small>{message}</small>
       <button type="button" onClick={() => onRetry(type, profileId)}>
@@ -1792,7 +1867,6 @@ function SignatureHeroes({ heroes }: { heroes: Array<{ hero: string; portrait: s
     <section className="section-panel">
       <div className="section-title compact">
         <div>
-          <p className="eyebrow">Heroes</p>
           <h2>常用英雄</h2>
         </div>
       </div>
@@ -1810,7 +1884,7 @@ function SignatureHeroes({ heroes }: { heroes: Array<{ hero: string; portrait: s
             </article>
           ))
         ) : (
-          <EmptyState text="暂无英雄统计" />
+          <EmptyState text="暂无" />
         )}
       </div>
     </section>
@@ -1834,7 +1908,6 @@ function ProfileMatches({
     <section className="section-panel">
       <div className="section-title compact">
         <div>
-          <p className="eyebrow">Matches</p>
           <h2>{title}</h2>
         </div>
         <span className="sync-pill">{matches.length} 场</span>
@@ -1850,7 +1923,7 @@ function ProfileMatches({
             />
           ))
         ) : (
-          <EmptyState text="暂无比赛记录" />
+          <EmptyState text="暂无" />
         )}
       </div>
     </section>
@@ -1862,11 +1935,10 @@ function ProfileTagsPlaceholder({ type }: { type: "player" | "team" }) {
     <section className="section-panel tag-entry">
       <div className="section-title compact">
         <div>
-          <p className="eyebrow">Community Tags</p>
           <h2>{type === "player" ? "选手标签" : "队伍标签"}</h2>
         </div>
       </div>
-      <EmptyState text="标签添加和点赞接口接入后，这里展示用户互动产生的标签云。" />
+      <EmptyState text="暂无" />
     </section>
   );
 }
@@ -2371,7 +2443,6 @@ function DraftSection({ match }: { match: MatchData }) {
     <section className="section-panel">
       <div className="section-title compact">
         <div>
-          <p className="eyebrow">Draft</p>
           <h2>Ban / Pick 顺序</h2>
         </div>
       </div>
@@ -2382,7 +2453,7 @@ function DraftSection({ match }: { match: MatchData }) {
 
 function DraftTimeline({ draft }: { draft: DraftStep[] }) {
   if (draft.length === 0) {
-    return <EmptyState text="该比赛暂未解析 Ban/Pick" />;
+    return <EmptyState text="暂无" />;
   }
 
   return (
@@ -2541,10 +2612,9 @@ function WardTimeline({
         />
         <div className="vision-scale">
           <span>0:00</span>
-          <b>{activeEvents.length} 个有效眼位</b>
+          <b>{activeEvents.length} 眼位</b>
           <span>{formatWardClock(maxSecond)}</span>
         </div>
-        <div className="vision-note">只显示当前时间点已插下且未过期的眼位 · 假眼 6:00 · 真眼 7:00</div>
       </div>
     </div>
   );
@@ -2578,7 +2648,7 @@ function WardMapDot({
 
 function TrendSection({ match }: { match: MatchData }) {
   if (!match.trends.hasTrends) {
-    return <EmptyState text="该比赛暂无经济/经验趋势数据" />;
+    return <EmptyState text="暂无" />;
   }
 
   return (
@@ -2602,7 +2672,7 @@ function AdvantageTrendGraph({ match }: { match: MatchData }) {
   if (gold.length === 0 && xp.length === 0) {
     return (
       <div className="trend-card">
-        <EmptyState text="经济/经验差暂无数据" />
+        <EmptyState text="暂无" />
       </div>
     );
   }
@@ -2747,7 +2817,9 @@ function ChatLine({
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="empty-state">{text}</div>;
+  void text;
+
+  return <div className="empty-state">暂无</div>;
 }
 
 function ImageWithFallback({
@@ -2913,16 +2985,16 @@ function getTeam(match: MatchData, side: TeamSide) {
 
 function emptyMobileData(): MobileData {
   return {
-    apiBaseUrl: defaultApiBaseUrl,
-    source: "unavailable",
-    selectedTournamentId: "",
-    selectedTournamentName: "正在读取真实数据",
-    selectedTournamentMeta: {
-      status: "unknown",
-      statusText: "正在读取公开 API",
-      startsAt: "时间待定",
-      endsAt: "时间待定",
-      leagueId: "-",
+      apiBaseUrl: defaultApiBaseUrl,
+      source: "unavailable",
+      selectedTournamentId: "",
+      selectedTournamentName: "MRJZ",
+      selectedTournamentMeta: {
+        status: "unknown",
+        statusText: "--",
+        startsAt: "时间待定",
+        endsAt: "时间待定",
+        leagueId: "-",
     },
     tournamentOptions: [],
     tournamentStats: [],
@@ -2938,9 +3010,9 @@ function emptyMobileData(): MobileData {
     matchRecords: [],
     tournamentRecentRecords: {},
     players: [],
-    teams: [],
-    featuredMatch: emptyMatchData(),
-    notice: "正在读取公开 API，稍后自动刷新。",
+      teams: [],
+      featuredMatch: emptyMatchData(),
+      notice: null,
   };
 }
 
@@ -2949,27 +3021,27 @@ function emptyStageViews(): MobileData["stageViews"] {
     group: {
       key: "group",
       name: "小组赛",
-      status: "暂无真实阶段数据",
-      currentRound: "暂无轮次",
-      note: "管理员尚未录入真实小组赛。",
+      status: "暂无",
+      currentRound: "暂无",
+      note: "",
       standings: [],
       bracket: [],
     },
     swiss: {
       key: "swiss",
       name: "瑞士轮",
-      status: "暂无真实阶段数据",
-      currentRound: "暂无轮次",
-      note: "管理员尚未录入真实瑞士轮。",
+      status: "暂无",
+      currentRound: "暂无",
+      note: "",
       standings: [],
       bracket: [],
     },
     knockout: {
       key: "knockout",
       name: "淘汰赛",
-      status: "暂无真实阶段数据",
-      currentRound: "暂无轮次",
-      note: "管理员尚未录入真实淘汰赛。",
+      status: "暂无",
+      currentRound: "暂无",
+      note: "",
       standings: [],
       bracket: [],
     },
@@ -2979,7 +3051,7 @@ function emptyStageViews(): MobileData["stageViews"] {
 function emptyMatchData(): MatchData {
   return {
     id: "-",
-    league: "暂无真实比赛详情",
+    league: "MRJZ",
     series: "",
     mode: "未知模式",
     endedAt: "时间待定",
@@ -2990,7 +3062,7 @@ function emptyMatchData(): MatchData {
     radiant: { side: "radiant", name: "天辉", shortName: "天辉", seed: "天辉", color: "#78d66c" },
     dire: { side: "dire", name: "夜魇", shortName: "夜魇", seed: "夜魇", color: "#ef6467" },
     mvpPlayerId: "",
-    parseStatus: "暂无数据",
+    parseStatus: "暂无",
     players: [],
     draft: [],
     wardTimeline: [],
