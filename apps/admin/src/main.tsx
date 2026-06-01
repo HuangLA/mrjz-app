@@ -845,7 +845,13 @@ function App() {
   }
 
   async function advanceBracketNode(nodeId: string, winnerTeamId: string) {
-    const result = await runAction("选择胜者", "POST", `/bracket-nodes/${encodeURIComponent(nodeId)}/winner`, { winnerTeamId });
+    const result = await runAction("选择胜者", "POST", `/bracket-nodes/${encodeURIComponent(nodeId)}/winner`, { winnerTeamId, actor: "admin" });
+    if (result.ok) requestBracketNextFocus();
+  }
+
+  async function retractBracketNode(nodeId: string, description = "这个胜者") {
+    if (!window.confirm(`确认撤销 ${description}？\n撤销后，后续由该结果推进的晋级槽位、淘汰赛赛果和自动生成对阵会同步回退。`)) return;
+    const result = await runAction("撤销胜者", "DELETE", `/bracket-nodes/${encodeURIComponent(nodeId)}/winner`, { actor: "admin" });
     if (result.ok) requestBracketNextFocus();
   }
 
@@ -1249,6 +1255,7 @@ function App() {
               createScheduleFrame={createScheduleFrame}
               setBracketSlot={setBracketSlot}
               advanceBracketNode={advanceBracketNode}
+              retractBracketNode={retractBracketNode}
               updateSeriesResult={updateSeriesResult}
               updateSeriesScheduledAt={updateSeriesScheduledAt}
               updateSeriesGameMatchId={updateSeriesGameMatchId}
@@ -1361,6 +1368,7 @@ function TournamentWorkspace(props: {
   createScheduleFrame: () => Promise<void>;
   setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>;
   advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void>;
+  retractBracketNode: (nodeId: string, description?: string) => Promise<void>;
   updateSeriesResult: (seriesId: string, radiantScore: number, direScore: number) => Promise<boolean>;
   updateSeriesScheduledAt: (seriesId: string, scheduledAt: string) => Promise<boolean>;
   updateSeriesGameMatchId: (seriesId: string, gameIndex: number, matchId: number | null) => Promise<boolean>;
@@ -3265,6 +3273,7 @@ function StageBoard(props: {
   generateBracket: () => Promise<void>;
   setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>;
   advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void>;
+  retractBracketNode: (nodeId: string, description?: string) => Promise<void>;
   updateSeriesResult: (seriesId: string, radiantScore: number, direScore: number) => Promise<boolean>;
   updateSeriesScheduledAt: (seriesId: string, scheduledAt: string) => Promise<boolean>;
   updateSeriesGameMatchId: (seriesId: string, gameIndex: number, matchId: number | null) => Promise<boolean>;
@@ -5583,7 +5592,7 @@ function KnockoutEntryDesk(props: {
   );
 }
 
-function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]; bracket: BracketNode[]; setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>; advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void> }) {
+function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]; bracket: BracketNode[]; setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>; advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void>; retractBracketNode: (nodeId: string, description?: string) => Promise<void> }) {
   const [teamFilter, setTeamFilter] = useState("");
   const normalizedTeamFilter = teamFilter.trim().toLowerCase();
   const grouped = groupBracketNodes(props.bracket);
@@ -5672,7 +5681,7 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
                   <strong>{column.roundName}</strong>
                   <small>{completeCount}/{column.nodes.length} 完成</small>
                 </div>
-                {column.nodes.map((node) => <BracketNodeCard key={node.id} nodeLookup={nodeLookup} node={node} incomingSlotKeys={slotSummary.incomingSlotKeys} focusNodeId={firstReadyNodeTargetId} focusSlotId={focusedSlotTargetId} setBracketSlot={props.setBracketSlot} advanceBracketNode={props.advanceBracketNode} />)}
+                {column.nodes.map((node) => <BracketNodeCard key={node.id} nodeLookup={nodeLookup} node={node} incomingSlotKeys={slotSummary.incomingSlotKeys} focusNodeId={firstReadyNodeTargetId} focusSlotId={focusedSlotTargetId} setBracketSlot={props.setBracketSlot} advanceBracketNode={props.advanceBracketNode} retractBracketNode={props.retractBracketNode} />)}
               </section>
             );
           })}
@@ -5703,7 +5712,7 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
   );
 }
 
-function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, BracketNode>; incomingSlotKeys: Set<string>; focusNodeId: string; focusSlotId: string; setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>; advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void> }) {
+function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, BracketNode>; incomingSlotKeys: Set<string>; focusNodeId: string; focusSlotId: string; setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>; advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void>; retractBracketNode: (nodeId: string, description?: string) => Promise<void> }) {
   const radiantTeam = props.node.radiantTeam;
   const direTeam = props.node.direTeam;
   const canPick = props.node.winnerTeamId === null && radiantTeam !== null && direTeam !== null;
@@ -5778,7 +5787,13 @@ function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, Bra
           </div>
         </div>
       ) : null}
-      {winnerTeam ? <div className="bracket-winner-line"><Trophy size={14} /><span>{winnerTeam.name} 已晋级</span></div> : null}
+      {winnerTeam ? (
+        <div className="bracket-winner-line">
+          <Trophy size={14} />
+          <span>{winnerTeam.name} 已晋级</span>
+          <button type="button" onClick={() => void props.retractBracketNode(props.node.id, `${winnerTeam.name} 的晋级结果`)}>撤销胜者</button>
+        </div>
+      ) : null}
       {!winnerTeam && !canPick && missingManualSlots ? <div className="bracket-missing-line">等待 {missingManualSlots} 手动落位</div> : null}
       {!winnerTeam && !canPick && !missingManualSlots && waitingSlots ? <div className="bracket-missing-line is-upstream">等待 {waitingSlots} 上游胜者</div> : null}
       <div className={canPick ? "bracket-flow-row is-action-hint" : "bracket-flow-row"}>

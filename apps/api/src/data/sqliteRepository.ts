@@ -368,6 +368,11 @@ export type CreateKnockoutBracketInput = {
 
 export type AdvanceBracketNodeInput = {
   winnerTeamId: string;
+  actor?: string;
+};
+
+export type RetractBracketNodeInput = {
+  actor?: string;
 };
 
 export type SetBracketNodeSlotInput = {
@@ -1261,6 +1266,8 @@ export class SqliteTournamentRepository {
   }
 
   getStageBracket(stageId: string): BracketNode[] | undefined {
+    this.repairStaleBracketWinners(stageId);
+
     const rows = this.database
       .prepare(
         `
@@ -2823,13 +2830,23 @@ export class SqliteTournamentRepository {
     this.database.exec("BEGIN;");
 
     try {
+      const bracketNodeRows = this.database.prepare("SELECT id FROM bracket_nodes WHERE series_id = ?").all(seriesId);
+
+      for (const bracketNodeRow of bracketNodeRows) {
+        this.retractBracketNodeWinner(text(bracketNodeRow, "id"), { resetSourceSeriesResult: false });
+      }
+
       this.database
         .prepare(
           `
             UPDATE bracket_nodes
             SET
               series_id = NULL,
-              status = CASE WHEN winner_team_id IS NULL THEN 'pending' ELSE status END,
+              winner_team_id = NULL,
+              status = CASE
+                WHEN radiant_team_id IS NOT NULL AND dire_team_id IS NOT NULL THEN 'scheduled'
+                ELSE 'pending'
+              END,
               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE series_id = ?
           `,
@@ -3295,8 +3312,53 @@ export class SqliteTournamentRepository {
     this.database.exec("BEGIN;");
 
     try {
+      this.createReadyBracketSeries(stageId, boType, scheduledAt, roundIds);
       this.completeBracketNode(nodeId, winnerTeamId, boType, scheduledAt, roundIds, true);
       this.autoAdvanceBracketByes(stageId, boType, scheduledAt, roundIds);
+      this.insertScheduleLog(stage.tournamentId, input.actor ?? "admin", "bracket_winner_advanced", {
+        stageId,
+        nodeId,
+        winnerTeamId,
+      });
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return this.getStageBracket(stageId) ?? [];
+  }
+
+  retractBracketNode(nodeIdParam: string, input: RetractBracketNodeInput = {}): BracketNode[] {
+    const nodeId = requiredString(nodeIdParam, "nodeId");
+    const row = this.getBracketNodeRow(nodeId);
+
+    if (row === undefined) {
+      throw new Error("Bracket node not found");
+    }
+
+    const stageId = text(row, "stage_id");
+    const stage = this.getStageSummaryById(stageId);
+
+    if (stage === undefined) {
+      throw new Error("Stage not found");
+    }
+
+    const previousWinnerTeamId = nullableText(row, "winner_team_id");
+
+    if (previousWinnerTeamId === null) {
+      throw new Error("Bracket node does not have a winner");
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.retractBracketNodeWinner(nodeId);
+      this.insertScheduleLog(stage.tournamentId, input.actor ?? "admin", "bracket_winner_retracted", {
+        stageId,
+        nodeId,
+        previousWinnerTeamId,
+      });
       this.database.exec("COMMIT;");
     } catch (error) {
       this.database.exec("ROLLBACK;");
@@ -4049,6 +4111,170 @@ export class SqliteTournamentRepository {
         `,
       )
       .run(requiredWins, winnerTeamId, seriesId);
+  }
+
+  private retractBracketNodeWinner(
+    nodeId: string,
+    options: { resetSourceSeriesResult?: boolean } = {},
+    visited = new Set<string>(),
+  ): void {
+    if (visited.has(nodeId)) {
+      return;
+    }
+
+    visited.add(nodeId);
+
+    const row = this.getBracketNodeRow(nodeId);
+
+    if (row === undefined) {
+      throw new Error("Bracket node not found");
+    }
+
+    const winnerTeamId = nullableText(row, "winner_team_id");
+
+    if (winnerTeamId === null) {
+      return;
+    }
+
+    const radiantTeamId = nullableText(row, "radiant_team_id");
+    const direTeamId = nullableText(row, "dire_team_id");
+    const loserTeamId = winnerTeamId === radiantTeamId ? direTeamId : radiantTeamId;
+    const nextNodeId = nullableText(row, "next_node_id");
+    const nextSlot = nullableText(row, "next_slot") as BracketSlot | null;
+    const loserNextNodeId = nullableText(row, "loser_next_node_id");
+    const loserNextSlot = nullableText(row, "loser_next_slot") as BracketSlot | null;
+
+    if (nextNodeId !== null && nextSlot !== null) {
+      this.clearBracketAdvancedSlot(nextNodeId, nextSlot, winnerTeamId, visited);
+    }
+
+    if (loserTeamId !== null && loserNextNodeId !== null && loserNextSlot !== null) {
+      this.clearBracketAdvancedSlot(loserNextNodeId, loserNextSlot, loserTeamId, visited);
+    }
+
+    const seriesId = nullableText(row, "series_id");
+
+    if (options.resetSourceSeriesResult !== false && seriesId !== null) {
+      this.clearSeriesWinner(seriesId);
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE bracket_nodes
+          SET
+            winner_team_id = NULL,
+            status = CASE
+              WHEN radiant_team_id IS NOT NULL AND dire_team_id IS NOT NULL THEN 'scheduled'
+              ELSE 'pending'
+            END,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(nodeId);
+  }
+
+  private clearBracketAdvancedSlot(
+    nodeId: string,
+    slot: BracketSlot,
+    expectedTeamId: string,
+    visited: Set<string>,
+  ): void {
+    const row = this.getBracketNodeRow(nodeId);
+
+    if (row === undefined) {
+      throw new Error("Next bracket node not found");
+    }
+
+    const column = slot === "radiant" ? "radiant_team_id" : "dire_team_id";
+    const currentTeamId = nullableText(row, column);
+
+    if (currentTeamId !== expectedTeamId) {
+      return;
+    }
+
+    if (nullableText(row, "winner_team_id") !== null) {
+      this.retractBracketNodeWinner(nodeId, {}, visited);
+    }
+
+    const currentRow = this.getBracketNodeRow(nodeId);
+
+    if (currentRow === undefined) {
+      throw new Error("Next bracket node not found");
+    }
+
+    const seriesId = nullableText(currentRow, "series_id");
+
+    this.database
+      .prepare(
+        `
+          UPDATE bracket_nodes
+          SET
+            ${column} = NULL,
+            series_id = NULL,
+            winner_team_id = NULL,
+            status = 'pending',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(nodeId);
+
+    if (seriesId !== null) {
+      this.database.prepare("DELETE FROM series WHERE id = ?").run(seriesId);
+    }
+  }
+
+  private clearSeriesWinner(seriesId: string): void {
+    this.database
+      .prepare(
+        `
+          UPDATE series
+          SET
+            radiant_score = 0,
+            dire_score = 0,
+            winner_team_id = NULL,
+            status = CASE WHEN status = 'completed' THEN 'draft' ELSE status END,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(seriesId);
+    this.database
+      .prepare(
+        `
+          UPDATE series_games
+          SET
+            radiant_score = NULL,
+            dire_score = NULL,
+            winner_team_id = NULL,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE series_id = ?
+        `,
+      )
+      .run(seriesId);
+  }
+
+  private repairStaleBracketWinners(stageId: string): void {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT id
+          FROM bracket_nodes
+          WHERE stage_id = ?
+            AND series_id IS NULL
+            AND winner_team_id IS NOT NULL
+            AND radiant_team_id IS NOT NULL
+            AND dire_team_id IS NOT NULL
+          ORDER BY round_number ASC, position ASC
+        `,
+      )
+      .all(stageId);
+
+    for (const row of rows) {
+      this.retractBracketNodeWinner(text(row, "id"), { resetSourceSeriesResult: false });
+    }
   }
 
   private getBracketNodeRow(nodeId: string): DbRow | undefined {

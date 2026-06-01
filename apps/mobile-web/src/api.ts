@@ -222,6 +222,10 @@ type ApiBracketNode = {
   radiantTeam?: ApiTeam | null;
   direTeam?: ApiTeam | null;
   series?: ApiSeries | null;
+  nextNodeId?: string | null;
+  nextSlot?: "radiant" | "dire" | null;
+  loserNextNodeId?: string | null;
+  loserNextSlot?: "radiant" | "dire" | null;
   winnerTeamId?: string | null;
 };
 
@@ -1187,13 +1191,21 @@ function normalizeBracketNode(node: ApiBracketNode): BracketPreviewNode {
         : "待定";
 
   return {
+    id: node.id ?? `${node.bracketGroup ?? "single"}:${node.roundNumber ?? 0}:${node.position ?? 0}`,
+    bracketGroup: node.bracketGroup ?? "single",
     roundName: node.roundName ?? `第 ${node.roundNumber ?? "-"} 轮`,
+    roundNumber: node.roundNumber ?? 0,
     groupName: bracketGroupText(node.bracketGroup),
     position: node.position ?? 0,
+    topTeamId: topTeam?.id ?? null,
     topTeam: topTeam?.name ?? "待定",
+    bottomTeamId: bottomTeam?.id ?? null,
     bottomTeam: bottomTeam?.name ?? "待定",
+    winnerTeamId: winnerId,
     winner,
     status: node.winnerTeamId ? "已完赛" : node.status === "scheduled" ? "待开赛" : "待定",
+    nextNodeId: node.nextNodeId ?? null,
+    loserNextNodeId: node.loserNextNodeId ?? null,
   };
 }
 

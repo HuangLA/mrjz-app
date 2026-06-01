@@ -999,16 +999,53 @@ button {
 
 .bracket-mini-board {
   display: grid;
-  grid-auto-columns: minmax(148px, 1fr);
-  grid-auto-flow: column;
-  gap: 8px;
+  gap: 14px;
+  margin: 0 -8px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding: 0 8px 8px;
+  scrollbar-width: thin;
+}
+
+.bracket-group-lane {
+  min-width: max-content;
+  display: grid;
+  gap: 8px;
+}
+
+.bracket-group-title {
+  position: sticky;
+  left: 8px;
+  z-index: 2;
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(213, 166, 79, .14);
+  color: #f1d28c;
+  font-size: 10px;
+}
+
+.bracket-round-track {
+  display: grid;
+  grid-auto-columns: 172px;
+  grid-auto-flow: column;
+  gap: 24px;
+  align-items: start;
 }
 
 .bracket-column {
+  position: relative;
   display: grid;
-  gap: 6px;
+  gap: 10px;
+}
+
+.bracket-column:not(:last-child)::after {
+  position: absolute;
+  top: 42px;
+  right: -12px;
+  bottom: 28px;
+  width: 1px;
+  content: "";
+  background: linear-gradient(180deg, transparent, rgba(213, 166, 79, .44), transparent);
 }
 
 .bracket-column > strong {
@@ -1017,19 +1054,76 @@ button {
 }
 
 .bracket-node {
+  position: relative;
   display: grid;
-  gap: 4px;
+  gap: 6px;
+  min-height: 108px;
+  padding: 8px;
+  border-color: rgba(255, 255, 255, .08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .025));
 }
 
-.bracket-node b,
-.bracket-node small {
-  display: block;
+.bracket-node.has-incoming::before,
+.bracket-node.has-outgoing::after {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 1px;
+  content: "";
+  background: rgba(213, 166, 79, .48);
 }
 
-.bracket-node b {
+.bracket-node.has-incoming::before {
+  left: -13px;
+}
+
+.bracket-node.has-outgoing::after {
+  right: -13px;
+}
+
+.bracket-node.is-completed {
+  border-color: rgba(116, 214, 108, .30);
+  background: linear-gradient(180deg, rgba(116, 214, 108, .11), rgba(255, 255, 255, .025));
+}
+
+.bracket-node.is-ready {
+  border-color: rgba(101, 181, 255, .28);
+  background: linear-gradient(180deg, rgba(101, 181, 255, .10), rgba(255, 255, 255, .025));
+}
+
+.bracket-node.is-pending {
+  border-style: dashed;
+}
+
+.bracket-node-kicker {
+  color: #9ca8b8;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.bracket-team {
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .045);
+}
+
+.bracket-team.is-winner {
+  background: rgba(116, 214, 108, .16);
+  color: #c8ffc4;
+}
+
+.bracket-team b {
+  min-width: 0;
   overflow-wrap: anywhere;
   color: #f4f7fb;
   font-size: 10px;
+}
+
+.bracket-team.is-winner b {
+  color: #c8ffc4;
 }
 
 .bracket-node small {

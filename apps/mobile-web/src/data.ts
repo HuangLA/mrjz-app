@@ -167,13 +167,21 @@ export interface StandingRow {
 }
 
 export interface BracketPreviewNode {
+  id: string;
+  bracketGroup: string;
   roundName: string;
+  roundNumber: number;
   groupName: string;
   position: number;
+  topTeamId: string | null;
   topTeam: string;
+  bottomTeamId: string | null;
   bottomTeam: string;
+  winnerTeamId: string | null;
   winner: string;
   status: string;
+  nextNodeId: string | null;
+  loserNextNodeId: string | null;
 }
 
 export interface StageView {

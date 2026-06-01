@@ -997,27 +997,59 @@ function StagePage({
 }
 
 function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
-  const grouped = new Map<string, StageView["bracket"]>();
+  const grouped = new Map<string, Map<string, StageView["bracket"]>>();
+  const linkedNodeIds = new Set<string>();
 
   for (const node of nodes) {
-    grouped.set(node.roundName, [...(grouped.get(node.roundName) ?? []), node]);
+    const roundKey = `${node.bracketGroup}:${node.roundNumber}:${node.roundName}`;
+    const group = grouped.get(node.groupName) ?? new Map<string, StageView["bracket"]>();
+    group.set(roundKey, [...(group.get(roundKey) ?? []), node]);
+    grouped.set(node.groupName, group);
+
+    if (node.nextNodeId) linkedNodeIds.add(node.nextNodeId);
+    if (node.loserNextNodeId) linkedNodeIds.add(node.loserNextNodeId);
   }
 
   return (
     <div className="bracket-mini-board">
-      {[...grouped.entries()].map(([roundName, roundNodes]) => (
-        <div className="bracket-column" key={roundName}>
-          <strong>{roundName}</strong>
-          {roundNodes.map((node) => (
-            <article className="bracket-node" key={node.roundName + node.groupName + node.position}>
-              <span>
-                {node.groupName} · #{node.position}
-              </span>
-              <b>{node.topTeam}</b>
-              <b>{node.bottomTeam}</b>
-              <small>{node.winner === "待定" ? node.status : `胜者 ${node.winner}`}</small>
-            </article>
-          ))}
+      {[...grouped.entries()].map(([groupName, rounds]) => (
+        <div className="bracket-group-lane" key={groupName}>
+          <strong className="bracket-group-title">{groupName}</strong>
+          <div className="bracket-round-track">
+            {[...rounds.entries()].map(([roundKey, roundNodes], columnIndex) => (
+              <div className="bracket-column" key={roundKey}>
+                <strong>{roundNodes[0]?.roundName ?? "淘汰赛"}</strong>
+                {roundNodes
+                  .slice()
+                  .sort((a, b) => a.position - b.position)
+                  .map((node) => {
+                    const topWinner = node.winnerTeamId !== null && node.winnerTeamId === node.topTeamId;
+                    const bottomWinner = node.winnerTeamId !== null && node.winnerTeamId === node.bottomTeamId;
+                    const hasOutgoing = Boolean(node.nextNodeId || node.loserNextNodeId);
+                    const hasIncoming = columnIndex > 0 || linkedNodeIds.has(node.id);
+                    const nodeClass = [
+                      "bracket-node",
+                      node.status === "已完赛" ? "is-completed" : node.status === "待开赛" ? "is-ready" : "is-pending",
+                      hasIncoming ? "has-incoming" : "",
+                      hasOutgoing ? "has-outgoing" : "",
+                    ].filter(Boolean).join(" ");
+
+                    return (
+                      <article className={nodeClass} key={node.id}>
+                        <span className="bracket-node-kicker">#{node.position} · {node.status}</span>
+                        <div className={`bracket-team ${topWinner ? "is-winner" : ""}`}>
+                          <b>{node.topTeam}</b>
+                        </div>
+                        <div className={`bracket-team ${bottomWinner ? "is-winner" : ""}`}>
+                          <b>{node.bottomTeam}</b>
+                        </div>
+                        <small>{node.winner === "待定" ? "胜者待定" : `胜者 ${node.winner}`}</small>
+                      </article>
+                    );
+                  })}
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>

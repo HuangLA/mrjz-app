@@ -36,6 +36,7 @@ import {
   type OfficialSchedulePublicStatus,
   type RandomizeStageGroupsInput,
   type RemoveTeamMemberInput,
+  type RetractBracketNodeInput,
   type SetBracketNodeSlotInput,
   type UpdateStageManualRanksInput,
   type UpdateOfficialScheduleConfigInput,
@@ -113,6 +114,7 @@ type Repository = {
   removeStageGroupTeam(groupId: string, teamId: string): StageGroup;
   createKnockoutBracket(tournamentId: string, input: CreateKnockoutBracketInput): KnockoutBracketResult;
   advanceBracketNode(nodeId: string, input: AdvanceBracketNodeInput): BracketNode[];
+  retractBracketNode(nodeId: string, input?: RetractBracketNodeInput): BracketNode[];
   setBracketNodeSlot(nodeId: string, input: SetBracketNodeSlotInput): BracketNode[];
   createRound(input: CreateRoundInput): unknown;
   createSeries(input: CreateSeriesInput): unknown;
@@ -326,6 +328,10 @@ export function createKnockoutBracket(tournamentId: string, input: CreateKnockou
 
 export function advanceBracketNode(nodeId: string, input: AdvanceBracketNodeInput) {
   return repository.advanceBracketNode(nodeId, input);
+}
+
+export function retractBracketNode(nodeId: string, input?: RetractBracketNodeInput) {
+  return repository.retractBracketNode(nodeId, input);
 }
 
 export function setBracketNodeSlot(nodeId: string, input: SetBracketNodeSlotInput) {

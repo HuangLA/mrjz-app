@@ -41,6 +41,7 @@ import {
   backfillCachedTournamentEntities,
   removeTeamMember,
   removeStageGroupTeam,
+  retractBracketNode,
   retractSwissRound,
   setBracketNodeSlot,
   updateTeam,
@@ -580,6 +581,15 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
   });
 
+  router.delete("/api/bracket-nodes/:nodeId/winner", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request).catch(() => ({}));
+      return ok(retractBracketNode(params.nodeId ?? "", bodyToRetractBracketNodeInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.patch("/api/bracket-nodes/:nodeId/slot", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
@@ -669,9 +679,16 @@ function bodyToLockOfficialScheduleRosterInput(body: Record<string, unknown>) {
 }
 
 function bodyToAdvanceBracketNodeInput(body: Record<string, unknown>) {
-  return {
+  return withoutUndefined({
     winnerTeamId: stringField(body, "winnerTeamId"),
-  } satisfies Parameters<typeof advanceBracketNode>[1];
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof advanceBracketNode>[1];
+}
+
+function bodyToRetractBracketNodeInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof retractBracketNode>[1];
 }
 
 function bodyToSetBracketNodeSlotInput(body: Record<string, unknown>) {
