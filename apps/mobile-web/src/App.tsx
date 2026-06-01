@@ -908,6 +908,7 @@ function StagePage({
   }
 
   const currentStage = data.stageViews[activeStageKey];
+  const isKnockoutStage = activeStageKey === "knockout";
   const stageMatches = data.scheduleGroups
     .flatMap((group) => group.matches)
     .filter((match) => match.stage === currentStage.name);
@@ -945,20 +946,22 @@ function StagePage({
         </div>
       </section>
 
-      <section className="section-panel">
-        <div className="section-title compact">
-          <div>
-            <h2>积分榜</h2>
+      {!isKnockoutStage ? (
+        <section className="section-panel">
+          <div className="section-title compact">
+            <div>
+              <h2>积分榜</h2>
+            </div>
           </div>
-        </div>
-        <div className="standing-list">
-          {currentStage.standings.length > 0 ? (
-            currentStage.standings.map((row) => <StandingRow key={`${row.rank}:${row.team}`} row={row} />)
-          ) : (
-            <EmptyState text="暂无" />
-          )}
-        </div>
-      </section>
+          <div className="standing-list">
+            {currentStage.standings.length > 0 ? (
+              currentStage.standings.map((row) => <StandingRow key={`${row.rank}:${row.team}`} row={row} />)
+            ) : (
+              <EmptyState text="暂无" />
+            )}
+          </div>
+        </section>
+      ) : null}
 
       <section className="section-panel">
         <div className="section-title compact">
@@ -978,7 +981,7 @@ function StagePage({
         </div>
       </section>
 
-      {activeStageKey === "knockout" ? (
+      {isKnockoutStage ? (
         <section className="section-panel">
           <div className="section-title compact">
             <div>
@@ -997,13 +1000,14 @@ function StagePage({
 }
 
 function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
-  const grouped = new Map<string, Map<string, StageView["bracket"]>>();
+  const grouped = new Map<string, Map<string, { roundNumber: number; roundName: string; nodes: StageView["bracket"] }>>();
   const linkedNodeIds = new Set<string>();
 
   for (const node of nodes) {
     const roundKey = `${node.bracketGroup}:${node.roundNumber}:${node.roundName}`;
-    const group = grouped.get(node.groupName) ?? new Map<string, StageView["bracket"]>();
-    group.set(roundKey, [...(group.get(roundKey) ?? []), node]);
+    const group = grouped.get(node.groupName) ?? new Map<string, { roundNumber: number; roundName: string; nodes: StageView["bracket"] }>();
+    const round = group.get(roundKey) ?? { roundNumber: node.roundNumber, roundName: node.roundName, nodes: [] };
+    group.set(roundKey, { ...round, nodes: [...round.nodes, node] });
     grouped.set(node.groupName, group);
 
     if (node.nextNodeId) linkedNodeIds.add(node.nextNodeId);
@@ -1012,17 +1016,26 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
 
   return (
     <div className="bracket-mini-board">
-      {[...grouped.entries()].map(([groupName, rounds]) => (
+      {[...grouped.entries()].sort(([groupNameA], [groupNameB]) => bracketGroupSortValue(groupNameA) - bracketGroupSortValue(groupNameB)).map(([groupName, rounds]) => {
+        const columns = [...rounds.entries()]
+          .sort(([, roundA], [, roundB]) => roundA.roundNumber - roundB.roundNumber || roundA.roundName.localeCompare(roundB.roundName))
+          .map(([roundKey, round]) => ({
+            key: roundKey,
+            roundName: round.roundName,
+            nodes: round.nodes.slice().sort((a, b) => a.position - b.position),
+          }));
+        const rowCount = Math.max(1, ...columns.map((column) => column.nodes.length));
+        const columnBodyStyle = { "--bracket-row-count": rowCount } as CSSProperties & Record<"--bracket-row-count", number>;
+
+        return (
         <div className="bracket-group-lane" key={groupName}>
           <strong className="bracket-group-title">{groupName}</strong>
           <div className="bracket-round-track">
-            {[...rounds.entries()].map(([roundKey, roundNodes], columnIndex) => (
-              <div className="bracket-column" key={roundKey}>
-                <strong>{roundNodes[0]?.roundName ?? "淘汰赛"}</strong>
-                {roundNodes
-                  .slice()
-                  .sort((a, b) => a.position - b.position)
-                  .map((node) => {
+            {columns.map((column, columnIndex) => (
+              <div className="bracket-column" key={column.key}>
+                <strong>{column.roundName}</strong>
+                <div className="bracket-column-body" style={columnBodyStyle}>
+                  {column.nodes.map((node, nodeIndex) => {
                     const topWinner = node.winnerTeamId !== null && node.winnerTeamId === node.topTeamId;
                     const bottomWinner = node.winnerTeamId !== null && node.winnerTeamId === node.bottomTeamId;
                     const hasOutgoing = Boolean(node.nextNodeId || node.loserNextNodeId);
@@ -1033,27 +1046,45 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
                       hasIncoming ? "has-incoming" : "",
                       hasOutgoing ? "has-outgoing" : "",
                     ].filter(Boolean).join(" ");
+                    const rowSpan = Math.max(1, Math.floor(rowCount / Math.max(1, column.nodes.length)));
+                    const gridRowStart = nodeIndex * rowSpan + 1;
 
                     return (
-                      <article className={nodeClass} key={node.id}>
-                        <span className="bracket-node-kicker">#{node.position} · {node.status}</span>
+                      <article className={nodeClass} key={node.id} style={{ gridRow: `${gridRowStart} / span ${rowSpan}` }}>
+                        <div className="bracket-node-topline">
+                          <span className="bracket-node-kicker">#{node.position}</span>
+                          <span className="bracket-node-state">{node.status}</span>
+                        </div>
                         <div className={`bracket-team ${topWinner ? "is-winner" : ""}`}>
+                          <span>上</span>
                           <b>{node.topTeam}</b>
+                          {topWinner ? <em>胜</em> : null}
                         </div>
                         <div className={`bracket-team ${bottomWinner ? "is-winner" : ""}`}>
+                          <span>下</span>
                           <b>{node.bottomTeam}</b>
+                          {bottomWinner ? <em>胜</em> : null}
                         </div>
-                        <small>{node.winner === "待定" ? "胜者待定" : `胜者 ${node.winner}`}</small>
+                        <small className="bracket-node-footer">{node.winner === "待定" ? "胜者待定" : `胜者 ${node.winner}`}</small>
                       </article>
                     );
                   })}
+                </div>
               </div>
             ))}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
+}
+
+function bracketGroupSortValue(groupName: string): number {
+  if (groupName.includes("胜者")) return 1;
+  if (groupName.includes("败者")) return 2;
+  if (groupName.includes("总决赛")) return 3;
+  return 0;
 }
 
 function SchedulePage({

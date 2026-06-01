@@ -8334,6 +8334,10 @@ label {
   gap: 12px;
 }
 
+.board-grid.is-results-only {
+  grid-template-columns: minmax(0, 1.18fr) minmax(260px, .62fr);
+}
+
 .stage-inline-editor {
   margin: 12px 0 14px;
   outline: none;
@@ -8361,6 +8365,83 @@ label {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+
+.knockout-result-kicker span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.knockout-result-command {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #dce8f2;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.knockout-result-status {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+
+.knockout-result-status > span {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #eaf8ef;
+  color: #23613c;
+}
+
+.knockout-result-status strong,
+.knockout-result-status small {
+  display: block;
+}
+
+.knockout-result-status strong {
+  color: #243247;
+  font-size: 13px;
+}
+
+.knockout-result-status small,
+.knockout-result-note {
+  margin-top: 3px;
+  color: #627083;
+  font-size: 12px;
+}
+
+.knockout-result-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.knockout-result-metrics div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border: 1px solid #e2ebf4;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+
+.knockout-result-metrics span {
+  color: #6c7888;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.knockout-result-metrics strong {
+  color: #243247;
+  font-size: 16px;
 }
 
 .ranking-command-strip {

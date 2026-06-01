@@ -882,7 +882,10 @@ function App() {
   }
 
   async function deleteSeries(seriesId: string, description = "这场对阵") {
-    if (!window.confirm(`确认删除 ${description}？\n删除后积分、排名和阶段赛程会按后端规则重算。`)) return;
+    const confirmText = selectedStage?.type === "knockout"
+      ? `确认删除 ${description}？\n删除后对阵图节点、胜者推进和后续槽位会按后端规则同步回退。`
+      : `确认删除 ${description}？\n删除后积分、排名和阶段赛程会按后端规则重算。`;
+    if (!window.confirm(confirmText)) return;
     await runAction("删除对阵", "DELETE", `/series/${encodeURIComponent(seriesId)}`);
   }
 
@@ -3286,6 +3289,7 @@ function StageBoard(props: {
   const [followupOpen, setFollowupOpen] = useState(false);
   const nextStep = getStageNextStep(props.stage, props.data, props.officialStages, props.allSeries, props.availableTeams, props.stageForm);
   const stageContextSummary = getStageContextSummary(props.stage, props.data, props.allSeries);
+  const isKnockoutBoard = props.stage.type === "knockout";
   const stageWorkbench = (
     <>
       {props.stage.type === "group" ? <GroupCanvas {...props} /> : null}
@@ -3294,9 +3298,9 @@ function StageBoard(props: {
     </>
   );
   const seriesBoard = (
-    <div id="stage-series-list" tabIndex={-1} className="board-grid">
+    <div id="stage-series-list" tabIndex={-1} className={isKnockoutBoard ? "board-grid is-results-only" : "board-grid"}>
       <SeriesList rounds={props.data.rounds} series={props.allSeries} emptyStep={nextStep} highlightSeriesId={props.lastCreatedSeriesId} editingSeriesId={props.stageForm.editingSeriesId} updateSeriesResult={props.updateSeriesResult} updateSeriesScheduledAt={props.updateSeriesScheduledAt} updateSeriesGameMatchId={props.updateSeriesGameMatchId} deleteSeries={props.deleteSeries} startEditSeries={props.startEditSeries} />
-      <StandingsTable rows={props.data.standings} seriesCount={props.allSeries.length} emptyStep={nextStep} resetManualRanks={props.resetManualRanks} />
+      {isKnockoutBoard ? <KnockoutResultPanel nodes={props.data.bracket} seriesCount={props.allSeries.length} /> : <StandingsTable rows={props.data.standings} seriesCount={props.allSeries.length} emptyStep={nextStep} resetManualRanks={props.resetManualRanks} />}
     </div>
   );
   const shouldDeferFollowup = isPreliminaryStage(props.stage) && props.allSeries.length === 0;
@@ -3304,7 +3308,7 @@ function StageBoard(props: {
   const shouldShowStageNavigation = !shouldDeferFollowup;
   const followupTitle = shouldDeferFollowup
     ? "排完赛再看赛果、排名、淘汰赛"
-    : props.stage.type === "swiss" ? "配对后处理赛果 / 排名" : "排赛后处理赛果 / 排名";
+    : isKnockoutBoard ? "处理赛果 / 胜者推进" : props.stage.type === "swiss" ? "配对后处理赛果 / 排名" : "排赛后处理赛果 / 排名";
   const followupSummaryLabel = shouldDeferFollowup ? "稍后处理" : "后续处理";
   const followupBody = (
     <>
@@ -5902,6 +5906,47 @@ function stageConfigStringList(stage: StageSummary, key: string): string[] {
 function stageConfigPositiveInteger(stage: StageSummary, key: string): number | null {
   const value = stage.config?.[key];
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function KnockoutResultPanel({ nodes, seriesCount }: { nodes: BracketNode[]; seriesCount: number }) {
+  const slotSummary = getBracketSlotSummary(nodes);
+  const decidedNodes = nodes.filter((node) => node.winnerTeamId !== null).length;
+  const readyNodes = nodes.filter((node) => node.winnerTeamId === null && node.radiantTeam !== null && node.direTeam !== null).length;
+  const waitingNodes = Math.max(nodes.length - decidedNodes - readyNodes, 0);
+  const statusText = nodes.length === 0
+    ? "还没有对阵图"
+    : readyNodes > 0
+      ? "继续选择胜者"
+      : slotSummary.manualOpenSlotCount > 0
+        ? "先补齐槽位"
+        : slotSummary.waitingOpenSlotCount > 0
+          ? "等待上游胜者"
+          : "当前无待处理节点";
+  const statusHint = nodes.length === 0
+    ? "回到预赛画布，选择晋级队伍后生成淘汰赛。"
+    : readyNodes > 0
+      ? "双方已落位的节点可以直接选择胜者，后端会推进下一轮。"
+      : "继续维护比赛时间、赛果和 match_id；需要调整时可回到对阵图节点操作。";
+
+  return (
+    <section className="data-panel knockout-result-panel">
+      <div className="panel-kicker knockout-result-kicker"><span><Brackets size={15} /> 胜者推进</span></div>
+      <div className="knockout-result-command">
+        <div className="knockout-result-status">
+          <span><ShieldCheck size={15} /></span>
+          <div><strong>{statusText}</strong><small>{statusHint}</small></div>
+        </div>
+        <div className="knockout-result-metrics" aria-label="淘汰赛推进状态">
+          <div><span>节点</span><strong>{nodes.length}</strong></div>
+          <div><span>已判胜</span><strong>{decidedNodes}</strong></div>
+          <div><span>待判胜</span><strong>{readyNodes}</strong></div>
+          <div><span>待落位</span><strong>{slotSummary.manualOpenSlotCount + slotSummary.waitingOpenSlotCount}</strong></div>
+          <div><span>赛程</span><strong>{seriesCount}</strong></div>
+        </div>
+        {waitingNodes > 0 ? <small className="knockout-result-note">{waitingNodes} 个节点还在等待上游或手动落位。</small> : null}
+      </div>
+    </section>
+  );
 }
 
 function StandingsTable({ rows, seriesCount, emptyStep, resetManualRanks }: { rows: StandingRow[]; seriesCount: number; emptyStep?: StageNextStep; resetManualRanks: () => Promise<void> }) {
