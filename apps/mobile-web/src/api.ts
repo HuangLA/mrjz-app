@@ -1202,7 +1202,7 @@ function normalizeScheduleGroups(
 function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeries): (ScheduleItem & { timeDate: string }) | null {
   const scheduledAt = series.scheduledAt ? new Date(series.scheduledAt) : null;
   const date = scheduledAt === null || Number.isNaN(scheduledAt.getTime()) ? "待定日期" : formatDate(scheduledAt);
-  const time = scheduledAt === null || Number.isNaN(scheduledAt.getTime()) ? "--:--" : formatTime(scheduledAt);
+  const time = scheduledAt === null || Number.isNaN(scheduledAt.getTime()) ? "时间待定" : formatTime(scheduledAt);
   const firstGame = series.games?.find((game) => game.matchId !== null && game.matchId !== undefined);
   const gameScore =
     firstGame?.radiantScore !== null && firstGame?.radiantScore !== undefined
@@ -1236,7 +1236,7 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
 
 function normalizeByeScheduleItem(stage: ApiStage, round: ApiRound, team: ApiTeam): ScheduleItem & { timeDate: string } {
   return {
-    time: "--:--",
+    time: "时间待定",
     timeDate: "待定日期",
     stage: stage.name ?? stageNameFromId(round.stageId),
     round: round.name ?? `R${round.roundNumber ?? "-"}`,

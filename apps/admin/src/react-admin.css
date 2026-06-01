@@ -8875,6 +8875,13 @@ label {
   background: #f8fbff;
 }
 
+.series-row.is-missing-time:not(.is-needs-result):not(.is-missing-match) {
+  padding: 8px;
+  border: 1px solid #e7e0c6;
+  border-radius: 8px;
+  background: #fffdf5;
+}
+
 .series-row.is-recent {
   border-color: #8bd3a5;
   box-shadow: 0 0 0 3px rgba(56, 184, 111, .13), 0 12px 30px rgba(35, 47, 68, .06);
@@ -9021,6 +9028,76 @@ label {
 .series-row-flags .is-info {
   background: #e9f3ff;
   color: #265f90;
+}
+
+.series-row-flags .is-time {
+  background: #f7efd6;
+  color: #745818;
+}
+
+.series-time-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid #e1e8f0;
+  border-radius: 7px;
+  padding: 6px;
+  background: #fbfdff;
+}
+
+.series-time-editor.is-empty {
+  border-color: #e7e0c6;
+  background: #fffdf5;
+}
+
+.series-time-editor label {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  color: #546277;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.series-time-editor label svg {
+  color: #7d6730;
+}
+
+.series-time-editor input {
+  width: 100%;
+  min-height: 28px;
+  border-radius: 6px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+
+.series-time-editor button {
+  min-height: 28px;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.series-time-save {
+  background: #1d5f3e;
+  color: #fff;
+}
+
+.series-time-save:disabled {
+  background: #e8eef5;
+  color: #8490a2;
+  cursor: not-allowed;
+}
+
+.series-time-clear {
+  background: #fff1f1;
+  color: #9b3a3a;
 }
 
 .series-game-strip {
@@ -11790,6 +11867,19 @@ label {
 
   .stage-series-quick-metrics div {
     min-width: 0;
+  }
+
+  .series-time-editor {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .series-time-editor label {
+    grid-column: 1 / -1;
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+
+  .series-time-clear {
+    justify-self: stretch;
   }
 
   .precreate-filter-bar strong,

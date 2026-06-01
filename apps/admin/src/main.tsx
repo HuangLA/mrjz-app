@@ -864,6 +864,17 @@ function App() {
     return result.ok;
   }
 
+  async function updateSeriesScheduledAt(seriesId: string, scheduledAt: string): Promise<boolean> {
+    if (!requireEditableSchedule()) return false;
+    const result = await runAction(
+      scheduledAt ? "保存对阵时间" : "清空对阵时间",
+      "PATCH",
+      `/series/${encodeURIComponent(seriesId)}`,
+      { scheduledAt },
+    );
+    return result.ok;
+  }
+
   async function deleteSeries(seriesId: string, description = "这场对阵") {
     if (!window.confirm(`确认删除 ${description}？\n删除后积分、排名和阶段赛程会按后端规则重算。`)) return;
     await runAction("删除对阵", "DELETE", `/series/${encodeURIComponent(seriesId)}`);
@@ -1239,6 +1250,7 @@ function App() {
               setBracketSlot={setBracketSlot}
               advanceBracketNode={advanceBracketNode}
               updateSeriesResult={updateSeriesResult}
+              updateSeriesScheduledAt={updateSeriesScheduledAt}
               updateSeriesGameMatchId={updateSeriesGameMatchId}
               deleteSeries={deleteSeries}
               updateManualRanks={updateManualRanks}
@@ -1350,6 +1362,7 @@ function TournamentWorkspace(props: {
   setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>;
   advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void>;
   updateSeriesResult: (seriesId: string, radiantScore: number, direScore: number) => Promise<boolean>;
+  updateSeriesScheduledAt: (seriesId: string, scheduledAt: string) => Promise<boolean>;
   updateSeriesGameMatchId: (seriesId: string, gameIndex: number, matchId: number | null) => Promise<boolean>;
   deleteSeries: (seriesId: string, description?: string) => Promise<void>;
   updateManualRanks: (teamIds: string[]) => Promise<void>;
@@ -3253,6 +3266,7 @@ function StageBoard(props: {
   setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>;
   advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void>;
   updateSeriesResult: (seriesId: string, radiantScore: number, direScore: number) => Promise<boolean>;
+  updateSeriesScheduledAt: (seriesId: string, scheduledAt: string) => Promise<boolean>;
   updateSeriesGameMatchId: (seriesId: string, gameIndex: number, matchId: number | null) => Promise<boolean>;
   deleteSeries: (seriesId: string, description?: string) => Promise<void>;
   updateManualRanks: (teamIds: string[]) => Promise<void>;
@@ -3272,7 +3286,7 @@ function StageBoard(props: {
   );
   const seriesBoard = (
     <div id="stage-series-list" tabIndex={-1} className="board-grid">
-      <SeriesList rounds={props.data.rounds} series={props.allSeries} emptyStep={nextStep} highlightSeriesId={props.lastCreatedSeriesId} editingSeriesId={props.stageForm.editingSeriesId} updateSeriesResult={props.updateSeriesResult} updateSeriesGameMatchId={props.updateSeriesGameMatchId} deleteSeries={props.deleteSeries} startEditSeries={props.startEditSeries} />
+      <SeriesList rounds={props.data.rounds} series={props.allSeries} emptyStep={nextStep} highlightSeriesId={props.lastCreatedSeriesId} editingSeriesId={props.stageForm.editingSeriesId} updateSeriesResult={props.updateSeriesResult} updateSeriesScheduledAt={props.updateSeriesScheduledAt} updateSeriesGameMatchId={props.updateSeriesGameMatchId} deleteSeries={props.deleteSeries} startEditSeries={props.startEditSeries} />
       <StandingsTable rows={props.data.standings} seriesCount={props.allSeries.length} emptyStep={nextStep} resetManualRanks={props.resetManualRanks} />
     </div>
   );
@@ -5967,6 +5981,7 @@ function SeriesList({
   highlightSeriesId,
   editingSeriesId,
   updateSeriesResult,
+  updateSeriesScheduledAt,
   updateSeriesGameMatchId,
   deleteSeries,
   startEditSeries,
@@ -5977,6 +5992,7 @@ function SeriesList({
   highlightSeriesId: string;
   editingSeriesId: string;
   updateSeriesResult: (seriesId: string, radiantScore: number, direScore: number) => Promise<boolean>;
+  updateSeriesScheduledAt: (seriesId: string, scheduledAt: string) => Promise<boolean>;
   updateSeriesGameMatchId: (seriesId: string, gameIndex: number, matchId: number | null) => Promise<boolean>;
   deleteSeries: (seriesId: string, description?: string) => Promise<void>;
   startEditSeries: (series: SeriesSummary) => void;
@@ -6015,6 +6031,7 @@ function SeriesList({
   const looseSeries = filterSeries(series.filter((item) => !knownSeriesIds.has(item.id)));
   const visibleCount = blocks.reduce((sum, block) => sum + block.series.length, 0) + looseSeries.length;
   const completedResultCount = series.filter(seriesHasResult).length;
+  const scheduledTimeCount = series.filter((item) => Boolean(item.scheduledAt)).length;
   const pendingResultCount = series.filter(seriesNeedsResult).length;
   const matchSlotCount = series.reduce((sum, item) => sum + item.games.length, 0);
   const linkedMatchCount = series.reduce((sum, item) => sum + item.games.filter((game) => game.matchId !== null && game.matchId !== undefined).length, 0);
@@ -6070,6 +6087,7 @@ function SeriesList({
           <>
             <div className="series-command-metrics" aria-label="阶段赛程处理进度">
               <div><span>赛果</span><strong>{completedResultCount}/{series.length}</strong></div>
+              <div><span>时间</span><strong>{scheduledTimeCount}/{series.length}</strong></div>
               <div><span>待补</span><strong>{pendingResultCount}</strong></div>
               <div><span>match_id</span><strong>{linkedMatchCount}/{matchSlotCount}</strong></div>
             </div>
@@ -6109,7 +6127,7 @@ function SeriesList({
             <section key={block.round.id} className="series-round-block">
               <div className="series-round-head"><strong>{block.round.name}</strong><span>{block.series.length} 场</span></div>
               <div className="series-list">
-                {block.series.map((item) => <SeriesRow key={item.id} item={item} allSeries={series} isRecent={item.id === highlightSeriesId} isEditing={item.id === editingSeriesId} expandMatchIds={filterMode === "match"} afterResultFocus={getAfterResultFocusTarget(item, series)} updateSeriesResult={updateSeriesResult} updateSeriesGameMatchId={updateSeriesGameMatchId} deleteSeries={deleteSeries} startEditSeries={startEditSeries} />)}
+                {block.series.map((item) => <SeriesRow key={item.id} item={item} allSeries={series} isRecent={item.id === highlightSeriesId} isEditing={item.id === editingSeriesId} expandMatchIds={filterMode === "match"} afterResultFocus={getAfterResultFocusTarget(item, series)} updateSeriesResult={updateSeriesResult} updateSeriesScheduledAt={updateSeriesScheduledAt} updateSeriesGameMatchId={updateSeriesGameMatchId} deleteSeries={deleteSeries} startEditSeries={startEditSeries} />)}
               </div>
             </section>
           ))}
@@ -6117,7 +6135,7 @@ function SeriesList({
             <section className="series-round-block">
               <div className="series-round-head"><strong>未归档轮次</strong><span>{looseSeries.length} 场</span></div>
               <div className="series-list">
-                {looseSeries.map((item) => <SeriesRow key={item.id} item={item} allSeries={series} isRecent={item.id === highlightSeriesId} isEditing={item.id === editingSeriesId} expandMatchIds={filterMode === "match"} afterResultFocus={getAfterResultFocusTarget(item, series)} updateSeriesResult={updateSeriesResult} updateSeriesGameMatchId={updateSeriesGameMatchId} deleteSeries={deleteSeries} startEditSeries={startEditSeries} />)}
+                {looseSeries.map((item) => <SeriesRow key={item.id} item={item} allSeries={series} isRecent={item.id === highlightSeriesId} isEditing={item.id === editingSeriesId} expandMatchIds={filterMode === "match"} afterResultFocus={getAfterResultFocusTarget(item, series)} updateSeriesResult={updateSeriesResult} updateSeriesScheduledAt={updateSeriesScheduledAt} updateSeriesGameMatchId={updateSeriesGameMatchId} deleteSeries={deleteSeries} startEditSeries={startEditSeries} />)}
               </div>
             </section>
           ) : null}
@@ -6135,6 +6153,7 @@ function SeriesRow({
   expandMatchIds,
   afterResultFocus,
   updateSeriesResult,
+  updateSeriesScheduledAt,
   updateSeriesGameMatchId,
   deleteSeries,
   startEditSeries,
@@ -6146,13 +6165,15 @@ function SeriesRow({
   expandMatchIds: boolean;
   afterResultFocus: SeriesFocusTarget;
   updateSeriesResult: (seriesId: string, radiantScore: number, direScore: number) => Promise<boolean>;
+  updateSeriesScheduledAt: (seriesId: string, scheduledAt: string) => Promise<boolean>;
   updateSeriesGameMatchId: (seriesId: string, gameIndex: number, matchId: number | null) => Promise<boolean>;
   deleteSeries: (seriesId: string, description?: string) => Promise<void>;
   startEditSeries: (series: SeriesSummary) => void;
 }) {
   const needsResult = seriesNeedsResult(item);
   const missingMatchIds = countMissingSeriesMatchIds(item);
-  const rowClassName = ["series-row", needsResult ? "is-needs-result" : "", missingMatchIds > 0 ? "is-missing-match" : "", isRecent ? "is-recent" : "", isEditing ? "is-editing" : ""].filter(Boolean).join(" ");
+  const needsTime = !item.scheduledAt;
+  const rowClassName = ["series-row", needsResult ? "is-needs-result" : "", missingMatchIds > 0 ? "is-missing-match" : "", needsTime ? "is-missing-time" : "", isRecent ? "is-recent" : "", isEditing ? "is-editing" : ""].filter(Boolean).join(" ");
   const scoreText = needsResult ? "待录" : `${item.radiantScore} - ${item.direScore}`;
   const scoreTitle = needsResult ? "尚未录入管理员赛果" : `当前比分 ${scoreText}`;
   const deleteDescription = `${item.radiantTeam.name} vs ${item.direTeam.name}（${scoreText}，${item.groupName ?? item.boType}）`;
@@ -6176,7 +6197,8 @@ function SeriesRow({
       <small>{item.groupName ?? item.boType} · {formatDate(item.scheduledAt)} · {labelSeriesStatus(item.status)}</small>
       {isRecent ? <span className="series-recent-badge"><Check size={12} /> 刚创建，下一步补赛果或 match_id</span> : null}
       {isEditing ? <span className="series-editing-badge"><ClipboardCheck size={12} /> 正在编辑这场</span> : null}
-      {(needsResult || missingMatchIds > 0) ? <div className="series-row-flags">{needsResult ? <span className="is-warn">待补赛果</span> : null}{missingMatchIds > 0 ? <span className="is-info">缺 {missingMatchIds} 个 match_id</span> : null}</div> : null}
+      {(needsResult || needsTime || missingMatchIds > 0) ? <div className="series-row-flags">{needsResult ? <span className="is-warn">待补赛果</span> : null}{needsTime ? <span className="is-time">时间待定</span> : null}{missingMatchIds > 0 ? <span className="is-info">缺 {missingMatchIds} 个 match_id</span> : null}</div> : null}
+      <SeriesTimeEditor series={item} updateSeriesScheduledAt={updateSeriesScheduledAt} />
       <SeriesGameLinker series={item} allSeries={allSeries} defaultOpen={expandMatchIds && missingMatchIds > 0} updateSeriesGameMatchId={updateSeriesGameMatchId} />
       <div className="series-actions" aria-label="快速录入赛果">
         <span className="series-actions-label">赛果</span>
@@ -6196,6 +6218,55 @@ function SeriesRow({
         <button type="button" className="series-edit-button" onClick={() => startEditSeries(item)} disabled={isEditing} aria-current={isEditing ? "true" : undefined}>{isEditing ? "正在编辑" : "编辑"}</button>
         <button className="ghost-danger" type="button" onClick={() => void deleteSeries(item.id, deleteDescription)} title={`删除 ${deleteDescription}`} aria-label={`删除 ${deleteDescription}`}>删除</button>
       </div>
+    </div>
+  );
+}
+
+function SeriesTimeEditor({ series, updateSeriesScheduledAt }: { series: SeriesSummary; updateSeriesScheduledAt: (seriesId: string, scheduledAt: string) => Promise<boolean> }) {
+  const [draft, setDraft] = useState(() => toDatetimeLocalInput(series.scheduledAt));
+  const [saving, setSaving] = useState(false);
+  const currentValue = toDatetimeLocalInput(series.scheduledAt);
+  const isDirty = draft !== currentValue;
+
+  useEffect(() => {
+    setDraft(toDatetimeLocalInput(series.scheduledAt));
+    setSaving(false);
+  }, [series.id, series.scheduledAt]);
+
+  const save = async (nextDraft = draft) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const payload = nextDraft ? serializeDatetimeLocal(nextDraft) : "";
+      const ok = await updateSeriesScheduledAt(series.id, payload);
+      if (!ok) setSaving(false);
+    } catch {
+      setSaving(false);
+    }
+  };
+
+  const clear = () => {
+    setDraft("");
+    void save("");
+  };
+
+  return (
+    <div className={series.scheduledAt ? "series-time-editor" : "series-time-editor is-empty"}>
+      <label>
+        <CalendarClock size={13} aria-hidden="true" />
+        <span>对阵时间</span>
+        <input
+          type="datetime-local"
+          value={draft}
+          onInput={(event) => setDraft(event.currentTarget.value)}
+          onChange={(event) => setDraft(event.target.value)}
+          aria-label={`设置对阵时间：${series.radiantTeam.name} vs ${series.direTeam.name}`}
+        />
+      </label>
+      <button type="button" className="series-time-save" onClick={() => void save()} disabled={saving || !isDirty}>
+        {saving ? "保存中..." : series.scheduledAt ? "更新时间" : "保存时间"}
+      </button>
+      {series.scheduledAt ? <button type="button" className="series-time-clear" onClick={clear} disabled={saving}>清空</button> : null}
     </div>
   );
 }
