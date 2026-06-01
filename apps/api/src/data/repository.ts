@@ -26,6 +26,7 @@ import {
   type AdvanceBracketNodeInput,
   type AddStageGroupTeamInput,
   type ClearTournamentMatchRecordsResult,
+  type ClearTournamentScheduleRecordsResult,
   type CreateStageGroupInput,
   type KnockoutBracketResult,
   type LockOfficialScheduleRosterInput,
@@ -119,6 +120,7 @@ type Repository = {
   updateSeriesResult(seriesId: string, input: UpdateSeriesResultInput): unknown;
   deleteSeries(seriesId: string): { deleted: true; seriesId: string };
   clearTournamentMatchRecords(tournamentId: string): ClearTournamentMatchRecordsResult;
+  clearTournamentScheduleRecords(tournamentId: string): ClearTournamentScheduleRecordsResult;
   updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput): unknown;
   linkOpenDotaMatchToSeries(tournamentId: string, matchId: number, input: LinkOpenDotaMatchInput): unknown;
   createSyncTask(input: CreateSyncTaskInput): SyncTaskView;
@@ -352,6 +354,10 @@ export function deleteSeries(seriesId: string) {
 
 export function clearTournamentMatchRecords(tournamentId: string) {
   return repository.clearTournamentMatchRecords(tournamentId);
+}
+
+export function clearTournamentScheduleRecords(tournamentId: string) {
+  return repository.clearTournamentScheduleRecords(tournamentId);
 }
 
 export function updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput) {

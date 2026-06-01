@@ -30,6 +30,7 @@ export type TournamentDetail = TournamentListItem & {
 export type StageSummary = StageBrief & {
   sortOrder: number;
   advancementRule: string;
+  config: Record<string, unknown>;
   activeRound: RoundBrief | null;
 };
 

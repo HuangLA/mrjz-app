@@ -4,7 +4,12 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./bracket-seeding": {
+      "types": "./src/bracket-seeding.d.ts",
+      "import": "./src/bracket-seeding.js",
+      "default": "./src/bracket-seeding.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

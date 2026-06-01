@@ -11,6 +11,7 @@ import {
   createPlayer,
   createTournament,
   clearTournamentMatchRecords,
+  clearTournamentScheduleRecords,
   confirmSwissRound,
   deleteSeries,
   deleteStageGroup,
@@ -141,7 +142,7 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
 
   router.delete("/api/tournaments/:id/schedule-records", ({ params }) => {
     try {
-      return ok(clearTournamentMatchRecords(params.id ?? ""));
+      return ok(clearTournamentScheduleRecords(params.id ?? ""));
     } catch (error) {
       return validationError(error);
     }
@@ -631,7 +632,7 @@ function bodyToCreateKnockoutBracketInput(body: Record<string, unknown>) {
     winnerTeamCount: optionalNumberField(body, "winnerTeamCount"),
     loserTeamCount: optionalNumberField(body, "loserTeamCount"),
     boType: boType as "BO1" | "BO2" | "BO3" | "BO5",
-    scheduledAt: optionalStringField(body, "scheduledAt"),
+    scheduledAt: optionalScheduleTimeField(body, "scheduledAt"),
     teamIds: stringArrayField(body, "teamIds"),
   }) as Parameters<typeof createKnockoutBracket>[1];
 }
@@ -936,7 +937,7 @@ function bodyToCreateSeriesInput(body: Record<string, unknown>) {
     seriesKind: seriesKind as Parameters<typeof createSeries>[0]["seriesKind"],
     boType: boType as "BO1" | "BO2" | "BO3" | "BO5",
     status: status as Parameters<typeof createSeries>[0]["status"],
-    scheduledAt: optionalStringField(body, "scheduledAt"),
+    scheduledAt: optionalScheduleTimeField(body, "scheduledAt"),
     radiantTeamId: stringField(body, "radiantTeamId"),
     direTeamId: stringField(body, "direTeamId"),
   }) as Parameters<typeof createSeries>[0];
@@ -968,7 +969,7 @@ function bodyToUpdateSeriesInput(body: Record<string, unknown>) {
     seriesKind: seriesKind as Parameters<typeof updateSeries>[1]["seriesKind"],
     boType: boType as Parameters<typeof updateSeries>[1]["boType"],
     status: status as Parameters<typeof updateSeries>[1]["status"],
-    scheduledAt: optionalStringOrNullField(body, "scheduledAt"),
+    scheduledAt: optionalScheduleTimeOrNullField(body, "scheduledAt"),
     radiantTeamId: optionalStringField(body, "radiantTeamId"),
     direTeamId: optionalStringField(body, "direTeamId"),
   }) as Parameters<typeof updateSeries>[1];
@@ -1027,6 +1028,16 @@ function optionalStringField(body: Record<string, unknown>, fieldName: string): 
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function optionalScheduleTimeField(body: Record<string, unknown>, fieldName: string): string | undefined {
+  if (!(fieldName in body)) {
+    return undefined;
+  }
+
+  const value = body[fieldName];
+
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
 function stringArrayField(body: Record<string, unknown>, fieldName: string): string[] {
   const value = body[fieldName];
 
@@ -1057,6 +1068,20 @@ function optionalStringOrNullField(body: Record<string, unknown>, fieldName: str
   }
 
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function optionalScheduleTimeOrNullField(body: Record<string, unknown>, fieldName: string): string | null | undefined {
+  if (!(fieldName in body)) {
+    return undefined;
+  }
+
+  const value = body[fieldName];
+
+  if (value === null) {
+    return null;
+  }
+
+  return typeof value === "string" ? value.trim() : undefined;
 }
 
 function optionalNumberField(body: Record<string, unknown>, fieldName: string): number | undefined {

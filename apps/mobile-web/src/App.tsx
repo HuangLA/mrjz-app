@@ -856,6 +856,24 @@ function StagePage({
   onNavigate: (route: AppRoute, options?: NavigateOptions) => void;
   onOpenMatch: (matchId: string) => void;
 }) {
+  if (!data.officialSchedule.isPublished) {
+    return (
+      <>
+        <DataNotice data={data} loading={loading} />
+        <TournamentScope data={data} onNavigate={onNavigate} />
+        <section className="section-panel schedule-unpublished">
+          <div className="section-title compact">
+            <div>
+              <h2>赛事阶段暂未发布</h2>
+              <p className="muted">管理员发布官方赛程后，这里会展示小组赛、瑞士轮或淘汰赛阶段。</p>
+            </div>
+            <span className="sync-pill">{officialScheduleStatusText(data.officialSchedule.status)}</span>
+          </div>
+        </section>
+      </>
+    );
+  }
+
   const currentStage = data.stageViews[stage];
   const stageMatches = data.scheduleGroups
     .flatMap((group) => group.matches)

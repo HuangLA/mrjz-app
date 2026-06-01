@@ -33,6 +33,7 @@ export interface StageSummary {
   sortOrder: number;
   status: StageStatus;
   advancementRule?: string;
+  config?: Record<string, unknown>;
   activeRound?: RoundBrief | null;
 }
 
