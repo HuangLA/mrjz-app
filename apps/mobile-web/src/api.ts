@@ -48,6 +48,7 @@ export type MobileData = {
   selectedTournamentMeta: TournamentMeta;
   tournamentOptions: TournamentOption[];
   tournamentStats: TournamentStat[];
+  officialStageKeys: StageKey[];
   stageViews: Record<StageKey, StageView>;
   scheduleGroups: ScheduleGroup[];
   officialSchedule: OfficialScheduleStatus;
@@ -583,6 +584,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
   const officialStagePayloads = officialSchedule.isPublished
     ? stagePayloads.filter(isOfficialScheduleStagePayload)
     : [];
+  const officialStageKeys = normalizeOfficialStageKeys(officialStagePayloads);
   const scheduleGroups = officialSchedule.isPublished ? normalizeScheduleGroups(officialStagePayloads) : [];
   const matchRecords = await fetchApi<ApiMatchRecord[]>(
     apiBaseUrl,
@@ -604,6 +606,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     selectedTournamentMeta: normalizeTournamentMeta(tournament),
     tournamentOptions: tournamentOptions(tournamentList),
     tournamentStats: normalizeTournamentStats(tournament, scheduleGroups, match, normalizedRecords),
+    officialStageKeys,
     stageViews: normalizeStageViews(officialStagePayloads, officialSchedule),
     scheduleGroups,
     officialSchedule,
@@ -691,6 +694,7 @@ function emptyMobileData(
     },
     tournamentOptions: tournamentOptions(tournaments),
     tournamentStats: [],
+    officialStageKeys: [],
     stageViews: emptyStageViews(),
     scheduleGroups: [],
     officialSchedule: emptyOfficialScheduleStatus(),
@@ -1071,6 +1075,24 @@ function normalizeStageViews(
   return next;
 }
 
+function normalizeOfficialStageKeys(payloads: Array<{ stage: ApiStage }>): StageKey[] {
+  const keys: StageKey[] = [];
+  const seen = new Set<StageKey>();
+
+  for (const payload of payloads) {
+    const key = toStageKey(payload.stage.type);
+
+    if (key === null || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    keys.push(key);
+  }
+
+  return keys;
+}
+
 function isOfficialScheduleStagePayload(payload: { stage: ApiStage }): boolean {
   return payload.stage.name !== "真实比赛记录";
 }
@@ -1175,6 +1197,8 @@ function normalizeBracketNode(node: ApiBracketNode): BracketPreviewNode {
   };
 }
 
+type NormalizedScheduleItem = ScheduleItem & { timeDate: string; sortValue: number };
+
 function normalizeScheduleGroups(
   payloads: Array<{ stage: ApiStage; rounds: ApiRound[] | null }>,
 ): ScheduleGroup[] {
@@ -1183,35 +1207,47 @@ function normalizeScheduleGroups(
       ...(round.series ?? []).map((series) => normalizeScheduleItem(payload.stage, round, series)),
       ...(round.byes ?? []).map((team) => normalizeByeScheduleItem(payload.stage, round, team)),
     ].filter(isDefined)),
-  );
-  const byDate = new Map<string, ScheduleItem[]>();
+  ).sort((a, b) => a.sortValue - b.sortValue || a.stage.localeCompare(b.stage) || a.round.localeCompare(b.round));
+  const byDate = new Map<string, { matches: ScheduleItem[]; sortValue: number }>();
 
   for (const item of items) {
-    const key = item.time.includes("-") ? "待定日期" : item.timeDate;
-    const { timeDate: _timeDate, ...cleanItem } = item;
-    byDate.set(key, [...(byDate.get(key) ?? []), cleanItem]);
+    const key = item.timeDate;
+    const { timeDate: _timeDate, sortValue: _sortValue, ...cleanItem } = item;
+    const current = byDate.get(key);
+
+    if (current === undefined) {
+      byDate.set(key, { matches: [cleanItem], sortValue: item.sortValue });
+    } else {
+      current.matches.push(cleanItem);
+      current.sortValue = Math.min(current.sortValue, item.sortValue);
+    }
   }
 
-  return [...byDate.entries()].map(([date, matches]) => ({
-    date,
-    label: dateLabel(date),
-    matches,
-  }));
+  return [...byDate.entries()]
+    .sort(([, a], [, b]) => a.sortValue - b.sortValue)
+    .map(([date, group]) => ({
+      date,
+      label: dateLabel(date),
+      matches: group.matches,
+    }));
 }
 
-function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeries): (ScheduleItem & { timeDate: string }) | null {
+function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeries): NormalizedScheduleItem | null {
   const scheduledAt = series.scheduledAt ? new Date(series.scheduledAt) : null;
-  const date = scheduledAt === null || Number.isNaN(scheduledAt.getTime()) ? "待定日期" : formatDate(scheduledAt);
-  const time = scheduledAt === null || Number.isNaN(scheduledAt.getTime()) ? "时间待定" : formatTime(scheduledAt);
+  const hasScheduleTime = scheduledAt !== null && !Number.isNaN(scheduledAt.getTime());
+  const timestamp = hasScheduleTime ? scheduledAt.getTime() : Number.MAX_SAFE_INTEGER;
+  const date = hasScheduleTime ? formatDate(scheduledAt) : "待定日期";
+  const time = hasScheduleTime ? formatTime(scheduledAt) : "时间待定";
   const firstGame = series.games?.find((game) => game.matchId !== null && game.matchId !== undefined);
   const gameScore =
     firstGame?.radiantScore !== null && firstGame?.radiantScore !== undefined
       ? `${firstGame.radiantScore} : ${firstGame.direScore ?? 0}`
       : undefined;
 
-  const item: ScheduleItem & { timeDate: string } = {
+  const item: NormalizedScheduleItem = {
     time,
     timeDate: date,
+    sortValue: timestamp,
     stage: stage.name ?? stageNameFromId(series.stageId ?? round.stageId),
     round: [series.groupName, round.name ?? `R${round.roundNumber ?? "-"}`].filter(Boolean).join(" · "),
     kind: series.seriesKind ?? "regular",
@@ -1234,10 +1270,11 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
   return item;
 }
 
-function normalizeByeScheduleItem(stage: ApiStage, round: ApiRound, team: ApiTeam): ScheduleItem & { timeDate: string } {
+function normalizeByeScheduleItem(stage: ApiStage, round: ApiRound, team: ApiTeam): NormalizedScheduleItem {
   return {
     time: "时间待定",
     timeDate: "待定日期",
+    sortValue: Number.MAX_SAFE_INTEGER,
     stage: stage.name ?? stageNameFromId(round.stageId),
     round: round.name ?? `R${round.roundNumber ?? "-"}`,
     kind: "regular",

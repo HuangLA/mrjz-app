@@ -29,6 +29,7 @@ import {
   type PlayerProfile,
   type PlayerStats,
   type ProfileMatchSummary,
+  type ScheduleItem,
   type StageKey,
   type StageView,
   type TeamDirectoryItem,
@@ -49,6 +50,7 @@ type PlayerSortKey =
   | "avgDamageTaken";
 
 type SortDirection = "asc" | "desc";
+type ScheduleStatusFilter = "全部" | ScheduleItem["status"];
 
 type NavigateOptions = { replace?: boolean; scroll?: boolean; profileId?: string };
 
@@ -69,6 +71,8 @@ const stageOptions: Array<{ key: StageKey; label: string }> = [
   { key: "swiss", label: "瑞士轮" },
   { key: "knockout", label: "淘汰赛" },
 ];
+
+const scheduleFilters: ScheduleStatusFilter[] = ["全部", "未开始", "待补录", "已完赛", "延期"];
 
 const playerSortOptions: Array<{ key: PlayerSortKey; label: string; defaultDirection: SortDirection }> = [
   { key: "totalMatches", label: "场次", defaultDirection: "desc" },
@@ -856,6 +860,17 @@ function StagePage({
   onNavigate: (route: AppRoute, options?: NavigateOptions) => void;
   onOpenMatch: (matchId: string) => void;
 }) {
+  const availableStageOptions = useMemo(() => officialStageOptions(data), [data]);
+  const activeStageKey = availableStageOptions.some((option) => option.key === stage)
+    ? stage
+    : availableStageOptions[0]?.key ?? "group";
+
+  useEffect(() => {
+    if (data.officialSchedule.isPublished && activeStageKey !== stage) {
+      onStageChange(activeStageKey);
+    }
+  }, [activeStageKey, data.officialSchedule.isPublished, onStageChange, stage]);
+
   if (!data.officialSchedule.isPublished) {
     return (
       <>
@@ -874,7 +889,25 @@ function StagePage({
     );
   }
 
-  const currentStage = data.stageViews[stage];
+  if (availableStageOptions.length === 0) {
+    return (
+      <>
+        <DataNotice data={data} loading={loading} />
+        <TournamentScope data={data} onNavigate={onNavigate} />
+        <section className="section-panel schedule-unpublished">
+          <div className="section-title compact">
+            <div>
+              <h2>暂无官方阶段</h2>
+              <p className="muted">管理员发布官方赛程后，这里只展示已启用的阶段。</p>
+            </div>
+            <span className="sync-pill">{officialScheduleStatusText(data.officialSchedule.status)}</span>
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  const currentStage = data.stageViews[activeStageKey];
   const stageMatches = data.scheduleGroups
     .flatMap((group) => group.matches)
     .filter((match) => match.stage === currentStage.name);
@@ -890,11 +923,11 @@ function StagePage({
           </div>
         </div>
         <div className="segmented" role="tablist" aria-label="阶段切换">
-          {stageOptions.map((option) => (
+          {availableStageOptions.map((option) => (
             <button
               role="tab"
-              aria-selected={option.key === stage}
-              className={option.key === stage ? "active" : ""}
+              aria-selected={option.key === activeStageKey}
+              className={option.key === activeStageKey ? "active" : ""}
               type="button"
               key={option.key}
               onClick={() => onStageChange(option.key)}
@@ -945,18 +978,20 @@ function StagePage({
         </div>
       </section>
 
-      <section className="section-panel">
-        <div className="section-title compact">
-          <div>
-            <h2>淘汰赛</h2>
+      {activeStageKey === "knockout" ? (
+        <section className="section-panel">
+          <div className="section-title compact">
+            <div>
+              <h2>淘汰赛对阵图</h2>
+            </div>
           </div>
-        </div>
-        {currentStage.bracket.length > 0 ? (
-          <StageBracketPreview nodes={currentStage.bracket} />
-        ) : (
-          <EmptyState text="暂无" />
-        )}
-      </section>
+          {currentStage.bracket.length > 0 ? (
+            <StageBracketPreview nodes={currentStage.bracket} />
+          ) : (
+            <EmptyState text="暂无" />
+          )}
+        </section>
+      ) : null}
     </>
   );
 }
@@ -1000,6 +1035,29 @@ function SchedulePage({
   onNavigate: (route: AppRoute, options?: NavigateOptions) => void;
   onOpenMatch: (matchId: string) => void;
 }) {
+  const [statusFilter, setStatusFilter] = useState<ScheduleStatusFilter>("全部");
+  const [scheduleOrder, setScheduleOrder] = useState<SortDirection>("desc");
+  const totalMatches = data.scheduleGroups.reduce((sum, group) => sum + group.matches.length, 0);
+  const filteredScheduleGroups = useMemo(() => {
+    const groups = data.scheduleGroups
+      .map((group) => ({
+        ...group,
+        matches:
+          statusFilter === "全部" ? group.matches : group.matches.filter((match) => match.status === statusFilter),
+      }))
+      .filter((group) => group.matches.length > 0);
+
+    if (scheduleOrder === "asc") {
+      return groups;
+    }
+
+    return groups
+      .slice()
+      .reverse()
+      .map((group) => ({ ...group, matches: group.matches.slice().reverse() }));
+  }, [data.scheduleGroups, scheduleOrder, statusFilter]);
+  const filteredMatchCount = filteredScheduleGroups.reduce((sum, group) => sum + group.matches.length, 0);
+
   if (!data.officialSchedule.isPublished) {
     return (
       <>
@@ -1026,15 +1084,29 @@ function SchedulePage({
           <div>
             <h2>赛程列表</h2>
           </div>
+          <span className="status-tag blue">{scheduleOrder === "desc" ? "倒序" : "正序"}</span>
         </div>
-        <FilterRow labels={["全部", "未开始", "待补录", "已完赛", "延期"]} />
+        <div className="schedule-toolbar">
+          <FilterRow value={statusFilter} options={scheduleFilters} onChange={setStatusFilter} />
+          <button
+            aria-pressed={scheduleOrder === "desc"}
+            className="schedule-order-button"
+            type="button"
+            onClick={() => setScheduleOrder((current) => (current === "desc" ? "asc" : "desc"))}
+          >
+            {scheduleOrder === "desc" ? "切换正序" : "切换倒序"}
+          </button>
+        </div>
+        <p className="schedule-summary">
+          当前显示 {filteredMatchCount}/{totalMatches} 场 · {scheduleOrder === "desc" ? "由晚到早" : "由早到晚"}
+        </p>
       </section>
-      {data.scheduleGroups.length === 0 ? (
+      {filteredScheduleGroups.length === 0 ? (
         <section className="section-panel">
-          <EmptyState text="暂无" />
+          <EmptyState text={data.scheduleGroups.length === 0 ? "暂无" : "暂无符合条件的赛程"} />
         </section>
       ) : (
-        data.scheduleGroups.map((group) => (
+        filteredScheduleGroups.map((group) => (
           <section className="section-panel schedule-group" key={`${group.date}:${group.label}`}>
             <div className="date-row">
               <b>{group.date}</b>
@@ -1502,16 +1574,44 @@ function DataNotice({ loading }: { data: MobileData; loading: boolean }) {
   return text ? <section className="api-notice">{text}</section> : null;
 }
 
-function FilterRow({ labels }: { labels: string[] }) {
+function FilterRow(
+  props:
+    | { labels: string[] }
+    | { value: ScheduleStatusFilter; options: ScheduleStatusFilter[]; onChange: (value: ScheduleStatusFilter) => void },
+) {
+  if ("labels" in props) {
+    return (
+      <div className="filter-row">
+        {props.labels.map((label, index) => (
+          <span className={`filter ${index === 0 ? "active" : ""}`} key={label}>
+            {label}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="filter-row">
-      {labels.map((label, index) => (
-        <span className={`filter ${index === 0 ? "active" : ""}`} key={label}>
+      {props.options.map((label) => (
+        <button
+          aria-pressed={label === props.value}
+          className={`filter ${label === props.value ? "active" : ""}`}
+          key={label}
+          type="button"
+          onClick={() => props.onChange(label)}
+        >
           {label}
-        </span>
+        </button>
       ))}
     </div>
   );
+}
+
+function officialStageOptions(data: MobileData): typeof stageOptions {
+  const activeKeys = new Set(data.officialStageKeys);
+
+  return stageOptions.filter((option) => activeKeys.has(option.key));
 }
 
 function ScheduleCard({
@@ -3055,6 +3155,7 @@ function emptyMobileData(): MobileData {
     },
     tournamentOptions: [],
     tournamentStats: [],
+    officialStageKeys: [],
     stageViews: emptyStageViews(),
     scheduleGroups: [],
     officialSchedule: {

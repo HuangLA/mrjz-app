@@ -238,6 +238,29 @@ button {
   font-weight: 700;
 }
 
+.schedule-toolbar {
+  display: grid;
+  gap: 8px;
+}
+
+.schedule-order-button {
+  width: fit-content;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(213, 166, 79, .28);
+  border-radius: 7px;
+  background: rgba(213, 166, 79, .10);
+  color: #f1d28c;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.schedule-summary {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .view {
   position: relative;
   z-index: 2;
