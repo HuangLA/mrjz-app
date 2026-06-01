@@ -2954,24 +2954,25 @@ function ManualSeriesSlot(props: { target: "radiant" | "dire"; title: string; te
   const clear = () => props.setStageForm((current) => ({ ...current, [props.target === "radiant" ? "manualRadiantTeamId" : "manualDireTeamId"]: "" }));
   const className = ["manual-drop-zone", "manual-slot-zone", `is-${props.target}`, props.team ? "is-filled" : "is-empty", isDisabled ? "is-locked" : "", isOver ? "is-over" : ""].filter(Boolean).join(" ");
   const sideName = props.target === "radiant" ? "左侧" : "右侧";
-  const stateLabel = props.team ? isDisabled ? "已选" : "已选 · 可替换" : props.suggestedTeam ? "待放" : "空位";
-  return <section id={props.slotId} ref={setNodeRef} tabIndex={props.slotId ? -1 : undefined} className={className}><div className="roster-zone-head"><strong>{props.title}</strong><small>{stateLabel}</small></div>{props.team ? <div className="manual-slot-team"><DraggableTeam team={props.team} disabled={isDisabled} /><button type="button" className="manual-slot-clear" onClick={clear} disabled={isDisabled} aria-label={`清空${sideName}队伍`} title={`清空${sideName}队伍`}><X size={13} aria-hidden="true" /></button></div> : <ManualSlotEmpty target={props.target} poolLabel="队伍池" suggestedTeam={props.suggestedTeam} suggestedPairLabel={props.suggestedPairLabel} onUseSuggestion={isDisabled ? undefined : props.onUseSuggestion} />}</section>;
+  const stateLabel = props.team ? isDisabled ? "已选" : "已选 · 可替换" : props.suggestedTeam ? `推荐${sideName}` : `${sideName}空位`;
+  return <section id={props.slotId} ref={setNodeRef} tabIndex={props.slotId ? -1 : undefined} className={className}><div className="roster-zone-head"><strong>{props.title}</strong><small>{stateLabel}</small></div>{props.team ? <div className="manual-slot-team"><span className="manual-slot-filled-label">已放入{sideName}</span><DraggableTeam team={props.team} disabled={isDisabled} /><button type="button" className="manual-slot-clear" onClick={clear} disabled={isDisabled} aria-label={`清空${sideName}队伍`} title={`清空${sideName}队伍`}><X size={13} aria-hidden="true" /></button></div> : <ManualSlotEmpty target={props.target} poolLabel="队伍池" suggestedTeam={props.suggestedTeam} suggestedPairLabel={props.suggestedPairLabel} onUseSuggestion={isDisabled ? undefined : props.onUseSuggestion} />}</section>;
 }
 
 function ManualSlotEmpty({ target, poolLabel, suggestedTeam, suggestedPairLabel, onUseSuggestion }: { target: "radiant" | "dire"; poolLabel: string; suggestedTeam: TeamBrief | null; suggestedPairLabel?: string | undefined; onUseSuggestion?: (() => void) | undefined }) {
   const isLeft = target === "radiant";
   const sideName = isLeft ? "左侧" : "右侧";
   const suggestionTitle = suggestedPairLabel ?? suggestedTeam?.name ?? "";
+  const suggestedHint = onUseSuggestion ? `点击放入${sideName}检查位` : "点“填入推荐对阵”进入检查位";
   const content = (
     <>
-      {!suggestedTeam ? <span className="manual-slot-side-marker" aria-hidden="true">{isLeft ? "左" : "右"}</span> : null}
+      {suggestedTeam ? <span className="manual-slot-suggestion-marker" aria-hidden="true">推荐</span> : <span className="manual-slot-side-marker" aria-hidden="true">{isLeft ? "左" : "右"}</span>}
       <strong>{suggestedTeam ? suggestedTeam.name : "拖队伍到这里"}</strong>
-      <small>{suggestedTeam ? "等待确认" : `或点${poolLabel}里的 + 放入${sideName}`}</small>
-      {suggestedTeam && onUseSuggestion ? <b className="manual-slot-action">放入</b> : null}
+      <small>{suggestedTeam ? suggestedHint : `或点${poolLabel}里的 + 放入${sideName}`}</small>
+      {suggestedTeam && onUseSuggestion ? <b className="manual-slot-action">放入{sideName}</b> : null}
     </>
   );
   return suggestedTeam && onUseSuggestion ? (
-    <button type="button" className="manual-slot-empty has-suggestion is-clickable" onClick={onUseSuggestion} title={`把推荐对阵放入左侧和右侧：${suggestionTitle}`} aria-label={`把推荐对阵放入左侧和右侧：${suggestionTitle}`}>
+    <button type="button" className="manual-slot-empty has-suggestion is-clickable" onClick={onUseSuggestion} title={`填入推荐对阵：${suggestionTitle}`} aria-label={`填入推荐对阵：${suggestionTitle}`}>
       {content}
     </button>
   ) : (
@@ -2993,7 +2994,7 @@ function PairingSlotStack(props: { radiantTeam: TeamBrief | null; direTeam: Team
       : `把推荐对阵放入两侧：${props.suggestedPairLabel}`;
   return (
     <div className="pairing-slot-stack" aria-label="对阵队伍投放位">
-      <ManualSeriesSlot target="radiant" title="左侧" team={props.radiantTeam} suggestedTeam={props.suggestedRadiantTeam} suggestedPairLabel={props.suggestedPairLabel} setStageForm={props.setStageForm} disabled={isDisabled} slotId={props.radiantSlotId} />
+      <ManualSeriesSlot target="radiant" title="左侧" team={props.radiantTeam} suggestedTeam={props.suggestedRadiantTeam} suggestedPairLabel={props.suggestedPairLabel} onUseSuggestion={canUseSuggestion ? props.onUseSuggestion : undefined} setStageForm={props.setStageForm} disabled={isDisabled} slotId={props.radiantSlotId} />
       {canUseSuggestion && isFullPairSuggestion ? (
         <div className="pairing-slot-vs is-suggestion-preview" title={`推荐对阵：${props.suggestedPairLabel}`} aria-label={`推荐对阵：${props.suggestedPairLabel}`}>
           <span>VS</span>
@@ -3006,7 +3007,7 @@ function PairingSlotStack(props: { radiantTeam: TeamBrief | null; direTeam: Team
       ) : (
         <div className="pairing-slot-vs" aria-hidden="true">VS</div>
       )}
-      <ManualSeriesSlot target="dire" title="右侧" team={props.direTeam} suggestedTeam={props.suggestedDireTeam} suggestedPairLabel={props.suggestedPairLabel} setStageForm={props.setStageForm} disabled={isDisabled} slotId={props.direSlotId} />
+      <ManualSeriesSlot target="dire" title="右侧" team={props.direTeam} suggestedTeam={props.suggestedDireTeam} suggestedPairLabel={props.suggestedPairLabel} onUseSuggestion={canUseSuggestion ? props.onUseSuggestion : undefined} setStageForm={props.setStageForm} disabled={isDisabled} slotId={props.direSlotId} />
     </div>
   );
 }
@@ -3102,7 +3103,7 @@ function EditSeriesSlot(props: { target: "radiant" | "dire"; title: string; team
   const className = ["manual-drop-zone", "manual-slot-zone", `is-${props.target}`, props.team ? "is-filled" : "is-empty", isDisabled ? "is-locked" : "", isOver ? "is-over" : ""].filter(Boolean).join(" ");
   const sideName = props.target === "radiant" ? "左侧" : "右侧";
   const stateLabel = props.team ? isDisabled ? "已选" : "已选 · 可替换" : `${sideName}空位`;
-  return <section ref={setNodeRef} className={className}><div className="roster-zone-head"><strong>{props.title}</strong><small>{stateLabel}</small></div>{props.team ? <div className="manual-slot-team"><DraggableTeam team={props.team} disabled={isDisabled} /><button type="button" className="manual-slot-clear" onClick={clear} disabled={isDisabled} aria-label={`清空${sideName}队伍`} title={`清空${sideName}队伍`}><X size={13} aria-hidden="true" /></button></div> : <ManualSlotEmpty target={props.target} poolLabel="候选池" suggestedTeam={null} />}</section>;
+  return <section ref={setNodeRef} className={className}><div className="roster-zone-head"><strong>{props.title}</strong><small>{stateLabel}</small></div>{props.team ? <div className="manual-slot-team"><span className="manual-slot-filled-label">已放入{sideName}</span><DraggableTeam team={props.team} disabled={isDisabled} /><button type="button" className="manual-slot-clear" onClick={clear} disabled={isDisabled} aria-label={`清空${sideName}队伍`} title={`清空${sideName}队伍`}><X size={13} aria-hidden="true" /></button></div> : <ManualSlotEmpty target={props.target} poolLabel="候选池" suggestedTeam={null} />}</section>;
 }
 
 function StageComposer(props: {
@@ -4475,7 +4476,7 @@ function DroppableGroup({
           <button className="ghost-danger" type="button" onClick={() => void deleteStageGroup(group)}>删除</button>
         </div>
       </div>
-      <div className="group-team-list">{displayTeams.length === 0 ? <div className="drop-placeholder">{emptyText}</div> : null}{displayTeams.map((team) => <div key={team.id} className="assigned-team"><DraggableTeam team={team} source={{ kind: "group", groupId: group.id }} /><button type="button" onClick={() => void removeTeamFromGroup(group.id, team.id)}>移出</button></div>)}</div>
+      <div className="group-team-list">{displayTeams.length === 0 ? <div className="drop-placeholder">{emptyText}</div> : null}{displayTeams.map((team) => <div key={team.id} className="assigned-team"><DraggableTeam team={team} source={{ kind: "group", groupId: group.id }} /><button type="button" className="assigned-team-remove" onClick={() => void removeTeamFromGroup(group.id, team.id)}>移出</button></div>)}</div>
     </section>
   );
 }
