@@ -1026,16 +1026,43 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
           }));
         const rowCount = Math.max(1, ...columns.map((column) => column.nodes.length));
         const columnBodyStyle = { "--bracket-row-count": rowCount } as CSSProperties & Record<"--bracket-row-count", number>;
+        const columnLayouts = columns.map((column, columnIndex) => ({
+          ...column,
+          nodes: column.nodes.map((node, nodeIndex) => {
+            const rowSpan = Math.max(1, Math.floor(rowCount / Math.max(1, column.nodes.length)));
+            const gridRowStart = nodeIndex * rowSpan + 1;
+            return { node, columnIndex, gridRowStart, rowSpan };
+          }),
+        }));
+        const nodeLayouts = new Map(columnLayouts.flatMap((column) => column.nodes.map((layout) => [layout.node.id, layout])));
+        const connectors = columnLayouts.flatMap((column) => column.nodes.flatMap((source) => {
+          const targets = [source.node.nextNodeId, source.node.loserNextNodeId].filter((id): id is string => id !== null);
+          return targets
+            .map((targetId) => {
+              const target = nodeLayouts.get(targetId);
+              return target && target.columnIndex > source.columnIndex
+                ? { id: `${source.node.id}:${targetId}`, path: bracketConnectorPath(source, target) }
+                : null;
+            })
+            .filter((connector): connector is { id: string; path: string } => connector !== null);
+        }));
+        const trackWidth = bracketTrackWidth(columns.length);
+        const trackHeight = bracketTrackHeight(rowCount);
 
         return (
         <div className="bracket-group-lane" key={groupName}>
           <strong className="bracket-group-title">{groupName}</strong>
           <div className="bracket-round-track">
-            {columns.map((column, columnIndex) => (
+            {connectors.length > 0 ? (
+              <svg className="bracket-connector-layer" width={trackWidth} height={trackHeight} viewBox={`0 0 ${trackWidth} ${trackHeight}`} aria-hidden="true">
+                {connectors.map((connector) => <path key={connector.id} className="bracket-connector-path" d={connector.path} />)}
+              </svg>
+            ) : null}
+            {columnLayouts.map((column, columnIndex) => (
               <div className="bracket-column" key={column.key}>
                 <strong>{column.roundName}</strong>
                 <div className="bracket-column-body" style={columnBodyStyle}>
-                  {column.nodes.map((node, nodeIndex) => {
+                  {column.nodes.map(({ node, gridRowStart, rowSpan }) => {
                     const topWinner = node.winnerTeamId !== null && node.winnerTeamId === node.topTeamId;
                     const bottomWinner = node.winnerTeamId !== null && node.winnerTeamId === node.bottomTeamId;
                     const hasOutgoing = Boolean(node.nextNodeId || node.loserNextNodeId);
@@ -1046,8 +1073,6 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
                       hasIncoming ? "has-incoming" : "",
                       hasOutgoing ? "has-outgoing" : "",
                     ].filter(Boolean).join(" ");
-                    const rowSpan = Math.max(1, Math.floor(rowCount / Math.max(1, column.nodes.length)));
-                    const gridRowStart = nodeIndex * rowSpan + 1;
 
                     return (
                       <article className={nodeClass} key={node.id} style={{ gridRow: `${gridRowStart} / span ${rowSpan}` }}>
@@ -1085,6 +1110,40 @@ function bracketGroupSortValue(groupName: string): number {
   if (groupName.includes("败者")) return 2;
   if (groupName.includes("总决赛")) return 3;
   return 0;
+}
+
+const BRACKET_COLUMN_WIDTH = 188;
+const BRACKET_COLUMN_GAP = 34;
+const BRACKET_ROUND_TITLE_HEIGHT = 18;
+const BRACKET_ROUND_GAP = 9;
+const BRACKET_ROW_HEIGHT = 128;
+const BRACKET_ROW_GAP = 10;
+
+function bracketTrackWidth(columnCount: number): number {
+  return columnCount * BRACKET_COLUMN_WIDTH + Math.max(0, columnCount - 1) * BRACKET_COLUMN_GAP;
+}
+
+function bracketTrackHeight(rowCount: number): number {
+  return BRACKET_ROUND_TITLE_HEIGHT + BRACKET_ROUND_GAP + rowCount * BRACKET_ROW_HEIGHT + Math.max(0, rowCount - 1) * BRACKET_ROW_GAP;
+}
+
+function bracketConnectorPath(
+  source: { columnIndex: number; gridRowStart: number; rowSpan: number },
+  target: { columnIndex: number; gridRowStart: number; rowSpan: number },
+): string {
+  const sourceX = source.columnIndex * (BRACKET_COLUMN_WIDTH + BRACKET_COLUMN_GAP) + BRACKET_COLUMN_WIDTH;
+  const targetX = target.columnIndex * (BRACKET_COLUMN_WIDTH + BRACKET_COLUMN_GAP);
+  const midX = sourceX + (targetX - sourceX) / 2;
+  const sourceY = bracketNodeCenterY(source.gridRowStart, source.rowSpan);
+  const targetY = bracketNodeCenterY(target.gridRowStart, target.rowSpan);
+
+  return `M ${sourceX} ${sourceY} H ${midX} V ${targetY} H ${targetX}`;
+}
+
+function bracketNodeCenterY(gridRowStart: number, rowSpan: number): number {
+  const rowTop = (gridRowStart - 1) * (BRACKET_ROW_HEIGHT + BRACKET_ROW_GAP);
+  const spanHeight = rowSpan * BRACKET_ROW_HEIGHT + Math.max(0, rowSpan - 1) * BRACKET_ROW_GAP;
+  return BRACKET_ROUND_TITLE_HEIGHT + BRACKET_ROUND_GAP + rowTop + spanHeight / 2;
 }
 
 function SchedulePage({

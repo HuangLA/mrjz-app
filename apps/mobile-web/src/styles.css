@@ -1005,7 +1005,13 @@ button {
   padding: 2px 10px 10px;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+
+.bracket-mini-board::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .bracket-group-lane {
@@ -1028,6 +1034,7 @@ button {
 }
 
 .bracket-round-track {
+  position: relative;
   display: grid;
   grid-auto-columns: 188px;
   grid-auto-flow: column;
@@ -1042,24 +1049,32 @@ button {
   grid-template-rows: auto 1fr;
   gap: 9px;
   scroll-snap-align: start;
+  z-index: 1;
 }
 
 .bracket-column-body {
   position: relative;
   display: grid;
-  grid-template-rows: repeat(var(--bracket-row-count), minmax(112px, 1fr));
+  grid-template-rows: repeat(var(--bracket-row-count), 128px);
   gap: 10px;
-  min-height: calc(var(--bracket-row-count) * 118px);
 }
 
-.bracket-column:not(:last-child) .bracket-column-body::after {
+.bracket-connector-layer {
   position: absolute;
-  top: 14px;
-  right: -17px;
-  bottom: 14px;
-  width: 1px;
-  content: "";
-  background: linear-gradient(180deg, transparent, rgba(213, 166, 79, .28) 18%, rgba(213, 166, 79, .44) 50%, rgba(213, 166, 79, .28) 82%, transparent);
+  top: 0;
+  left: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bracket-connector-path {
+  fill: none;
+  stroke: rgba(213, 166, 79, .56);
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
 }
 
 .bracket-column > strong {
@@ -1083,25 +1098,6 @@ button {
   background: linear-gradient(180deg, rgba(17, 24, 37, .96), rgba(11, 17, 28, .96));
   box-shadow: 0 10px 22px rgba(0, 0, 0, .18);
   z-index: 1;
-}
-
-.bracket-node.has-incoming::before,
-.bracket-node.has-outgoing::after {
-  position: absolute;
-  top: 50%;
-  width: 23px;
-  height: 1px;
-  content: "";
-  background: linear-gradient(90deg, rgba(213, 166, 79, .18), rgba(213, 166, 79, .72));
-}
-
-.bracket-node.has-incoming::before {
-  left: -23px;
-  background: linear-gradient(90deg, rgba(213, 166, 79, .72), rgba(213, 166, 79, .18));
-}
-
-.bracket-node.has-outgoing::after {
-  right: -23px;
 }
 
 .bracket-node.is-completed {
