@@ -1755,21 +1755,24 @@ function ScheduleCard({
   onOpenMatch: (matchId: string) => void;
 }) {
   const isFinished = match.status === "已完赛";
+  const scoreText = match.score ?? match.bo;
+  const parsedScore = parseScheduleScore(match.score);
+  const teamAIsWinner = parsedScore !== null && parsedScore.left > parsedScore.right;
+  const teamBIsWinner = parsedScore !== null && parsedScore.right > parsedScore.left;
+  const roundLabel = `${match.stage} · ${match.kind === "tiebreaker" ? `加赛 · ${match.round}` : match.round}`;
 
   return (
     <article className={`schedule-card ${isFinished ? "finished" : ""}`}>
-      <div className="schedule-time">
+      <div className="schedule-card-head">
         <b>{match.time}</b>
-        <span>
-          {match.stage} · {match.kind === "tiebreaker" ? `加赛 · ${match.round}` : match.round}
-        </span>
+        <span>{roundLabel}</span>
       </div>
-      <div className="schedule-vs">
-        <span>{match.teamA}</span>
-        <strong>{match.score ?? match.bo}</strong>
-        <span>{match.teamB}</span>
+      <div className="schedule-matchup">
+        <span className={`schedule-team ${teamAIsWinner ? "is-winner" : teamBIsWinner ? "is-dimmed" : ""}`}>{match.teamA}</span>
+        <strong className={`schedule-score ${match.score ? "is-result" : "is-bo"}`}>{scoreText}</strong>
+        <span className={`schedule-team is-right ${teamBIsWinner ? "is-winner" : teamAIsWinner ? "is-dimmed" : ""}`}>{match.teamB}</span>
       </div>
-      <div className="schedule-meta">
+      <div className="schedule-card-foot">
         <span className={`status-tag ${statusClass(match.status)}`}>{match.status}</span>
         {match.matchId ? (
           <button className="link-button" type="button" onClick={() => onOpenMatch(match.matchId!)}>
@@ -1781,6 +1784,11 @@ function ScheduleCard({
       </div>
     </article>
   );
+}
+
+function parseScheduleScore(score: string | undefined): { left: number; right: number } | null {
+  const match = score?.match(/^\s*(\d+)\s*:\s*(\d+)\s*$/);
+  return match ? { left: Number(match[1]), right: Number(match[2]) } : null;
 }
 
 function MatchRecordCard({
