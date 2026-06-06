@@ -280,6 +280,36 @@ export interface SyncTask {
   updatedAt?: string;
 }
 
+export type PlayerTagStatus = "pending_review" | "approved" | "rejected" | "hidden";
+
+export interface PlayerTagModerationItem {
+  id: string;
+  tournamentId: string;
+  targetType: "player";
+  targetId: string;
+  targetName: string;
+  text: string;
+  normalizedText: string;
+  likeCount: number;
+  sizeLevel: number;
+  status: PlayerTagStatus;
+  reviewReason: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdBy: {
+    id: string;
+    nickname: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminTagPlayerItem extends TournamentPlayerListItem {
+  tournamentIds: string[];
+  tags: PlayerTagModerationItem[];
+  tagCounts: Record<PlayerTagStatus, number>;
+}
+
 export interface WriteResult {
   ok: boolean;
   status: number;

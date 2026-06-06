@@ -28,6 +28,8 @@ import {
   type PlayerDirectoryItem,
   type PlayerProfile,
   type PlayerStats,
+  type PlayerTag,
+  type PlayerTournamentHistoryEntry,
   type ProfileMatchSummary,
   type ScheduleItem,
   type StageKey,
@@ -1541,6 +1543,8 @@ function PlayerProfilePage({
         </div>
       </section>
 
+      <PlayerTagCloud tags={profile.tags} />
+
       <ProfileStatGrid
         stats={[
           ["场次", String(profile.stats.totalMatches)],
@@ -1557,8 +1561,7 @@ function PlayerProfilePage({
       />
 
       <SignatureHeroes heroes={profile.stats.topHeroes} />
-      <ProfileMatches matches={profile.matches} title="参赛记录" records={data.matchRecords} onOpenMatch={onOpenMatch} />
-      <ProfileTagsPlaceholder type="player" />
+      <PlayerTournamentHistory profile={profile} records={data.matchRecords} onOpenMatch={onOpenMatch} />
     </>
   );
 }
@@ -1661,7 +1664,6 @@ function TeamProfilePage({
 
       <SignatureHeroes heroes={profile.stats.topHeroes} />
       <ProfileMatches matches={profile.matches} title="队伍比赛" records={data.matchRecords} onOpenMatch={onOpenMatch} />
-      <ProfileTagsPlaceholder type="team" />
     </>
   );
 }
@@ -2217,17 +2219,348 @@ function ProfileMatches({
   );
 }
 
-function ProfileTagsPlaceholder({ type }: { type: "player" | "team" }) {
+function PlayerTournamentHistory({
+  profile,
+  records,
+  onOpenMatch,
+}: {
+  profile: PlayerProfile;
+  records: MatchRecord[];
+  onOpenMatch: (matchId: string) => void;
+}) {
+  const recordsByMatchId = useMemo(() => new Map(records.map((record) => [record.matchId, record])), [records]);
+  const currentEntry =
+    profile.tournamentHistory.find((entry) => entry.isCurrent) ??
+    ({
+      tournamentId: profile.tournamentId,
+      tournamentName: "本届赛事",
+      startsAt: "时间待定",
+      status: "",
+      isCurrent: true,
+      stats: profile.stats,
+      matches: profile.matches,
+    } satisfies PlayerTournamentHistoryEntry);
+  const previousEntries = profile.tournamentHistory.filter((entry) => !entry.isCurrent);
+  const totalMatches = profile.tournamentHistory.reduce((sum, entry) => sum + entry.matches.length, 0) || profile.matches.length;
+
   return (
-    <section className="section-panel tag-entry">
+    <section className="section-panel player-history-panel">
       <div className="section-title compact">
         <div>
-          <h2>{type === "player" ? "选手标签" : "队伍标签"}</h2>
+          <h2>参赛记录</h2>
         </div>
+        <span className="sync-pill">{totalMatches} 场</span>
       </div>
-      <EmptyState text="暂无" />
+
+      <div className="player-season-current">
+        <SeasonRecordHeader entry={currentEntry} label="本届" />
+        <ProfileMatchCards
+          matches={currentEntry.matches}
+          recordsByMatchId={recordsByMatchId}
+          tournamentName={currentEntry.tournamentName}
+          onOpenMatch={onOpenMatch}
+        />
+      </div>
+
+      {previousEntries.length > 0 ? (
+        <div className="player-season-archive">
+          <div className="season-archive-title">
+            <span>往届参赛</span>
+            <small>{previousEntries.length} 届</small>
+          </div>
+          {previousEntries.map((entry) => (
+            <details className="season-details" key={entry.tournamentId}>
+              <summary>
+                <SeasonRecordHeader entry={entry} />
+              </summary>
+              <ProfileMatchCards
+                matches={entry.matches}
+                recordsByMatchId={recordsByMatchId}
+                tournamentName={entry.tournamentName}
+                onOpenMatch={onOpenMatch}
+              />
+            </details>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function SeasonRecordHeader({ entry, label }: { entry: PlayerTournamentHistoryEntry; label?: string }) {
+  return (
+    <div className="season-record-header">
+      <div>
+        <h3>{entry.tournamentName}</h3>
+        <span>{label ?? entry.startsAt}</span>
+      </div>
+      <div className="season-record-metrics">
+        <b>{entry.matches.length} 场</b>
+        <small>{entry.stats.winRate}</small>
+      </div>
+    </div>
+  );
+}
+
+function ProfileMatchCards({
+  matches,
+  recordsByMatchId,
+  tournamentName,
+  onOpenMatch,
+}: {
+  matches: ProfileMatchSummary[];
+  recordsByMatchId: Map<string, MatchRecord>;
+  tournamentName: string;
+  onOpenMatch: (matchId: string) => void;
+}) {
+  return (
+    <div className="profile-record-list">
+      {matches.length > 0 ? (
+        matches.map((match, index) => (
+          <MatchRecordCard
+            key={match.matchId}
+            record={recordsByMatchId.get(match.matchId) ?? profileMatchToRecord(match, tournamentName)}
+            index={index}
+            onOpenMatch={onOpenMatch}
+          />
+        ))
+      ) : (
+        <EmptyState text="暂无" />
+      )}
+    </div>
+  );
+}
+
+type FloatingTagBody = {
+  id: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  width: number;
+  height: number;
+};
+
+function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
+  const fieldRef = useRef<HTMLDivElement | null>(null);
+  const tagRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const bodiesRef = useRef<FloatingTagBody[]>([]);
+  const [energizedTagId, setEnergizedTagId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const field = fieldRef.current;
+
+    if (field === null || tags.length === 0) {
+      bodiesRef.current = [];
+      return;
+    }
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let animationFrame = 0;
+    let lastTime = performance.now();
+
+    const readBodies = () => {
+      const bounds = field.getBoundingClientRect();
+      const previousBodies = new Map(bodiesRef.current.map((body) => [body.id, body]));
+
+      bodiesRef.current = tags.map((tag, index) => {
+        const element = tagRefs.current[tag.id];
+        const elementBounds = element?.getBoundingClientRect();
+        const width = Math.max(58, elementBounds?.width ?? 76);
+        const height = Math.max(34, elementBounds?.height ?? 42);
+        const previous = previousBodies.get(tag.id);
+        const seed = seededUnit(`${tag.id}:${index}:${tag.text}`);
+        const maxX = Math.max(0, bounds.width - width);
+        const maxY = Math.max(0, bounds.height - height);
+        const angle = seed * Math.PI * 2;
+        const speed = 0.16 + tag.sizeLevel * 0.018 + Math.min(0.05, tag.likeCount * 0.002);
+
+        return {
+          id: tag.id,
+          x: clampNumber(previous?.x ?? maxX * seededUnit(`${tag.id}:x`), 0, maxX),
+          y: clampNumber(previous?.y ?? maxY * seededUnit(`${tag.id}:y`), 0, maxY),
+          vx: previous?.vx ?? Math.cos(angle) * speed,
+          vy: previous?.vy ?? Math.sin(angle) * speed,
+          width,
+          height,
+        };
+      });
+
+      for (let iteration = 0; iteration < 8; iteration += 1) {
+        resolveFloatingTagCollisions(bodiesRef.current);
+        clampFloatingTagBodies(bodiesRef.current, bounds);
+      }
+    };
+
+    const drawBodies = () => {
+      for (const body of bodiesRef.current) {
+        const element = tagRefs.current[body.id];
+
+        if (element) {
+          element.style.transform = `translate3d(${body.x}px, ${body.y}px, 0)`;
+        }
+      }
+    };
+
+    const tick = (time: number) => {
+      const bounds = field.getBoundingClientRect();
+      const delta = Math.min(2.4, Math.max(0.45, (time - lastTime) / 16.67));
+      lastTime = time;
+
+      for (const body of bodiesRef.current) {
+        const maxX = Math.max(0, bounds.width - body.width);
+        const maxY = Math.max(0, bounds.height - body.height);
+
+        body.x += body.vx * delta;
+        body.y += body.vy * delta;
+
+        if (body.x <= 0 || body.x >= maxX) {
+          body.x = clampNumber(body.x, 0, maxX);
+          body.vx *= -0.96;
+        }
+
+        if (body.y <= 0 || body.y >= maxY) {
+          body.y = clampNumber(body.y, 0, maxY);
+          body.vy *= -0.96;
+        }
+      }
+
+      for (let iteration = 0; iteration < 2; iteration += 1) {
+        resolveFloatingTagCollisions(bodiesRef.current);
+        clampFloatingTagBodies(bodiesRef.current, bounds);
+      }
+      drawBodies();
+      animationFrame = window.requestAnimationFrame(tick);
+    };
+
+    readBodies();
+    drawBodies();
+
+    const resizeObserver = new ResizeObserver(() => {
+      readBodies();
+      drawBodies();
+    });
+    resizeObserver.observe(field);
+
+    if (!reducedMotion) {
+      animationFrame = window.requestAnimationFrame(tick);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [tags]);
+
+  const energizeTag = (tag: PlayerTag) => {
+    setEnergizedTagId(tag.id);
+    window.setTimeout(() => {
+      setEnergizedTagId((current) => (current === tag.id ? null : current));
+    }, 520);
+  };
+
+  return (
+    <section className="section-panel profile-tag-panel" aria-labelledby="player-tag-heading">
+      <div className="section-title compact">
+        <div>
+          <h2 id="player-tag-heading">选手应援标签</h2>
+        </div>
+      </div>
+      {tags.length > 0 ? (
+        <div className="floating-tag-field" ref={fieldRef} aria-label="已审核通过的选手标签">
+          {tags.map((tag) => (
+            <button
+              key={tag.id}
+              ref={(element) => {
+                tagRefs.current[tag.id] = element;
+              }}
+              type="button"
+              className={`floating-tag floating-tag-${tag.sizeLevel}${energizedTagId === tag.id ? " is-energized" : ""}`}
+              style={cssVars({
+                "--tag-heat": Math.min(1, Math.log1p(tag.likeCount) / Math.log(61)),
+              })}
+              title={`${tag.createdAt} · ${tag.likeCount} 赞`}
+              aria-label={`${tag.text}，当前 ${tag.likeCount} 赞，播放应援效果`}
+              onClick={() => energizeTag(tag)}
+            >
+              <span className="floating-tag-text">{tag.text}</span>
+              <span className="floating-tag-likes">{tag.likeCount} 赞</span>
+              <span className="floating-tag-pulse" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <EmptyState text="暂无" />
+      )}
+    </section>
+  );
+}
+
+function resolveFloatingTagCollisions(bodies: FloatingTagBody[]): void {
+  for (let leftIndex = 0; leftIndex < bodies.length; leftIndex += 1) {
+    const left = bodies[leftIndex];
+
+    if (left === undefined) {
+      continue;
+    }
+
+    for (let rightIndex = leftIndex + 1; rightIndex < bodies.length; rightIndex += 1) {
+      const right = bodies[rightIndex];
+
+      if (right === undefined) {
+        continue;
+      }
+
+      const leftCenterX = left.x + left.width / 2;
+      const leftCenterY = left.y + left.height / 2;
+      const rightCenterX = right.x + right.width / 2;
+      const rightCenterY = right.y + right.height / 2;
+      const dx = rightCenterX - leftCenterX;
+      const dy = rightCenterY - leftCenterY;
+      const distance = Math.hypot(dx, dy) || 1;
+      const minDistance = (Math.max(left.width, left.height) + Math.max(right.width, right.height)) * 0.46;
+
+      if (distance >= minDistance) {
+        continue;
+      }
+
+      const overlap = (minDistance - distance) / 2;
+      const nx = dx / distance;
+      const ny = dy / distance;
+
+      left.x -= nx * overlap;
+      left.y -= ny * overlap;
+      right.x += nx * overlap;
+      right.y += ny * overlap;
+
+      const leftVelocity = left.vx * nx + left.vy * ny;
+      const rightVelocity = right.vx * nx + right.vy * ny;
+      const impulse = rightVelocity - leftVelocity;
+
+      left.vx += impulse * nx * 0.58;
+      left.vy += impulse * ny * 0.58;
+      right.vx -= impulse * nx * 0.58;
+      right.vy -= impulse * ny * 0.58;
+    }
+  }
+}
+
+function clampFloatingTagBodies(bodies: FloatingTagBody[], bounds: { width: number; height: number }): void {
+  for (const body of bodies) {
+    body.x = clampNumber(body.x, 0, Math.max(0, bounds.width - body.width));
+    body.y = clampNumber(body.y, 0, Math.max(0, bounds.height - body.height));
+  }
+}
+
+function seededUnit(seed: string): number {
+  let hash = 2166136261;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return ((hash >>> 0) % 10000) / 10000;
 }
 
 function StandingRow({
@@ -3143,19 +3476,22 @@ function ImageWithFallback({
   );
 }
 
-function profileMatchToRecord(match: ProfileMatchSummary): MatchRecord {
-  const [radiantScore, direScore] = parseProfileScore(match.score);
+function profileMatchToRecord(match: ProfileMatchSummary, tournamentName = ""): MatchRecord {
+  const [fallbackRadiantScore, fallbackDireScore] = parseProfileScore(match.score);
+  const radiantScore = match.radiantScore ?? fallbackRadiantScore;
+  const direScore = match.direScore ?? fallbackDireScore;
   const radiantWin =
-    match.side === null || match.result === "unknown"
+    match.radiantWin ??
+    (match.side === null || match.result === "unknown"
       ? null
       : match.side === "radiant"
         ? match.result === "win"
-        : match.result === "loss";
+        : match.result === "loss");
 
   return {
     matchId: match.matchId,
     leagueName: "",
-    tournamentName: "",
+    tournamentName,
     startTime: match.startTime,
     duration: match.duration,
     radiantTeamName: match.radiantTeamName,
@@ -3164,11 +3500,11 @@ function profileMatchToRecord(match: ProfileMatchSummary): MatchRecord {
     direScore,
     radiantWin,
     parseStatus: "比赛记录",
-    playerCount: 0,
-    heroLineups: { radiant: [], dire: [] },
-    hasDraft: false,
-    hasVision: false,
-    hasChat: false,
+    playerCount: match.playerCount,
+    heroLineups: match.heroLineups,
+    hasDraft: match.hasDraft,
+    hasVision: match.hasVision,
+    hasChat: match.hasChat,
   };
 }
 

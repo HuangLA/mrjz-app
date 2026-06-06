@@ -1,6 +1,7 @@
 import {
   advanceBracketNode,
   addStageGroupTeam,
+  adjustPlayerTagLikes,
   createKnockoutBracket,
   createRound,
   createSeries,
@@ -13,6 +14,8 @@ import {
   clearTournamentMatchRecords,
   clearTournamentScheduleRecords,
   confirmSwissRound,
+  createAdminPlayerTag,
+  deletePlayerTag,
   deleteSeries,
   deleteStageGroup,
   getMatchDetail,
@@ -28,7 +31,11 @@ import {
   getTournamentTeamDetail,
   getTournamentDetail,
   linkOpenDotaMatchToSeries,
+  likePlayerTag,
+  listAdminTagPlayers,
+  listAdminTags,
   listLeagueSyncTargets,
+  listPlayerTags,
   listTournamentOpenDotaMatches,
   listTournamentPlayers,
   listTournamentTeams,
@@ -44,8 +51,11 @@ import {
   retractBracketNode,
   retractSwissRound,
   setBracketNodeSlot,
+  submitPlayerTag,
+  unlikePlayerTag,
   updateTeam,
   updateTournamentLifecycle,
+  updatePlayerTagReview,
   updateSeries,
   updateSeriesGameResult,
   updateSeriesResult,
@@ -179,6 +189,59 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(player);
   });
 
+  router.get("/api/tournaments/:id/players/:playerId/tags", ({ params }) => {
+    const tags = listPlayerTags(params.id ?? "", params.playerId ?? "");
+
+    if (tags === undefined) {
+      return fail(404, "PLAYER_NOT_FOUND", "Player not found for this tournament");
+    }
+
+    return ok(tags);
+  });
+
+  router.post("/api/miniprogram/tournaments/:id/players/:playerId/tags", async ({ request, params }) => {
+    const userId = appUserIdFromRequest(request);
+
+    if (userId === null) {
+      return fail(401, "UNAUTHORIZED", "Mini program tag submission requires an app user token");
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      return ok(submitPlayerTag(params.id ?? "", params.playerId ?? "", bodyToSubmitPlayerTagInput(body, userId)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/miniprogram/tags/:tagId/like", ({ request, params }) => {
+    const userId = appUserIdFromRequest(request);
+
+    if (userId === null) {
+      return fail(401, "UNAUTHORIZED", "Mini program tag likes require an app user token");
+    }
+
+    try {
+      return ok(likePlayerTag(params.tagId ?? "", { userId }));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.delete("/api/miniprogram/tags/:tagId/like", ({ request, params }) => {
+    const userId = appUserIdFromRequest(request);
+
+    if (userId === null) {
+      return fail(401, "UNAUTHORIZED", "Mini program tag likes require an app user token");
+    }
+
+    try {
+      return ok(unlikePlayerTag(params.tagId ?? "", { userId }));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.post("/api/tournaments/:id/entities/backfill", ({ params }) => {
     return ok(backfillCachedTournamentEntities(params.id ?? ""));
   });
@@ -211,6 +274,58 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(management);
+  });
+
+  router.get("/api/admin/tags", ({ url }) => {
+    try {
+      return ok(listAdminTags(queryToListAdminTagsInput(url)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.get("/api/admin/tag-players", ({ url }) => {
+    try {
+      return ok(listAdminTagPlayers(queryToListAdminTagPlayersInput(url)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/admin/tournaments/:id/players/:playerId/tags", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createAdminPlayerTag(params.id ?? "", params.playerId ?? "", bodyToAdminCreatePlayerTagInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.patch("/api/admin/tags/:tagId", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updatePlayerTagReview(params.tagId ?? "", bodyToReviewPlayerTagInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/admin/tags/:tagId/likes/adjust", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(adjustPlayerTagLikes(params.tagId ?? "", bodyToAdjustPlayerTagLikesInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.delete("/api/admin/tags/:tagId", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(deletePlayerTag(params.tagId ?? "", bodyToDeletePlayerTagInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
   });
 
   router.patch("/api/tournaments/:id/schedule-management", async ({ request, params }) => {
@@ -1029,6 +1144,94 @@ function bodyToCreateSyncTaskInput(body: Record<string, unknown>) {
   }) as Parameters<typeof createSyncTask>[0];
 }
 
+function bodyToSubmitPlayerTagInput(body: Record<string, unknown>, userId: string) {
+  return {
+    text: stringField(body, "text"),
+    userId,
+  } satisfies Parameters<typeof submitPlayerTag>[2];
+}
+
+function queryToListAdminTagsInput(url: URL) {
+  const status = url.searchParams.get("status")?.trim();
+
+  if (
+    status !== undefined &&
+    status.length > 0 &&
+    status !== "all" &&
+    !["pending_review", "approved", "rejected", "hidden"].includes(status)
+  ) {
+    throw new Error("status must be pending_review, approved, rejected, hidden, or all");
+  }
+
+  return withoutUndefined({
+    tournamentId: optionalQueryString(url, "tournamentId"),
+    status: status && status.length > 0 ? status : undefined,
+    query: optionalQueryString(url, "query"),
+  }) as Parameters<typeof listAdminTags>[0];
+}
+
+function queryToListAdminTagPlayersInput(url: URL) {
+  return withoutUndefined({
+    tournamentId: optionalQueryString(url, "tournamentId"),
+  }) as Parameters<typeof listAdminTagPlayers>[0];
+}
+
+function bodyToAdminCreatePlayerTagInput(body: Record<string, unknown>) {
+  const status = optionalStringField(body, "status");
+
+  if (status !== undefined && !["pending_review", "approved", "rejected", "hidden"].includes(status)) {
+    throw new Error("status must be pending_review, approved, rejected, or hidden");
+  }
+
+  return withoutUndefined({
+    text: stringField(body, "text"),
+    status,
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof createAdminPlayerTag>[2];
+}
+
+function bodyToReviewPlayerTagInput(body: Record<string, unknown>) {
+  const status = stringField(body, "status");
+
+  if (!["pending_review", "approved", "rejected", "hidden"].includes(status)) {
+    throw new Error("status must be pending_review, approved, rejected, or hidden");
+  }
+
+  return withoutUndefined({
+    status,
+    reviewReason: optionalStringOrNullField(body, "reviewReason"),
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof updatePlayerTagReview>[1];
+}
+
+function bodyToAdjustPlayerTagLikesInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    delta: numberField(body, "delta"),
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof adjustPlayerTagLikes>[1];
+}
+
+function bodyToDeletePlayerTagInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    actor: optionalStringField(body, "actor"),
+  }) as Parameters<typeof deletePlayerTag>[1];
+}
+
+function appUserIdFromRequest(request: { headers: Record<string, string | string[] | undefined> }): string | null {
+  const explicitHeader = request.headers["x-mrjz-user-id"];
+  const explicitUserId = Array.isArray(explicitHeader) ? explicitHeader[0] : explicitHeader;
+
+  if (typeof explicitUserId === "string" && explicitUserId.trim().length > 0) {
+    return explicitUserId.trim();
+  }
+
+  const authorization = request.headers.authorization;
+  const token = Array.isArray(authorization) ? authorization[0] : authorization;
+  const match = typeof token === "string" ? /^Bearer\s+(.+)$/i.exec(token.trim()) : null;
+
+  return match?.[1]?.trim() || null;
+}
+
 function stringField(body: Record<string, unknown>, fieldName: string): string {
   const value = body[fieldName];
 
@@ -1161,6 +1364,12 @@ function positiveIntegerQuery(url: URL, fieldName: string, fallback: number): nu
   const value = Number(url.searchParams.get(fieldName));
 
   return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+function optionalQueryString(url: URL, fieldName: string): string | undefined {
+  const value = url.searchParams.get(fieldName)?.trim();
+
+  return value && value.length > 0 ? value : undefined;
 }
 
 function withoutUndefined<T extends Record<string, unknown>>(value: T): T {

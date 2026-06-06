@@ -180,6 +180,11 @@ export type ProfileMatchSummary = {
   radiantWin: boolean | null;
   side: TeamSide | null;
   heroId: number | null;
+  playerCount: number;
+  heroLineups: Record<TeamSide, OpenDotaMatchListHero[]>;
+  hasDraft: boolean;
+  hasVision: boolean;
+  hasChat: boolean;
   kills: number | null;
   deaths: number | null;
   assists: number | null;
@@ -209,9 +214,20 @@ export type TournamentPlayerListItem = PlayerBrief & {
   stats: PlayerStatsSummary;
 };
 
+export type TournamentPlayerHistoryEntry = {
+  tournamentId: string;
+  tournamentName: string;
+  startsAt: string | null;
+  status: TournamentLifecycleStatus;
+  isCurrent: boolean;
+  stats: PlayerStatsSummary;
+  matches: ProfileMatchSummary[];
+};
+
 export type TournamentPlayerDetail = TournamentPlayerListItem & {
   tournamentId: string;
   matches: ProfileMatchSummary[];
+  tournamentHistory: TournamentPlayerHistoryEntry[];
 };
 
 export type TournamentTeamDetail = TournamentTeamListItem & {
@@ -237,6 +253,76 @@ export type SyncTaskView = {
   lastError: string | null;
   nextRunAt: string | null;
   updatedAt: string;
+};
+
+export type PlayerTagStatus = "pending_review" | "approved" | "rejected" | "hidden";
+
+export type PlayerTagView = {
+  id: string;
+  tournamentId: string;
+  targetType: "player";
+  targetId: string;
+  targetName: string;
+  text: string;
+  normalizedText: string;
+  likeCount: number;
+  sizeLevel: number;
+  status: PlayerTagStatus;
+  reviewReason: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdBy: {
+    id: string;
+    nickname: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListAdminTagsInput = {
+  tournamentId?: string;
+  status?: PlayerTagStatus | "all";
+  query?: string;
+};
+
+export type AdminTagPlayerItem = TournamentPlayerListItem & {
+  tournamentIds: string[];
+  tags: PlayerTagView[];
+  tagCounts: Record<PlayerTagStatus, number>;
+};
+
+export type ListAdminTagPlayersInput = {
+  tournamentId?: string;
+};
+
+export type AdminCreatePlayerTagInput = {
+  text: string;
+  status?: PlayerTagStatus;
+  actor?: string;
+};
+
+export type SubmitPlayerTagInput = {
+  text: string;
+  userId: string;
+};
+
+export type LikePlayerTagInput = {
+  userId: string;
+};
+
+export type ReviewPlayerTagInput = {
+  status: PlayerTagStatus;
+  reviewReason?: string | null;
+  actor?: string;
+};
+
+export type AdjustPlayerTagLikesInput = {
+  delta: number;
+  actor?: string;
+};
+
+export type DeletePlayerTagInput = {
+  actor?: string;
 };
 
 export type CreateTeamInput = {
@@ -535,6 +621,7 @@ export class SqliteTournamentRepository {
     this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
     this.database.exec("CREATE INDEX IF NOT EXISTS idx_series_group ON series(group_id);");
     this.ensureEntityTables();
+    this.ensureTagTables();
   }
 
   private ensureColumn(tableName: string, columnName: string, definition: string): void {
@@ -651,6 +738,181 @@ export class SqliteTournamentRepository {
       CREATE INDEX IF NOT EXISTS idx_schedule_operation_logs_tournament ON schedule_operation_logs(tournament_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_stage_manual_ranks_stage ON stage_manual_ranks(stage_id);
       CREATE INDEX IF NOT EXISTS idx_swiss_byes_stage ON swiss_byes(stage_id);
+    `);
+  }
+
+  private ensureTagTables(): void {
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id TEXT PRIMARY KEY,
+        open_id TEXT UNIQUE,
+        nickname TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'player', 'admin')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+    `);
+
+    const tagColumns = this.database.prepare("PRAGMA table_info(tags)").all();
+    const needsTagMigration = tagColumns.length > 0 && !tagColumns.some((column) => text(column, "name") === "normalized_text");
+
+    if (needsTagMigration) {
+      this.database.exec(`
+        DROP INDEX IF EXISTS idx_tags_target;
+        DROP INDEX IF EXISTS idx_tags_tournament_status;
+        DROP TABLE IF EXISTS tag_likes;
+        DROP TABLE IF EXISTS tag_reports;
+        DROP TABLE IF EXISTS tag_audit_logs;
+        ALTER TABLE tags RENAME TO tags_legacy;
+      `);
+    }
+
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS tags (
+        id TEXT PRIMARY KEY,
+        tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+        target_type TEXT NOT NULL CHECK (target_type IN ('player', 'team')),
+        target_id TEXT NOT NULL,
+        normalized_text TEXT NOT NULL,
+        display_text TEXT NOT NULL,
+        created_by TEXT NOT NULL REFERENCES app_users(id),
+        like_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending_review' CHECK (status IN ('pending_review', 'approved', 'rejected', 'hidden')),
+        review_reason TEXT,
+        reviewed_by TEXT,
+        reviewed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE (tournament_id, target_type, target_id, normalized_text)
+      ) STRICT;
+    `);
+
+    if (needsTagMigration) {
+      this.database.exec(`
+        WITH legacy_tags AS (
+          SELECT
+            tags_legacy.id,
+            COALESCE(
+              (
+                SELECT tp.tournament_id
+                FROM tournament_players tp
+                WHERE tp.player_id = tags_legacy.target_id
+                ORDER BY tp.updated_at DESC, tp.tournament_id ASC
+                LIMIT 1
+              ),
+              (
+                SELECT t.id
+                FROM tournaments t
+                ORDER BY t.starts_at DESC, t.id ASC
+                LIMIT 1
+              )
+            ) AS tournament_id,
+            tags_legacy.target_type,
+            tags_legacy.target_id,
+            lower(trim(tags_legacy.label)) AS normalized_text,
+            tags_legacy.label AS display_text,
+            tags_legacy.created_by,
+            CASE tags_legacy.status WHEN 'hidden' THEN 'hidden' ELSE 'approved' END AS status,
+            tags_legacy.hidden_reason AS review_reason,
+            CASE tags_legacy.status WHEN 'hidden' THEN tags_legacy.updated_at ELSE NULL END AS reviewed_at,
+            tags_legacy.created_at,
+            tags_legacy.updated_at
+          FROM tags_legacy
+        )
+        INSERT OR IGNORE INTO tags (
+          id,
+          tournament_id,
+          target_type,
+          target_id,
+          normalized_text,
+          display_text,
+          created_by,
+          status,
+          review_reason,
+          reviewed_at,
+          created_at,
+          updated_at
+        )
+        SELECT
+          id,
+          tournament_id,
+          target_type,
+          target_id,
+          normalized_text,
+          display_text,
+          created_by,
+          status,
+          review_reason,
+          reviewed_at,
+          created_at,
+          updated_at
+        FROM legacy_tags
+        WHERE tournament_id IS NOT NULL;
+
+        DROP TABLE tags_legacy;
+      `);
+    }
+
+    this.database.exec(`
+      WITH ranked_player_tags AS (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (
+            PARTITION BY target_id, normalized_text
+            ORDER BY
+              CASE status
+                WHEN 'approved' THEN 0
+                WHEN 'pending_review' THEN 1
+                WHEN 'hidden' THEN 2
+                ELSE 3
+              END,
+              like_count DESC,
+              created_at ASC
+          ) AS duplicate_rank
+        FROM tags
+        WHERE target_type = 'player'
+      )
+      DELETE FROM tags
+      WHERE id IN (
+        SELECT id
+        FROM ranked_player_tags
+        WHERE duplicate_rank > 1
+      );
+    `);
+
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS tag_likes (
+        tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (tag_id, user_id)
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS tag_reports (
+        id TEXT PRIMARY KEY,
+        tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        reporter_user_id TEXT NOT NULL REFERENCES app_users(id),
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'dismissed', 'accepted')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS tag_audit_logs (
+        id TEXT PRIMARY KEY,
+        tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        actor TEXT NOT NULL DEFAULT 'admin',
+        action TEXT NOT NULL,
+        from_status TEXT,
+        to_status TEXT,
+        reason TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      CREATE INDEX IF NOT EXISTS idx_tags_target ON tags(target_type, target_id, status);
+      CREATE INDEX IF NOT EXISTS idx_tags_tournament_status ON tags(tournament_id, status, created_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_player_identity_text ON tags(target_id, normalized_text) WHERE target_type = 'player';
+      CREATE INDEX IF NOT EXISTS idx_tag_audit_logs_tag ON tag_audit_logs(tag_id, created_at DESC);
     `);
   }
 
@@ -1565,7 +1827,468 @@ export class SqliteTournamentRepository {
       teams: this.getPlayerTeams(player.id),
       stats: this.getPlayerStatsSnapshot(target.tournamentId, player.id),
       matches: this.getPlayerMatchSnapshot(target.tournamentId, player.id),
+      tournamentHistory: this.listPlayerTournamentHistory(target.tournamentId, player.id),
     };
+  }
+
+  listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined {
+    const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
+    const player = this.getPlayerById(playerId);
+
+    if (target === undefined || player === undefined) {
+      return undefined;
+    }
+
+    return this.database
+      .prepare(
+        `
+          SELECT
+            tags.*,
+            p.display_name AS target_name,
+            u.nickname AS created_by_nickname
+          FROM tags
+          JOIN players p ON p.id = tags.target_id
+          JOIN app_users u ON u.id = tags.created_by
+          WHERE tags.target_type = 'player'
+            AND tags.target_id = ?
+            AND tags.status = 'approved'
+          ORDER BY tags.like_count DESC, tags.reviewed_at DESC, tags.created_at DESC
+        `,
+      )
+      .all(player.id)
+      .map((row) => this.mapPlayerTag(row));
+  }
+
+  submitPlayerTag(tournamentId: string, playerId: string, input: SubmitPlayerTagInput): PlayerTagView {
+    const player = this.getTournamentPlayerDetail(tournamentId, playerId);
+
+    if (player === undefined) {
+      throw new Error("player not found for this tournament");
+    }
+
+    const userId = requiredString(input.userId, "userId");
+    const user = this.database.prepare("SELECT id FROM app_users WHERE id = ?").get(userId);
+
+    if (user === undefined) {
+      throw new Error("app user not found");
+    }
+
+    const tagText = normalizePlayerTagInput(input.text);
+    const duplicate = this.getPlayerTagByTargetAndText(player.id, tagText.normalizedText);
+
+    if (duplicate !== undefined) {
+      return duplicate;
+    }
+
+    this.enforcePlayerTagRateLimit(player.id, userId);
+
+    const tagId = uniqueId("tag", `${player.id}-${tagText.normalizedText}`);
+    this.database
+      .prepare(
+        `
+          INSERT INTO tags (
+            id,
+            tournament_id,
+            target_type,
+            target_id,
+            normalized_text,
+            display_text,
+            created_by,
+            status
+          )
+          VALUES (?, ?, 'player', ?, ?, ?, ?, 'pending_review')
+        `,
+      )
+      .run(tagId, player.tournamentId, player.id, tagText.normalizedText, tagText.displayText, userId);
+
+    const created = this.getPlayerTagById(tagId);
+
+    if (created === undefined) {
+      throw new Error("created tag could not be loaded");
+    }
+
+    return created;
+  }
+
+  likePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView {
+    const id = requiredString(tagId, "tagId");
+    const userId = requiredString(input.userId, "userId");
+    const tag = this.getPlayerTagById(id);
+
+    if (tag === undefined) {
+      throw new Error("tag not found");
+    }
+
+    if (tag.status !== "approved") {
+      throw new Error("only approved tags can be liked");
+    }
+
+    this.requireAppUser(userId);
+
+    this.database.exec("BEGIN;");
+
+    try {
+      const result = this.database.prepare("INSERT OR IGNORE INTO tag_likes (tag_id, user_id) VALUES (?, ?)").run(id, userId);
+
+      if (Number(result.changes) > 0) {
+        this.incrementTagLikeCount(id, 1);
+      }
+
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const updated = this.getPlayerTagById(id);
+
+    if (updated === undefined) {
+      throw new Error("updated tag could not be loaded");
+    }
+
+    return updated;
+  }
+
+  unlikePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView {
+    const id = requiredString(tagId, "tagId");
+    const userId = requiredString(input.userId, "userId");
+    const tag = this.getPlayerTagById(id);
+
+    if (tag === undefined) {
+      throw new Error("tag not found");
+    }
+
+    this.requireAppUser(userId);
+
+    this.database.exec("BEGIN;");
+
+    try {
+      const result = this.database.prepare("DELETE FROM tag_likes WHERE tag_id = ? AND user_id = ?").run(id, userId);
+
+      if (Number(result.changes) > 0) {
+        this.incrementTagLikeCount(id, -1);
+      }
+
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const updated = this.getPlayerTagById(id);
+
+    if (updated === undefined) {
+      throw new Error("updated tag could not be loaded");
+    }
+
+    return updated;
+  }
+
+  adjustPlayerTagLikes(tagId: string, input: AdjustPlayerTagLikesInput): PlayerTagView {
+    const id = requiredString(tagId, "tagId");
+    const actor = input.actor?.trim() || "admin";
+    const delta = requiredInteger(input.delta, "delta");
+
+    if (delta === 0) {
+      throw new Error("delta must not be 0");
+    }
+
+    const current = this.getPlayerTagById(id);
+
+    if (current === undefined) {
+      throw new Error("tag not found");
+    }
+
+    const nextLikeCount = Math.max(0, current.likeCount + delta);
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.database
+        .prepare(
+          `
+            UPDATE tags
+            SET
+              like_count = ?,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ? AND target_type = 'player'
+          `,
+        )
+        .run(nextLikeCount, id);
+
+      this.database
+        .prepare(
+          `
+            INSERT INTO tag_audit_logs (id, tag_id, actor, action, from_status, to_status, reason)
+            VALUES (?, ?, ?, 'adjust_like_count', ?, ?, ?)
+          `,
+        )
+        .run(
+          uniqueId("tag_audit", `${id}-likes-${Date.now()}`),
+          id,
+          actor,
+          current.status,
+          current.status,
+          `like_count ${current.likeCount} -> ${nextLikeCount}`,
+        );
+
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const updated = this.getPlayerTagById(id);
+
+    if (updated === undefined) {
+      throw new Error("updated tag could not be loaded");
+    }
+
+    return updated;
+  }
+
+  listAdminTags(input: ListAdminTagsInput = {}): PlayerTagView[] {
+    const conditions = ["tags.target_type = 'player'"];
+    const params: string[] = [];
+
+    if (input.tournamentId !== undefined && input.tournamentId.trim().length > 0) {
+      conditions.push("tags.tournament_id = ?");
+      params.push(input.tournamentId.trim());
+    }
+
+    if (input.status !== undefined && input.status !== "all") {
+      conditions.push("tags.status = ?");
+      params.push(input.status);
+    }
+
+    const query = input.query?.trim().toLowerCase();
+    if (query !== undefined && query.length > 0) {
+      conditions.push("(lower(tags.display_text) LIKE ? OR lower(p.display_name) LIKE ? OR lower(u.nickname) LIKE ?)");
+      params.push(`%${query}%`, `%${query}%`, `%${query}%`);
+    }
+
+    return this.database
+      .prepare(
+        `
+          SELECT
+            tags.*,
+            p.display_name AS target_name,
+            u.nickname AS created_by_nickname
+          FROM tags
+          JOIN players p ON p.id = tags.target_id
+          JOIN app_users u ON u.id = tags.created_by
+          WHERE ${conditions.join(" AND ")}
+          ORDER BY
+            CASE tags.status
+              WHEN 'pending_review' THEN 0
+              WHEN 'approved' THEN 1
+              WHEN 'hidden' THEN 2
+              ELSE 3
+            END,
+            tags.created_at DESC
+          LIMIT 300
+        `,
+      )
+      .all(...params)
+      .map((row) => this.mapPlayerTag(row));
+  }
+
+  listAdminTagPlayers(input: ListAdminTagPlayersInput = {}): AdminTagPlayerItem[] {
+    const tournamentId = input.tournamentId?.trim();
+    const playerRows =
+      tournamentId === undefined || tournamentId.length === 0
+        ? this.database
+            .prepare(
+              `
+                SELECT DISTINCT p.*
+                FROM players p
+                ORDER BY p.display_name ASC, p.id ASC
+              `,
+            )
+            .all()
+        : this.database
+            .prepare(
+              `
+                SELECT DISTINCT p.*
+                FROM players p
+                JOIN tournament_players tp ON tp.player_id = p.id
+                WHERE tp.tournament_id = ?
+                ORDER BY p.display_name ASC, p.id ASC
+              `,
+            )
+            .all(tournamentId);
+    const players = playerRows.map((row) => this.playerFromRow(row));
+    const tagsByPlayer = this.listPlayerTagsByPlayerIds(players.map((player) => player.id));
+
+    return players.map((player) => {
+      const tags = tagsByPlayer.get(player.id) ?? [];
+
+      return {
+        ...player,
+        teams: this.getPlayerTeams(player.id),
+        stats:
+          tournamentId === undefined || tournamentId.length === 0
+            ? emptyPlayerStats()
+            : this.getPlayerStatsSnapshot(tournamentId, player.id),
+        tournamentIds: this.listPlayerTournamentIds(player.id),
+        tags,
+        tagCounts: countPlayerTags(tags),
+      };
+    });
+  }
+
+  createAdminPlayerTag(tournamentId: string, playerId: string, input: AdminCreatePlayerTagInput): PlayerTagView {
+    const sourceTournamentId = requiredString(tournamentId, "tournamentId");
+    const player = this.getPlayerById(playerId);
+
+    if (player === undefined) {
+      throw new Error("player not found");
+    }
+
+    if (this.getTournamentDetail(sourceTournamentId) === undefined) {
+      throw new Error("tournament not found");
+    }
+
+    const status = input.status === undefined ? "approved" : normalizePlayerTagStatus(input.status);
+    const tagText = normalizePlayerTagInput(input.text);
+    const duplicate = this.getPlayerTagByTargetAndText(player.id, tagText.normalizedText);
+
+    if (duplicate !== undefined) {
+      return duplicate;
+    }
+
+    const actor = input.actor?.trim() || "admin";
+    const userId = this.ensureAdminTagUser(actor);
+    const tagId = uniqueId("tag", `${player.id}-${tagText.normalizedText}`);
+    const nowReviewValues =
+      status === "pending_review"
+        ? { reviewedBy: null, reviewedAt: null }
+        : { reviewedBy: actor, reviewedAt: new Date().toISOString() };
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.database
+        .prepare(
+          `
+            INSERT INTO tags (
+              id,
+              tournament_id,
+              target_type,
+              target_id,
+              normalized_text,
+              display_text,
+              created_by,
+              status,
+              reviewed_by,
+              reviewed_at
+            )
+            VALUES (?, ?, 'player', ?, ?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          tagId,
+          sourceTournamentId,
+          player.id,
+          tagText.normalizedText,
+          tagText.displayText,
+          userId,
+          status,
+          nowReviewValues.reviewedBy,
+          nowReviewValues.reviewedAt,
+        );
+
+      this.database
+        .prepare(
+          `
+            INSERT INTO tag_audit_logs (id, tag_id, actor, action, from_status, to_status, reason)
+            VALUES (?, ?, ?, 'admin_create', NULL, ?, ?)
+          `,
+        )
+        .run(uniqueId("tag_audit", `${tagId}-${status}`), tagId, actor, status, "管理员后台新增测试标签");
+
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const created = this.getPlayerTagById(tagId);
+
+    if (created === undefined) {
+      throw new Error("created tag could not be loaded");
+    }
+
+    return created;
+  }
+
+  updatePlayerTagReview(tagId: string, input: ReviewPlayerTagInput): PlayerTagView {
+    const id = requiredString(tagId, "tagId");
+    const status = normalizePlayerTagStatus(input.status);
+    const actor = input.actor?.trim() || "admin";
+    const reviewReason = input.reviewReason?.trim() || null;
+
+    const current = this.getPlayerTagById(id);
+
+    if (current === undefined) {
+      throw new Error("tag not found");
+    }
+
+    this.database.exec("BEGIN;");
+
+    try {
+      this.database
+        .prepare(
+          `
+            UPDATE tags
+            SET
+              status = ?,
+              review_reason = ?,
+              reviewed_by = ?,
+              reviewed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(status, reviewReason, actor, id);
+
+      this.database
+        .prepare(
+          `
+            INSERT INTO tag_audit_logs (id, tag_id, actor, action, from_status, to_status, reason)
+            VALUES (?, ?, ?, 'review_status_change', ?, ?, ?)
+          `,
+        )
+        .run(uniqueId("tag_audit", `${id}-${status}`), id, actor, current.status, status, reviewReason);
+
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const updated = this.getPlayerTagById(id);
+
+    if (updated === undefined) {
+      throw new Error("updated tag could not be loaded");
+    }
+
+    return updated;
+  }
+
+  deletePlayerTag(tagId: string, input: DeletePlayerTagInput = {}): { deleted: true; tagId: string } {
+    const id = requiredString(tagId, "tagId");
+    const actor = input.actor?.trim() || "admin";
+    const current = this.getPlayerTagById(id);
+
+    if (current === undefined) {
+      throw new Error("tag not found");
+    }
+
+    this.database.prepare("DELETE FROM tags WHERE id = ? AND target_type = 'player'").run(id);
+
+    void actor;
+    return { deleted: true, tagId: id };
   }
 
   getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined {
@@ -1601,6 +2324,277 @@ export class SqliteTournamentRepository {
       members,
       stats: this.getTeamStatsSnapshot(target.tournamentId, team.id),
       matches: this.getTeamMatchSnapshot(target.tournamentId, team.id),
+    };
+  }
+
+  private listPlayerTournamentHistory(currentTournamentId: string, playerId: string): TournamentPlayerHistoryEntry[] {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT
+            t.id AS tournament_id,
+            t.name AS tournament_name,
+            t.starts_at,
+            t.status,
+            tps.summary_json,
+            tps.matches_json
+          FROM tournament_players tp
+          JOIN tournaments t ON t.id = tp.tournament_id
+          LEFT JOIN tournament_player_stats tps ON tps.tournament_id = tp.tournament_id AND tps.player_id = tp.player_id
+          WHERE tp.player_id = ?
+          ORDER BY
+            CASE WHEN t.id = ? THEN 0 ELSE 1 END,
+            t.starts_at DESC,
+            t.name DESC
+        `,
+      )
+      .all(playerId, currentTournamentId);
+    const history = rows.map((row) => this.mapPlayerTournamentHistoryEntry(row, currentTournamentId));
+
+    if (history.some((entry) => entry.tournamentId === currentTournamentId)) {
+      return history;
+    }
+
+    const target = this.getLeagueSyncTargetByTournamentId(currentTournamentId);
+
+    if (target === undefined) {
+      return history;
+    }
+
+    return [
+      {
+        tournamentId: target.tournamentId,
+        tournamentName: target.tournamentName,
+        startsAt: target.startsAt,
+        status: target.status,
+        isCurrent: true,
+        stats: this.getPlayerStatsSnapshot(target.tournamentId, playerId),
+        matches: this.getPlayerMatchSnapshot(target.tournamentId, playerId),
+      },
+      ...history,
+    ];
+  }
+
+  private mapPlayerTournamentHistoryEntry(row: DbRow, currentTournamentId: string): TournamentPlayerHistoryEntry {
+    const tournamentId = text(row, "tournament_id");
+    const matches = parseJson<ProfileMatchSummary[]>(nullableText(row, "matches_json") ?? "[]", []);
+
+    return {
+      tournamentId,
+      tournamentName: text(row, "tournament_name"),
+      startsAt: nullableText(row, "starts_at"),
+      status: text(row, "status") as TournamentLifecycleStatus,
+      isCurrent: tournamentId === currentTournamentId,
+      stats: parseJson<PlayerStatsSummary>(nullableText(row, "summary_json") ?? "{}", emptyPlayerStats()),
+      matches: this.hydrateProfileMatchSummaries(tournamentId, matches),
+    };
+  }
+
+  private getPlayerTagByTargetAndText(playerId: string, normalizedText: string): PlayerTagView | undefined {
+    const row = this.database
+      .prepare(
+        `
+          SELECT
+            tags.*,
+            p.display_name AS target_name,
+            u.nickname AS created_by_nickname
+          FROM tags
+          JOIN players p ON p.id = tags.target_id
+          JOIN app_users u ON u.id = tags.created_by
+          WHERE tags.target_type = 'player'
+            AND tags.target_id = ?
+            AND tags.normalized_text = ?
+          ORDER BY
+            CASE tags.status
+              WHEN 'approved' THEN 0
+              WHEN 'pending_review' THEN 1
+              WHEN 'hidden' THEN 2
+              ELSE 3
+            END,
+            tags.like_count DESC,
+            tags.created_at ASC
+          LIMIT 1
+        `,
+      )
+      .get(playerId, normalizedText);
+
+    return row === undefined ? undefined : this.mapPlayerTag(row);
+  }
+
+  private getPlayerTagById(tagId: string): PlayerTagView | undefined {
+    const row = this.database
+      .prepare(
+        `
+          SELECT
+            tags.*,
+            p.display_name AS target_name,
+            u.nickname AS created_by_nickname
+          FROM tags
+          JOIN players p ON p.id = tags.target_id
+          JOIN app_users u ON u.id = tags.created_by
+          WHERE tags.id = ? AND tags.target_type = 'player'
+          LIMIT 1
+        `,
+      )
+      .get(tagId);
+
+    return row === undefined ? undefined : this.mapPlayerTag(row);
+  }
+
+  private listPlayerTagsByPlayerIds(playerIds: string[]): Map<string, PlayerTagView[]> {
+    if (playerIds.length === 0) {
+      return new Map<string, PlayerTagView[]>();
+    }
+
+    const placeholders = playerIds.map(() => "?").join(", ");
+    const rows = this.database
+      .prepare(
+        `
+          SELECT
+            tags.*,
+            p.display_name AS target_name,
+            u.nickname AS created_by_nickname
+          FROM tags
+          JOIN players p ON p.id = tags.target_id
+          JOIN app_users u ON u.id = tags.created_by
+          WHERE tags.target_type = 'player'
+            AND tags.target_id IN (${placeholders})
+          ORDER BY
+            CASE tags.status
+              WHEN 'pending_review' THEN 0
+              WHEN 'approved' THEN 1
+              WHEN 'hidden' THEN 2
+              ELSE 3
+            END,
+            tags.created_at DESC
+        `,
+      )
+      .all(...playerIds)
+      .map((row) => this.mapPlayerTag(row));
+
+    return rows.reduce((map, tag) => {
+      const tags = map.get(tag.targetId) ?? [];
+      tags.push(tag);
+      map.set(tag.targetId, tags);
+      return map;
+    }, new Map<string, PlayerTagView[]>());
+  }
+
+  private listPlayerTournamentIds(playerId: string): string[] {
+    return this.database
+      .prepare(
+        `
+          SELECT tournament_id
+          FROM tournament_players
+          WHERE player_id = ?
+          ORDER BY updated_at DESC, tournament_id ASC
+        `,
+      )
+      .all(playerId)
+      .map((row) => text(row, "tournament_id"));
+  }
+
+  private ensureAdminTagUser(actor: string): string {
+    const userId = "admin_tag_manager";
+    this.database
+      .prepare(
+        `
+          INSERT OR IGNORE INTO app_users (id, nickname, role)
+          VALUES (?, ?, 'admin')
+        `,
+      )
+      .run(userId, actor);
+
+    return userId;
+  }
+
+  private enforcePlayerTagRateLimit(playerId: string, userId: string): void {
+    const now = Date.now();
+    const minuteCutoff = new Date(now - 60_000).toISOString();
+    const dayCutoff = new Date(now - 24 * 60 * 60_000).toISOString();
+    const minuteCount = numberValue(
+      this.database
+        .prepare(
+          `
+            SELECT COUNT(*) AS count
+            FROM tags
+            WHERE target_type = 'player'
+              AND target_id = ?
+              AND created_by = ?
+              AND created_at >= ?
+          `,
+        )
+        .get(playerId, userId, minuteCutoff) ?? {},
+      "count",
+    );
+    const dayCount = numberValue(
+      this.database
+        .prepare(
+          `
+            SELECT COUNT(*) AS count
+            FROM tags
+            WHERE target_type = 'player'
+              AND target_id = ?
+              AND created_by = ?
+              AND created_at >= ?
+          `,
+        )
+        .get(playerId, userId, dayCutoff) ?? {},
+      "count",
+    );
+
+    if (minuteCount >= 3) {
+      throw new Error("tag submission is too frequent; please try again later");
+    }
+
+    if (dayCount >= 30) {
+      throw new Error("daily tag submission limit reached");
+    }
+  }
+
+  private requireAppUser(userId: string): void {
+    const user = this.database.prepare("SELECT id FROM app_users WHERE id = ?").get(userId);
+
+    if (user === undefined) {
+      throw new Error("app user not found");
+    }
+  }
+
+  private incrementTagLikeCount(tagId: string, delta: 1 | -1): void {
+    this.database
+      .prepare(
+        `
+          UPDATE tags
+          SET
+            like_count = max(0, like_count + ?),
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(delta, tagId);
+  }
+
+  private mapPlayerTag(row: DbRow): PlayerTagView {
+    return {
+      id: text(row, "id"),
+      tournamentId: text(row, "tournament_id"),
+      targetType: "player",
+      targetId: text(row, "target_id"),
+      targetName: text(row, "target_name"),
+      text: text(row, "display_text"),
+      normalizedText: text(row, "normalized_text"),
+      likeCount: numberValue(row, "like_count"),
+      sizeLevel: tagSizeLevel(numberValue(row, "like_count")),
+      status: text(row, "status") as PlayerTagStatus,
+      reviewReason: nullableText(row, "review_reason"),
+      reviewedBy: nullableText(row, "reviewed_by"),
+      reviewedAt: nullableText(row, "reviewed_at"),
+      createdBy: {
+        id: text(row, "created_by"),
+        nickname: text(row, "created_by_nickname"),
+      },
+      createdAt: text(row, "created_at"),
+      updatedAt: text(row, "updated_at"),
     };
   }
 
@@ -4791,7 +5785,7 @@ export class SqliteTournamentRepository {
       .prepare("SELECT matches_json FROM tournament_player_stats WHERE tournament_id = ? AND player_id = ?")
       .get(tournamentId, playerId);
 
-    return row === undefined ? [] : parseJson<ProfileMatchSummary[]>(text(row, "matches_json"), []);
+    return row === undefined ? [] : this.hydrateProfileMatchSummaries(tournamentId, parseJson<ProfileMatchSummary[]>(text(row, "matches_json"), []));
   }
 
   private getTeamStatsSnapshot(tournamentId: string, teamId: string): TeamStatsSummary {
@@ -4807,7 +5801,7 @@ export class SqliteTournamentRepository {
       .prepare("SELECT matches_json FROM tournament_team_stats WHERE tournament_id = ? AND team_id = ?")
       .get(tournamentId, teamId);
 
-    return row === undefined ? [] : parseJson<ProfileMatchSummary[]>(text(row, "matches_json"), []);
+    return row === undefined ? [] : this.hydrateProfileMatchSummaries(tournamentId, parseJson<ProfileMatchSummary[]>(text(row, "matches_json"), []));
   }
 
   private getTeamIdByOpenDotaTeamId(opendotaTeamId: number): string | null {
@@ -5224,11 +6218,39 @@ export class SqliteTournamentRepository {
       radiantWin,
       side,
       heroId: typeof player?.hero_id === "number" ? player.hero_id : null,
+      ...profileMatchVisualSummary(rawMatch),
       kills: typeof player?.kills === "number" ? player.kills : null,
       deaths: typeof player?.deaths === "number" ? player.deaths : null,
       assists: typeof player?.assists === "number" ? player.assists : null,
       result: didWin === null ? "unknown" : didWin ? "win" : "loss",
     };
+  }
+
+  private hydrateProfileMatchSummaries(tournamentId: string, matches: ProfileMatchSummary[]): ProfileMatchSummary[] {
+    if (matches.length === 0) {
+      return matches;
+    }
+
+    const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
+
+    if (target === undefined) {
+      return matches;
+    }
+
+    const rawMatches = new Map(this.matchRowsForLeague(target.league.opendotaLeagueId).map((match) => [match.raw.match_id, match.raw]));
+
+    return matches.map((match) => {
+      const rawMatch = rawMatches.get(match.matchId);
+
+      if (rawMatch === undefined) {
+        return withProfileMatchVisualDefaults(match);
+      }
+
+      return {
+        ...withProfileMatchVisualDefaults(match),
+        ...profileMatchVisualSummary(rawMatch),
+      };
+    });
   }
 
   private calculateTeamStats(tournamentId: string, teamId: string): TeamStatsSummary {
@@ -6698,6 +7720,14 @@ function requiredPositiveInteger(value: number | undefined, fieldName: string): 
   return value;
 }
 
+function requiredInteger(value: number | undefined, fieldName: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+    throw new Error(`${fieldName} must be an integer`);
+  }
+
+  return value;
+}
+
 function positiveIntegerFromUnknown(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
@@ -6847,6 +7877,32 @@ function summarizeHeroLineups(players: OpenDotaMatchPlayer[]): Record<TeamSide, 
   return lineups;
 }
 
+function profileMatchVisualSummary(rawMatch: OpenDotaMatchDetail): Pick<ProfileMatchSummary, "playerCount" | "heroLineups" | "hasDraft" | "hasVision" | "hasChat"> {
+  const players = rawMatch.players ?? [];
+
+  return {
+    playerCount: players.length,
+    heroLineups: summarizeHeroLineups(players),
+    hasDraft: Array.isArray(rawMatch.picks_bans) && rawMatch.picks_bans.length > 0,
+    hasVision: players.some((player) => (player.obs_log?.length ?? 0) > 0 || (player.sen_log?.length ?? 0) > 0),
+    hasChat: Array.isArray(rawMatch.chat) && rawMatch.chat.length > 0,
+  };
+}
+
+function withProfileMatchVisualDefaults(match: ProfileMatchSummary): ProfileMatchSummary {
+  return {
+    ...match,
+    playerCount: match.playerCount ?? 0,
+    heroLineups: {
+      radiant: match.heroLineups?.radiant ?? [],
+      dire: match.heroLineups?.dire ?? [],
+    },
+    hasDraft: Boolean(match.hasDraft),
+    hasVision: Boolean(match.hasVision),
+    hasChat: Boolean(match.hasChat),
+  };
+}
+
 function playerWon(rawMatch: OpenDotaMatchDetail, side: TeamSide): boolean | null {
   if (typeof rawMatch.radiant_win !== "boolean") {
     return null;
@@ -6935,6 +7991,64 @@ function round2(value: number): number {
 
 function average(total: number, count: number): number | null {
   return count > 0 ? round1(total / count) : null;
+}
+
+const PLAYER_TAG_STATUSES: PlayerTagStatus[] = ["pending_review", "approved", "rejected", "hidden"];
+
+function countPlayerTags(tags: PlayerTagView[]): Record<PlayerTagStatus, number> {
+  return tags.reduce(
+    (counts, tag) => {
+      counts[tag.status] += 1;
+      return counts;
+    },
+    {
+      pending_review: 0,
+      approved: 0,
+      rejected: 0,
+      hidden: 0,
+    } satisfies Record<PlayerTagStatus, number>,
+  );
+}
+
+function normalizePlayerTagInput(value: string): { displayText: string; normalizedText: string } {
+  const displayText = requiredString(value, "text")
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .trim();
+  const charCount = Array.from(displayText).length;
+  const isChineseOnly = /^[\p{Script=Han}]+$/u.test(displayText);
+  const maxLength = isChineseOnly ? 8 : 16;
+
+  if (charCount < 2 || charCount > maxLength) {
+    throw new Error(isChineseOnly ? "tag text must be 2 to 8 Chinese characters" : "tag text must be 2 to 16 characters");
+  }
+
+  if (!/^[\p{Script=Han}\p{Letter}\p{Number} _+#.-]+$/u.test(displayText)) {
+    throw new Error("tag text contains unsupported characters");
+  }
+
+  const normalizedText = displayText.toLocaleLowerCase("zh-CN");
+
+  return {
+    displayText,
+    normalizedText,
+  };
+}
+
+function normalizePlayerTagStatus(value: string): PlayerTagStatus {
+  if (!PLAYER_TAG_STATUSES.includes(value as PlayerTagStatus)) {
+    throw new Error("status must be pending_review, approved, rejected, or hidden");
+  }
+
+  return value as PlayerTagStatus;
+}
+
+function tagSizeLevel(likeCount: number): number {
+  if (likeCount >= 50) return 5;
+  if (likeCount >= 20) return 4;
+  if (likeCount >= 8) return 3;
+  if (likeCount >= 2) return 2;
+  return 1;
 }
 
 function defaultAdvancementRule(type: CreateStageInput["type"]): string {

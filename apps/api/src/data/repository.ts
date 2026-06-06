@@ -1,5 +1,7 @@
 import {
   SqliteTournamentRepository,
+  type AdminCreatePlayerTagInput,
+  type AdminTagPlayerItem,
   type CreateRoundInput,
   type CreateSeriesInput,
   type CreateStageInput,
@@ -8,12 +10,19 @@ import {
   type CreateTeamInput,
   type CreatePlayerInput,
   type CreateTournamentInput,
+  type DeletePlayerTagInput,
   type LeagueSyncTarget,
   type LinkOpenDotaMatchInput,
+  type LikePlayerTagInput,
+  type ListAdminTagPlayersInput,
+  type ListAdminTagsInput,
   type OpenDotaMatchListItem,
   type LeagueOption,
   type OpenDotaMatchCache,
+  type PlayerTagView,
+  type ReviewPlayerTagInput,
   type RunningLeagueSyncTarget,
+  type SubmitPlayerTagInput,
   type SyncTaskView,
   type TournamentPlayerDetail,
   type TournamentPlayerListItem,
@@ -25,6 +34,7 @@ import {
   type AddTeamMemberInput,
   type AdvanceBracketNodeInput,
   type AddStageGroupTeamInput,
+  type AdjustPlayerTagLikesInput,
   type ClearTournamentMatchRecordsResult,
   type ClearTournamentScheduleRecordsResult,
   type CreateStageGroupInput,
@@ -81,6 +91,16 @@ type Repository = {
   listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
   getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined;
   getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined;
+  listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined;
+  submitPlayerTag(tournamentId: string, playerId: string, input: SubmitPlayerTagInput): PlayerTagView;
+  likePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView;
+  unlikePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView;
+  adjustPlayerTagLikes(tagId: string, input: AdjustPlayerTagLikesInput): PlayerTagView;
+  listAdminTagPlayers(input?: ListAdminTagPlayersInput): AdminTagPlayerItem[];
+  createAdminPlayerTag(tournamentId: string, playerId: string, input: AdminCreatePlayerTagInput): PlayerTagView;
+  listAdminTags(input?: ListAdminTagsInput): PlayerTagView[];
+  updatePlayerTagReview(tagId: string, input: ReviewPlayerTagInput): PlayerTagView;
+  deletePlayerTag(tagId: string, input?: DeletePlayerTagInput): { deleted: true; tagId: string };
   getOfficialScheduleManagement(tournamentId: string): OfficialScheduleManagement | undefined;
   getOfficialSchedulePublicStatus(tournamentId: string): OfficialSchedulePublicStatus | undefined;
   updateOfficialScheduleConfig(tournamentId: string, input: UpdateOfficialScheduleConfigInput): OfficialScheduleManagement;
@@ -196,6 +216,46 @@ export function getTournamentTeamDetail(tournamentId: string, teamId: string) {
 
 export function getTournamentPlayerDetail(tournamentId: string, playerId: string) {
   return repository.getTournamentPlayerDetail(tournamentId, playerId);
+}
+
+export function listPlayerTags(tournamentId: string, playerId: string) {
+  return repository.listPlayerTags(tournamentId, playerId);
+}
+
+export function submitPlayerTag(tournamentId: string, playerId: string, input: SubmitPlayerTagInput) {
+  return repository.submitPlayerTag(tournamentId, playerId, input);
+}
+
+export function likePlayerTag(tagId: string, input: LikePlayerTagInput) {
+  return repository.likePlayerTag(tagId, input);
+}
+
+export function unlikePlayerTag(tagId: string, input: LikePlayerTagInput) {
+  return repository.unlikePlayerTag(tagId, input);
+}
+
+export function adjustPlayerTagLikes(tagId: string, input: AdjustPlayerTagLikesInput) {
+  return repository.adjustPlayerTagLikes(tagId, input);
+}
+
+export function listAdminTagPlayers(input?: ListAdminTagPlayersInput) {
+  return repository.listAdminTagPlayers(input);
+}
+
+export function createAdminPlayerTag(tournamentId: string, playerId: string, input: AdminCreatePlayerTagInput) {
+  return repository.createAdminPlayerTag(tournamentId, playerId, input);
+}
+
+export function listAdminTags(input?: ListAdminTagsInput) {
+  return repository.listAdminTags(input);
+}
+
+export function updatePlayerTagReview(tagId: string, input: ReviewPlayerTagInput) {
+  return repository.updatePlayerTagReview(tagId, input);
+}
+
+export function deletePlayerTag(tagId: string, input?: DeletePlayerTagInput) {
+  return repository.deletePlayerTag(tagId, input);
 }
 
 export function getOfficialScheduleManagement(tournamentId: string) {

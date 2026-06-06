@@ -315,18 +315,25 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 | 表 | 关键字段 |
 | --- | --- |
-| `social_tags` | id, target_type, target_id, normalized_text, display_text, created_by_user_id, like_count, status, hidden_reason, created_at, updated_at |
-| `social_tag_likes` | id, tag_id, user_id, created_at |
-| `social_tag_reports` | id, tag_id, user_id, reason, status, created_at |
+| `tags` | id, tournament_id, target_type, target_id, normalized_text, display_text, created_by, like_count, status, review_reason, reviewed_by, reviewed_at, created_at, updated_at |
+| `tag_likes` | tag_id, user_id, created_at |
+| `tag_reports` | id, tag_id, reporter_user_id, reason, status, created_at, updated_at |
+| `tag_audit_logs` | id, tag_id, actor, action, from_status, to_status, reason, created_at |
 
 设计规则：
 
-- `target_type` 取值为 `player` 或 `team`。
+- 首个收束版本只开放选手标签，`target_type = player`；队伍标签保留为后续扩展。
+- H5 只读展示 `approved` 选手标签，可播放本地应援反馈，但不调用真实点赞接口、不修改 `like_count`。
+- 小程序登录用户可提交选手标签，提交后默认 `pending_review`，管理员通过后才公开展示。
+- 小程序登录用户可点赞或取消点赞已审核通过的标签，点赞不需要审核。
 - `normalized_text` 用于去重，建议统一 trim、全角半角归一、大小写归一。
-- 同一 `target_type + target_id + normalized_text` 只能存在一条可见标签。
-- 同一 `tag_id + user_id` 只能点赞一次，取消点赞删除或软删除点赞记录。
-- `like_count` 作为冗余计数字段，点赞/取消点赞时事务更新。
-- `status` 取值建议为 `active`、`hidden`、`pending_review`。
+- 选手标签按 `target_id + normalized_text` 跨届去重，`tournament_id` 只记录提交来源届次和支持后台筛选。
+- Web Admin 标签管理以选手为工作对象，默认列出数据库全部选手，可按届次筛选，并在选中选手后读取其跨届全部标签和状态计数。
+- Web Admin 可为了测试或运营纠偏直接新增选手标签，仍复用选手身份级去重和审计日志规则。
+- Web Admin 可为了本地测试或运营纠偏直接增减 `like_count`，后端必须保证结果不小于 0，并写入标签审计日志。
+- `status` 取值为 `pending_review`、`approved`、`rejected`、`hidden`。
+- 拒绝、隐藏、恢复或通过标签时写入 `tag_audit_logs`。
+- `like_count` 作为冗余计数字段，小程序点赞 / 取消点赞时事务更新。
 - 标签展示大小由后端或前端根据 `like_count` 计算，建议限制在 12 到 28px。
 
 ## 6. API 设计
@@ -394,14 +401,13 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | GET | `/api/matches/:matchId` | 比赛详情 |
 | GET | `/api/players` | 选手列表 |
 | GET | `/api/players/:id` | 选手详情，限定联赛数据 |
-| GET | `/api/players/:id/tags` | 获取选手标签云 |
-| POST | `/api/players/:id/tags` | 登录用户给选手添加标签 |
+| GET | `/api/tournaments/:id/players/:playerId` | 当前入口届次选手详情，包含跨届参赛历史 |
+| GET | `/api/tournaments/:id/players/:playerId/tags` | 获取已审核通过的选手标签云 |
+| POST | `/api/miniprogram/tournaments/:id/players/:playerId/tags` | 小程序登录用户提交选手标签，默认待审核 |
+| POST | `/api/miniprogram/tags/:tagId/like` | 小程序登录用户点赞已通过标签 |
+| DELETE | `/api/miniprogram/tags/:tagId/like` | 小程序登录用户取消点赞 |
 | GET | `/api/teams` | 队伍列表 |
 | GET | `/api/teams/:id` | 队伍详情 |
-| GET | `/api/teams/:id/tags` | 获取队伍标签云 |
-| POST | `/api/teams/:id/tags` | 登录用户给队伍添加标签 |
-| POST | `/api/tags/:tagId/like` | 登录用户点赞标签 |
-| DELETE | `/api/tags/:tagId/like` | 登录用户取消点赞 |
 
 ### 6.4 互动标签接口规则
 
@@ -429,12 +435,14 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 规则：
 
-- 只有登录用户可以添加标签和点赞。
+- 只有小程序登录用户可以提交标签和真实点赞；H5 只能读取已通过审核的标签并播放本地应援反馈。
+- 提交新标签需要管理员审核，点赞已有已通过标签不需要审核。
 - 标签长度建议限制为 2 到 8 个中文字符或 2 到 16 个英文字符。
-- 单用户对同一目标添加标签需要频控，例如每分钟最多 3 个、每天最多 30 个。
-- 重复标签不新建，直接返回已有标签；如果用户意图表达认可，前端引导点赞。
+- 单用户对同一选手身份添加标签需要频控，例如每分钟最多 3 个、每天最多 30 个。
+- 同一选手身份下重复标签不新建，直接返回已有标签及其审核状态。
+- 同一 `tag_id + user_id` 只能点赞一次，取消点赞删除点赞记录。
 - `sizeLevel` 可按点赞数分为 1 到 5 档，前端用档位控制字号和视觉权重。
-- 被隐藏或待审核标签不向普通用户展示。
+- 被拒绝、隐藏或待审核标签不向普通用户展示。
 
 ### 6.5 管理端 API
 
@@ -473,7 +481,11 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | PATCH | `/api/admin/league-sync-configs/:id` | 修改同步频率、启停、自动解析策略 |
 | POST | `/api/admin/sync-jobs/:id/retry` | 重试失败同步任务 |
 | GET | `/api/admin/tags` | 标签列表与审核筛选 |
+| GET | `/api/admin/tag-players` | 全部选手或按届次筛选的跨届标签工作台数据 |
+| POST | `/api/admin/tournaments/:id/players/:playerId/tags` | 管理员为选手新增测试 / 纠偏标签 |
 | PATCH | `/api/admin/tags/:tagId` | 隐藏、恢复或修改标签状态 |
+| POST | `/api/admin/tags/:tagId/likes/adjust` | 管理员为测试或运营纠偏增减标签点赞数 |
+| DELETE | `/api/admin/tags/:tagId` | 管理员删除测试或误建标签 |
 | GET | `/api/admin/sync-jobs` | 同步任务列表 |
 | GET | `/api/admin/audit-logs` | 审计日志 |
 

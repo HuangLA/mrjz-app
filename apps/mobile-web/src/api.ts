@@ -11,7 +11,9 @@ import type {
   OfficialScheduleStatus,
   PlayerDirectoryItem,
   PlayerProfile,
+  PlayerTag,
   PlayerStats,
+  PlayerTournamentHistoryEntry,
   ProfileMatchSummary,
   ProfileStatsSummary,
   ScheduleGroup,
@@ -133,6 +135,15 @@ type ApiProfileMatchSummary = {
   direTeamName?: string;
   radiantScore?: number | null;
   direScore?: number | null;
+  radiantWin?: boolean | null;
+  playerCount?: number;
+  heroLineups?: {
+    radiant?: ApiMatchRecordHero[];
+    dire?: ApiMatchRecordHero[];
+  };
+  hasDraft?: boolean;
+  hasVision?: boolean;
+  hasChat?: boolean;
   side?: TeamSide | null;
   heroId?: number | null;
   kills?: number | null;
@@ -144,6 +155,25 @@ type ApiProfileMatchSummary = {
 type ApiPlayerProfile = ApiPlayerDirectoryItem & {
   tournamentId?: string;
   matches?: ApiProfileMatchSummary[];
+  tournamentHistory?: ApiPlayerTournamentHistoryEntry[];
+};
+
+type ApiPlayerTournamentHistoryEntry = {
+  tournamentId?: string;
+  tournamentName?: string;
+  startsAt?: string | null;
+  status?: string;
+  isCurrent?: boolean;
+  stats?: ApiPlayerStatsSummary;
+  matches?: ApiProfileMatchSummary[];
+};
+
+type ApiPlayerTag = {
+  id?: string;
+  text?: string;
+  likeCount?: number;
+  sizeLevel?: number;
+  createdAt?: string;
 };
 
 type ApiTeamProfile = ApiTeamDirectoryItem & {
@@ -655,15 +685,19 @@ export async function loadPlayerProfile(
   tournamentId: string,
   playerId: string,
 ): Promise<PlayerProfile> {
-  const [profile] = await Promise.all([
+  const [profile, tags] = await Promise.all([
     fetchApi<ApiPlayerProfile>(
       apiBaseUrl,
       `/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}`,
     ),
+    fetchApi<ApiPlayerTag[]>(
+      apiBaseUrl,
+      `/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}/tags`,
+    ).catch(() => []),
     loadDotaConstants(),
   ]);
 
-  return normalizePlayerProfile(profile, apiBaseUrl);
+  return normalizePlayerProfile(profile, tags, apiBaseUrl);
 }
 
 export async function loadTeamProfile(apiBaseUrl: string, tournamentId: string, teamId: string): Promise<TeamProfile> {
@@ -1013,19 +1047,84 @@ function normalizeProfileMatch(match: ApiProfileMatchSummary): ProfileMatchSumma
     radiantTeamName: match.radiantTeamName ?? "天辉",
     direTeamName: match.direTeamName ?? "夜魇",
     score,
+    radiantScore: match.radiantScore ?? null,
+    direScore: match.direScore ?? null,
+    radiantWin: match.radiantWin ?? null,
     side: match.side ?? null,
     hero: heroId === null ? null : heroLabel(heroId),
     heroPortrait: heroId === null ? null : heroPortrait(heroId),
+    playerCount: match.playerCount ?? 0,
+    heroLineups: {
+      radiant: normalizeRecordHeroLineup(match.heroLineups?.radiant),
+      dire: normalizeRecordHeroLineup(match.heroLineups?.dire),
+    },
+    hasDraft: Boolean(match.hasDraft),
+    hasVision: Boolean(match.hasVision),
+    hasChat: Boolean(match.hasChat),
     kda,
     result: match.result ?? "unknown",
   };
 }
 
-function normalizePlayerProfile(profile: ApiPlayerProfile, apiBaseUrl?: string): PlayerProfile {
+function normalizePlayerProfile(profile: ApiPlayerProfile, tags: ApiPlayerTag[] = [], apiBaseUrl?: string): PlayerProfile {
+  const tournamentId = profile.tournamentId ?? "";
+  const matches = (profile.matches ?? []).map(normalizeProfileMatch);
+  const tournamentHistory = (profile.tournamentHistory ?? [])
+    .map((entry) => normalizePlayerTournamentHistoryEntry(entry, tournamentId))
+    .filter(isDefined);
+
   return {
     ...normalizePlayerDirectoryItem(profile, apiBaseUrl),
-    tournamentId: profile.tournamentId ?? "",
-    matches: (profile.matches ?? []).map(normalizeProfileMatch),
+    tournamentId,
+    matches,
+    tournamentHistory:
+      tournamentHistory.length > 0
+        ? tournamentHistory
+        : [
+            {
+              tournamentId,
+              tournamentName: "本届赛事",
+              startsAt: "时间待定",
+              status: "",
+              isCurrent: true,
+              stats: normalizeProfileStats(profile.stats),
+              matches,
+            },
+          ],
+    tags: tags.map(normalizePlayerTag).filter(isDefined),
+  };
+}
+
+function normalizePlayerTournamentHistoryEntry(
+  entry: ApiPlayerTournamentHistoryEntry,
+  currentTournamentId: string,
+): PlayerTournamentHistoryEntry | undefined {
+  if (typeof entry.tournamentId !== "string" || entry.tournamentId.trim().length === 0) {
+    return undefined;
+  }
+
+  return {
+    tournamentId: entry.tournamentId,
+    tournamentName: entry.tournamentName ?? "未命名赛事",
+    startsAt: formatMaybeDateTime(entry.startsAt) ?? "时间待定",
+    status: entry.status ?? "",
+    isCurrent: entry.isCurrent ?? entry.tournamentId === currentTournamentId,
+    stats: normalizeProfileStats(entry.stats),
+    matches: (entry.matches ?? []).map(normalizeProfileMatch),
+  };
+}
+
+function normalizePlayerTag(tag: ApiPlayerTag): PlayerTag | undefined {
+  if (typeof tag.id !== "string" || typeof tag.text !== "string" || tag.text.trim().length === 0) {
+    return undefined;
+  }
+
+  return {
+    id: tag.id,
+    text: tag.text.trim(),
+    likeCount: clampNumber(tag.likeCount, 0, 999999, 0),
+    sizeLevel: clampNumber(tag.sizeLevel, 1, 5, 1),
+    createdAt: shortDateTime(tag.createdAt),
   };
 }
 
@@ -2009,6 +2108,10 @@ function formatMaybeDateTime(value: string | null | undefined): string | null {
     2,
     "0",
   )} ${formatTime(date)}`;
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 }
 
 function isApiResult<T>(value: ApiResult<T> | T): value is ApiResult<T> {

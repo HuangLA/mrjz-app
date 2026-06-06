@@ -33,6 +33,7 @@ import {
   ListRestart,
   Loader2,
   Lock,
+  Minus,
   MousePointer2,
   Play,
   Plus,
@@ -52,9 +53,12 @@ import {
   apiBaseUrl,
   getJson,
   sendAdminRequest,
+  type AdminTagPlayerItem,
   type BracketNode,
   type OfficialScheduleManagement,
   type OpenDotaMatchListItem,
+  type PlayerTagModerationItem,
+  type PlayerTagStatus,
   type PlayerBrief,
   type RoundBrief,
   type SeriesSummary,
@@ -71,7 +75,7 @@ import {
   type TournamentTeamListItem,
 } from "./api";
 
-type ViewKey = "tournament" | "teams" | "matches" | "sync";
+type ViewKey = "tournament" | "teams" | "matches" | "tags" | "sync";
 type RequestMethod = "POST" | "PATCH" | "DELETE";
 type CompetitionMode = "single_elimination" | "double_elimination";
 type RosterDropTarget = "pool" | "entrant" | "seeded";
@@ -110,6 +114,8 @@ interface AdminData {
   teams: TournamentTeamListItem[];
   players: TournamentPlayerListItem[];
   matches: OpenDotaMatchListItem[];
+  tags: PlayerTagModerationItem[];
+  tagPlayers: AdminTagPlayerItem[];
   rounds: StageRound[];
   standings: StandingRow[];
   bracket: BracketNode[];
@@ -175,6 +181,8 @@ const initialData: AdminData = {
   teams: [],
   players: [],
   matches: [],
+  tags: [],
+  tagPlayers: [],
   rounds: [],
   standings: [],
   bracket: [],
@@ -260,6 +268,7 @@ const navItems: Array<{ key: ViewKey; label: string; hint: string; icon: React.C
   { key: "tournament", label: "赛事管理", hint: "名单、赛制、阶段、对阵", icon: GitBranch },
   { key: "teams", label: "战队与选手", hint: "队伍资料、成员池", icon: Users },
   { key: "matches", label: "比赛结果库", hint: "OpenDota 与赛果", icon: ClipboardCheck },
+  { key: "tags", label: "标签审核", hint: "待审、隐藏、恢复", icon: ShieldCheck },
   { key: "sync", label: "同步任务", hint: "发现、解析、重试", icon: RefreshCw },
 ];
 
@@ -287,6 +296,10 @@ function App() {
   const availableTeams = data.schedule?.rosterLocked && data.schedule.teams.length > 0
     ? data.schedule.teams.map((item) => item.team)
     : data.teams;
+  const pendingTagCount = useMemo(
+    () => data.tagPlayers.reduce((sum, player) => sum + player.tagCounts.pending_review, 0),
+    [data.tagPlayers],
+  );
   const selectedKnockoutEntrantIds = useMemo(
     () => selectedStage?.type === "knockout" ? stageConfigStringList(selectedStage, "teamIds") : [],
     [selectedStage],
@@ -357,10 +370,12 @@ function App() {
 
       const detail = await getJson<TournamentDetail>(`/tournaments/${encodeURIComponent(selectedTournamentId)}`);
       const selectedStageId = chooseStageId(detail, preferredStageId);
-      const [teams, players, matches, schedule, stageData] = await Promise.all([
+      const [teams, players, matches, tags, tagPlayers, schedule, stageData] = await Promise.all([
         getJson<TournamentTeamListItem[]>(`/tournaments/${encodeURIComponent(selectedTournamentId)}/teams`).catch(() => []),
         getJson<TournamentPlayerListItem[]>(`/tournaments/${encodeURIComponent(selectedTournamentId)}/players`).catch(() => []),
         getJson<OpenDotaMatchListItem[]>(`/tournaments/${encodeURIComponent(selectedTournamentId)}/matches?limit=300`).catch(() => []),
+        getJson<PlayerTagModerationItem[]>(`/admin/tags?tournamentId=${encodeURIComponent(selectedTournamentId)}`).catch(() => []),
+        getJson<AdminTagPlayerItem[]>("/admin/tag-players").catch(() => []),
         getJson<OfficialScheduleManagement>(`/tournaments/${encodeURIComponent(selectedTournamentId)}/schedule-management`).catch(() => null),
         loadStageData(selectedStageId),
       ]);
@@ -406,6 +421,8 @@ function App() {
         teams,
         players,
         matches,
+        tags,
+        tagPlayers,
         schedule,
         syncTasks,
         ...stageData,
@@ -1193,7 +1210,7 @@ function App() {
           <nav className="nav-stack">
             {navItems.map((item) => {
               const Icon = item.icon;
-              return <button key={item.key} className={activeView === item.key ? "nav-row is-active" : "nav-row"} type="button" onClick={() => switchView(item.key)}><Icon size={18} /><span><strong>{item.label}</strong><small>{item.hint}</small></span></button>;
+              return <button key={item.key} className={activeView === item.key ? "nav-row is-active" : "nav-row"} type="button" onClick={() => switchView(item.key)}><Icon size={18} /><span><strong>{item.label}</strong><small>{item.hint}</small></span>{item.key === "tags" && pendingTagCount > 0 ? <b className="nav-alert-count">{pendingTagCount}</b> : null}</button>;
             })}
           </nav>
         </aside>
@@ -1271,6 +1288,8 @@ function App() {
             />
           ) : activeView === "teams" ? (
             <TeamManagementView data={data} reload={() => load(data.selectedTournamentId, data.selectedStageId)} setNotice={setNotice} />
+          ) : activeView === "tags" ? (
+            <TagModerationView data={data} reload={() => load(data.selectedTournamentId, data.selectedStageId)} setNotice={setNotice} />
           ) : <SupportView activeView={activeView} data={data} />}
         </main>
       </div>
@@ -6399,6 +6418,385 @@ function SeriesGameLinker({ series, allSeries, defaultOpen, updateSeriesGameMatc
   );
 }
 
+type TagPlayerFilter = PlayerTagStatus | "needs_review" | "untagged" | "all";
+
+function TagModerationView({ data, reload, setNotice }: { data: AdminData; reload: () => Promise<void>; setNotice: React.Dispatch<React.SetStateAction<{ tone: Tone; text: string } | null>> }) {
+  const [statusFilter, setStatusFilter] = useState<TagPlayerFilter>("needs_review");
+  const [tournamentFilter, setTournamentFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [selectedPlayerId, setSelectedPlayerId] = useState("");
+  const [createDraft, setCreateDraft] = useState<{ text: string; status: PlayerTagStatus }>({ text: "", status: "approved" });
+  const fallbackPlayers = useMemo<AdminTagPlayerItem[]>(
+    () =>
+      data.players.map((player) => ({
+        ...player,
+        tournamentIds: [data.selectedTournamentId].filter(Boolean),
+        tags: [],
+        tagCounts: { pending_review: 0, approved: 0, rejected: 0, hidden: 0 },
+      })),
+    [data.players, data.selectedTournamentId],
+  );
+  const players = data.tagPlayers.length > 0 ? data.tagPlayers : fallbackPlayers;
+  const tournamentScopedPlayers = useMemo(
+    () => players.filter((player) => tournamentFilter === "all" || player.tournamentIds.includes(tournamentFilter)),
+    [players, tournamentFilter],
+  );
+  const metrics = useMemo(() => getTagWorkspaceMetrics(tournamentScopedPlayers), [tournamentScopedPlayers]);
+  const teamOptions = useMemo(() => getTagTeamOptions(tournamentScopedPlayers), [tournamentScopedPlayers]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredPlayers = useMemo(
+    () =>
+      tournamentScopedPlayers
+        .filter((player) => playerMatchesTagFilters(player, statusFilter, teamFilter, normalizedQuery))
+        .sort(compareTagPlayers),
+    [tournamentScopedPlayers, normalizedQuery, statusFilter, teamFilter],
+  );
+  const selectedPlayer = filteredPlayers.find((player) => player.id === selectedPlayerId) ?? filteredPlayers[0] ?? null;
+  const tagSections = selectedPlayer === null ? [] : groupTagsForAdmin(selectedPlayer.tags);
+
+  useEffect(() => {
+    if (selectedPlayer && selectedPlayer.id !== selectedPlayerId) {
+      setSelectedPlayerId(selectedPlayer.id);
+    }
+  }, [selectedPlayer, selectedPlayerId]);
+
+  const updateTagStatus = async (tag: PlayerTagModerationItem, status: PlayerTagStatus) => {
+    setNotice({ tone: "info", text: "标签审核处理中..." });
+    const result = await sendAdminRequest(`/admin/tags/${encodeURIComponent(tag.id)}`, "PATCH", {
+      status,
+      reviewReason: null,
+      actor: "admin",
+    });
+    setNotice({ tone: result.ok ? "good" : "warn", text: `标签审核：${result.message}` });
+    if (result.ok) {
+      await reload();
+    }
+  };
+
+  const deleteTag = async (tag: PlayerTagModerationItem) => {
+    if (!window.confirm(`确认删除标签「${tag.text}」？删除后不会在前端展示。`)) {
+      return;
+    }
+
+    setNotice({ tone: "info", text: "正在删除标签..." });
+    const result = await sendAdminRequest(`/admin/tags/${encodeURIComponent(tag.id)}`, "DELETE", { actor: "admin" });
+    setNotice({ tone: result.ok ? "good" : "warn", text: `删除标签：${result.message}` });
+    if (result.ok) {
+      await reload();
+    }
+  };
+
+  const adjustTagLikes = async (tag: PlayerTagModerationItem, delta: number) => {
+    setNotice({ tone: "info", text: "正在调整标签点赞数..." });
+    const result = await sendAdminRequest(`/admin/tags/${encodeURIComponent(tag.id)}/likes/adjust`, "POST", {
+      delta,
+      actor: "admin",
+    });
+    setNotice({ tone: result.ok ? "good" : "warn", text: `调整点赞数：${result.message}` });
+    if (result.ok) {
+      await reload();
+    }
+  };
+
+  const createTag = async (event: FormEvent) => {
+    event.preventDefault();
+    if (selectedPlayer === null) {
+      setNotice({ tone: "warn", text: "请先选择选手。" });
+      return;
+    }
+    const text = createDraft.text.trim();
+    if (!text) {
+      setNotice({ tone: "warn", text: "请输入标签文本。" });
+      return;
+    }
+    setNotice({ tone: "info", text: "正在新增测试标签..." });
+    const sourceTournamentId =
+      tournamentFilter !== "all"
+        ? tournamentFilter
+        : selectedPlayer.tournamentIds.includes(data.selectedTournamentId)
+          ? data.selectedTournamentId
+          : selectedPlayer.tournamentIds[0] ?? data.selectedTournamentId;
+    const result = await sendAdminRequest(
+      `/admin/tournaments/${encodeURIComponent(sourceTournamentId)}/players/${encodeURIComponent(selectedPlayer.id)}/tags`,
+      "POST",
+      { text, status: createDraft.status, actor: "admin" },
+    );
+    setNotice({ tone: result.ok ? "good" : "warn", text: `新增标签：${result.message}` });
+    if (result.ok) {
+      setCreateDraft((current) => ({ ...current, text: "" }));
+      await reload();
+    }
+  };
+
+  const filterOptions: Array<{ value: TagPlayerFilter; label: string; count: number }> = [
+    { value: "needs_review", label: "有待审", count: metrics.playersWithPending },
+    { value: "pending_review", label: "待审核标签", count: metrics.statusCounts.pending_review },
+    { value: "approved", label: "已通过", count: metrics.statusCounts.approved },
+    { value: "hidden", label: "已隐藏", count: metrics.statusCounts.hidden },
+    { value: "rejected", label: "已拒绝", count: metrics.statusCounts.rejected },
+    { value: "untagged", label: "无标签", count: metrics.playersWithoutTags },
+    { value: "all", label: "全部选手", count: tournamentScopedPlayers.length },
+  ];
+
+  return (
+    <section className="tag-admin-workspace tag-player-console">
+      <div className="tag-console-header">
+        <div>
+          <span>选手标签管理</span>
+          <h2>按选手处理标签</h2>
+          <p>默认列出数据库全部选手；选中后查看该选手跨届全部标签。待审标签会在队列和导航入口同步提醒。</p>
+        </div>
+        <div className="tag-admin-metrics">
+          <div className={metrics.statusCounts.pending_review > 0 ? "is-hot" : ""}><strong>{metrics.statusCounts.pending_review}</strong><span>待审核</span></div>
+          <div><strong>{metrics.playersWithTags}</strong><span>有标签选手</span></div>
+          <div><strong>{metrics.totalTags}</strong><span>全部标签</span></div>
+        </div>
+      </div>
+
+      <div className="tag-console-toolbar">
+        <label><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索选手、队伍、标签或创建人" /></label>
+        <select value={tournamentFilter} onChange={(event) => setTournamentFilter(event.target.value)} aria-label="届次筛选">
+          <option value="all">全部届次</option>
+          {data.tournaments.map((tournament) => <option key={tournament.id} value={tournament.id}>{tournament.name}</option>)}
+        </select>
+        <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} aria-label="队伍筛选">
+          <option value="all">全部队伍</option>
+          <option value="none">暂未归队</option>
+          {teamOptions.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+        </select>
+        <div className="tag-status-tabs" role="tablist" aria-label="标签状态筛选">
+          {filterOptions.map((option) => (
+            <button key={option.value} type="button" className={statusFilter === option.value ? "is-active" : ""} onClick={() => setStatusFilter(option.value)}>
+              {option.label}<strong>{option.count}</strong>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="tag-console-grid">
+        <aside className="tag-player-queue" aria-label="选手标签队列">
+          <div className="tag-queue-head">
+            <strong>{filteredPlayers.length} / {tournamentScopedPlayers.length} 名选手</strong>
+            <span>{statusFilter === "needs_review" ? "优先处理待审" : "按待审数排序"}</span>
+          </div>
+          {filteredPlayers.length === 0 ? (
+            <EmptyPanel title="没有匹配的选手" text="调整搜索、队伍或标签状态筛选后再查看。" />
+          ) : (
+            <div className="tag-player-list">
+              {filteredPlayers.map((player) => (
+                <TagPlayerQueueRow
+                  key={player.id}
+                  player={player}
+                  active={selectedPlayer?.id === player.id}
+                  onSelect={() => setSelectedPlayerId(player.id)}
+                />
+              ))}
+            </div>
+          )}
+        </aside>
+
+        <section className="tag-player-detail">
+          {selectedPlayer === null ? (
+            <EmptyPanel title="请选择选手" text="左侧队列会显示全部选手和待审提醒。" />
+          ) : (
+            <>
+              <div className="tag-player-detail-head">
+                <div>
+                  <span>{selectedPlayer.currentTeam?.name ?? selectedPlayer.teams[0]?.name ?? "暂未归队"}</span>
+                  <h3>{selectedPlayer.displayName}</h3>
+                  <p>Account {selectedPlayer.accountId ?? "-"} · 参与 {selectedPlayer.tournamentIds.length} 届 · {selectedPlayer.tags.length} 个标签</p>
+                </div>
+                {selectedPlayer.tagCounts.pending_review > 0 ? <StatusPill tone="warn">{selectedPlayer.tagCounts.pending_review} 个待审</StatusPill> : <StatusPill tone="good">无待审</StatusPill>}
+              </div>
+
+              <form className="tag-create-strip" onSubmit={createTag}>
+                <label>
+                  测试新增标签
+                  <input value={createDraft.text} onChange={(event) => setCreateDraft((current) => ({ ...current, text: event.target.value }))} placeholder="例如：绝活哥" />
+                </label>
+                <label>
+                  初始状态
+                  <select value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value as PlayerTagStatus }))}>
+                    <option value="approved">已通过</option>
+                    <option value="pending_review">待审核</option>
+                    <option value="hidden">已隐藏</option>
+                    <option value="rejected">已拒绝</option>
+                  </select>
+                </label>
+                <button className="primary-button" type="submit"><Plus size={14} /> 新增标签</button>
+              </form>
+
+              <div className="tag-detail-sections">
+                {selectedPlayer.tags.length === 0 ? (
+                  <EmptyPanel title="该选手暂无标签" text="可以先用上方表单新增测试标签，验证 H5 标签云和待审提醒。" />
+                ) : (
+                  tagSections.map((section) => (
+                    <div className="tag-status-section" key={section.status}>
+                      <div className="tag-section-title">
+                        <strong>{labelTagStatus(section.status)}</strong>
+                        <span>{section.tags.length}</span>
+                      </div>
+                      <div className="tag-review-list compact">
+                        {section.tags.map((tag) => (
+                          <TagReviewCard
+                            key={tag.id}
+                            tag={tag}
+                            onUpdateStatus={updateTagStatus}
+                            onAdjustLikes={adjustTagLikes}
+                            onDelete={deleteTag}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function TagPlayerQueueRow({ player, active, onSelect }: { player: AdminTagPlayerItem; active: boolean; onSelect: () => void }) {
+  const team = player.currentTeam ?? player.teams[0] ?? null;
+  const pending = player.tagCounts.pending_review;
+
+  return (
+    <button type="button" className={active ? "tag-player-row is-active" : "tag-player-row"} onClick={onSelect}>
+      <div>
+        <strong>{player.displayName}</strong>
+        <small>{team?.name ?? "暂未归队"} · {player.tags.length} 个标签</small>
+      </div>
+      <span className={pending > 0 ? "tag-pending-badge is-hot" : "tag-pending-badge"}>{pending > 0 ? `${pending} 待审` : "无待审"}</span>
+    </button>
+  );
+}
+
+function TagReviewCard({
+  tag,
+  onUpdateStatus,
+  onAdjustLikes,
+  onDelete,
+}: {
+  tag: PlayerTagModerationItem;
+  onUpdateStatus: (tag: PlayerTagModerationItem, status: PlayerTagStatus) => Promise<void>;
+  onAdjustLikes: (tag: PlayerTagModerationItem, delta: number) => Promise<void>;
+  onDelete: (tag: PlayerTagModerationItem) => Promise<void>;
+}) {
+  return (
+    <article className="tag-review-card">
+      <div className="tag-review-main">
+        <span className={`review-cloud-tag review-cloud-tag-${tag.sizeLevel}`}>{tag.text}</span>
+        <div>
+          <strong>{tag.targetName}</strong>
+          <small>由 {tag.createdBy.nickname} 提交 · {formatDate(tag.createdAt)} · {tag.likeCount} 赞</small>
+        </div>
+      </div>
+      <div className="tag-like-adjuster" aria-label={`调整 ${tag.text} 点赞数`}>
+        <button type="button" className="icon-button" disabled={tag.likeCount <= 0} title="减少 1 赞" onClick={() => void onAdjustLikes(tag, -1)}>
+          <Minus size={13} />
+        </button>
+        <strong>{tag.likeCount}</strong>
+        <button type="button" className="icon-button" title="增加 1 赞" onClick={() => void onAdjustLikes(tag, 1)}>
+          <Plus size={13} />
+        </button>
+        <button type="button" className="secondary-button compact-action" title="增加 10 赞" onClick={() => void onAdjustLikes(tag, 10)}>
+          +10
+        </button>
+      </div>
+      <StatusPill tone={toneForTagStatus(tag.status)}>{labelTagStatus(tag.status)}</StatusPill>
+      <div className="tag-review-actions">
+        {tag.status !== "approved" ? <button type="button" className="primary-button" onClick={() => void onUpdateStatus(tag, "approved")}><Check size={14} /> {tag.status === "pending_review" ? "通过" : "恢复"}</button> : null}
+        {tag.status === "pending_review" ? <button type="button" className="secondary-button" onClick={() => void onUpdateStatus(tag, "rejected")}><X size={14} /> 拒绝</button> : null}
+        {tag.status !== "hidden" ? <button type="button" className="ghost-danger" onClick={() => void onUpdateStatus(tag, "hidden")}><ShieldCheck size={14} /> 隐藏</button> : null}
+        <button type="button" className="ghost-danger" onClick={() => void onDelete(tag)}><Trash2 size={14} /> 删除</button>
+      </div>
+    </article>
+  );
+}
+
+function getTagWorkspaceMetrics(players: AdminTagPlayerItem[]) {
+  const statusCounts = players.reduce(
+    (counts, player) => {
+      counts.pending_review += player.tagCounts.pending_review;
+      counts.approved += player.tagCounts.approved;
+      counts.rejected += player.tagCounts.rejected;
+      counts.hidden += player.tagCounts.hidden;
+      return counts;
+    },
+    { pending_review: 0, approved: 0, rejected: 0, hidden: 0 } satisfies Record<PlayerTagStatus, number>,
+  );
+
+  return {
+    statusCounts,
+    totalTags: Object.values(statusCounts).reduce((sum, value) => sum + value, 0),
+    playersWithPending: players.filter((player) => player.tagCounts.pending_review > 0).length,
+    playersWithTags: players.filter((player) => player.tags.length > 0).length,
+    playersWithoutTags: players.filter((player) => player.tags.length === 0).length,
+  };
+}
+
+function getTagTeamOptions(players: AdminTagPlayerItem[]): TeamBrief[] {
+  const teams = new Map<string, TeamBrief>();
+  players.forEach((player) => {
+    const targetTeams = player.teams.length > 0 ? player.teams : player.currentTeam ? [player.currentTeam] : [];
+    targetTeams.forEach((team) => teams.set(team.id, team));
+  });
+
+  return [...teams.values()].sort((left, right) => left.name.localeCompare(right.name, "zh-CN"));
+}
+
+function playerMatchesTagFilters(player: AdminTagPlayerItem, statusFilter: TagPlayerFilter, teamFilter: string, normalizedQuery: string): boolean {
+  if (teamFilter === "none") {
+    if (player.currentTeam !== null || player.teams.length > 0) return false;
+  } else if (teamFilter !== "all") {
+    const teamIds = new Set([player.currentTeam?.id, ...player.teams.map((team) => team.id)].filter(Boolean));
+    if (!teamIds.has(teamFilter)) return false;
+  }
+
+  if (statusFilter === "needs_review" && player.tagCounts.pending_review === 0) return false;
+  if (statusFilter === "untagged" && player.tags.length > 0) return false;
+  if (["pending_review", "approved", "rejected", "hidden"].includes(statusFilter) && player.tagCounts[statusFilter as PlayerTagStatus] === 0) return false;
+
+  if (!normalizedQuery) return true;
+
+  return [
+    player.displayName,
+    player.accountId === null ? "" : String(player.accountId),
+    player.currentTeam?.name ?? "",
+    ...player.teams.map((team) => `${team.name} ${team.shortName}`),
+    ...player.tags.map((tag) => `${tag.text} ${tag.createdBy.nickname} ${tag.reviewReason ?? ""}`),
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
+function compareTagPlayers(left: AdminTagPlayerItem, right: AdminTagPlayerItem): number {
+  return (
+    right.tagCounts.pending_review - left.tagCounts.pending_review ||
+    right.tags.length - left.tags.length ||
+    left.displayName.localeCompare(right.displayName, "zh-CN") ||
+    left.id.localeCompare(right.id)
+  );
+}
+
+function groupTagsForAdmin(tags: PlayerTagModerationItem[]): Array<{ status: PlayerTagStatus; tags: PlayerTagModerationItem[] }> {
+  const order: PlayerTagStatus[] = ["pending_review", "approved", "hidden", "rejected"];
+
+  return order
+    .map((status) => ({
+      status,
+      tags: tags
+        .filter((tag) => tag.status === status)
+        .sort((left, right) => right.likeCount - left.likeCount || right.createdAt.localeCompare(left.createdAt)),
+    }))
+    .filter((section) => section.tags.length > 0);
+}
+
 function TeamManagementView({ data, reload, setNotice }: { data: AdminData; reload: () => Promise<void>; setNotice: React.Dispatch<React.SetStateAction<{ tone: Tone; text: string } | null>> }) {
   const [query, setQuery] = useState("");
   const [createDraft, setCreateDraft] = useState<TeamDraftForm>({ name: "", shortName: "", logoUrl: "", color: "#2f7d57", opendotaTeamId: "" });
@@ -6606,7 +7004,7 @@ function PlayerAvatar({ player }: { player: PlayerBrief }) {
   return player.avatarUrl ? <img className="player-avatar" src={player.avatarUrl} alt="" /> : <div className="player-avatar is-fallback">{player.displayName.slice(0, 1)}</div>;
 }
 
-function SupportView({ activeView, data }: { activeView: Exclude<ViewKey, "teams">; data: AdminData }) {
+function SupportView({ activeView, data }: { activeView: Extract<ViewKey, "matches" | "sync">; data: AdminData }) {
   if (activeView === "matches") return <div className="support-grid">{data.matches.slice(0, 40).map((match) => <section key={match.matchId} className="support-row"><ClipboardCheck size={18} /><div><strong>{match.radiantTeamName} vs {match.direTeamName}</strong><small>match {match.matchId} · {formatDate(match.startTime)} · {match.parseStatus}</small></div></section>)}</div>;
   return <div className="support-grid">{data.syncTasks.map((task) => <section key={task.id} className="support-row"><RefreshCw size={18} /><div><strong>{task.kind}</strong><small>{task.status} · 尝试 {task.attempts} 次</small></div></section>)}</div>;
 }
@@ -7260,6 +7658,26 @@ function toneForStatus(status: string | undefined | null): Tone {
       return "danger";
     default:
       return "neutral";
+  }
+}
+
+function toneForTagStatus(status: PlayerTagStatus): Tone {
+  if (status === "approved") return "good";
+  if (status === "pending_review") return "warn";
+  if (status === "hidden" || status === "rejected") return "danger";
+  return "neutral";
+}
+
+function labelTagStatus(status: PlayerTagStatus): string {
+  switch (status) {
+    case "pending_review":
+      return "待审核";
+    case "approved":
+      return "已通过";
+    case "rejected":
+      return "已拒绝";
+    case "hidden":
+      return "已隐藏";
   }
 }
 

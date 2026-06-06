@@ -31,6 +31,14 @@ export interface HeroPickSummary {
   wins: number;
 }
 
+export interface PlayerTag {
+  id: string;
+  text: string;
+  likeCount: number;
+  sizeLevel: number;
+  createdAt: string;
+}
+
 export interface ProfileMatchSummary {
   matchId: string;
   startTime: string;
@@ -38,9 +46,17 @@ export interface ProfileMatchSummary {
   radiantTeamName: string;
   direTeamName: string;
   score: string;
+  radiantScore: number | null;
+  direScore: number | null;
+  radiantWin: boolean | null;
   side: TeamSide | null;
   hero: string | null;
   heroPortrait: string | null;
+  playerCount: number;
+  heroLineups: Record<TeamSide, MatchRecordHero[]>;
+  hasDraft: boolean;
+  hasVision: boolean;
+  hasChat: boolean;
   kda: string | null;
   result: "win" | "loss" | "unknown";
 }
@@ -61,6 +77,16 @@ export interface ProfileStatsSummary {
   avgTowerDamage: string;
   avgDamageTaken: string;
   topHeroes: HeroPickSummary[];
+}
+
+export interface PlayerTournamentHistoryEntry {
+  tournamentId: string;
+  tournamentName: string;
+  startsAt: string;
+  status: string;
+  isCurrent: boolean;
+  stats: ProfileStatsSummary;
+  matches: ProfileMatchSummary[];
 }
 
 export interface PlayerDirectoryItem {
@@ -93,6 +119,8 @@ export interface TeamDirectoryItem extends EntityTeamInfo {
 export interface PlayerProfile extends PlayerDirectoryItem {
   tournamentId: string;
   matches: ProfileMatchSummary[];
+  tournamentHistory: PlayerTournamentHistoryEntry[];
+  tags: PlayerTag[];
 }
 
 export interface TeamProfile extends TeamDirectoryItem {

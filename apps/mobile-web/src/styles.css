@@ -3456,42 +3456,161 @@ button {
   text-align: right;
 }
 
-.tag-cloud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.cloud-tag {
+.profile-tag-panel {
   display: grid;
-  gap: 2px;
-  padding: 4px 7px;
-  border-radius: 999px;
-  background: rgba(116, 214, 108, .12);
-  border: 1px solid rgba(116, 214, 108, .22);
-  color: #dffbda;
-  font-weight: 650;
+  gap: 12px;
 }
 
-.cloud-tag b {
+.floating-tag-field {
+  position: relative;
+  min-height: 196px;
+  overflow: hidden;
+  border: 1px solid rgba(116, 214, 108, .2);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(7, 18, 23, .95), rgba(18, 25, 34, .94)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 42px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+  touch-action: manipulation;
+}
+
+.floating-tag {
+  --tag-heat: 0;
+  position: absolute;
+  left: 0;
+  top: 0;
+  min-width: 64px;
+  max-width: min(190px, 58vw);
+  min-height: 38px;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid rgba(116, 214, 108, .28);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .04)),
+    rgba(33, 95, 72, .68);
+  color: #eaffdf;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, .24),
+    0 0 calc(10px + var(--tag-heat) * 22px) rgba(116, 214, 108, .22);
+  cursor: pointer;
+  transform: translate3d(0, 0, 0);
+  transition: filter .18s ease, box-shadow .18s ease, border-color .18s ease;
+  will-change: transform;
+}
+
+.floating-tag:hover,
+.floating-tag:focus-visible {
+  border-color: rgba(255, 205, 116, .68);
+  filter: brightness(1.08);
+  outline: 0;
+}
+
+.floating-tag-1 {
+  font-size: 12px;
+}
+
+.floating-tag-2 {
+  padding: 9px 13px;
+  font-size: 13px;
+}
+
+.floating-tag-3 {
+  padding: 10px 15px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .05)),
+    rgba(58, 111, 78, .76);
+  font-size: 15px;
+}
+
+.floating-tag-4 {
+  padding: 11px 17px;
+  border-color: rgba(255, 197, 89, .42);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .06)),
+    rgba(110, 92, 45, .78);
+  color: #fff2c8;
+  font-size: 17px;
+}
+
+.floating-tag-5 {
+  padding: 12px 19px;
+  border-color: rgba(255, 145, 118, .5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .2), rgba(255, 255, 255, .06)),
+    rgba(126, 68, 62, .82);
+  color: #ffe2d6;
+  font-size: 19px;
+}
+
+.floating-tag-text,
+.floating-tag-likes {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-tag-text {
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.floating-tag-likes {
+  color: rgba(255, 255, 255, .72);
+  font-size: 9px;
+  font-weight: 850;
   line-height: 1;
 }
 
-.cloud-tag small {
-  color: #8e99ac;
-  font-size: 8px;
+.floating-tag-pulse {
+  position: absolute;
+  inset: -7px;
+  border: 1px solid rgba(255, 224, 122, .72);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
 }
 
-.cloud-tag.large {
-  font-size: 14px;
+.floating-tag.is-energized {
+  animation: floating-tag-pop .52s ease both;
+  z-index: 2;
 }
 
-.cloud-tag.medium {
-  font-size: 11px;
+.floating-tag.is-energized .floating-tag-pulse {
+  animation: floating-tag-pulse .52s ease-out both;
 }
 
-.cloud-tag.small {
-  font-size: 9px;
+@keyframes floating-tag-pop {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  38% {
+    filter: brightness(1.35);
+  }
+}
+
+@keyframes floating-tag-pulse {
+  0% {
+    opacity: .85;
+    transform: scale(.82);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.34);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-tag,
+  .floating-tag.is-energized,
+  .floating-tag.is-energized .floating-tag-pulse {
+    animation: none;
+    transition: none;
+  }
 }
 
 .profile-preview-grid {
@@ -4016,6 +4135,97 @@ button {
   gap: 9px;
 }
 
+.player-history-panel,
+.player-season-current,
+.player-season-archive {
+  display: grid;
+  gap: 9px;
+}
+
+.player-season-current {
+  padding: 8px;
+  border: 1px solid rgba(116, 214, 108, .16);
+  border-radius: 8px;
+  background: rgba(116, 214, 108, .08);
+}
+
+.season-archive-title,
+.season-record-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.season-archive-title {
+  padding: 0 2px;
+  color: #8e99ac;
+  font-size: 10px;
+}
+
+.season-archive-title span {
+  color: #dbe8f8;
+  font-weight: 700;
+}
+
+.season-record-header h3 {
+  margin: 0;
+  color: #edf4ff;
+  font-size: 13px;
+}
+
+.season-record-header span,
+.season-record-metrics small {
+  color: #8e99ac;
+  font-size: 10px;
+}
+
+.season-record-metrics {
+  display: grid;
+  gap: 2px;
+  min-width: 52px;
+  text-align: right;
+}
+
+.season-record-metrics b {
+  color: #dffbda;
+  font-size: 12px;
+}
+
+.season-details {
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 8px;
+  background: rgba(17, 24, 37, .62);
+  overflow: hidden;
+}
+
+.season-details summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px;
+}
+
+.season-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.season-details summary::after {
+  content: "展开";
+  display: block;
+  margin-top: 5px;
+  color: #65b5ff;
+  font-size: 10px;
+}
+
+.season-details[open] summary::after {
+  content: "收起";
+}
+
+.season-details .profile-record-list {
+  padding: 0 8px 8px;
+}
+
 .signature-heroes article,
 .roster-list button,
 .profile-match-list button {
@@ -4175,6 +4385,22 @@ button {
 }
 
 @media (max-width: 360px) {
+  .floating-tag-field {
+    min-height: 176px;
+  }
+
+  .floating-tag {
+    max-width: 150px;
+    min-height: 34px;
+    padding: 7px 10px;
+  }
+
+  .floating-tag-4,
+  .floating-tag-5 {
+    padding: 9px 12px;
+    font-size: 16px;
+  }
+
   .tournament-entry-main {
     grid-template-columns: 1fr;
   }

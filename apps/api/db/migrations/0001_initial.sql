@@ -297,14 +297,20 @@ CREATE TABLE IF NOT EXISTS tournament_team_stats (
 
 CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY,
+  tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
   target_type TEXT NOT NULL CHECK (target_type IN ('player', 'team')),
   target_id TEXT NOT NULL,
-  label TEXT NOT NULL,
+  normalized_text TEXT NOT NULL,
+  display_text TEXT NOT NULL,
   created_by TEXT NOT NULL REFERENCES app_users(id),
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden')),
-  hidden_reason TEXT,
+  like_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending_review' CHECK (status IN ('pending_review', 'approved', 'rejected', 'hidden')),
+  review_reason TEXT,
+  reviewed_by TEXT,
+  reviewed_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (tournament_id, target_type, target_id, normalized_text)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS tag_likes (
@@ -322,6 +328,17 @@ CREATE TABLE IF NOT EXISTS tag_reports (
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'dismissed', 'accepted')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tag_audit_logs (
+  id TEXT PRIMARY KEY,
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  actor TEXT NOT NULL DEFAULT 'admin',
+  action TEXT NOT NULL,
+  from_status TEXT,
+  to_status TEXT,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS sync_tasks (
@@ -348,6 +365,8 @@ CREATE INDEX IF NOT EXISTS idx_series_games_match ON series_games(match_id);
 CREATE INDEX IF NOT EXISTS idx_standings_stage_rank ON standings(stage_id, rank);
 CREATE INDEX IF NOT EXISTS idx_opendota_matches_league ON opendota_matches(league_id, match_id);
 CREATE INDEX IF NOT EXISTS idx_tags_target ON tags(target_type, target_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_player_identity_text ON tags(target_id, normalized_text) WHERE target_type = 'player';
+CREATE INDEX IF NOT EXISTS idx_tag_audit_logs_tag ON tag_audit_logs(tag_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sync_tasks_status ON sync_tasks(status, next_run_at);
 
 INSERT OR IGNORE INTO schema_migrations(version) VALUES ('0001_initial');

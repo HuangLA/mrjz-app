@@ -123,6 +123,7 @@ function applySchemaPatches(): void {
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
   database.exec("CREATE INDEX IF NOT EXISTS idx_series_group ON series(group_id);");
   ensureEntityTables();
+  ensureTagTables();
 }
 
 function ensureColumn(tableName: string, columnName: string, definition: string): void {
@@ -240,6 +241,181 @@ function ensureEntityTables(): void {
     CREATE INDEX IF NOT EXISTS idx_schedule_operation_logs_tournament ON schedule_operation_logs(tournament_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_stage_manual_ranks_stage ON stage_manual_ranks(stage_id);
     CREATE INDEX IF NOT EXISTS idx_swiss_byes_stage ON swiss_byes(stage_id);
+  `);
+}
+
+function ensureTagTables(): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS app_users (
+      id TEXT PRIMARY KEY,
+      open_id TEXT UNIQUE,
+      nickname TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'player', 'admin')),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ) STRICT;
+  `);
+
+  const tagColumns = database.prepare("PRAGMA table_info(tags)").all();
+  const needsTagMigration = tagColumns.length > 0 && !tagColumns.some((column) => column.name === "normalized_text");
+
+  if (needsTagMigration) {
+    database.exec(`
+      DROP INDEX IF EXISTS idx_tags_target;
+      DROP INDEX IF EXISTS idx_tags_tournament_status;
+      DROP TABLE IF EXISTS tag_likes;
+      DROP TABLE IF EXISTS tag_reports;
+      DROP TABLE IF EXISTS tag_audit_logs;
+      ALTER TABLE tags RENAME TO tags_legacy;
+    `);
+  }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS tags (
+      id TEXT PRIMARY KEY,
+      tournament_id TEXT NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+      target_type TEXT NOT NULL CHECK (target_type IN ('player', 'team')),
+      target_id TEXT NOT NULL,
+      normalized_text TEXT NOT NULL,
+      display_text TEXT NOT NULL,
+      created_by TEXT NOT NULL REFERENCES app_users(id),
+      like_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending_review' CHECK (status IN ('pending_review', 'approved', 'rejected', 'hidden')),
+      review_reason TEXT,
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (tournament_id, target_type, target_id, normalized_text)
+    ) STRICT;
+  `);
+
+  if (needsTagMigration) {
+    database.exec(`
+      WITH legacy_tags AS (
+        SELECT
+          tags_legacy.id,
+          COALESCE(
+            (
+              SELECT tp.tournament_id
+              FROM tournament_players tp
+              WHERE tp.player_id = tags_legacy.target_id
+              ORDER BY tp.updated_at DESC, tp.tournament_id ASC
+              LIMIT 1
+            ),
+            (
+              SELECT t.id
+              FROM tournaments t
+              ORDER BY t.starts_at DESC, t.id ASC
+              LIMIT 1
+            )
+          ) AS tournament_id,
+          tags_legacy.target_type,
+          tags_legacy.target_id,
+          lower(trim(tags_legacy.label)) AS normalized_text,
+          tags_legacy.label AS display_text,
+          tags_legacy.created_by,
+          CASE tags_legacy.status WHEN 'hidden' THEN 'hidden' ELSE 'approved' END AS status,
+          tags_legacy.hidden_reason AS review_reason,
+          CASE tags_legacy.status WHEN 'hidden' THEN tags_legacy.updated_at ELSE NULL END AS reviewed_at,
+          tags_legacy.created_at,
+          tags_legacy.updated_at
+        FROM tags_legacy
+      )
+      INSERT OR IGNORE INTO tags (
+        id,
+        tournament_id,
+        target_type,
+        target_id,
+        normalized_text,
+        display_text,
+        created_by,
+        status,
+        review_reason,
+        reviewed_at,
+        created_at,
+        updated_at
+      )
+      SELECT
+        id,
+        tournament_id,
+        target_type,
+        target_id,
+        normalized_text,
+        display_text,
+        created_by,
+        status,
+        review_reason,
+        reviewed_at,
+        created_at,
+        updated_at
+      FROM legacy_tags
+      WHERE tournament_id IS NOT NULL;
+
+      DROP TABLE tags_legacy;
+    `);
+  }
+
+  database.exec(`
+    WITH ranked_player_tags AS (
+      SELECT
+        id,
+        ROW_NUMBER() OVER (
+          PARTITION BY target_id, normalized_text
+          ORDER BY
+            CASE status
+              WHEN 'approved' THEN 0
+              WHEN 'pending_review' THEN 1
+              WHEN 'hidden' THEN 2
+              ELSE 3
+            END,
+            like_count DESC,
+            created_at ASC
+        ) AS duplicate_rank
+      FROM tags
+      WHERE target_type = 'player'
+    )
+    DELETE FROM tags
+    WHERE id IN (
+      SELECT id
+      FROM ranked_player_tags
+      WHERE duplicate_rank > 1
+    );
+  `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS tag_likes (
+      tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (tag_id, user_id)
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS tag_reports (
+      id TEXT PRIMARY KEY,
+      tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+      reporter_user_id TEXT NOT NULL REFERENCES app_users(id),
+      reason TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'dismissed', 'accepted')),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ) STRICT;
+
+    CREATE TABLE IF NOT EXISTS tag_audit_logs (
+      id TEXT PRIMARY KEY,
+      tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+      actor TEXT NOT NULL DEFAULT 'admin',
+      action TEXT NOT NULL,
+      from_status TEXT,
+      to_status TEXT,
+      reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ) STRICT;
+
+    CREATE INDEX IF NOT EXISTS idx_tags_target ON tags(target_type, target_id, status);
+    CREATE INDEX IF NOT EXISTS idx_tags_tournament_status ON tags(tournament_id, status, created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_player_identity_text ON tags(target_id, normalized_text) WHERE target_type = 'player';
+    CREATE INDEX IF NOT EXISTS idx_tag_audit_logs_tag ON tag_audit_logs(tag_id, created_at DESC);
   `);
 }
 

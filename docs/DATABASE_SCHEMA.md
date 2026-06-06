@@ -23,7 +23,7 @@ npm run db:reset
 - 赛制：`stages`、`rounds`、`series`、`series_games`
 - 榜单：`standings`、`bracket_nodes`
 - OpenDota：`opendota_matches`、`sync_tasks`
-- 互动：`app_users`、`tags`、`tag_likes`、`tag_reports`
+- 互动：`app_users`、`tags`、`tag_likes`、`tag_reports`、`tag_audit_logs`
 
 ## 当前种子数据
 
@@ -55,11 +55,11 @@ npm run db:reset
 - `series_games.conflict_status` 用于标记人工赛果和 OpenDota 赛果冲突；冲突未处理前不推进积分、瑞士轮配对或淘汰赛节点。
 - `opendota_matches.raw_json` 暂存原始 OpenDota 返回，后端 normalizer 统一生成比赛详情视图。
 - `sync_tasks.kind` 当前支持 `discover_match`、`request_parse`、`refresh_match`、`schedule_link`，对应联赛发现、请求解析、单场刷新和人工赛程关联。
-- `tags` 支持选手和队伍两类目标，`tag_likes` 通过联合主键限制同一用户重复点赞。
+- `tags` 首版只通过 API 开放选手标签；选手标签按 `target_id + normalized_text` 跨届归并，`tournament_id` 记录提交来源届次；`pending_review` 标签需管理员审核为 `approved` 后才向 H5 展示，`tag_likes` 支持小程序登录用户对已通过标签点赞且不进入审核，H5 点击标签只做本地动效；管理员可为测试或运营纠偏直接调整 `like_count`，`tag_audit_logs` 记录审核、隐藏、恢复和点赞数调整动作。
 
 ## 后续迁移方向
 
 1. 将 `opendota_matches.raw_json` 的高频查询字段拆到结构化表，例如玩家单局统计、技能加点、BP、眼位、聊天。
 2. 为瑞士轮增加对手分、轮空记录和重复交手约束表。
-3. 为管理员操作增加 `audit_logs`，覆盖赛果修改、冲突处理、标签隐藏和恢复。
+3. 为管理员操作增加通用 `audit_logs`，覆盖赛果修改、冲突处理等非标签操作；标签审核首版先使用 `tag_audit_logs`。
 4. 上云时将 SQLite migration 转写为 PostgreSQL migration，并加入连接池、备份和只读查询副本策略。
