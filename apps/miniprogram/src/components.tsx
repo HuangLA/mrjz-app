@@ -25,7 +25,7 @@ export function StatePanel(props: { title: string; text: string; tone?: "default
 export function SectionTitle(props: { kicker?: string; title: string; actionText?: string; onAction?: () => void }) {
   return (
     <View className="section-title">
-      <View>
+      <View className="section-title-copy">
         {props.kicker ? <Text className="kicker">{props.kicker}</Text> : null}
         <Text className="section-heading">{props.title}</Text>
       </View>
@@ -63,7 +63,7 @@ export function TournamentPicker(props: {
       }}
     >
       <View className="tournament-picker">
-        <View>
+        <View className="picker-main">
           <Text className="kicker">当前届次</Text>
           <Text className="picker-title">{selected?.name ?? "选择赛事"}</Text>
         </View>

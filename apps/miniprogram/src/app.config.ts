@@ -13,15 +13,15 @@ export default defineAppConfig({
   ],
   window: {
     backgroundTextStyle: "light",
-    navigationBarBackgroundColor: "#111827",
+    navigationBarBackgroundColor: "#07090c",
     navigationBarTitleText: "MRJZ",
     navigationBarTextStyle: "white",
-    backgroundColor: "#0f172a",
+    backgroundColor: "#07090c",
   },
   tabBar: {
-    color: "#94a3b8",
-    selectedColor: "#f59e0b",
-    backgroundColor: "#111827",
+    color: "#9ba6b8",
+    selectedColor: "#d5a64f",
+    backgroundColor: "#080c12",
     borderStyle: "black",
     list: [
       { pagePath: "pages/index/index", text: "首页" },
