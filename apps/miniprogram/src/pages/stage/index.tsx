@@ -10,7 +10,7 @@ import {
   loadTournaments,
   setSelectedTournamentId,
 } from "../../api";
-import { PageShell, SectionTitle, SeriesCard, StatGrid, TournamentPicker } from "../../components";
+import { PageShell, SeriesCard, TournamentScope } from "../../components";
 import type { BracketNode, StageRound, StageSummary, StandingRow, TournamentDetail, TournamentOption } from "../../types";
 import { labelStageType, labelStatus, teamName } from "../../utils";
 
@@ -84,59 +84,93 @@ export default function StagePage() {
 
   return (
     <PageShell loading={loading} error={error} routeKey="stage">
-      <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
-      <SectionTitle kicker="阶段" title="赛事进展" />
-      <View className="stage-tabs">
-        {officialStages.map((stage) => (
-          <Button
-            key={stage.id}
-            className={`chip-button ${stage.id === selectedStageId ? "chip-button-active" : ""}`}
-            onClick={() => setSelectedStageId(stage.id)}
-          >
-            {labelStageType(stage.type)}
-          </Button>
-        ))}
-      </View>
+      <TournamentScope tournament={detail ?? tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
 
       {selectedStage ? (
         <>
-          <View className="content-panel">
-            <Text className="section-heading">{selectedStage.name}</Text>
-            <Text className="muted">{labelStatus(selectedStage.status)} · 排名、晋级和 bracket 均读取后端结果</Text>
+          <View className="stage-switch section-panel">
+            <View className="section-title compact">
+              <View>
+                <Text className="section-heading">赛事阶段</Text>
+              </View>
+            </View>
+            <View className="segmented">
+              {officialStages.map((stage) => (
+                <Button
+                  key={stage.id}
+                  className={stage.id === selectedStageId ? "active" : ""}
+                  onClick={() => setSelectedStageId(stage.id)}
+                >
+                  {labelStageType(stage.type)}
+                </Button>
+              ))}
+            </View>
+            <View className="stage-head">
+              <View>
+                <Text className="section-heading">{selectedStage.name} · {rounds[0]?.name ?? labelStatus(selectedStage.status)}</Text>
+              </View>
+            </View>
           </View>
+
           {stageLoading ? <View className="content-panel"><Text className="muted">阶段数据读取中。</Text></View> : null}
-          <StatGrid
-            items={[
-              { label: "轮次", value: String(rounds.length), hint: "后端返回" },
-              { label: "积分行", value: String(standings.length), hint: selectedStage.type === "knockout" ? "非必需" : "当前排名" },
-              { label: "对阵节点", value: String(bracket.length), hint: "淘汰赛" },
-            ]}
-          />
 
-          <SectionTitle kicker="积分" title="积分榜" />
-          {standings.length > 0 ? standings.map((row) => (
-            <View className="content-panel history-item" key={`${row.teamId}-${row.rank}`}>
-              <Text className="record-title">#{row.rank} {teamName(row.team)}</Text>
-              <Text className="status-text">{row.points} 分 · {row.seriesWins}-{row.seriesDraws}-{row.seriesLosses}</Text>
+          {selectedStage.type !== "knockout" ? (
+            <View className="section-panel">
+              <View className="section-title compact">
+                <View>
+                  <Text className="section-heading">积分榜</Text>
+                </View>
+              </View>
+              <View className="standing-list">
+                {standings.length > 0 ? standings.map((row) => (
+                  <StandingRowItem key={`${row.teamId}-${row.rank}`} row={row} />
+                )) : <View className="content-panel"><Text className="muted">暂无</Text></View>}
+              </View>
             </View>
-          )) : <View className="content-panel"><Text className="muted">暂无后端积分榜。</Text></View>}
+          ) : null}
 
-          <SectionTitle kicker="赛程" title="阶段对阵" />
-          {rounds.flatMap((round) => round.series).length > 0 ? rounds.map((round) => (
-            <View key={round.id}>
-              <Text className="kicker">{round.name}</Text>
-              {round.series.map((series) => <SeriesCard key={series.id} series={{ ...series, roundName: round.name }} />)}
+          <View className="section-panel">
+            <View className="section-title compact">
+              <View>
+                <Text className="section-heading">当前轮</Text>
+              </View>
+              <Text className="status-tag blue">{rounds[0]?.name ?? "暂无"}</Text>
             </View>
-          )) : <View className="content-panel"><Text className="muted">暂无官方阶段对阵。</Text></View>}
+            <View className="schedule-list">
+              {rounds.flatMap((round) => round.series).length > 0 ? rounds.flatMap((round) => (
+                round.series.map((series) => <SeriesCard key={series.id} series={{ ...series, roundName: round.name }} />)
+              )).slice(0, 6) : <View className="content-panel"><Text className="muted">暂无</Text></View>}
+            </View>
+          </View>
 
-          <SectionTitle kicker="Bracket" title="淘汰赛节点" />
-          {bracket.length > 0 ? bracket.map((node) => (
-            <View className="content-panel" key={node.id}>
-              <Text className="record-title">{node.roundName} #{node.position}</Text>
-              <Text className="muted">{teamName(node.radiantTeam)} vs {teamName(node.direTeam)}</Text>
-              <Text className="status-text">胜者：{teamName(node.winnerTeam)}</Text>
+          {selectedStage.type === "knockout" ? (
+            <View className="section-panel">
+              <View className="section-title compact">
+                <View>
+                  <Text className="section-heading">淘汰赛对阵图</Text>
+                </View>
+              </View>
+              <View className="bracket-mini-board">
+                {bracket.length > 0 ? bracket.map((node) => (
+                  <View className="bracket-node" key={node.id}>
+                    <View className="bracket-node-topline">
+                      <Text className="bracket-node-kicker">#{node.position}</Text>
+                      <Text className="bracket-node-state">{labelStatus(node.status)}</Text>
+                    </View>
+                    <View className="bracket-team">
+                      <Text>上</Text>
+                      <Text>{teamName(node.radiantTeam)}</Text>
+                    </View>
+                    <View className="bracket-team">
+                      <Text>下</Text>
+                      <Text>{teamName(node.direTeam)}</Text>
+                    </View>
+                    <Text className="bracket-node-footer">胜者 {teamName(node.winnerTeam)}</Text>
+                  </View>
+                )) : <View className="content-panel"><Text className="muted">暂无</Text></View>}
+              </View>
             </View>
-          )) : <View className="content-panel"><Text className="muted">当前阶段没有 bracket 数据。</Text></View>}
+          ) : null}
         </>
       ) : (
         <View className="content-panel"><Text className="muted">后台还没有创建官方阶段。</Text></View>
@@ -147,4 +181,18 @@ export default function StagePage() {
 
 function isOfficialStage(stage: StageSummary): boolean {
   return stage.type === "group" || stage.type === "swiss" || stage.type === "knockout";
+}
+
+function StandingRowItem(props: { row: StandingRow }) {
+  const { row } = props;
+
+  return (
+    <View className="standing-row">
+      <Text className="rank">{row.rank}</Text>
+      <Text>{teamName(row.team)}</Text>
+      <Text>{row.seriesWins}-{row.seriesDraws}-{row.seriesLosses}</Text>
+      <Text>{row.points} 分</Text>
+      <Text className="status-tag blue">{row.status ?? "排名"}</Text>
+    </View>
+  );
 }

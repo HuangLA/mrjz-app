@@ -8,7 +8,7 @@ import {
   loadTournaments,
   setSelectedTournamentId,
 } from "../../api";
-import { PageShell, SectionTitle, SeriesCard, StatGrid } from "../../components";
+import { MatchRecordCard, PageShell, SectionTitle, SeriesCard, StatGrid } from "../../components";
 import type { MatchRecord, TournamentDetail, TournamentOption } from "../../types";
 import { formatDate, labelStageType, labelStatus, navigate, switchTab } from "../../utils";
 
@@ -147,13 +147,7 @@ export default function HomePage() {
 
       <SectionTitle kicker="最新战报" title="最近比赛" actionText="全部记录" onAction={() => switchTab("/pages/records/index")} />
       {latestRecord ? (
-        <View className="match-record-card" onClick={() => navigate(`/pages/match-detail/index?matchId=${latestRecord.matchId}`)}>
-          <Text className="record-title">{latestRecord.radiantTeamName} vs {latestRecord.direTeamName}</Text>
-          <View className="record-meta">
-            <Text className="score-text">{latestRecord.radiantScore ?? "-"} : {latestRecord.direScore ?? "-"}</Text>
-            <Text className="muted">{formatDate(latestRecord.startTime)}</Text>
-          </View>
-        </View>
+        <MatchRecordCard record={latestRecord} onOpen={(matchId) => navigate(`/pages/match-detail/index?matchId=${matchId}`)} />
       ) : (
         <View className="content-panel"><Text className="muted">暂无比赛记录。</Text></View>
       )}

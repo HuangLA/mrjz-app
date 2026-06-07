@@ -1,8 +1,9 @@
 import { Button, Image, Picker, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import type { ReactNode } from "react";
-import type { PlayerListItem, SeriesSummary, TeamBrief, TournamentOption } from "./types";
-import { formatDateTime, formatScore, labelStatus, seriesTitle, teamName } from "./utils";
+import { heroIcon } from "./dota";
+import type { MatchRecord, PlayerListItem, SeriesSummary, TeamBrief, TeamListItem, TournamentOption } from "./types";
+import { formatDateTime, formatDecimal, formatInteger, formatPercent, formatScore, labelStatus, seriesTitle, teamName } from "./utils";
 
 export type MiniRouteKey = "home" | "stage" | "schedule" | "records" | "players" | "teams" | "mine";
 
@@ -212,6 +213,37 @@ export function TournamentPicker(props: {
   );
 }
 
+export function TournamentScope(props: { tournament?: TournamentOption | null | undefined }) {
+  const meta = props.tournament;
+  const leagueId = meta?.league?.opendotaLeagueId ?? "-";
+
+  return (
+    <View className="tournament-scope">
+      <View>
+        <Text>{meta?.name ?? "选择赛事"}</Text>
+        <Text>League {leagueId} · {labelStatus(meta?.status)}</Text>
+      </View>
+      <Button className="link-button" onClick={() => switchRoute("/pages/index/index")}>
+        切换
+      </Button>
+    </View>
+  );
+}
+
+export function FilterRow<T extends string>(props: { labels: T[]; value?: T; onChange?: (value: T) => void }) {
+  const activeValue = props.value ?? props.labels[0];
+
+  return (
+    <View className="filter-row">
+      {props.labels.map((label) => (
+        <Button className={`filter ${label === activeValue ? "active" : ""}`} key={label} onClick={() => props.onChange?.(label)}>
+          {label}
+        </Button>
+      ))}
+    </View>
+  );
+}
+
 export function StatGrid(props: { items: Array<{ label: string; value: string; hint?: string | undefined }> }) {
   return (
     <View className="metric-grid stat-grid">
@@ -280,4 +312,202 @@ export function PlayerAvatar(props: { player: Pick<PlayerListItem, "displayName"
   ) : (
     <View className={`${className} player-avatar-fallback`}>{props.player.displayName.slice(0, 1)}</View>
   );
+}
+
+export function MatchRecordCard(props: { record: MatchRecord; index?: number; onOpen: (matchId: number) => void }) {
+  const { record } = props;
+  const score = record.radiantScore === null || record.direScore === null ? "- : -" : `${record.radiantScore} : ${record.direScore}`;
+  const winnerClass = record.radiantWin === null ? "" : record.radiantWin ? "radiant-win" : "dire-win";
+  const heroCount = (record.heroLineups?.radiant.length ?? 0) + (record.heroLineups?.dire.length ?? 0);
+
+  return (
+    <View className={`record-card match-record-card ${winnerClass}`}>
+      <Button className="record-main" onClick={() => props.onOpen(record.matchId)}>
+        <View className="record-head">
+          <Text>#{record.matchId}</Text>
+          <Text>{formatDateTime(record.startTime)}</Text>
+        </View>
+        <View className="record-score">
+          <Text>{record.radiantTeamName}</Text>
+          <Text>{score}</Text>
+          <Text>{record.direTeamName}</Text>
+        </View>
+        <RecordHeroMatchup record={record} />
+        <View className="record-meta">
+          <Text>{record.durationText ?? "--:--"}</Text>
+          <Text>{record.parseStatus}</Text>
+          <Text>{record.playerCount} 人</Text>
+        </View>
+        <View className="record-flags">
+          <RecordFlag label={`英雄 ${heroCount || "-"}`} active={heroCount > 0} />
+          <RecordFlag label="BP" active={record.hasDraft} />
+          <RecordFlag label="眼位" active={record.hasVision} />
+          <RecordFlag label="聊天" active={record.hasChat} />
+        </View>
+      </Button>
+    </View>
+  );
+}
+
+function RecordHeroMatchup(props: { record: MatchRecord }) {
+  const radiant = props.record.heroLineups?.radiant ?? [];
+  const dire = props.record.heroLineups?.dire ?? [];
+  const hasLineup = radiant.length > 0 || dire.length > 0;
+
+  if (!hasLineup) {
+    return (
+      <View className="record-lineup empty">
+        <Text>英雄阵容待同步</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="record-lineup">
+      <RecordHeroStrip heroes={radiant} side="radiant" />
+      <View className="record-versus">
+        <View />
+        <Text>VS</Text>
+        <View />
+      </View>
+      <RecordHeroStrip heroes={dire} side="dire" />
+    </View>
+  );
+}
+
+function RecordHeroStrip(props: { side: "radiant" | "dire"; heroes: NonNullable<MatchRecord["heroLineups"]>["radiant"] }) {
+  return (
+    <View className={`record-hero-strip ${props.side}`}>
+      {Array.from({ length: 5 }, (_, index) => {
+        const hero = props.heroes[index];
+
+        return hero ? (
+          <Image className="record-hero" key={`${props.side}:${index}`} mode="aspectFill" src={hero.icon || hero.portrait} />
+        ) : (
+          <View className="record-hero empty" key={`${props.side}:${index}`}>
+            <View />
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function RecordFlag(props: { label: string; active: boolean }) {
+  return <Text className={props.active ? "active" : ""}>{props.label}</Text>;
+}
+
+export function PlayerDirectoryCard(props: { player: PlayerListItem; onOpen: (playerId: string) => void }) {
+  const { player } = props;
+  const team = player.currentTeam ?? player.teams[0] ?? null;
+  const rate = clampPercent((player.stats.winRate ?? 0) * 100);
+
+  return (
+    <View className="player-stat-card">
+      <Button className="player-stat-card-main" style={{ borderLeftColor: team?.color ?? "#5eead4" }} onClick={() => props.onOpen(player.id)}>
+        <View className="player-stat-head">
+          <SteamAvatar player={player} />
+          <View className="player-stat-identity">
+            <View className="player-stat-name-row">
+              <Text>{player.displayName}</Text>
+              <PlayerTeamMark team={team} />
+            </View>
+            <View className="player-stat-subline">
+              <Text className="profile-id-link">ID {player.accountId ?? player.id}</Text>
+              <Text>{player.stats.wins}W / {player.stats.losses}L</Text>
+            </View>
+          </View>
+          <View className="player-stat-primary">
+            <Text>胜率 <Text>{formatPercent(player.stats.winRate)}</Text></Text>
+            <View className="rate-bar"><View style={{ width: `${rate.toFixed(1)}%` }} /></View>
+            <Text>{formatDecimal(player.stats.kda)}</Text>
+            <Text>KDA</Text>
+          </View>
+        </View>
+        <View className="player-stat-grid">
+          <PlayerStatTile label="场次" value={formatInteger(player.stats.totalMatches)} />
+          <PlayerStatTile label="GPM" value={formatDecimal(player.stats.avgGpm, 0)} />
+          <PlayerStatTile label="XPM" value={formatDecimal(player.stats.avgXpm, 0)} />
+          <PlayerStatTile label="击/亡/助" value={`${formatDecimal(player.stats.avgKills)}/${formatDecimal(player.stats.avgDeaths)}/${formatDecimal(player.stats.avgAssists)}`} />
+          <PlayerStatTile label="场均经济" value={formatDecimal(player.stats.avgNetWorth, 0)} />
+          <PlayerStatTile label="英雄伤害" value={formatDecimal(player.stats.avgHeroDamage, 0)} />
+          <PlayerStatTile label="建筑伤害" value={formatDecimal(player.stats.avgTowerDamage, 0)} />
+          <PlayerStatTile label="承伤" value={formatDecimal(player.stats.avgDamageTaken, 0)} />
+        </View>
+        <PlayerHeroStrip heroes={player.stats.topHeroes} />
+      </Button>
+    </View>
+  );
+}
+
+export function TeamDirectoryCard(props: { team: TeamListItem; onOpen: (teamId: string) => void }) {
+  const { team } = props;
+
+  return (
+    <View className="profile-list-card team-card">
+      <Button style={{ borderLeftColor: team.color ?? "#f0c36a" }} onClick={() => props.onOpen(team.id)}>
+        <View className="profile-avatar-fallback team">{(team.shortName ?? team.name).slice(0, 2).toUpperCase()}</View>
+        <View>
+          <Text>{team.name}</Text>
+          <Text>{team.memberCount} 名成员 · {team.stats.seriesPlayed} 场 · 胜率 {formatPercent(team.stats.winRate)}</Text>
+          <Text>{team.stats.gameWins} 胜 / {team.stats.gameLosses} 负 · 入库 {team.stats.linkedMatches} 场</Text>
+        </View>
+        <Text>进入</Text>
+      </Button>
+    </View>
+  );
+}
+
+export function PlayerTeamMark(props: { team: TeamBrief | null }) {
+  if (props.team === null) {
+    return <Text className="team-mark empty">暂未归队</Text>;
+  }
+
+  return <Text className="team-mark" style={{ borderColor: props.team.color ?? "#f0c36a" }}>{props.team.name}</Text>;
+}
+
+export function PlayerHeroStrip(props: { heroes: Array<{ heroId: number }> }) {
+  if (props.heroes.length === 0) {
+    return <View className="player-hero-strip empty"><Text>暂无常用英雄</Text></View>;
+  }
+
+  return (
+    <View className="player-hero-strip">
+      {props.heroes.slice(0, 3).map((hero) => (
+        <View key={hero.heroId}>
+          <Image mode="aspectFill" src={heroIcon(hero.heroId)} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function PlayerStatTile(props: { label: string; value: string }) {
+  return (
+    <View>
+      <Text>{props.label}</Text>
+      <Text>{props.value}</Text>
+    </View>
+  );
+}
+
+export function SteamAvatar(props: { player: Pick<PlayerListItem, "displayName" | "avatarUrl">; size?: "normal" | "large" | "small" }) {
+  const size = props.size ?? "normal";
+  const initial = props.player.displayName.slice(0, 1).toUpperCase();
+
+  return props.player.avatarUrl ? (
+    <View className={`steam-avatar-shell ${size}`}>
+      <Image className={`steam-avatar ${size}`} mode="aspectFill" src={props.player.avatarUrl} />
+    </View>
+  ) : (
+    <View className={`profile-avatar-fallback ${size === "large" ? "large" : ""}`}>{initial}</View>
+  );
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, value));
 }

@@ -2,7 +2,7 @@ import { Text, View } from "@tarojs/components";
 import { useDidShow, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadTeamProfile } from "../../api";
-import { PageShell, SectionTitle, StatGrid, TeamBadge } from "../../components";
+import { PageShell, PlayerHeroStrip, SectionTitle, StatGrid, SteamAvatar } from "../../components";
 import type { TeamProfile } from "../../types";
 import { formatDate, formatInteger, formatPercent, navigate } from "../../utils";
 
@@ -41,9 +41,19 @@ export default function TeamDetailPage() {
     <PageShell loading={loading} error={error} routeKey="teams">
       {profile ? (
         <>
-          <View className="hero-panel">
-            <TeamBadge team={profile} />
-            <Text className="brand-subtitle">成员 {profile.memberCount} 人 · {profile.status}</Text>
+          <View className="profile-hero team-profile">
+            <View className="profile-hero-main">
+              <View className="profile-avatar-fallback team large">{(profile.shortName ?? profile.name).slice(0, 2).toUpperCase()}</View>
+              <View>
+                <Text className="brand-title">{profile.name}</Text>
+                <Text className="brand-subtitle">{profile.memberCount} 名成员 · {profile.status} · {profile.stats.linkedMatches} 场</Text>
+              </View>
+            </View>
+            <View className="profile-winrate">
+              <Text>本届胜率</Text>
+              <Text>{formatPercent(profile.stats.winRate)}</Text>
+              <Text>{profile.stats.gameWins}W / {profile.stats.gameLosses}L</Text>
+            </View>
           </View>
           <StatGrid
             items={[
@@ -53,11 +63,21 @@ export default function TeamDetailPage() {
             ]}
           />
 
+          <View className="section-panel">
+            <View className="section-title compact">
+              <View>
+                <Text className="section-heading">常用英雄</Text>
+              </View>
+            </View>
+            <PlayerHeroStrip heroes={profile.stats.topHeroes} />
+          </View>
+
           <SectionTitle kicker="成员" title="当前名单" />
           {profile.members.map((member) => (
-            <View className="content-panel player-line" key={member.id} onClick={() => navigate(`/pages/player-detail/index?tournamentId=${tournamentId}&playerId=${member.id}`)}>
+            <View className="content-panel roster-item" key={member.id} onClick={() => navigate(`/pages/player-detail/index?tournamentId=${tournamentId}&playerId=${member.id}`)}>
+              <SteamAvatar player={member} size="small" />
               <Text className="record-title">{member.displayName}</Text>
-              <Text className="muted">{member.accountId ?? "未绑定"}</Text>
+              <Text className="muted">ID {member.accountId ?? member.id}</Text>
             </View>
           ))}
 

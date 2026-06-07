@@ -1,10 +1,10 @@
-import { Image, Text, View } from "@tarojs/components";
+import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import { ensureTournamentId, loadTournamentMatches, loadTournaments, setSelectedTournamentId } from "../../api";
-import { PageShell, SectionTitle, TournamentPicker } from "../../components";
+import { FilterRow, MatchRecordCard, PageShell, TournamentScope } from "../../components";
 import type { MatchRecord, TournamentOption } from "../../types";
-import { formatDateTime, labelStatus, navigate } from "../../utils";
+import { navigate } from "../../utils";
 
 export default function RecordsPage() {
   const [loading, setLoading] = useState(true);
@@ -42,57 +42,27 @@ export default function RecordsPage() {
 
   return (
     <PageShell loading={loading} error={error} routeKey="records">
-      <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
-      <SectionTitle kicker="比赛记录" title={`${records.length} 场战报`} />
-      {records.map((record) => (
-        <View className="match-record-card" key={record.matchId} onClick={() => navigate(`/pages/match-detail/index?matchId=${record.matchId}`)}>
-          <Text className="record-title">{record.radiantTeamName} vs {record.direTeamName}</Text>
-          <View className="record-meta">
-            <Text className="score-text">{record.radiantScore ?? "-"} : {record.direScore ?? "-"}</Text>
-            <Text className="muted">{formatDateTime(record.startTime)}</Text>
+      <TournamentScope tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
+      <View className="section-panel">
+        <View className="section-title compact">
+          <View>
+            <Text className="section-heading">比赛记录</Text>
           </View>
-          <RecordLineup record={record} />
-          <View className="record-flags">
-            <Text className="record-flag">{labelStatus(record.parseStatus)}</Text>
-            {record.hasDraft ? <Text className="record-flag">BP</Text> : null}
-            {record.hasVision ? <Text className="record-flag">视野</Text> : null}
-            {record.hasChat ? <Text className="record-flag">聊天</Text> : null}
-          </View>
+          <Text className="sync-pill">{records.length} 场</Text>
         </View>
-      ))}
-      {records.length === 0 ? <View className="content-panel"><Text className="muted">暂无比赛记录。</Text></View> : null}
+        <FilterRow labels={["全部", "已解析", "BP", "眼位", "聊天"]} />
+      </View>
+      <View className="records-list">
+        {records.map((record, index) => (
+          <MatchRecordCard
+            index={index}
+            key={record.matchId}
+            record={record}
+            onOpen={(matchId) => navigate(`/pages/match-detail/index?matchId=${matchId}`)}
+          />
+        ))}
+      </View>
+      {records.length === 0 ? <View className="content-panel"><Text className="muted">暂无</Text></View> : null}
     </PageShell>
-  );
-}
-
-function RecordLineup(props: { record: MatchRecord }) {
-  const radiant = props.record.heroLineups?.radiant ?? [];
-  const dire = props.record.heroLineups?.dire ?? [];
-  const hasLineup = radiant.length > 0 || dire.length > 0;
-
-  if (!hasLineup) {
-    return (
-      <View className="record-lineup empty">
-        <Text>英雄阵容待同步</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View className="record-lineup">
-      <View className="record-hero-strip radiant">
-        {radiant.map((hero) => (
-          <Image className="record-hero" key={`${hero.playerSlot}:${hero.heroId}`} mode="aspectFill" src={hero.icon || hero.portrait} />
-        ))}
-      </View>
-      <View className="record-versus">
-        <Text>VS</Text>
-      </View>
-      <View className="record-hero-strip dire">
-        {dire.map((hero) => (
-          <Image className="record-hero" key={`${hero.playerSlot}:${hero.heroId}`} mode="aspectFill" src={hero.icon || hero.portrait} />
-        ))}
-      </View>
-    </View>
   );
 }

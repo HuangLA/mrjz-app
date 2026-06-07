@@ -1,10 +1,15 @@
-import { Text, View } from "@tarojs/components";
+import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ensureTournamentId, loadOfficialSchedule, loadStageRounds, loadTournament, loadTournaments, setSelectedTournamentId } from "../../api";
-import { PageShell, SectionTitle, SeriesCard, TournamentPicker } from "../../components";
+import { FilterRow, PageShell, SeriesCard, TournamentScope } from "../../components";
 import type { OfficialScheduleStatus, StageRound, TournamentDetail, TournamentOption } from "../../types";
 import { labelStageType, labelStatus, navigate } from "../../utils";
+
+type ScheduleOrder = "asc" | "desc";
+
+const scheduleFilters = ["全部", "已排期", "进行中", "已结束", "待补赛果"] as const;
+type ScheduleFilter = (typeof scheduleFilters)[number];
 
 export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
@@ -14,6 +19,8 @@ export default function SchedulePage() {
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
   const [officialSchedule, setOfficialSchedule] = useState<OfficialScheduleStatus | null>(null);
   const [rounds, setRounds] = useState<StageRound[]>([]);
+  const [statusFilter, setStatusFilter] = useState<ScheduleFilter>("全部");
+  const [scheduleOrder, setScheduleOrder] = useState<ScheduleOrder>("desc");
 
   useDidShow(() => {
     void refresh();
@@ -47,22 +54,43 @@ export default function SchedulePage() {
     }
   }
 
-  const visibleSeries = officialSchedule?.isPublished ? rounds.flatMap((round) => round.series.map((series) => ({ round, series }))) : [];
+  const visibleSeries = useMemo(() => {
+    const allSeries = officialSchedule?.isPublished ? rounds.flatMap((round) => round.series.map((series) => ({ round, series }))) : [];
+    const filtered = statusFilter === "全部" ? allSeries : allSeries.filter(({ series }) => labelStatus(series.status) === statusFilter);
+
+    return scheduleOrder === "asc" ? filtered : filtered.slice().reverse();
+  }, [officialSchedule?.isPublished, rounds, scheduleOrder, statusFilter]);
+  const totalSeries = officialSchedule?.isPublished ? rounds.reduce((sum, round) => sum + round.series.length, 0) : 0;
 
   return (
     <PageShell loading={loading} error={error} routeKey="schedule">
-      <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
-      <View className="content-panel">
-        <Text className="section-heading">{detail?.name ?? "赛事"}</Text>
-        <Text className="muted">官方赛程：{labelStatus(officialSchedule?.status)} · 名单{officialSchedule?.rosterLocked ? "已锁定" : "未锁定"}</Text>
-      </View>
+      <TournamentScope tournament={detail ?? tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
 
       {officialSchedule?.isPublished ? (
         <>
-          <SectionTitle kicker="赛程" title="已发布对阵" />
+          <View className="section-panel">
+            <View className="section-title compact">
+              <View>
+                <Text className="section-heading">赛程列表</Text>
+              </View>
+              <Text className="status-tag blue">{scheduleOrder === "desc" ? "倒序" : "正序"}</Text>
+            </View>
+            <View className="schedule-toolbar">
+              <FilterRow labels={[...scheduleFilters]} value={statusFilter} onChange={setStatusFilter} />
+              <Button className="schedule-order-button" onClick={() => setScheduleOrder((current) => (current === "desc" ? "asc" : "desc"))}>
+                {scheduleOrder === "desc" ? "切换正序" : "切换倒序"}
+              </Button>
+            </View>
+            <Text className="schedule-summary">
+              当前显示 {visibleSeries.length}/{totalSeries} 场 · {scheduleOrder === "desc" ? "由晚到早" : "由早到晚"}
+            </Text>
+          </View>
           {visibleSeries.length > 0 ? visibleSeries.map(({ round, series }) => (
-            <View key={series.id}>
-              <Text className="kicker">{labelStageType(detail?.stages.find((stage) => stage.id === round.stageId)?.type)} · {round.name}</Text>
+            <View className="section-panel schedule-group" key={series.id}>
+              <View className="date-row">
+                <Text>{labelStageType(detail?.stages.find((stage) => stage.id === round.stageId)?.type)}</Text>
+                <Text>{round.name}</Text>
+              </View>
               <SeriesCard
                 series={{ ...series, roundName: round.name }}
                 onOpen={() => {
@@ -71,12 +99,16 @@ export default function SchedulePage() {
                 }}
               />
             </View>
-          )) : <View className="content-panel"><Text className="muted">赛程已发布，但暂无对阵。</Text></View>}
+          )) : <View className="section-panel"><Text className="muted">暂无符合条件的赛程</Text></View>}
         </>
       ) : (
-        <View className="content-panel">
-          <Text className="section-heading">赛程暂未发布</Text>
-          <Text className="muted">比赛记录和战报不受影响；官方阶段发布后，这里会展示管理员确认后的公开赛程。</Text>
+        <View className="section-panel schedule-unpublished">
+          <View className="section-title compact">
+            <View>
+              <Text className="section-heading">赛程暂未发布</Text>
+            </View>
+            <Text className="sync-pill">{labelStatus(officialSchedule?.status)}</Text>
+          </View>
         </View>
       )}
     </PageShell>

@@ -12,7 +12,7 @@ import {
   submitPlayerTag,
   unlikePlayerTag,
 } from "../../api";
-import { PageShell, PlayerAvatar, SectionTitle, StatGrid } from "../../components";
+import { PageShell, PlayerHeroStrip, PlayerTeamMark, SectionTitle, StatGrid, SteamAvatar } from "../../components";
 import type { AuthSession, PlayerProfile, PlayerTag } from "../../types";
 import { formatDate, formatDecimal, formatInteger, formatPercent, navigate, showToast } from "../../utils";
 
@@ -134,13 +134,21 @@ export default function PlayerDetailPage() {
     <PageShell loading={loading} error={error} routeKey="players">
       {profile ? (
         <>
-          <View className="hero-panel">
-            <View className="profile-head">
-              <PlayerAvatar player={profile} size="large" />
-              <View className="player-main">
-                <Text className="brand-title">{profile.displayName}</Text>
-                <Text className="brand-subtitle">{profile.currentTeam?.name ?? "暂未归队"} · {profile.accountId ?? "未绑定 account_id"}</Text>
+          <View className="profile-hero player-profile">
+            <View className="profile-hero-main">
+              <SteamAvatar player={profile} size="large" />
+              <View>
+                <View className="profile-name-row">
+                  <Text className="brand-title">{profile.displayName}</Text>
+                  <PlayerTeamMark team={profile.currentTeam ?? profile.teams[0] ?? null} />
+                </View>
+                <Text className="brand-subtitle">{profile.currentTeam?.name ?? "暂未归队"} · Account {profile.accountId ?? "-"}</Text>
               </View>
+            </View>
+            <View className="profile-winrate">
+              <Text>本届胜率</Text>
+              <Text>{formatPercent(profile.stats.winRate)}</Text>
+              <Text>{profile.stats.wins}W / {profile.stats.losses}L</Text>
             </View>
           </View>
 
@@ -154,6 +162,15 @@ export default function PlayerDetailPage() {
               { label: "伤害", value: formatDecimal(profile.stats.avgHeroDamage, 0), hint: "英雄伤害" },
             ]}
           />
+
+          <View className="section-panel">
+            <View className="section-title compact">
+              <View>
+                <Text className="section-heading">常用英雄</Text>
+              </View>
+            </View>
+            <PlayerHeroStrip heroes={profile.stats.topHeroes} />
+          </View>
 
           <SectionTitle kicker="应援标签" title="给选手贴标签" />
           <View className="tag-editor">

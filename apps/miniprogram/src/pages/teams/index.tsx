@@ -1,15 +1,14 @@
-import { Input, Text, View } from "@tarojs/components";
+import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
 import { ensureTournamentId, loadTournamentTeams, loadTournaments, setSelectedTournamentId } from "../../api";
-import { PageShell, SectionTitle, TeamBadge, TournamentPicker } from "../../components";
+import { PageShell, TeamDirectoryCard, TournamentScope } from "../../components";
 import type { TeamListItem, TournamentOption } from "../../types";
-import { formatInteger, formatPercent, navigate } from "../../utils";
+import { navigate } from "../../utils";
 
 export default function TeamsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
   const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
   const [selectedTournamentId, setSelectedId] = useState("");
   const [teams, setTeams] = useState<TeamListItem[]>([]);
@@ -42,28 +41,30 @@ export default function TeamsPage() {
   }
 
   const visibleTeams = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return teams.filter((team) => `${team.name} ${team.shortName ?? ""}`.toLowerCase().includes(normalized));
-  }, [query, teams]);
+    return teams.slice().sort((left, right) => right.stats.seriesPlayed - left.stats.seriesPlayed || left.name.localeCompare(right.name, "zh-CN"));
+  }, [teams]);
 
   return (
     <PageShell loading={loading} error={error} routeKey="teams">
-      <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
-      <SectionTitle kicker="队伍" title="参赛战队" />
-      <Input className="search-input" value={query} placeholder="搜索队名或简称" onInput={(event) => setQuery(String(event.detail.value))} />
-      {visibleTeams.map((team) => (
-        <View className="team-row" key={team.id} onClick={() => navigate(`/pages/team-detail/index?tournamentId=${selectedTournamentId}&teamId=${team.id}`)}>
-          <TeamBadge team={team} />
-          <View className="team-main">
-            <View className="team-stats">
-              <Text className="mini-stat">{formatInteger(team.memberCount)} 人</Text>
-              <Text className="mini-stat">胜率 {formatPercent(team.stats.winRate)}</Text>
-              <Text className="mini-stat">{team.stats.seriesWins}-{team.stats.seriesLosses}</Text>
-            </View>
+      <TournamentScope tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
+      <View className="section-panel">
+        <View className="section-title compact">
+          <View>
+            <Text className="section-heading">队伍主页</Text>
           </View>
+          <Text className="sync-pill">{visibleTeams.length} 支</Text>
         </View>
-      ))}
-      {visibleTeams.length === 0 ? <View className="content-panel"><Text className="muted">暂无匹配队伍。</Text></View> : null}
+        <View className="profile-card-list">
+          {visibleTeams.map((team) => (
+            <TeamDirectoryCard
+              key={team.id}
+              team={team}
+              onOpen={(teamId) => navigate(`/pages/team-detail/index?tournamentId=${selectedTournamentId}&teamId=${teamId}`)}
+            />
+          ))}
+        </View>
+        {visibleTeams.length === 0 ? <View className="content-panel"><Text className="muted">暂无</Text></View> : null}
+      </View>
     </PageShell>
   );
 }
