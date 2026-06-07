@@ -25,6 +25,10 @@ export default defineConfig({
   outputRoot: "dist",
   framework: "react",
   compiler: "webpack5",
+  copy: {
+    patterns: [{ from: "src/assets", to: "dist/assets" }],
+    options: {},
+  },
   defineConstants: {
     __MRJZ_MINIPROGRAM_API_BASE_URL__: JSON.stringify(resolveBuildApiBaseUrl()),
     __MRJZ_DEPLOY_ENV__: JSON.stringify(process.env.MRJZ_DEPLOY_ENV?.trim() || "local"),

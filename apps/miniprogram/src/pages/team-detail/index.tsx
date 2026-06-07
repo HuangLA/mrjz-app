@@ -38,7 +38,7 @@ export default function TeamDetailPage() {
   }
 
   return (
-    <PageShell loading={loading} error={error}>
+    <PageShell loading={loading} error={error} routeKey="teams">
       {profile ? (
         <>
           <View className="hero-panel">

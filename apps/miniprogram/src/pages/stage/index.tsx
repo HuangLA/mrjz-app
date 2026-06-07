@@ -83,7 +83,7 @@ export default function StagePage() {
   const selectedStage = officialStages.find((stage) => stage.id === selectedStageId) ?? null;
 
   return (
-    <PageShell loading={loading} error={error}>
+    <PageShell loading={loading} error={error} routeKey="stage">
       <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
       <SectionTitle kicker="阶段" title="赛事进展" />
       <View className="stage-tabs">

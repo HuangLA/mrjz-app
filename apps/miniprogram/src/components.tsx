@@ -1,16 +1,152 @@
 import { Button, Image, Picker, Text, View } from "@tarojs/components";
+import Taro from "@tarojs/taro";
 import type { ReactNode } from "react";
 import type { PlayerListItem, SeriesSummary, TeamBrief, TournamentOption } from "./types";
 import { formatDateTime, formatScore, labelStatus, seriesTitle, teamName } from "./utils";
 
-export function PageShell(props: { children: ReactNode; loading?: boolean; error?: string }) {
+export type MiniRouteKey = "home" | "stage" | "schedule" | "records" | "players" | "teams" | "mine";
+
+const routeNavItems: Array<{ key: MiniRouteKey; label: string; url: string }> = [
+  { key: "home", label: "首页", url: "/pages/index/index" },
+  { key: "stage", label: "赛事阶段", url: "/pages/stage/index" },
+  { key: "schedule", label: "赛程", url: "/pages/schedule/index" },
+  { key: "records", label: "比赛记录", url: "/pages/records/index" },
+  { key: "players", label: "选手", url: "/pages/players/index" },
+  { key: "teams", label: "队伍", url: "/pages/teams/index" },
+  { key: "mine", label: "我的", url: "/pages/mine/index" },
+];
+
+const heroRows: Record<"radiant" | "dire", string[]> = {
+  radiant: [
+    "pudge",
+    "windrunner",
+    "juggernaut",
+    "invoker",
+    "phantom_assassin",
+    "earthshaker",
+    "lina",
+    "nevermore",
+    "queenofpain",
+    "axe",
+    "mirana",
+    "ember_spirit",
+    "mars",
+    "snapfire",
+  ],
+  dire: [
+    "templar_assassin",
+    "void_spirit",
+    "drow_ranger",
+    "sven",
+    "tiny",
+    "rubick",
+    "slark",
+    "tidehunter",
+    "morphling",
+    "ursa",
+    "puck",
+    "sniper",
+    "chaos_knight",
+    "muerta",
+  ],
+};
+
+export function PageShell(props: { children: ReactNode; loading?: boolean; error?: string; routeKey?: MiniRouteKey }) {
+  const routeKey = props.routeKey ?? "stage";
+  const isHome = routeKey === "home";
+
   return (
-    <View className="page-shell">
-      {props.loading ? <StatePanel title="读取中" text="正在同步赛事数据" /> : null}
-      {!props.loading && props.error ? <StatePanel title="暂时不可用" text={props.error} tone="danger" /> : null}
-      {!props.loading && !props.error ? props.children : null}
+    <View className={`app-shell ${isHome ? "route-home" : "route-secondary"}`}>
+      {isHome ? <HomeBackgroundMarquee /> : null}
+      <AppBar isHome={isHome} />
+      <View className="view">
+        {props.loading ? <StatePanel title="读取中" text="正在同步赛事数据" /> : null}
+        {!props.loading && props.error ? <StatePanel title="暂时不可用" text={props.error} tone="danger" /> : null}
+        {!props.loading && !props.error ? props.children : null}
+      </View>
+      {!isHome ? <FloatingRouteNav routeKey={routeKey} /> : null}
     </View>
   );
+}
+
+function AppBar(props: { isHome: boolean }) {
+  return (
+    <View className={`app-bar ${props.isHome ? "home-bar" : ""}`}>
+      <View className="title-line top-only">
+        {props.isHome ? (
+          <Text className="brand-mark">MRJZ</Text>
+        ) : (
+          <Button className="icon-button" onClick={goBack}>
+            ‹
+          </Button>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function FloatingRouteNav(props: { routeKey: MiniRouteKey }) {
+  return (
+    <View className="floating-route-nav">
+      <View className="route-tabs">
+        {routeNavItems.map((item) => (
+          <Button
+            className={`route-tab ${item.key === props.routeKey ? "active" : ""}`}
+            key={item.key}
+            onClick={() => switchRoute(item.url)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function HomeBackgroundMarquee() {
+  return (
+    <View className="home-background-marquee">
+      <HomeHeroRail side="radiant" />
+      <HomeHeroRail side="dire" />
+    </View>
+  );
+}
+
+function HomeHeroRail(props: { side: "radiant" | "dire" }) {
+  const heroes = [...heroRows[props.side], ...heroRows[props.side], ...heroRows[props.side]];
+
+  return (
+    <View className={`home-hero-rail ${props.side}`}>
+      <View className="home-hero-track">
+        {heroes.map((hero, index) => (
+          <View className="home-hero-card" key={`${props.side}-${hero}-${index}`}>
+            <Image className="home-hero-image" mode="aspectFill" src={`/assets/heroes/${hero}.png`} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function goBack() {
+  const pages = Taro.getCurrentPages();
+
+  if (pages.length > 1) {
+    void Taro.navigateBack();
+    return;
+  }
+
+  void Taro.redirectTo({ url: "/pages/index/index" });
+}
+
+function switchRoute(url: string) {
+  const currentRoute = Taro.getCurrentPages().at(-1)?.route;
+
+  if (currentRoute && url === `/${currentRoute}`) {
+    return;
+  }
+
+  void Taro.redirectTo({ url });
 }
 
 export function StatePanel(props: { title: string; text: string; tone?: "default" | "danger" }) {
@@ -75,9 +211,9 @@ export function TournamentPicker(props: {
 
 export function StatGrid(props: { items: Array<{ label: string; value: string; hint?: string | undefined }> }) {
   return (
-    <View className="stat-grid">
+    <View className="metric-grid stat-grid">
       {props.items.map((item) => (
-        <View className="stat-cell" key={item.label}>
+        <View className="metric-card stat-cell" key={item.label}>
           <Text className="stat-value">{item.value}</Text>
           <Text className="stat-label">{item.label}</Text>
           {item.hint ? <Text className="stat-hint">{item.hint}</Text> : null}
@@ -110,25 +246,24 @@ export function TeamBadge(props: { team?: TeamBrief | null; align?: "left" | "ri
 
 export function SeriesCard(props: { series: SeriesSummary; onOpen?: () => void }) {
   const firstMatchId = props.series.games?.find((game) => game.matchId)?.matchId;
+  const isFinished = props.series.status === "completed";
 
   return (
-    <View className="series-card" onClick={() => props.onOpen?.()}>
-      <View className="series-meta-row">
-        <Text className="badge">{props.series.boType ?? "BO"}</Text>
-        <Text className="muted">{formatDateTime(props.series.scheduledAt)}</Text>
-        <Text className="status-text">{labelStatus(props.series.status)}</Text>
-      </View>
-      <View className="series-vs">
-        <TeamBadge team={props.series.radiantTeam} />
-        <View className="score-block">
-          <Text className="score-text">{formatScore(props.series)}</Text>
-          <Text className="muted">{props.series.seriesKind === "tiebreaker" ? "加赛" : "常规"}</Text>
-        </View>
-        <TeamBadge team={props.series.direTeam} align="right" />
-      </View>
-      <View className="series-footer">
+    <View className={`schedule-card series-card ${isFinished ? "finished" : ""}`} onClick={() => props.onOpen?.()}>
+      <View className="schedule-card-head series-meta-row">
+        <Text className="schedule-time">{formatDateTime(props.series.scheduledAt)}</Text>
         <Text className="muted">{props.series.groupName || props.series.roundName || seriesTitle(props.series)}</Text>
-        {firstMatchId ? <Text className="match-id">match {firstMatchId}</Text> : null}
+      </View>
+      <View className="schedule-matchup series-vs">
+        <Text className="schedule-team">{teamName(props.series.radiantTeam)}</Text>
+        <Text className={`schedule-score ${isFinished ? "is-result" : "is-bo"} score-text`}>
+          {isFinished ? formatScore(props.series) : (props.series.boType ?? "BO")}
+        </Text>
+        <Text className="schedule-team is-right">{teamName(props.series.direTeam)}</Text>
+      </View>
+      <View className="schedule-card-foot series-footer">
+        <Text className={`status-tag ${isFinished ? "green" : "blue"}`}>{labelStatus(props.series.status)}</Text>
+        <Text className="match-id">{firstMatchId ? `match ${firstMatchId}` : props.series.seriesKind === "tiebreaker" ? "加赛" : "--"}</Text>
       </View>
     </View>
   );

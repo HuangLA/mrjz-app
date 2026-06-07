@@ -54,6 +54,9 @@
 - 重置微信 `button` 默认边框、外边距和伪元素边框。
 - 小程序导航栏和 tabBar 改为与 H5 端一致的深色 / 金色视觉体系。
 - 已通过 `npm run build:miniprogram:local` 和 `npm --workspace @mrjz/miniprogram run typecheck`。
+- 二次视觉收束以 H5 为唯一视觉源：移除微信原生 tabBar，改用自绘 `app-shell`、自定义顶部栏和底部悬浮导航。
+- 首页补齐 H5 同构 hero：双向 Dota hero 滚动背景、MRJZ 品牌核心、三项快捷入口和统计条，并在 Taro 构建时复制 H5 hero 素材。
+- 赛事入口、赛程卡、比赛记录卡和详情页 hero 面板统一使用 H5 的深色、金色边框和 Radiant / Dire 渐变语言。
 
 ## 完成定义
 

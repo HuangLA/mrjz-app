@@ -123,7 +123,7 @@ export default function MinePage() {
   }
 
   return (
-    <PageShell loading={false} error="">
+    <PageShell loading={false} error="" routeKey="mine">
       <View className="hero-panel">
         <Text className="kicker">微信登录</Text>
         <Text className="brand-title">{session ? me?.nickname ?? session.user.nickname : "未登录"}</Text>

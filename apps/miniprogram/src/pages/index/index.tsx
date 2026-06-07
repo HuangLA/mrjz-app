@@ -8,7 +8,7 @@ import {
   loadTournaments,
   setSelectedTournamentId,
 } from "../../api";
-import { PageShell, SectionTitle, SeriesCard, StatGrid, TournamentPicker } from "../../components";
+import { PageShell, SectionTitle, SeriesCard, StatGrid } from "../../components";
 import type { MatchRecord, TournamentDetail, TournamentOption } from "../../types";
 import { formatDate, labelStageType, labelStatus, navigate, switchTab } from "../../utils";
 
@@ -55,16 +55,62 @@ export default function HomePage() {
 
   const currentStage = detail?.currentStage ?? detail?.stages?.[0] ?? null;
   const latestRecord = records[0];
+  const recordCount = records.length;
 
   return (
-    <PageShell loading={loading} error={error}>
-      <View className="hero-panel">
-        <Text className="kicker">MRJZ Dota 2 社区赛</Text>
-        <Text className="brand-title">赛程、战报和选手数据</Text>
-        <Text className="brand-subtitle">小程序端优先承载登录、选手标签提交和真实点赞。</Text>
+    <PageShell loading={loading} error={error} routeKey="home">
+      <View className="home-hero">
+        <View className="home-hero-content">
+          <View className="home-hero-kicker">
+            <Text>MRJZ</Text>
+            <View />
+            <Text>DOTA 2</Text>
+          </View>
+          <View className="home-brand-core">
+            <Text className="home-brand-season">COMMUNITY LEAGUE</Text>
+            <Text className="home-brand-name">每日节奏杯</Text>
+            <Text className="home-brand-sub">DRAFT · FIGHT · RECORD</Text>
+          </View>
+          <View className="home-quick-actions">
+            <Button onClick={() => navigate("/pages/stage/index")}>阶段</Button>
+            <Button onClick={() => switchTab("/pages/records/index")}>记录</Button>
+            <Button onClick={() => switchTab("/pages/players/index")}>选手</Button>
+          </View>
+        </View>
+        <View className="home-hero-stats">
+          <View>
+            <Text>届次</Text>
+            <Text>{String(tournaments.length)}</Text>
+          </View>
+          <View>
+            <Text>比赛</Text>
+            <Text>{String(recordCount)}</Text>
+          </View>
+          <View>
+            <Text>战场</Text>
+            <Text>DOTA2</Text>
+          </View>
+        </View>
       </View>
 
-      <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
+      <View className="tournament-entry-list">
+        {tournaments.map((tournament) => (
+          <View className={`tournament-entry ${tournament.id === selectedTournamentId ? "active" : ""}`} key={tournament.id}>
+            <Button className="tournament-entry-main" onClick={() => void refresh(tournament.id)}>
+              <View>
+                <Text className="tournament-entry-title">{tournament.name}</Text>
+                <Text className="tournament-entry-meta">
+                  {labelStatus(tournament.status)} · {formatDate(tournament.startsAt)}
+                </Text>
+              </View>
+              <View className="tournament-entry-action">
+                <Text>{tournament.id === selectedTournamentId ? "当前" : "进入"}</Text>
+                <Text>{tournament.id === selectedTournamentId && latestRecord ? `${latestRecord.radiantTeamName} vs ${latestRecord.direTeamName}` : tournament.season?.name ?? "--"}</Text>
+              </View>
+            </Button>
+          </View>
+        ))}
+      </View>
 
       <StatGrid
         items={[
@@ -73,25 +119,6 @@ export default function HomePage() {
           { label: "参赛队伍", value: String(detail?.teamCount ?? 0), hint: `league ${detail?.league?.opendotaLeagueId ?? "-"}` },
         ]}
       />
-
-      <SectionTitle kicker="入口" title="常用页面" />
-      <View className="quick-grid">
-        <Button className="quick-button" onClick={() => navigate("/pages/stage/index")}>
-          赛事阶段
-        </Button>
-        <Button className="quick-button" onClick={() => switchTab("/pages/schedule/index")}>
-          官方赛程
-        </Button>
-        <Button className="quick-button" onClick={() => switchTab("/pages/records/index")}>
-          比赛记录
-        </Button>
-        <Button className="quick-button" onClick={() => switchTab("/pages/players/index")}>
-          选手数据
-        </Button>
-        <Button className="quick-button" onClick={() => navigate("/pages/teams/index")}>
-          队伍主页
-        </Button>
-      </View>
 
       <SectionTitle kicker="下一场" title="近期赛程" actionText="看赛程" onAction={() => switchTab("/pages/schedule/index")} />
       {detail?.nextSeries ? <SeriesCard series={detail.nextSeries} /> : <View className="content-panel"><Text className="muted">暂无已发布下一场。</Text></View>}

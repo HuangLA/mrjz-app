@@ -131,7 +131,7 @@ export default function PlayerDetailPage() {
   const currentHistory = useMemo(() => profile?.tournamentHistory?.find((item) => item.isCurrent), [profile]);
 
   return (
-    <PageShell loading={loading} error={error}>
+    <PageShell loading={loading} error={error} routeKey="players">
       {profile ? (
         <>
           <View className="hero-panel">

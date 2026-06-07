@@ -6,7 +6,14 @@ export function navigate(url: string): void {
 }
 
 export function switchTab(url: string): void {
-  void Taro.switchTab({ url });
+  const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+  const currentRoute = Taro.getCurrentPages().at(-1)?.route;
+
+  if (currentRoute && normalizedUrl === `/${currentRoute}`) {
+    return;
+  }
+
+  void Taro.redirectTo({ url: normalizedUrl });
 }
 
 export function showToast(title: string, icon: "success" | "error" | "none" = "none"): void {

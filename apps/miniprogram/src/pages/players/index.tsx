@@ -52,7 +52,7 @@ export default function PlayersPage() {
   }, [players, query]);
 
   return (
-    <PageShell loading={loading} error={error}>
+    <PageShell loading={loading} error={error} routeKey="players">
       <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
       <SectionTitle kicker="选手" title="数据榜" />
       <Input className="search-input" value={query} placeholder="搜索选手、队伍或 Dota account_id" onInput={(event) => setQuery(String(event.detail.value))} />

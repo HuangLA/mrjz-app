@@ -17,18 +17,6 @@ export default defineAppConfig({
     navigationBarTitleText: "MRJZ",
     navigationBarTextStyle: "white",
     backgroundColor: "#07090c",
-  },
-  tabBar: {
-    color: "#9ba6b8",
-    selectedColor: "#d5a64f",
-    backgroundColor: "#080c12",
-    borderStyle: "black",
-    list: [
-      { pagePath: "pages/index/index", text: "首页" },
-      { pagePath: "pages/schedule/index", text: "赛程" },
-      { pagePath: "pages/records/index", text: "记录" },
-      { pagePath: "pages/players/index", text: "选手" },
-      { pagePath: "pages/mine/index", text: "我的" },
-    ],
+    navigationStyle: "custom",
   },
 });

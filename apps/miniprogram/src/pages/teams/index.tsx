@@ -47,7 +47,7 @@ export default function TeamsPage() {
   }, [query, teams]);
 
   return (
-    <PageShell loading={loading} error={error}>
+    <PageShell loading={loading} error={error} routeKey="teams">
       <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
       <SectionTitle kicker="队伍" title="参赛战队" />
       <Input className="search-input" value={query} placeholder="搜索队名或简称" onInput={(event) => setQuery(String(event.detail.value))} />

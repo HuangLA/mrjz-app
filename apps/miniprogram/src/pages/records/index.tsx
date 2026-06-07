@@ -41,7 +41,7 @@ export default function RecordsPage() {
   }
 
   return (
-    <PageShell loading={loading} error={error}>
+    <PageShell loading={loading} error={error} routeKey="records">
       <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
       <SectionTitle kicker="比赛记录" title={`${records.length} 场战报`} />
       {records.map((record) => (

@@ -50,7 +50,7 @@ export default function SchedulePage() {
   const visibleSeries = officialSchedule?.isPublished ? rounds.flatMap((round) => round.series.map((series) => ({ round, series }))) : [];
 
   return (
-    <PageShell loading={loading} error={error}>
+    <PageShell loading={loading} error={error} routeKey="schedule">
       <TournamentPicker tournaments={tournaments} selectedTournamentId={selectedTournamentId} onChange={(id) => void refresh(id)} />
       <View className="content-panel">
         <Text className="section-heading">{detail?.name ?? "赛事"}</Text>

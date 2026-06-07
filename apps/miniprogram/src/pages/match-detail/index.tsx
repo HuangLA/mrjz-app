@@ -37,7 +37,7 @@ export default function MatchDetailPage() {
   }
 
   return (
-    <PageShell loading={loading} error={error}>
+    <PageShell loading={loading} error={error} routeKey="records">
       {detail ? (
         <>
           <View className="hero-panel">
