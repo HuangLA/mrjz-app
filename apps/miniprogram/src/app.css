@@ -41,7 +41,7 @@ button[disabled] {
 
 .app-shell {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
   min-height: 100vh;
   padding-bottom: 94px;
@@ -126,7 +126,7 @@ button[disabled] {
 }
 
 .title-line.top-only {
-  justify-content: flex-start;
+  justify-content: space-between;
 }
 
 .brand-mark {
@@ -156,6 +156,21 @@ button[disabled] {
   line-height: 30px;
 }
 
+.account-link {
+  display: grid;
+  height: 28px;
+  min-width: 42px;
+  place-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #d8e1ef;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 28px;
+}
+
 .view {
   position: relative;
   z-index: 2;
@@ -183,7 +198,7 @@ button[disabled] {
 
 .route-tabs {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 5px;
 }
 

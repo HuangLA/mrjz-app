@@ -19,6 +19,7 @@ export default function HomePage() {
   const [selectedTournamentId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
   const [records, setRecords] = useState<MatchRecord[]>([]);
+  const [recentRecordsByTournament, setRecentRecordsByTournament] = useState<Record<string, MatchRecord[]>>({});
 
   useDidShow(() => {
     void refresh();
@@ -37,15 +38,30 @@ export default function HomePage() {
         setSelectedId("");
         setDetail(null);
         setRecords([]);
+        setRecentRecordsByTournament({});
         return;
       }
 
       setSelectedTournamentId(targetId);
-      const [nextDetail, nextRecords] = await Promise.all([loadTournament(targetId), loadTournamentMatches(targetId, 6)]);
+      const recentEntries = await Promise.all(
+        allTournaments.map(async (tournament) => {
+          try {
+            return [tournament.id, await loadTournamentMatches(tournament.id, 6)] as const;
+          } catch {
+            return [tournament.id, []] as const;
+          }
+        }),
+      );
+      const nextRecentRecordsByTournament = Object.fromEntries(recentEntries);
+      const [nextDetail, nextRecords] = await Promise.all([
+        loadTournament(targetId),
+        Promise.resolve(nextRecentRecordsByTournament[targetId] ?? []),
+      ]);
       setTournaments(allTournaments);
       setSelectedId(targetId);
       setDetail(nextDetail);
       setRecords(nextRecords);
+      setRecentRecordsByTournament(nextRecentRecordsByTournament);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "赛事数据读取失败");
     } finally {
@@ -53,9 +69,15 @@ export default function HomePage() {
     }
   }
 
+  function enterTournament(tournamentId: string) {
+    setSelectedTournamentId(tournamentId);
+    setSelectedId(tournamentId);
+    switchTab("/pages/stage/index");
+  }
+
   const currentStage = detail?.currentStage ?? detail?.stages?.[0] ?? null;
   const latestRecord = records[0];
-  const recordCount = records.length;
+  const recordCount = Object.values(recentRecordsByTournament).reduce((sum, tournamentRecords) => sum + tournamentRecords.length, 0);
 
   return (
     <PageShell loading={loading} error={error} routeKey="home">
@@ -96,7 +118,7 @@ export default function HomePage() {
       <View className="tournament-entry-list">
         {tournaments.map((tournament) => (
           <View className={`tournament-entry ${tournament.id === selectedTournamentId ? "active" : ""}`} key={tournament.id}>
-            <Button className="tournament-entry-main" onClick={() => void refresh(tournament.id)}>
+            <Button className="tournament-entry-main" onClick={() => enterTournament(tournament.id)}>
               <View>
                 <Text className="tournament-entry-title">{tournament.name}</Text>
                 <Text className="tournament-entry-meta">
@@ -105,7 +127,7 @@ export default function HomePage() {
               </View>
               <View className="tournament-entry-action">
                 <Text>{tournament.id === selectedTournamentId ? "当前" : "进入"}</Text>
-                <Text>{tournament.id === selectedTournamentId && latestRecord ? `${latestRecord.radiantTeamName} vs ${latestRecord.direTeamName}` : tournament.season?.name ?? "--"}</Text>
+                <Text>{formatLatestRecord(recentRecordsByTournament[tournament.id]?.[0])}</Text>
               </View>
             </Button>
           </View>
@@ -137,4 +159,13 @@ export default function HomePage() {
       )}
     </PageShell>
   );
+}
+
+function formatLatestRecord(record?: MatchRecord): string {
+  if (!record) {
+    return "--";
+  }
+
+  const score = record.radiantScore === null || record.direScore === null ? "暂无赛果" : `${record.radiantScore}:${record.direScore}`;
+  return `${record.radiantTeamName} ${score} ${record.direTeamName}`;
 }

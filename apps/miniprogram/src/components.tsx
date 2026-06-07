@@ -13,7 +13,6 @@ const routeNavItems: Array<{ key: MiniRouteKey; label: string; url: string }> = 
   { key: "records", label: "比赛记录", url: "/pages/records/index" },
   { key: "players", label: "选手", url: "/pages/players/index" },
   { key: "teams", label: "队伍", url: "/pages/teams/index" },
-  { key: "mine", label: "我的", url: "/pages/mine/index" },
 ];
 
 const heroRows: Record<"radiant" | "dire", string[]> = {
@@ -54,6 +53,7 @@ const heroRows: Record<"radiant" | "dire", string[]> = {
 export function PageShell(props: { children: ReactNode; loading?: boolean; error?: string; routeKey?: MiniRouteKey }) {
   const routeKey = props.routeKey ?? "stage";
   const isHome = routeKey === "home";
+  const showFloatingNav = !isHome && routeKey !== "mine";
 
   return (
     <View className={`app-shell ${isHome ? "route-home" : "route-secondary"}`}>
@@ -64,7 +64,7 @@ export function PageShell(props: { children: ReactNode; loading?: boolean; error
         {!props.loading && props.error ? <StatePanel title="暂时不可用" text={props.error} tone="danger" /> : null}
         {!props.loading && !props.error ? props.children : null}
       </View>
-      {!isHome ? <FloatingRouteNav routeKey={routeKey} /> : null}
+      {showFloatingNav ? <FloatingRouteNav routeKey={routeKey} /> : null}
     </View>
   );
 }
@@ -80,6 +80,9 @@ function AppBar(props: { isHome: boolean }) {
             ‹
           </Button>
         )}
+        <Button className="account-link" onClick={() => switchRoute("/pages/mine/index")}>
+          我的
+        </Button>
       </View>
     </View>
   );
