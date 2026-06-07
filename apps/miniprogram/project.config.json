@@ -1,0 +1,13 @@
+{
+  "appid": "touristappid",
+  "projectname": "mrjz-miniprogram",
+  "description": "MRJZ Dota 2 community tournament mini program",
+  "miniprogramRoot": "dist/",
+  "compileType": "miniprogram",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true
+  }
+}

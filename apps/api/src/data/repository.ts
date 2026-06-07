@@ -30,6 +30,8 @@ import {
   type TournamentTeamListItem,
   type UpdateTournamentLifecycleInput,
   type UpdateGameResultInput,
+  type AppUserView,
+  type UpsertAppUserInput,
   type UpsertOpenDotaMatchInput,
   type AddTeamMemberInput,
   type AdvanceBracketNodeInput,
@@ -91,6 +93,8 @@ type Repository = {
   listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
   getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined;
   getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined;
+  getAppUser(userId: string): AppUserView | undefined;
+  upsertAppUser(input: UpsertAppUserInput): AppUserView;
   listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined;
   submitPlayerTag(tournamentId: string, playerId: string, input: SubmitPlayerTagInput): PlayerTagView;
   likePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView;
@@ -216,6 +220,14 @@ export function getTournamentTeamDetail(tournamentId: string, teamId: string) {
 
 export function getTournamentPlayerDetail(tournamentId: string, playerId: string) {
   return repository.getTournamentPlayerDetail(tournamentId, playerId);
+}
+
+export function getAppUser(userId: string) {
+  return repository.getAppUser(userId);
+}
+
+export function upsertAppUser(input: UpsertAppUserInput) {
+  return repository.upsertAppUser(input);
 }
 
 export function listPlayerTags(tournamentId: string, playerId: string) {

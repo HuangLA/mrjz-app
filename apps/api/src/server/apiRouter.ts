@@ -25,6 +25,7 @@ import {
   listStageGroups,
   getStageRounds,
   getStageStandings,
+  getAppUser,
   generateGroupRoundRobin,
   generateSwissPairings,
   getTournamentPlayerDetail,
@@ -53,6 +54,7 @@ import {
   setBracketNodeSlot,
   submitPlayerTag,
   unlikePlayerTag,
+  upsertAppUser,
   updateTeam,
   updateTournamentLifecycle,
   updatePlayerTagReview,
@@ -92,6 +94,41 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
 
   router.get("/health", () => json(200, getHealthStatus()));
   router.get("/api/health", () => json(200, getHealthStatus()));
+
+  router.post("/api/auth/wechat-login", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      const login = await resolveWechatLogin(body);
+      const user = upsertAppUser({
+        openId: login.openId,
+        nickname: login.nickname,
+      });
+
+      return ok({
+        token: user.id,
+        user,
+        authProvider: login.provider,
+      });
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.get("/api/me", ({ request }) => {
+    const userId = appUserIdFromRequest(request);
+
+    if (userId === null) {
+      return fail(401, "UNAUTHORIZED", "Login is required");
+    }
+
+    const user = getAppUser(userId);
+
+    if (user === undefined) {
+      return fail(401, "UNAUTHORIZED", "App user not found");
+    }
+
+    return ok(user);
+  });
 
   router.get("/api/assets/steam-avatars/:filename", async ({ params }) => {
     const accountId = Number((params.filename ?? "").replace(/\.jpg$/i, ""));
@@ -1230,6 +1267,48 @@ function appUserIdFromRequest(request: { headers: Record<string, string | string
   const match = typeof token === "string" ? /^Bearer\s+(.+)$/i.exec(token.trim()) : null;
 
   return match?.[1]?.trim() || null;
+}
+
+type ResolvedWechatLogin = {
+  openId: string;
+  nickname: string;
+  provider: "wechat" | "development";
+};
+
+async function resolveWechatLogin(body: Record<string, unknown>): Promise<ResolvedWechatLogin> {
+  const code = stringField(body, "code");
+  const nickname = optionalStringField(body, "nickname") ?? "微信用户";
+  const appId = process.env.WECHAT_APP_ID?.trim();
+  const appSecret = process.env.WECHAT_APP_SECRET?.trim();
+
+  if (appId !== undefined && appId.length > 0 && appSecret !== undefined && appSecret.length > 0) {
+    const params = new URLSearchParams({
+      appid: appId,
+      secret: appSecret,
+      js_code: code,
+      grant_type: "authorization_code",
+    });
+    const response = await fetch(`https://api.weixin.qq.com/sns/jscode2session?${params.toString()}`);
+    const payload = (await response.json()) as { openid?: string; errcode?: number; errmsg?: string };
+
+    if (!response.ok || typeof payload.openid !== "string" || payload.openid.trim().length === 0) {
+      throw new Error(payload.errmsg ?? "WeChat code2Session failed");
+    }
+
+    return {
+      openId: `wechat:${payload.openid.trim()}`,
+      nickname,
+      provider: "wechat",
+    };
+  }
+
+  const devUserId = optionalStringField(body, "devUserId") ?? process.env.MRJZ_DEV_WECHAT_USER_ID?.trim() ?? "local";
+
+  return {
+    openId: `dev:${devUserId}`,
+    nickname: nickname === "微信用户" ? `开发用户 ${devUserId}` : nickname,
+    provider: "development",
+  };
 }
 
 function stringField(body: Record<string, unknown>, fieldName: string): string {

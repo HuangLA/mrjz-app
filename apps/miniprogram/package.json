@@ -4,13 +4,32 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "echo \"TODO: initialize Taro mini program\"",
-    "build": "echo \"TODO: build Taro mini program\"",
+    "dev": "taro build --type weapp --watch",
+    "build": "taro build --type weapp",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add miniprogram lint\"",
     "test": "echo \"TODO: add miniprogram tests\""
   },
   "dependencies": {
-    "@mrjz/shared": "0.1.0"
+    "@mrjz/shared": "0.1.0",
+    "@tarojs/components": "^4.2.0",
+    "@tarojs/helper": "^4.2.0",
+    "@tarojs/react": "^4.2.0",
+    "@tarojs/runtime": "^4.2.0",
+    "@tarojs/shared": "^4.2.0",
+    "@tarojs/taro": "^4.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@babel/preset-react": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
+    "@tarojs/cli": "^4.2.0",
+    "@tarojs/plugin-framework-react": "^4.2.0",
+    "@tarojs/plugin-platform-weapp": "^4.2.0",
+    "@tarojs/webpack5-runner": "^4.2.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "babel-preset-taro": "^4.2.0"
   }
 }

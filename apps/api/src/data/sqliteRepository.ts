@@ -257,6 +257,22 @@ export type SyncTaskView = {
 
 export type PlayerTagStatus = "pending_review" | "approved" | "rejected" | "hidden";
 
+export type AppUserRole = "viewer" | "player" | "admin";
+
+export type AppUserView = {
+  id: string;
+  openId: string | null;
+  nickname: string;
+  role: AppUserRole;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpsertAppUserInput = {
+  openId: string;
+  nickname?: string;
+};
+
 export type PlayerTagView = {
   id: string;
   tournamentId: string;
@@ -1831,6 +1847,60 @@ export class SqliteTournamentRepository {
     };
   }
 
+  getAppUser(userId: string): AppUserView | undefined {
+    const id = requiredString(userId, "userId");
+    const row = this.database.prepare("SELECT * FROM app_users WHERE id = ?").get(id);
+
+    return row === undefined ? undefined : this.mapAppUser(row as DbRow);
+  }
+
+  upsertAppUser(input: UpsertAppUserInput): AppUserView {
+    const openId = requiredString(input.openId, "openId");
+    const nickname = cleanOptionalText(input.nickname) ?? "微信用户";
+    const existing = this.database.prepare("SELECT * FROM app_users WHERE open_id = ?").get(openId) as DbRow | undefined;
+
+    if (existing !== undefined) {
+      const userId = text(existing, "id");
+      this.database
+        .prepare(
+          `
+            UPDATE app_users
+            SET
+              nickname = ?,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(nickname, userId);
+
+      const updated = this.database.prepare("SELECT * FROM app_users WHERE id = ?").get(userId);
+
+      if (updated === undefined) {
+        throw new Error("updated app user could not be loaded");
+      }
+
+      return this.mapAppUser(updated as DbRow);
+    }
+
+    const userId = uniqueId("user", openId);
+    this.database
+      .prepare(
+        `
+          INSERT INTO app_users (id, open_id, nickname, role)
+          VALUES (?, ?, ?, 'viewer')
+        `,
+      )
+      .run(userId, openId, nickname);
+
+    const created = this.database.prepare("SELECT * FROM app_users WHERE id = ?").get(userId);
+
+    if (created === undefined) {
+      throw new Error("created app user could not be loaded");
+    }
+
+    return this.mapAppUser(created as DbRow);
+  }
+
   listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined {
     const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
     const player = this.getPlayerById(playerId);
@@ -2595,6 +2665,17 @@ export class SqliteTournamentRepository {
         id: text(row, "created_by"),
         nickname: text(row, "created_by_nickname"),
       },
+      createdAt: text(row, "created_at"),
+      updatedAt: text(row, "updated_at"),
+    };
+  }
+
+  private mapAppUser(row: DbRow): AppUserView {
+    return {
+      id: text(row, "id"),
+      openId: nullableText(row, "open_id"),
+      nickname: text(row, "nickname"),
+      role: text(row, "role") as AppUserRole,
       createdAt: text(row, "created_at"),
       updatedAt: text(row, "updated_at"),
     };
@@ -7712,6 +7793,12 @@ function requiredString(value: string | undefined, fieldName: string): string {
   }
 
   return trimmed;
+}
+
+function cleanOptionalText(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+
+  return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
 }
 
 function requiredPositiveInteger(value: number | undefined, fieldName: string): number {
