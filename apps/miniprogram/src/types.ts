@@ -248,9 +248,30 @@ export type PlayerTag = {
   createdAt: string;
 };
 
+export type AghanimState = "owned" | "queued" | "none";
+
+export type IconRef = {
+  label: string;
+  imageUrl: string;
+  kind?: "ability" | "talent" | "attribute" | "empty";
+  key?: string;
+  level?: number;
+};
+
+export type TalentTreeNode = {
+  tier: 1 | 2 | 3 | 4;
+  side: "left" | "right";
+  picked: boolean;
+  label: string;
+  level?: number;
+};
+
 export type MatchRecordHero = {
   playerSlot: number;
   heroId: number;
+  hero: string;
+  icon: string;
+  portrait: string;
   playerName: string;
 };
 
@@ -272,6 +293,64 @@ export type MatchRecord = {
   hasDraft: boolean;
   hasVision: boolean;
   hasChat: boolean;
+};
+
+export type DraftStep = {
+  order: number;
+  side: TeamSide;
+  type: "Ban" | "Pick";
+  hero: string;
+  portrait: string;
+  actor: string;
+};
+
+export type WardEvent = {
+  time: string;
+  timeSeconds: number;
+  side: TeamSide;
+  type: "观察守卫" | "岗哨守卫" | "反眼";
+  lane: string;
+  note: string;
+  x: number | null;
+  y: number | null;
+  removedAt: number | null;
+};
+
+export type ChatLine = {
+  time: string;
+  side: TeamSide;
+  player: string;
+  hero: string;
+  text: string;
+};
+
+export type TrendPoint = {
+  minute: number;
+  value: number;
+};
+
+export type PlayerTrend = {
+  playerSlot: number;
+  playerName: string;
+  side: TeamSide;
+  heroId: number;
+  values: number[];
+};
+
+export type TrendCharts = {
+  hasTrends: boolean;
+  goldAdvantage: TrendPoint[];
+  xpAdvantage: TrendPoint[];
+  playerGold: PlayerTrend[];
+  playerXp: PlayerTrend[];
+};
+
+export type ComparisonMetric = {
+  key: string;
+  label: string;
+  radiantValue: number;
+  direValue: number;
+  radiantShare: number;
 };
 
 export type MatchDetail = {
@@ -302,9 +381,11 @@ export type MatchDetail = {
     title: string;
     score: number;
   } | null;
-  drafts: unknown[];
-  vision: { wards: unknown[]; hasVisionData: boolean };
-  chat: unknown[];
+  drafts: DraftStep[];
+  vision: { wards: WardEvent[]; hasVisionData: boolean };
+  charts: TrendCharts;
+  comparisons: ComparisonMetric[];
+  chat: ChatLine[];
   dataAvailability: {
     hasAbilityBuilds: boolean;
     hasDraft: boolean;
@@ -316,17 +397,35 @@ export type MatchDetail = {
 };
 
 export type MatchDetailPlayer = {
+  accountId: number | null;
   playerSlot: number;
   side: TeamSide;
   name: string;
   heroId: number;
+  hero: string;
+  portrait: string;
+  lane: string;
   level: number | null;
   kills: number;
   deaths: number;
   assists: number;
   kdaText: string;
+  killParticipation: number | null;
+  heroDamageShare: number | null;
   goldPerMin: number | null;
   xpPerMin: number | null;
+  netWorth: number | null;
+  lastHits: number | null;
+  denies: number | null;
   heroDamage: number | null;
+  towerDamage: number | null;
+  heroHealing: number | null;
   damageTaken: number | null;
+  items: IconRef[];
+  backpackItems: IconRef[];
+  neutralItem: IconRef;
+  scepter: AghanimState;
+  shard: AghanimState;
+  abilityOrder: IconRef[];
+  talentTree: TalentTreeNode[];
 };

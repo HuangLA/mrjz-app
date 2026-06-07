@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import {
   advanceBracketNode,
   addStageGroupTeam,
@@ -77,12 +78,26 @@ import {
   updateOfficialScheduleConfig,
   withdrawOfficialSchedule,
 } from "../data/repository.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { resolvePlayerProfileBySteamId } from "../opendota/playerProfiles.js";
 import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
 import { readSteamAvatarCache } from "../opendota/steamAvatarCache.js";
 import { readJsonBody } from "./body.js";
 import { binary, json, ok, fail } from "./responses.js";
 import { Router, type RouteGuardContext } from "./router.js";
+
+const apiRouterDirectory = path.dirname(fileURLToPath(import.meta.url));
+const dotaAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/dota");
+const svgAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/svg");
+const allowedDotaAssetSections = new Set(["abilities", "constants", "heroes", "hero-icons", "items", "wards"]);
+const assetContentTypes: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml; charset=utf-8",
+};
 
 export type HealthStatus = {
   ok: true;
@@ -232,6 +247,10 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
       "cache-control": "public, max-age=3600",
     });
   });
+
+  router.get("/api/assets/dota/:section/:filename", async ({ params }) => serveDotaAsset(params));
+  router.get("/api/assets/dota/:section/:subdir/:filename", async ({ params }) => serveDotaAsset(params));
+  router.get("/api/assets/svg/:filename", async ({ params }) => serveSvgAsset(params));
 
   router.get("/api/tournaments", () => ok(listTournaments()));
 
@@ -852,6 +871,75 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   return router;
 }
 
+async function serveDotaAsset(params: Record<string, string>) {
+  const section = params.section ?? "";
+  const filename = params.filename ?? "";
+  const subdir = params.subdir;
+
+  if (
+    !allowedDotaAssetSections.has(section) ||
+    !isSafeAssetSegment(section) ||
+    !isSafeAssetSegment(filename) ||
+    (subdir !== undefined && !isSafeAssetSegment(subdir))
+  ) {
+    return fail(404, "DOTA_ASSET_NOT_FOUND", "Dota asset not found");
+  }
+
+  if (subdir !== undefined && !(section === "wards" && subdir === "minimap")) {
+    return fail(404, "DOTA_ASSET_NOT_FOUND", "Dota asset not found");
+  }
+
+  const filePath =
+    subdir === undefined
+      ? path.join(dotaAssetRoot, section, filename)
+      : path.join(dotaAssetRoot, section, subdir, filename);
+
+  return serveStaticAsset(filePath, dotaAssetRoot, "DOTA_ASSET_NOT_FOUND", "Dota asset not found");
+}
+
+async function serveSvgAsset(params: Record<string, string>) {
+  const filename = params.filename ?? "";
+
+  if (!isSafeAssetSegment(filename)) {
+    return fail(404, "SVG_ASSET_NOT_FOUND", "SVG asset not found");
+  }
+
+  return serveStaticAsset(path.join(svgAssetRoot, filename), svgAssetRoot, "SVG_ASSET_NOT_FOUND", "SVG asset not found");
+}
+
+async function serveStaticAsset(filePath: string, root: string, code: string, message: string) {
+  const normalizedPath = path.resolve(filePath);
+
+  if (!isPathInsideRoot(root, normalizedPath)) {
+    return fail(404, code, message);
+  }
+
+  const contentType = assetContentTypes[path.extname(normalizedPath).toLowerCase()];
+
+  if (contentType === undefined) {
+    return fail(404, code, message);
+  }
+
+  try {
+    const bytes = await readFile(normalizedPath);
+    return binary(200, bytes, {
+      "content-type": contentType,
+      "cache-control": "public, max-age=86400",
+    });
+  } catch {
+    return fail(404, code, message);
+  }
+}
+
+function isPathInsideRoot(root: string, filePath: string): boolean {
+  const relativePath = path.relative(root, filePath);
+  return relativePath.length > 0 && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+}
+
+function isSafeAssetSegment(value: string): boolean {
+  return /^[A-Za-z0-9._-]+$/.test(value) && !value.includes("..");
+}
+
 function adminRouteGuard(context: RouteGuardContext) {
   if (isPublicRoute(context) || isAppUserRoute(context) || context.pattern === "/api/admin/auth/login") {
     return null;
@@ -902,7 +990,10 @@ function isAppUserRoute(context: RouteGuardContext): boolean {
 }
 
 const PUBLIC_GET_PATTERNS = new Set([
+  "/api/assets/dota/:section/:filename",
+  "/api/assets/dota/:section/:subdir/:filename",
   "/api/assets/steam-avatars/:filename",
+  "/api/assets/svg/:filename",
   "/api/leagues",
   "/api/tournaments",
   "/api/tournaments/:id",

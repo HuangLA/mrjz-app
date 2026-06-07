@@ -1,4 +1,5 @@
 import Taro from "@tarojs/taro";
+import { normalizeMatchDetail, normalizeMatchRecord, type ApiMatchDetail, type ApiMatchRecord } from "./dota";
 import type {
   ApiResult,
   AppUserMe,
@@ -143,13 +144,17 @@ export async function loadStageBracket(stageId: string): Promise<BracketNode[]> 
 }
 
 export async function loadTournamentMatches(tournamentId: string, limit = 80): Promise<MatchRecord[]> {
-  return request<MatchRecord[]>(`/tournaments/${encodeURIComponent(tournamentId)}/matches?limit=${limit}`, {
+  const records = await request<ApiMatchRecord[]>(`/tournaments/${encodeURIComponent(tournamentId)}/matches?limit=${limit}`, {
     withAuth: false,
   });
+  const apiBaseUrl = getApiBaseUrl();
+
+  return records.map((record) => normalizeMatchRecord(record, apiBaseUrl));
 }
 
 export async function loadMatch(matchId: number | string): Promise<MatchDetail> {
-  return request<MatchDetail>(`/matches/${encodeURIComponent(String(matchId))}`, { withAuth: false });
+  const detail = await request<ApiMatchDetail>(`/matches/${encodeURIComponent(String(matchId))}`, { withAuth: false });
+  return normalizeMatchDetail(detail, getApiBaseUrl());
 }
 
 export async function loadTournamentPlayers(tournamentId: string): Promise<PlayerListItem[]> {

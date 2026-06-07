@@ -1,4 +1,4 @@
-import { Text, View } from "@tarojs/components";
+import { Image, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import { ensureTournamentId, loadTournamentMatches, loadTournaments, setSelectedTournamentId } from "../../api";
@@ -51,6 +51,7 @@ export default function RecordsPage() {
             <Text className="score-text">{record.radiantScore ?? "-"} : {record.direScore ?? "-"}</Text>
             <Text className="muted">{formatDateTime(record.startTime)}</Text>
           </View>
+          <RecordLineup record={record} />
           <View className="record-flags">
             <Text className="record-flag">{labelStatus(record.parseStatus)}</Text>
             {record.hasDraft ? <Text className="record-flag">BP</Text> : null}
@@ -61,5 +62,37 @@ export default function RecordsPage() {
       ))}
       {records.length === 0 ? <View className="content-panel"><Text className="muted">暂无比赛记录。</Text></View> : null}
     </PageShell>
+  );
+}
+
+function RecordLineup(props: { record: MatchRecord }) {
+  const radiant = props.record.heroLineups?.radiant ?? [];
+  const dire = props.record.heroLineups?.dire ?? [];
+  const hasLineup = radiant.length > 0 || dire.length > 0;
+
+  if (!hasLineup) {
+    return (
+      <View className="record-lineup empty">
+        <Text>英雄阵容待同步</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="record-lineup">
+      <View className="record-hero-strip radiant">
+        {radiant.map((hero) => (
+          <Image className="record-hero" key={`${hero.playerSlot}:${hero.heroId}`} mode="aspectFill" src={hero.icon || hero.portrait} />
+        ))}
+      </View>
+      <View className="record-versus">
+        <Text>VS</Text>
+      </View>
+      <View className="record-hero-strip dire">
+        {dire.map((hero) => (
+          <Image className="record-hero" key={`${hero.playerSlot}:${hero.heroId}`} mode="aspectFill" src={hero.icon || hero.portrait} />
+        ))}
+      </View>
+    </View>
   );
 }
