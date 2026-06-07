@@ -434,6 +434,7 @@ type ApiComparisonMetric = {
 };
 
 const defaultApiBaseUrl = "http://127.0.0.1:3001/api";
+const h5ApiBaseStorageKey = "mrjz.h5ApiBaseUrl";
 const localDotaConstantsBaseUrl = "/static/dota/constants";
 const remoteDotaConstantsBaseUrl = "https://raw.githubusercontent.com/odota/dotaconstants/master/build";
 const localDotaAssetBaseUrl = "/static/dota";
@@ -863,7 +864,38 @@ function apiUrl(apiBaseUrl: string, path: string): string {
 
 function resolveApiBaseUrl(): string {
   const env = import.meta.env as Record<string, string | undefined>;
-  return env.PUBLIC_API_BASE_URL ?? env.VITE_PUBLIC_API_BASE_URL ?? defaultApiBaseUrl;
+  const runtimeOverride = resolveRuntimeApiBaseUrl();
+
+  return runtimeOverride ?? env.PUBLIC_API_BASE_URL ?? env.VITE_PUBLIC_API_BASE_URL ?? defaultApiBaseUrl;
+}
+
+function resolveRuntimeApiBaseUrl(): string | undefined {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const rawOverride = params.get("apiBaseUrl") ?? params.get("api");
+
+    if (rawOverride !== null) {
+      const trimmed = rawOverride.trim();
+
+      if (trimmed === "reset" || trimmed === "default") {
+        window.localStorage.removeItem(h5ApiBaseStorageKey);
+        return undefined;
+      }
+
+      const nextValue = normalizeApiBaseUrlOverride(trimmed);
+      window.localStorage.setItem(h5ApiBaseStorageKey, nextValue);
+      return nextValue;
+    }
+
+    const stored = window.localStorage.getItem(h5ApiBaseStorageKey)?.trim();
+    return stored && stored.length > 0 ? normalizeApiBaseUrlOverride(stored) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeApiBaseUrlOverride(value: string): string {
+  return (value === "local" ? defaultApiBaseUrl : value).replace(/\/+$/, "");
 }
 
 function normalizeTournamentStats(

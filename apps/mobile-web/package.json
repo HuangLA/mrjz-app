@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5174",
+    "dev:local": "PUBLIC_API_BASE_URL=http://127.0.0.1:3001/api vite --host 0.0.0.0 --port 5174",
+    "dev:remote": "PUBLIC_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:?Set MRJZ_REMOTE_API_BASE_URL} vite --host 0.0.0.0 --port 5174",
     "build": "tsc -p tsconfig.json && vite build",
+    "build:local": "PUBLIC_API_BASE_URL=http://127.0.0.1:3001/api tsc -p tsconfig.json && PUBLIC_API_BASE_URL=http://127.0.0.1:3001/api vite build",
+    "build:remote": "PUBLIC_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:?Set MRJZ_REMOTE_API_BASE_URL} tsc -p tsconfig.json && PUBLIC_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:?Set MRJZ_REMOTE_API_BASE_URL} vite build",
     "cache:dota-assets": "node scripts/cache-dota-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add mobile web lint\"",

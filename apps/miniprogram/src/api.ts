@@ -20,7 +20,10 @@ import type {
   TournamentOption,
 } from "./types";
 
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:3001/api";
+declare const __MRJZ_MINIPROGRAM_API_BASE_URL__: string | undefined;
+
+const LOCAL_API_BASE_URL = "http://127.0.0.1:3001/api";
+const DEFAULT_API_BASE_URL = resolveBuildApiBaseUrl();
 const API_BASE_STORAGE_KEY = "mrjz.apiBaseUrl";
 const AUTH_SESSION_STORAGE_KEY = "mrjz.authSession";
 const SELECTED_TOURNAMENT_STORAGE_KEY = "mrjz.selectedTournamentId";
@@ -242,4 +245,11 @@ async function request<T>(
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function resolveBuildApiBaseUrl(): string {
+  const buildValue =
+    typeof __MRJZ_MINIPROGRAM_API_BASE_URL__ === "string" ? __MRJZ_MINIPROGRAM_API_BASE_URL__ : "";
+
+  return trimTrailingSlash(buildValue.trim() || LOCAL_API_BASE_URL);
 }

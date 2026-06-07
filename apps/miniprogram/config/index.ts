@@ -1,5 +1,16 @@
 import { defineConfig } from "@tarojs/cli";
 
+const LOCAL_API_BASE_URL = "http://127.0.0.1:3001/api";
+
+function resolveBuildApiBaseUrl(): string {
+  return (
+    process.env.MRJZ_MINIPROGRAM_API_BASE_URL?.trim() ||
+    process.env.PUBLIC_API_BASE_URL?.trim() ||
+    process.env.VITE_PUBLIC_API_BASE_URL?.trim() ||
+    LOCAL_API_BASE_URL
+  ).replace(/\/+$/, "");
+}
+
 export default defineConfig({
   projectName: "mrjz-miniprogram",
   date: "2026-06-07",
@@ -13,6 +24,10 @@ export default defineConfig({
   outputRoot: "dist",
   framework: "react",
   compiler: "webpack5",
+  defineConstants: {
+    __MRJZ_MINIPROGRAM_API_BASE_URL__: JSON.stringify(resolveBuildApiBaseUrl()),
+    __MRJZ_DEPLOY_ENV__: JSON.stringify(process.env.MRJZ_DEPLOY_ENV?.trim() || "local"),
+  },
   mini: {
     postcss: {
       pxtransform: {

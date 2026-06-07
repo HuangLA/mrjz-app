@@ -17,11 +17,23 @@ WeChat mini program display client built with Taro + React + TypeScript.
 
 ```sh
 npm --workspace @mrjz/miniprogram run dev
+npm --workspace @mrjz/miniprogram run dev:local
+MRJZ_REMOTE_API_BASE_URL=https://api.example.com/api npm --workspace @mrjz/miniprogram run dev:remote
 npm --workspace @mrjz/miniprogram run build
+npm --workspace @mrjz/miniprogram run build:remote
 npm --workspace @mrjz/miniprogram run typecheck
 ```
 
-Open `apps/miniprogram/project.config.json` in WeChat DevTools. The local default API base is `http://127.0.0.1:3001/api`; it can be changed on the My page for device testing.
+Open `apps/miniprogram/project.config.json` in WeChat DevTools. The local default API base is `http://127.0.0.1:3001/api`.
+
+API base priority:
+
+1. My page saved API base URL, useful for device testing without rebuilding.
+2. Build-time `MRJZ_MINIPROGRAM_API_BASE_URL`.
+3. Build-time `PUBLIC_API_BASE_URL` or `VITE_PUBLIC_API_BASE_URL`.
+4. Local fallback `http://127.0.0.1:3001/api`.
+
+For remote preview or upload, set `MRJZ_REMOTE_API_BASE_URL` and use `dev:remote` or `build:remote`. The URL must be configured as a WeChat Mini Program request legal domain when running on real devices.
 
 ## Auth Notes
 

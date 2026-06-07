@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "taro build --type weapp --watch",
+    "dev:local": "MRJZ_MINIPROGRAM_API_BASE_URL=http://127.0.0.1:3001/api taro build --type weapp --watch",
+    "dev:remote": "MRJZ_MINIPROGRAM_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:?Set MRJZ_REMOTE_API_BASE_URL} taro build --type weapp --watch",
     "build": "taro build --type weapp",
+    "build:local": "MRJZ_MINIPROGRAM_API_BASE_URL=http://127.0.0.1:3001/api taro build --type weapp",
+    "build:remote": "MRJZ_MINIPROGRAM_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:?Set MRJZ_REMOTE_API_BASE_URL} taro build --type weapp",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add miniprogram lint\"",
     "test": "echo \"TODO: add miniprogram tests\""

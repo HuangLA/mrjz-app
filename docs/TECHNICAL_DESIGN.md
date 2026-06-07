@@ -603,6 +603,13 @@ m.example.com           -> apps/mobile-web/dist
 api.example.com/api/*   -> Node.js API
 ```
 
+前端 API 地址切换约定：
+
+- H5 读取 `PUBLIC_API_BASE_URL` 或 `VITE_PUBLIC_API_BASE_URL` 作为构建期 API 地址；开发时可用 `npm run dev:mobile-web:local` 或设置 `MRJZ_REMOTE_API_BASE_URL` 后运行 `npm run dev:mobile-web:remote`。
+- H5 支持运行期临时覆盖：访问 `?apiBaseUrl=https://api.example.com/api` 会写入浏览器 localStorage，`?apiBaseUrl=local` 切回本地，`?apiBaseUrl=reset` 清除覆盖。
+- 小程序读取 `MRJZ_MINIPROGRAM_API_BASE_URL` 作为构建期默认 API 地址，也兼容 `PUBLIC_API_BASE_URL` / `VITE_PUBLIC_API_BASE_URL`；开发者工具预览可用 `dev:miniprogram:local` 或设置 `MRJZ_REMOTE_API_BASE_URL` 后运行 `dev:miniprogram:remote`。
+- 小程序“我的”页保留手动 API 地址覆盖，便于真机测试临时切换；上传正式版前必须使用已配置微信 request 合法域名的 HTTPS API。
+
 服务器进程：
 
 - `api`：Express API。
