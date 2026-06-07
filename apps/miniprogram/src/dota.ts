@@ -1,7 +1,7 @@
-import abilityIdsJson from "./dota-constants/ability_ids.json";
-import heroAbilitiesJson from "./dota-constants/hero_abilities.json";
-import heroesJson from "./dota-constants/heroes.json";
-import itemIdsJson from "./dota-constants/item_ids.json";
+import abilityIdsJson from "./assets/dota/constants/ability_ids.json";
+import heroAbilitiesJson from "./assets/dota/constants/hero_abilities.json";
+import heroesJson from "./assets/dota/constants/heroes.json";
+import itemIdsJson from "./assets/dota/constants/item_ids.json";
 import type {
   AghanimState,
   ChatLine,
@@ -182,8 +182,8 @@ type ApiChat = {
   message?: string | null;
 };
 
-const DOTA_ASSET_API_PATH = "/assets/dota";
-const SVG_ASSET_API_PATH = "/assets/svg";
+const DOTA_ASSET_BASE_URL = "/assets/dota";
+const SVG_ASSET_BASE_URL = "/assets/svg";
 
 const dotaHeroes = heroesJson as Record<string, DotaHeroConstant>;
 const dotaHeroAbilities = heroAbilitiesJson as Record<string, DotaHeroAbilitiesConstant>;
@@ -320,29 +320,25 @@ const SCHINESE_HERO_NAMES_BY_ID: Record<number, string> = {
   155: "朗戈",
 };
 
-export function normalizeAssetUrl(url: string | null | undefined, apiBaseUrl: string): string {
+export function normalizeAssetUrl(url: string | null | undefined): string {
   if (!url) {
     return "";
   }
 
   if (url.startsWith("/static/dota/")) {
-    return apiAssetUrl(apiBaseUrl, url.replace("/static/dota", DOTA_ASSET_API_PATH));
+    return url.replace("/static/dota", DOTA_ASSET_BASE_URL);
   }
 
   if (url.startsWith("/static/svg/")) {
-    return apiAssetUrl(apiBaseUrl, url.replace("/static/svg", SVG_ASSET_API_PATH));
-  }
-
-  if (url.startsWith(`${DOTA_ASSET_API_PATH}/`) || url.startsWith(`${SVG_ASSET_API_PATH}/`)) {
-    return apiAssetUrl(apiBaseUrl, url);
+    return url.replace("/static/svg", SVG_ASSET_BASE_URL);
   }
 
   return url;
 }
 
-export function dotaAssetUrl(apiBaseUrl: string, assetPath: string): string {
+export function dotaAssetUrl(assetPath: string): string {
   const normalizedPath = assetPath.replace(/^\/+/, "");
-  return apiAssetUrl(apiBaseUrl, `${DOTA_ASSET_API_PATH}/${normalizedPath}`);
+  return `${DOTA_ASSET_BASE_URL}/${normalizedPath}`;
 }
 
 export function heroLabel(heroId: number | null | undefined): string {
@@ -353,27 +349,27 @@ export function heroLabel(heroId: number | null | undefined): string {
   return SCHINESE_HERO_NAMES_BY_ID[heroId] ?? prettyDotaName(dotaHeroes[String(heroId)]?.localized_name) ?? `英雄 ${heroId}`;
 }
 
-export function heroPortrait(heroId: number | null | undefined, apiBaseUrl: string): string {
+export function heroPortrait(heroId: number | null | undefined): string {
   const imagePath = heroId ? dotaHeroes[String(heroId)]?.img : undefined;
 
   if (imagePath) {
-    return dotaAssetUrl(apiBaseUrl, `heroes/${basename(imagePath)}`);
+    return dotaAssetUrl(`heroes/${basename(imagePath)}`);
   }
 
-  return dotaAssetUrl(apiBaseUrl, "heroes/unknown.svg");
+  return dotaAssetUrl("heroes/unknown.svg");
 }
 
-export function heroIcon(heroId: number | null | undefined, apiBaseUrl: string): string {
+export function heroIcon(heroId: number | null | undefined): string {
   const imagePath = heroId ? dotaHeroes[String(heroId)]?.icon : undefined;
 
   if (imagePath) {
-    return dotaAssetUrl(apiBaseUrl, `hero-icons/${basename(imagePath)}`);
+    return dotaAssetUrl(`hero-icons/${basename(imagePath)}`);
   }
 
-  return dotaAssetUrl(apiBaseUrl, "heroes/unknown.svg");
+  return dotaAssetUrl("heroes/unknown.svg");
 }
 
-export function normalizeMatchRecord(record: ApiMatchRecord, apiBaseUrl: string): MatchRecord {
+export function normalizeMatchRecord(record: ApiMatchRecord): MatchRecord {
   return {
     matchId: record.matchId ?? 0,
     leagueName: record.leagueName?.trim() || "OpenDota League",
@@ -389,8 +385,8 @@ export function normalizeMatchRecord(record: ApiMatchRecord, apiBaseUrl: string)
     direTeamName: record.direTeamName ?? "夜魇",
     playerCount: record.playerCount ?? 0,
     heroLineups: {
-      radiant: normalizeRecordHeroLineup(record.heroLineups?.radiant, apiBaseUrl),
-      dire: normalizeRecordHeroLineup(record.heroLineups?.dire, apiBaseUrl),
+      radiant: normalizeRecordHeroLineup(record.heroLineups?.radiant),
+      dire: normalizeRecordHeroLineup(record.heroLineups?.dire),
     },
     hasDraft: Boolean(record.hasDraft),
     hasVision: Boolean(record.hasVision),
@@ -398,16 +394,16 @@ export function normalizeMatchRecord(record: ApiMatchRecord, apiBaseUrl: string)
   };
 }
 
-export function normalizeMatchDetail(detail: ApiMatchDetail, apiBaseUrl: string): MatchDetail {
-  const radiantPlayers = normalizePlayerSide(detail.players?.radiant, "radiant", apiBaseUrl);
-  const direPlayers = normalizePlayerSide(detail.players?.dire, "dire", apiBaseUrl);
-  const fallbackPlayers = (detail.players?.all ?? []).map((player) => normalizePlayer(player, apiBaseUrl));
+export function normalizeMatchDetail(detail: ApiMatchDetail): MatchDetail {
+  const radiantPlayers = normalizePlayerSide(detail.players?.radiant, "radiant");
+  const direPlayers = normalizePlayerSide(detail.players?.dire, "dire");
+  const fallbackPlayers = (detail.players?.all ?? []).map((player) => normalizePlayer(player));
   const allPlayers = radiantPlayers.length + direPlayers.length > 0 ? [...radiantPlayers, ...direPlayers] : fallbackPlayers;
   const finalRadiantPlayers = radiantPlayers.length > 0 ? radiantPlayers : allPlayers.filter((player) => player.side === "radiant");
   const finalDirePlayers = direPlayers.length > 0 ? direPlayers : allPlayers.filter((player) => player.side === "dire");
   const winnerSide = detail.score?.winnerSide ?? detail.match?.winnerSide ?? (detail.match?.radiantWin ? "radiant" : "dire");
   const winnerName = detail.score?.winnerName ?? detail.match?.winnerName ?? (winnerSide === "radiant" ? detail.score?.radiantTeamName : detail.score?.direTeamName) ?? "胜者待定";
-  const drafts = (detail.drafts ?? []).map((draft) => normalizeDraft(draft, apiBaseUrl)).filter(isDefined);
+  const drafts = (detail.drafts ?? []).map(normalizeDraft).filter(isDefined);
   const wards = (detail.vision?.wards ?? []).map(normalizeWard).filter(isDefined);
   const chat = (detail.chat ?? []).map(normalizeChat).filter(isDefined);
   const charts = normalizeTrendCharts(detail.charts);
@@ -462,12 +458,12 @@ export function normalizeMatchDetail(detail: ApiMatchDetail, apiBaseUrl: string)
   };
 }
 
-export function aghanimIcon(label: "神杖" | "魔晶", state: AghanimState, apiBaseUrl: string): string {
+export function aghanimIcon(label: "神杖" | "魔晶", state: AghanimState): string {
   const type = label === "魔晶" ? "shard" : "scepter";
-  return apiAssetUrl(apiBaseUrl, `${SVG_ASSET_API_PATH}/${type}${state === "owned" ? "On" : "Off"}.svg`);
+  return `${SVG_ASSET_BASE_URL}/${type}${state === "owned" ? "On" : "Off"}.svg`;
 }
 
-function normalizeRecordHeroLineup(lineup: ApiMatchRecordHero[] | undefined, apiBaseUrl: string): MatchRecordHero[] {
+function normalizeRecordHeroLineup(lineup: ApiMatchRecordHero[] | undefined): MatchRecordHero[] {
   return (lineup ?? [])
     .map((hero) => {
       if (typeof hero.heroId !== "number" || hero.heroId <= 0) {
@@ -480,8 +476,8 @@ function normalizeRecordHeroLineup(lineup: ApiMatchRecordHero[] | undefined, api
         playerSlot: hero.playerSlot ?? 0,
         heroId: hero.heroId,
         hero: name,
-        icon: heroIcon(hero.heroId, apiBaseUrl),
-        portrait: heroPortrait(hero.heroId, apiBaseUrl),
+        icon: heroIcon(hero.heroId),
+        portrait: heroPortrait(hero.heroId),
         playerName: hero.playerName?.trim() || name,
       };
     })
@@ -490,17 +486,17 @@ function normalizeRecordHeroLineup(lineup: ApiMatchRecordHero[] | undefined, api
     .slice(0, 5);
 }
 
-function normalizePlayerSide(players: ApiMatchPlayer[] | undefined, side: TeamSide, apiBaseUrl: string): MatchDetailPlayer[] {
-  return (players ?? []).map((player) => normalizePlayer({ ...player, side }, apiBaseUrl));
+function normalizePlayerSide(players: ApiMatchPlayer[] | undefined, side: TeamSide): MatchDetailPlayer[] {
+  return (players ?? []).map((player) => normalizePlayer({ ...player, side }));
 }
 
-function normalizePlayer(player: ApiMatchPlayer, apiBaseUrl: string): MatchDetailPlayer {
+function normalizePlayer(player: ApiMatchPlayer): MatchDetailPlayer {
   const kills = player.kills ?? 0;
   const deaths = player.deaths ?? 0;
   const assists = player.assists ?? 0;
   const heroId = player.heroId ?? 0;
   const abilityOrder = (player.abilityBuild?.order ?? []).map((item, index) =>
-    abilityIcon(item.abilityId, item.level ?? index + 1, apiBaseUrl),
+    abilityIcon(item.abilityId, item.level ?? index + 1),
   );
 
   return {
@@ -510,7 +506,7 @@ function normalizePlayer(player: ApiMatchPlayer, apiBaseUrl: string): MatchDetai
     name: player.name ?? `玩家 ${player.playerSlot}`,
     heroId,
     hero: heroLabel(heroId),
-    portrait: heroPortrait(heroId, apiBaseUrl),
+    portrait: heroPortrait(heroId),
     lane: laneRoleText(player.laneRole),
     level: player.level ?? null,
     kills,
@@ -528,9 +524,9 @@ function normalizePlayer(player: ApiMatchPlayer, apiBaseUrl: string): MatchDetai
     towerDamage: player.towerDamage ?? null,
     heroHealing: player.heroHealing ?? null,
     damageTaken: player.damageTaken ?? null,
-    items: normalizeInventoryItems(player.items?.inventory, 6, apiBaseUrl),
-    backpackItems: normalizeInventoryItems(player.items?.backpack, 3, apiBaseUrl),
-    neutralItem: itemIcon(player.items?.neutral?.itemId, apiBaseUrl),
+    items: normalizeInventoryItems(player.items?.inventory, 6),
+    backpackItems: normalizeInventoryItems(player.items?.backpack, 3),
+    neutralItem: itemIcon(player.items?.neutral?.itemId),
     scepter: aghanimState(player.aghanim?.hasScepter, player.aghanim?.scepterIconState),
     shard: aghanimState(player.aghanim?.hasShard, player.aghanim?.shardIconState),
     abilityOrder,
@@ -541,19 +537,18 @@ function normalizePlayer(player: ApiMatchPlayer, apiBaseUrl: string): MatchDetai
 function normalizeInventoryItems(
   items: Array<{ slot?: number; itemId?: number | null }> | undefined,
   size: number,
-  apiBaseUrl: string,
 ): IconRef[] {
   const slots = Array.from({ length: size }, () => emptyIcon("-"));
 
   for (const [index, item] of (items ?? []).entries()) {
     const slot = typeof item.slot === "number" && item.slot >= 0 && item.slot < size ? item.slot : index;
-    slots[slot] = itemIcon(item.itemId, apiBaseUrl);
+    slots[slot] = itemIcon(item.itemId);
   }
 
   return slots;
 }
 
-function normalizeDraft(draft: ApiDraft, apiBaseUrl: string): DraftStep | null {
+function normalizeDraft(draft: ApiDraft): DraftStep | null {
   if (draft.order === undefined || draft.side === null || draft.side === undefined) {
     return null;
   }
@@ -563,7 +558,7 @@ function normalizeDraft(draft: ApiDraft, apiBaseUrl: string): DraftStep | null {
     side: draft.side,
     type: draft.action === "ban" ? "Ban" : "Pick",
     hero: heroLabel(draft.heroId),
-    portrait: heroPortrait(draft.heroId, apiBaseUrl),
+    portrait: heroPortrait(draft.heroId),
     actor: draft.teamName ?? "未知队伍",
   };
 }
@@ -682,22 +677,22 @@ function parseClockText(value: string | null | undefined): number {
   return sign * (Number(match[2]) * 60 + Number(match[3]));
 }
 
-function itemIcon(itemId: number | null | undefined, apiBaseUrl: string): IconRef {
+function itemIcon(itemId: number | null | undefined): IconRef {
   const internalName = itemId ? dotaItemIds[String(itemId)] : undefined;
   const label = itemId ? prettyDotaName(internalName) ?? `#${itemId}` : "-";
 
   return {
     label,
-    imageUrl: internalName ? dotaAssetUrl(apiBaseUrl, `items/${internalName}.png`) : "",
+    imageUrl: internalName ? dotaAssetUrl(`items/${internalName}.png`) : "",
   };
 }
 
-function abilityIcon(abilityId: number | undefined, level: number | undefined, apiBaseUrl: string): IconRef {
+function abilityIcon(abilityId: number | undefined, level: number | undefined): IconRef {
   const internalName = abilityId ? dotaAbilityIds[String(abilityId)] : undefined;
   const kind = abilityKind(internalName);
   const ref: IconRef = {
     label: abilityId ? prettyDotaName(internalName) ?? `技能 ${abilityId}` : "待解析",
-    imageUrl: internalName && kind === "ability" ? dotaAssetUrl(apiBaseUrl, `abilities/${internalName}.png`) : "",
+    imageUrl: internalName && kind === "ability" ? dotaAssetUrl(`abilities/${internalName}.png`) : "",
     kind,
   };
 
@@ -856,11 +851,4 @@ function basename(value: string): string {
 
 function isDefined<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
-}
-
-function apiAssetUrl(apiBaseUrl: string, pathname: string): string {
-  const baseUrl = apiBaseUrl.trim().replace(/\/+$/, "");
-  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
-
-  return baseUrl.length > 0 ? `${baseUrl}${normalizedPath}` : normalizedPath;
 }

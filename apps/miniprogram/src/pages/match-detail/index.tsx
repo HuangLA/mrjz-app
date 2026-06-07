@@ -1,7 +1,7 @@
 import { Image, Text, View } from "@tarojs/components";
 import { useDidShow, useRouter } from "@tarojs/taro";
 import { useState } from "react";
-import { getApiBaseUrl, loadMatch } from "../../api";
+import { loadMatch } from "../../api";
 import { aghanimIcon, dotaAssetUrl } from "../../dota";
 import { PageShell, SectionTitle, StatGrid } from "../../components";
 import type { ChatLine, DraftStep, IconRef, MatchDetail, MatchDetailPlayer, TalentTreeNode, TeamSide, WardEvent } from "../../types";
@@ -208,7 +208,7 @@ function ItemSlot(props: { item: IconRef; tone: "inventory" | "backpack" | "neut
 function AghanimStateIcon(props: { label: "神杖" | "魔晶"; state: "owned" | "queued" | "none" }) {
   return (
     <View className={`agha-icon ${props.state}`}>
-      <Image mode="aspectFit" src={aghanimIcon(props.label, props.state, getApiBaseUrl())} />
+      <Image mode="aspectFit" src={aghanimIcon(props.label, props.state)} />
       <Text>{props.label}</Text>
     </View>
   );
@@ -273,7 +273,7 @@ function VisionSection(props: { wards: WardEvent[] }) {
       <SectionTitle kicker="视野" title="眼位地图" actionText={`${props.wards.length} 条`} />
       <View className="vision-board">
         <View className="vision-map">
-          <Image mode="aspectFill" src={dotaAssetUrl(getApiBaseUrl(), "wards/minimap/minimap_game.png")} />
+          <Image mode="aspectFill" src={dotaAssetUrl("wards/minimap/minimap_game.png")} />
           {mapWards.map((ward, index) => <WardDot key={`${ward.timeSeconds}:${ward.side}:${ward.x}:${ward.y}:${index}`} ward={ward} />)}
         </View>
         <View className="vision-event-list">

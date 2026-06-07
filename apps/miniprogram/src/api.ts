@@ -147,14 +147,13 @@ export async function loadTournamentMatches(tournamentId: string, limit = 80): P
   const records = await request<ApiMatchRecord[]>(`/tournaments/${encodeURIComponent(tournamentId)}/matches?limit=${limit}`, {
     withAuth: false,
   });
-  const apiBaseUrl = getApiBaseUrl();
 
-  return records.map((record) => normalizeMatchRecord(record, apiBaseUrl));
+  return records.map(normalizeMatchRecord);
 }
 
 export async function loadMatch(matchId: number | string): Promise<MatchDetail> {
   const detail = await request<ApiMatchDetail>(`/matches/${encodeURIComponent(String(matchId))}`, { withAuth: false });
-  return normalizeMatchDetail(detail, getApiBaseUrl());
+  return normalizeMatchDetail(detail);
 }
 
 export async function loadTournamentPlayers(tournamentId: string): Promise<PlayerListItem[]> {
