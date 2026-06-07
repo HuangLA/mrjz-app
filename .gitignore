@@ -9,6 +9,8 @@ build/
 
 # Runtime data
 apps/api/var/
+var/**/*.pid
+var/**/*.png
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
