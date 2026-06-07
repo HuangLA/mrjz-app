@@ -13,6 +13,7 @@ export default function MatchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<MatchDetail | null>(null);
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => new Set(["radiant:2"]));
   const [wardSecond, setWardSecond] = useState(0);
 
   useDidShow(() => {
@@ -30,12 +31,28 @@ export default function MatchDetailPage() {
     setError("");
 
     try {
-      setDetail(await loadMatch(matchId));
+      const nextDetail = await loadMatch(matchId);
+      setDetail(nextDetail);
+      setExpandedPlayers(defaultExpandedPlayers(nextDetail));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "比赛详情读取失败");
     } finally {
       setLoading(false);
     }
+  }
+
+  function toggleExpandedPlayer(playerKey: string) {
+    setExpandedPlayers((current) => {
+      const next = new Set(current);
+
+      if (next.has(playerKey)) {
+        next.delete(playerKey);
+      } else {
+        next.add(playerKey);
+      }
+
+      return next;
+    });
   }
 
   const radiantKills = detail?.players.radiant.reduce((sum, player) => sum + player.kills, 0) ?? 0;
@@ -61,10 +78,31 @@ export default function MatchDetailPage() {
             </View>
           ) : null}
 
-          <SectionTitle kicker="双方数据" title="天辉" />
-          <TeamPanel side="radiant" players={detail.players.radiant} />
-          <SectionTitle kicker="双方数据" title="夜魇" />
-          <TeamPanel side="dire" players={detail.players.dire} />
+          <View className="section-panel player-section">
+            <View className="section-title compact">
+              <View>
+                <Text className="section-heading">双方数据</Text>
+              </View>
+            </View>
+            <TeamPanel
+              expandedPlayers={expandedPlayers}
+              isWinner={detail.match.winnerName === detail.score.radiantTeamName}
+              mvpPlayerName={detail.mvp?.playerName ?? null}
+              players={detail.players.radiant}
+              side="radiant"
+              teamName={detail.score.radiantTeamName}
+              onPlayerToggle={toggleExpandedPlayer}
+            />
+            <TeamPanel
+              expandedPlayers={expandedPlayers}
+              isWinner={detail.match.winnerName === detail.score.direTeamName}
+              mvpPlayerName={detail.mvp?.playerName ?? null}
+              players={detail.players.dire}
+              side="dire"
+              teamName={detail.score.direTeamName}
+              onPlayerToggle={toggleExpandedPlayer}
+            />
+          </View>
 
           <DraftSection drafts={detail.drafts} />
           <VisionSection durationText={detail.match.durationText} selectedSecond={wardSecond} wards={detail.vision.wards} onChange={setWardSecond} />
@@ -105,70 +143,98 @@ function MatchSummary(props: { detail: MatchDetail }) {
   );
 }
 
-function TeamPanel(props: { side: TeamSide; players: MatchDetailPlayer[] }) {
+function TeamPanel(props: {
+  side: TeamSide;
+  teamName: string;
+  players: MatchDetailPlayer[];
+  isWinner: boolean;
+  mvpPlayerName: string | null;
+  expandedPlayers: Set<string>;
+  onPlayerToggle: (playerKey: string) => void;
+}) {
   const kills = props.players.reduce((sum, player) => sum + player.kills, 0);
 
   return (
     <View className={`team-panel ${props.side}`}>
       <View className="team-panel-head">
         <View>
-          <Text>{sideLabel(props.side)}</Text>
-          <Text>{props.players.length} 名选手</Text>
+          <Text>{sideLabel(props.side)} {props.isWinner ? "胜利" : "失败"}</Text>
+          <Text>{props.teamName}</Text>
         </View>
         <Text>杀敌 {kills}</Text>
       </View>
-      {props.players.map((player) => (
-        <PlayerDetailRow key={player.playerSlot} player={player} />
-      ))}
+      <View className="player-list">
+        {props.players.map((player) => {
+          const playerKey = playerRowKey(player);
+
+          return (
+            <PlayerDetailRow
+              expanded={props.expandedPlayers.has(playerKey)}
+              isMvp={props.mvpPlayerName === player.name}
+              key={player.playerSlot}
+              player={player}
+              onToggle={props.onPlayerToggle}
+            />
+          );
+        })}
+      </View>
     </View>
   );
 }
 
-function PlayerDetailRow(props: { player: MatchDetailPlayer }) {
+function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; isMvp: boolean; onToggle: (playerKey: string) => void }) {
   const { player } = props;
   const abilitySteps = player.abilityOrder.filter((ability) => ability.kind === "ability");
+  const playerKey = playerRowKey(player);
 
   return (
-    <View className={`match-player-card ${player.side}`}>
+    <View
+      className={`match-player-card player-row ${player.side} ${props.expanded ? "expanded" : ""} ${props.isMvp ? "mvp-player" : ""}`}
+      onClick={() => props.onToggle(playerKey)}
+    >
       <View className="match-player-main">
+        {props.isMvp ? <Text className="player-mvp-badge">MVP</Text> : null}
         <View className="hero-avatar-shell">
           <Image className="hero-avatar" mode="aspectFill" src={player.portrait} />
           <Text>{player.level ?? "-"}</Text>
         </View>
         <View className="match-player-copy">
           <Text className="record-title">{player.name}</Text>
-          <Text className="history-text">{player.hero} · {player.lane}</Text>
+          <Text className="history-text">{player.hero}</Text>
           <View className="player-chips">
-            <Text>KDA {player.kdaText}</Text>
+            <Text>{player.lane}</Text>
             <Text>参战 {formatPercent(player.killParticipation)}</Text>
             <Text>伤害 {formatPercent(player.heroDamageShare)}</Text>
           </View>
         </View>
+        <PlayerLoadout player={player} />
         <View className="player-kda">
           <Text>{player.kills}/{player.deaths}/{player.assists}</Text>
-          <Text>GPM {player.goldPerMin ?? "-"}</Text>
+          <Text>KDA {kdaRatio(player)}</Text>
         </View>
       </View>
 
-      <PlayerLoadout player={player} />
-
-      <View className="advanced-grid">
-        <AdvancedMetric label="XPM" value={formatNullable(player.xpPerMin)} />
-        <AdvancedMetric label="净值" value={formatCompact(player.netWorth)} />
-        <AdvancedMetric label="正反补" value={`${player.lastHits ?? "-"} / ${player.denies ?? "-"}`} />
-        <AdvancedMetric label="英雄伤害" value={formatCompact(player.heroDamage)} />
-        <AdvancedMetric label="建筑" value={formatCompact(player.towerDamage)} />
-        <AdvancedMetric label="治疗" value={formatCompact(player.heroHealing)} />
-        <AdvancedMetric label="承伤" value={formatCompact(player.damageTaken)} />
-      </View>
-
-      <View className="ability-order">
-        {abilitySteps.length > 0 ? (
-          abilitySteps.map((ability, index) => <AbilityStep key={`${ability.key ?? ability.label}:${index}`} ability={ability} index={index} />)
-        ) : (
-          <Text className="muted">暂无普通技能加点</Text>
-        )}
-      </View>
+      {props.expanded ? (
+        <View className="player-expanded">
+          <View className="advanced-grid">
+            <AdvancedMetric label="GPM" value={formatNullable(player.goldPerMin)} />
+            <AdvancedMetric label="XPM" value={formatNullable(player.xpPerMin)} />
+            <AdvancedMetric label="净值" value={formatCompact(player.netWorth)} />
+            <AdvancedMetric label="正反补" value={`${player.lastHits ?? "-"} / ${player.denies ?? "-"}`} />
+            <AdvancedMetric label="英雄伤害" value={formatCompact(player.heroDamage)} />
+            <AdvancedMetric label="建筑" value={formatCompact(player.towerDamage)} />
+            <AdvancedMetric label="治疗" value={formatCompact(player.heroHealing)} />
+            <AdvancedMetric label="承伤" value={formatCompact(player.damageTaken)} />
+          </View>
+          <View className="ability-order">
+            {abilitySteps.length > 0 ? (
+              abilitySteps.map((ability, index) => <AbilityStep key={`${ability.key ?? ability.label}:${index}`} ability={ability} index={index} />)
+            ) : (
+              <Text className="muted">暂无普通技能加点</Text>
+            )}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -488,6 +554,22 @@ function AdvancedMetric(props: { label: string; value: string }) {
 
 function sideLabel(side: TeamSide): string {
   return side === "radiant" ? "天辉" : "夜魇";
+}
+
+function defaultExpandedPlayers(detail: MatchDetail): Set<string> {
+  const defaultPlayer = detail.players.radiant.find((player) => player.playerSlot === 2) ?? detail.players.radiant[2] ?? detail.players.radiant[0];
+
+  return new Set(defaultPlayer ? [playerRowKey(defaultPlayer)] : []);
+}
+
+function playerRowKey(player: MatchDetailPlayer): string {
+  return `${player.side}:${player.playerSlot}`;
+}
+
+function kdaRatio(player: MatchDetailPlayer): string {
+  const deaths = Math.max(1, player.deaths);
+
+  return ((player.kills + player.assists) / deaths).toFixed(1);
 }
 
 function defaultTalentTreeNodes(): TalentTreeNode[] {

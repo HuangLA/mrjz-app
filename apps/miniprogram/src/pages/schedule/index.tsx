@@ -2,13 +2,13 @@ import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
 import { ensureTournamentId, loadOfficialSchedule, loadStageRounds, loadTournament, loadTournaments, setSelectedTournamentId } from "../../api";
-import { FilterRow, PageShell, SeriesCard, TournamentScope } from "../../components";
+import { FilterRow, PageShell, SeriesCard, TournamentScope, seriesScheduleStatusText } from "../../components";
 import type { OfficialScheduleStatus, StageRound, TournamentDetail, TournamentOption } from "../../types";
 import { labelStageType, labelStatus, navigate } from "../../utils";
 
 type ScheduleOrder = "asc" | "desc";
 
-const scheduleFilters = ["全部", "已排期", "进行中", "已结束", "待补赛果"] as const;
+const scheduleFilters = ["全部", "未开始", "待补录", "已完赛", "延期"] as const;
 type ScheduleFilter = (typeof scheduleFilters)[number];
 
 export default function SchedulePage() {
@@ -56,7 +56,7 @@ export default function SchedulePage() {
 
   const visibleSeries = useMemo(() => {
     const allSeries = officialSchedule?.isPublished ? rounds.flatMap((round) => round.series.map((series) => ({ round, series }))) : [];
-    const filtered = statusFilter === "全部" ? allSeries : allSeries.filter(({ series }) => labelStatus(series.status) === statusFilter);
+    const filtered = statusFilter === "全部" ? allSeries : allSeries.filter(({ series }) => seriesScheduleStatusText(series.status) === statusFilter);
 
     return scheduleOrder === "asc" ? filtered : filtered.slice().reverse();
   }, [officialSchedule?.isPublished, rounds, scheduleOrder, statusFilter]);

@@ -6,22 +6,36 @@ import { PageShell, PlayerDirectoryCard, TournamentScope } from "../../component
 import type { PlayerListItem, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
 
-type PlayerSortKey = "matches" | "winRate" | "kda" | "gpm" | "xpm" | "damage";
+type PlayerSortKey =
+  | "displayName"
+  | "totalMatches"
+  | "winRate"
+  | "kda"
+  | "avgKills"
+  | "avgGpm"
+  | "avgXpm"
+  | "avgHeroDamage"
+  | "avgTowerDamage"
+  | "avgDamageTaken";
 type SortDirection = "asc" | "desc";
 
 const playerSortOptions: Array<{ key: PlayerSortKey; label: string; defaultDirection: SortDirection }> = [
-  { key: "matches", label: "场次", defaultDirection: "desc" },
+  { key: "totalMatches", label: "场次", defaultDirection: "desc" },
   { key: "winRate", label: "胜率", defaultDirection: "desc" },
   { key: "kda", label: "KDA", defaultDirection: "desc" },
-  { key: "gpm", label: "GPM", defaultDirection: "desc" },
-  { key: "xpm", label: "XPM", defaultDirection: "desc" },
-  { key: "damage", label: "伤害", defaultDirection: "desc" },
+  { key: "avgKills", label: "击杀", defaultDirection: "desc" },
+  { key: "avgGpm", label: "GPM", defaultDirection: "desc" },
+  { key: "avgXpm", label: "XPM", defaultDirection: "desc" },
+  { key: "avgHeroDamage", label: "伤害", defaultDirection: "desc" },
+  { key: "avgTowerDamage", label: "建筑", defaultDirection: "desc" },
+  { key: "avgDamageTaken", label: "承伤", defaultDirection: "desc" },
+  { key: "displayName", label: "名字", defaultDirection: "asc" },
 ];
 
 export default function PlayersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sortKey, setSortKey] = useState<PlayerSortKey>("matches");
+  const [sortKey, setSortKey] = useState<PlayerSortKey>("totalMatches");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
   const [selectedTournamentId, setSelectedId] = useState("");
@@ -54,15 +68,7 @@ export default function PlayersPage() {
     }
   }
 
-  const visiblePlayers = useMemo(() => {
-    return players.slice().sort((left, right) => {
-      const leftValue = playerSortValue(left, sortKey);
-      const rightValue = playerSortValue(right, sortKey);
-      const result = leftValue === rightValue ? left.displayName.localeCompare(right.displayName, "zh-CN") : leftValue - rightValue;
-
-      return sortDirection === "asc" ? result : -result;
-    });
-  }, [players, sortDirection, sortKey]);
+  const visiblePlayers = useMemo(() => sortTournamentPlayers(players, sortKey, sortDirection), [players, sortDirection, sortKey]);
 
   function handleSort(nextKey: PlayerSortKey) {
     if (nextKey === sortKey) {
@@ -118,20 +124,58 @@ export default function PlayersPage() {
   );
 }
 
-function playerSortValue(player: PlayerListItem, key: PlayerSortKey): number {
+function sortTournamentPlayers(players: PlayerListItem[], sortKey: PlayerSortKey, direction: SortDirection): PlayerListItem[] {
+  return players.slice().sort((left, right) => comparePlayers(left, right, sortKey, direction));
+}
+
+function comparePlayers(left: PlayerListItem, right: PlayerListItem, key: PlayerSortKey, direction: SortDirection): number {
+  if (key === "displayName") {
+    const result = left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+    return direction === "asc" ? result : -result;
+  }
+
+  const leftValue = playerSortValue(left, key);
+  const rightValue = playerSortValue(right, key);
+
+  if (leftValue === null && rightValue === null) {
+    return left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+  }
+
+  if (leftValue === null) {
+    return 1;
+  }
+
+  if (rightValue === null) {
+    return -1;
+  }
+
+  const result = leftValue === rightValue ? 0 : leftValue > rightValue ? 1 : -1;
+  const normalized = direction === "asc" ? result : -result;
+
+  return normalized || left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+}
+
+function playerSortValue(player: PlayerListItem, key: PlayerSortKey): number | null {
   switch (key) {
-    case "winRate":
-      return player.stats.winRate ?? -1;
-    case "kda":
-      return player.stats.kda ?? -1;
-    case "gpm":
-      return player.stats.avgGpm ?? -1;
-    case "xpm":
-      return player.stats.avgXpm ?? -1;
-    case "damage":
-      return player.stats.avgHeroDamage ?? -1;
-    case "matches":
-    default:
+    case "totalMatches":
       return player.stats.totalMatches;
+    case "winRate":
+      return player.stats.winRate;
+    case "kda":
+      return player.stats.kda;
+    case "avgKills":
+      return player.stats.avgKills;
+    case "avgGpm":
+      return player.stats.avgGpm;
+    case "avgXpm":
+      return player.stats.avgXpm;
+    case "avgHeroDamage":
+      return player.stats.avgHeroDamage;
+    case "avgTowerDamage":
+      return player.stats.avgTowerDamage;
+    case "avgDamageTaken":
+      return player.stats.avgDamageTaken;
+    case "displayName":
+      return null;
   }
 }

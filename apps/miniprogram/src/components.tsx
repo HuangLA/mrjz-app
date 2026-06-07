@@ -282,6 +282,7 @@ export function TeamBadge(props: { team?: TeamBrief | null; align?: "left" | "ri
 export function SeriesCard(props: { series: SeriesSummary; onOpen?: () => void }) {
   const firstMatchId = props.series.games?.find((game) => game.matchId)?.matchId;
   const isFinished = props.series.status === "completed";
+  const statusText = seriesScheduleStatusText(props.series.status);
 
   return (
     <View className={`schedule-card series-card ${isFinished ? "finished" : ""}`} onClick={() => props.onOpen?.()}>
@@ -297,11 +298,43 @@ export function SeriesCard(props: { series: SeriesSummary; onOpen?: () => void }
         <Text className="schedule-team is-right">{teamName(props.series.direTeam)}</Text>
       </View>
       <View className="schedule-card-foot series-footer">
-        <Text className={`status-tag ${isFinished ? "green" : "blue"}`}>{labelStatus(props.series.status)}</Text>
+        <Text className={`status-tag ${seriesScheduleStatusClass(statusText)}`}>{statusText}</Text>
         <Text className="match-id">{firstMatchId ? `match ${firstMatchId}` : props.series.seriesKind === "tiebreaker" ? "加赛" : "--"}</Text>
       </View>
     </View>
   );
+}
+
+export function seriesScheduleStatusText(status?: string | null): "未开始" | "待补录" | "已完赛" | "延期" {
+  if (status === "completed") {
+    return "已完赛";
+  }
+
+  if (status === "result_pending" || status === "conflict") {
+    return "待补录";
+  }
+
+  if (status === "postponed" || status === "cancelled") {
+    return "延期";
+  }
+
+  return "未开始";
+}
+
+function seriesScheduleStatusClass(status: ReturnType<typeof seriesScheduleStatusText>): string {
+  if (status === "已完赛") {
+    return "green";
+  }
+
+  if (status === "延期") {
+    return "red";
+  }
+
+  if (status === "待补录") {
+    return "blue";
+  }
+
+  return "";
 }
 
 export function PlayerAvatar(props: { player: Pick<PlayerListItem, "displayName" | "avatarUrl">; size?: "normal" | "large" }) {
