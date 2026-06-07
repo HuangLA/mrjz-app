@@ -12,8 +12,27 @@ export type AppUser = {
 
 export type AuthSession = {
   token: string;
+  expiresAt: string;
   user: AppUser;
   authProvider: "wechat" | "development";
+};
+
+export type DotaAccountBinding = {
+  id: string;
+  userId: string;
+  playerId: string;
+  accountId: number;
+  steamId64: string;
+  bindingStatus: "active" | "revoked";
+  verificationStatus: "unverified" | "pending_review" | "verified" | "rejected";
+  displayName: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AppUserMe = AppUser & {
+  bindings: DotaAccountBinding[];
 };
 
 export type TeamBrief = {
@@ -201,6 +220,16 @@ export type PlayerProfile = PlayerListItem & {
   tournamentId: string;
   matches: ProfileMatchSummary[];
   tournamentHistory: PlayerTournamentHistoryEntry[];
+};
+
+export type AppUserStats = {
+  user: AppUser;
+  binding: DotaAccountBinding | null;
+  player: PlayerListItem | null;
+  stats: PlayerStatsSummary;
+  matches: ProfileMatchSummary[];
+  tournamentHistory: PlayerTournamentHistoryEntry[];
+  emptyReason: "not_bound" | "no_matches" | null;
 };
 
 export type TeamProfile = TeamListItem & {

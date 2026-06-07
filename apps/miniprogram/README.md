@@ -10,7 +10,7 @@ WeChat mini program display client built with Taro + React + TypeScript.
 - Match records and match detail.
 - Player directory and player profile.
 - Team directory and team profile.
-- My page for login state and local API base URL.
+- My page for login state, Dota / Steam account binding, MRJZ match data, and local API base URL.
 - Player tag submission and real tag like/unlike interactions.
 
 ## Development
@@ -26,3 +26,5 @@ Open `apps/miniprogram/project.config.json` in WeChat DevTools. The local defaul
 ## Auth Notes
 
 The mini program calls `POST /api/auth/wechat-login`. When `WECHAT_APP_ID` and `WECHAT_APP_SECRET` are configured, the API resolves the code through WeChat `code2Session`. Without those secrets, the API creates or reuses a local development user, which is enough to test tag submission and tag like/unlike against the SQLite backend.
+
+The returned token is an opaque MRJZ user session, not the user id. Authenticated requests use `Authorization: Bearer <token>`. The My page can bind a Dota `account_id` or SteamID64 through `POST /api/me/player-binding`; binding succeeds even when that account has no MRJZ match records yet, and `GET /api/me/stats` returns a stable empty state until future tournament data is synced.

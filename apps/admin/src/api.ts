@@ -2,6 +2,22 @@ export type ApiSource = "api" | "unavailable";
 
 export type Tone = "neutral" | "good" | "warn" | "danger" | "info";
 
+export interface AdminUser {
+  id: string;
+  username: string;
+  displayName: string;
+  status: "active" | "disabled" | string;
+  roles: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminAuthSession {
+  token: string;
+  expiresAt: string;
+  admin: AdminUser;
+}
+
 export type TournamentStatus = "draft" | "upcoming" | "published" | "running" | "completed" | "archived" | string;
 export type StageStatus = "draft" | "published" | "running" | "locked" | "completed" | string;
 export type StageType = "group" | "swiss" | "knockout" | string;
@@ -336,14 +352,88 @@ export const apiBaseUrl = String(
   import.meta.env.PUBLIC_API_BASE_URL || import.meta.env.VITE_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL,
 ).replace(/\/$/, "");
 
+const ADMIN_SESSION_STORAGE_KEY = "mrjz.adminSession";
+const ADMIN_UNAUTHORIZED_EVENT = "mrjz:admin-unauthorized";
+
+export function getStoredAdminSession(): AdminAuthSession | null {
+  try {
+    const raw = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+
+    if (raw === null) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as AdminAuthSession;
+
+    return typeof parsed.token === "string" && parsed.token.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredAdminSession(session: AdminAuthSession): void {
+  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(session));
+}
+
+export function clearStoredAdminSession(): void {
+  window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+}
+
+function adminAuthHeaders(): Record<string, string> {
+  const session = getStoredAdminSession();
+
+  return session === null ? {} : { Authorization: `Bearer ${session.token}` };
+}
+
+function notifyAdminUnauthorized(): void {
+  window.dispatchEvent(new Event(ADMIN_UNAUTHORIZED_EVENT));
+}
+
+export async function adminLogin(username: string, password: string): Promise<AdminAuthSession> {
+  const response = await fetch(`${apiBaseUrl}/admin/auth/login`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ username, password }),
+  });
+  const body = (await response.json()) as ApiSuccess<AdminAuthSession> | ApiFailure;
+
+  if (!response.ok || body.success !== true) {
+    throw new Error(body.success === false ? body.error?.message ?? response.statusText : response.statusText);
+  }
+
+  setStoredAdminSession(body.data);
+  return body.data;
+}
+
+export async function adminLogout(): Promise<void> {
+  try {
+    await sendAdminRequest("/admin/auth/logout", "POST");
+  } finally {
+    clearStoredAdminSession();
+  }
+}
+
+export async function getAdminMe(): Promise<AdminUser> {
+  return getJson<AdminUser>("/admin/auth/me");
+}
+
 export async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     headers: {
       Accept: "application/json",
+      ...adminAuthHeaders(),
     },
   });
 
   const body = (await response.json()) as ApiSuccess<T> | ApiFailure;
+
+  if (response.status === 401) {
+    clearStoredAdminSession();
+    notifyAdminUnauthorized();
+  }
 
   if (!response.ok || body.success !== true) {
     throw new Error(body.success === false ? body.error?.message ?? response.statusText : response.statusText);
@@ -359,6 +449,7 @@ export async function sendAdminRequest(path: string, method: "POST" | "PATCH" | 
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        ...adminAuthHeaders(),
       },
     };
 
@@ -385,6 +476,11 @@ export async function sendAdminRequest(path: string, method: "POST" | "PATCH" | 
         status: response.status,
         message: "后端写接口尚未提供，已保留表单结构和请求路径。",
       };
+    }
+
+    if (response.status === 401) {
+      clearStoredAdminSession();
+      notifyAdminUnauthorized();
     }
 
     return {

@@ -1,8 +1,10 @@
 import Taro from "@tarojs/taro";
 import type {
   ApiResult,
-  AppUser,
+  AppUserMe,
+  AppUserStats,
   AuthSession,
+  DotaAccountBinding,
   BracketNode,
   MatchDetail,
   MatchRecord,
@@ -91,8 +93,24 @@ export async function loginWithWeChat(): Promise<AuthSession> {
   return session;
 }
 
-export async function loadMe(): Promise<AppUser> {
-  return request<AppUser>("/me");
+export async function loadMe(): Promise<AppUserMe> {
+  return request<AppUserMe>("/me");
+}
+
+export async function logout(): Promise<void> {
+  await request<{ revoked: true }>("/auth/logout", { method: "POST" });
+  clearStoredAuthSession();
+}
+
+export async function bindDotaAccount(input: { accountId?: number | null; steamId64?: string | null; steamId?: string | null }): Promise<DotaAccountBinding> {
+  return request<DotaAccountBinding>("/me/player-binding", {
+    method: "POST",
+    data: input,
+  });
+}
+
+export async function loadMyStats(): Promise<AppUserStats> {
+  return request<AppUserStats>("/me/stats");
 }
 
 export async function loadTournaments(): Promise<TournamentOption[]> {
@@ -205,7 +223,6 @@ async function request<T>(
       ...(shouldAttachAuth
         ? {
             authorization: `Bearer ${session.token}`,
-            "x-mrjz-user-id": session.user.id,
           }
         : {}),
     },
@@ -214,6 +231,10 @@ async function request<T>(
 
   if (result?.success) {
     return result.data;
+  }
+
+  if (response.statusCode === 401) {
+    clearStoredAuthSession();
   }
 
   throw new Error(result?.error?.message ?? `API request failed: ${response.statusCode}`);

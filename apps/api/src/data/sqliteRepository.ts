@@ -1,4 +1,5 @@
 import { getSeedSlotOrder } from "@mrjz/shared/bracket-seeding";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { openDatabase, parseJson, resolveDatabasePath } from "../db/client.js";
 import { normalizeOpenDotaMatchDetail } from "../opendota/normalizers/matchDetail.js";
 import { accountIdToSteamId64, steamId64ToAccountId } from "../opendota/steamClient.js";
@@ -270,7 +271,82 @@ export type AppUserView = {
 
 export type UpsertAppUserInput = {
   openId: string;
+  unionId?: string | null;
   nickname?: string;
+};
+
+export type UserSessionView = {
+  token: string;
+  expiresAt: string;
+  user: AppUserView;
+};
+
+export type DotaAccountBindingStatus = "active" | "revoked";
+export type DotaAccountVerificationStatus = "unverified" | "pending_review" | "verified" | "rejected";
+
+export type DotaAccountBindingView = {
+  id: string;
+  userId: string;
+  playerId: string;
+  accountId: number;
+  steamId64: string;
+  bindingStatus: DotaAccountBindingStatus;
+  verificationStatus: DotaAccountVerificationStatus;
+  displayName: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BindDotaAccountInput = {
+  accountId?: number | null;
+  steamId64?: string | null;
+  steamId?: string | null;
+};
+
+export type AppUserMeView = AppUserView & {
+  bindings: DotaAccountBindingView[];
+};
+
+export type AppUserStatsView = {
+  user: AppUserView;
+  binding: DotaAccountBindingView | null;
+  player: PlayerBrief | null;
+  stats: PlayerStatsSummary;
+  matches: ProfileMatchSummary[];
+  tournamentHistory: TournamentPlayerHistoryEntry[];
+  emptyReason: "not_bound" | "no_matches" | null;
+};
+
+export type AdminUserStatus = "active" | "disabled";
+
+export type AdminUserView = {
+  id: string;
+  username: string;
+  displayName: string;
+  status: AdminUserStatus;
+  roles: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminLoginInput = {
+  username: string;
+  password: string;
+};
+
+export type AdminSessionView = {
+  token: string;
+  expiresAt: string;
+  admin: AdminUserView;
+};
+
+export type AdminAuditLogInput = {
+  actorAdminId: string;
+  action: string;
+  resourceType?: string;
+  resourceId?: string;
+  detail?: Record<string, unknown>;
 };
 
 export type PlayerTagView = {
@@ -637,7 +713,9 @@ export class SqliteTournamentRepository {
     this.database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
     this.database.exec("CREATE INDEX IF NOT EXISTS idx_series_group ON series(group_id);");
     this.ensureEntityTables();
+    this.ensureAuthTables();
     this.ensureTagTables();
+    this.ensureInitialAdminUser();
   }
 
   private ensureColumn(tableName: string, columnName: string, definition: string): void {
@@ -755,6 +833,127 @@ export class SqliteTournamentRepository {
       CREATE INDEX IF NOT EXISTS idx_stage_manual_ranks_stage ON stage_manual_ranks(stage_id);
       CREATE INDEX IF NOT EXISTS idx_swiss_byes_stage ON swiss_byes(stage_id);
     `);
+  }
+
+  private ensureAuthTables(): void {
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id TEXT PRIMARY KEY,
+        open_id TEXT UNIQUE,
+        union_id TEXT,
+        nickname TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'player', 'admin')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT,
+        last_seen_at TEXT
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS user_dota_accounts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+        player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+        dota_account_id INTEGER NOT NULL,
+        steam_id64 TEXT NOT NULL,
+        binding_status TEXT NOT NULL DEFAULT 'active' CHECK (binding_status IN ('active', 'revoked')),
+        verification_status TEXT NOT NULL DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'pending_review', 'verified', 'rejected')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE (user_id, player_id)
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS admin_roles (
+        admin_user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        scope_type TEXT NOT NULL DEFAULT 'global',
+        scope_id TEXT NOT NULL DEFAULT 'global',
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (admin_user_id, role, scope_type, scope_id)
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS admin_sessions (
+        id TEXT PRIMARY KEY,
+        admin_user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT,
+        last_seen_at TEXT
+      ) STRICT;
+
+      CREATE TABLE IF NOT EXISTS admin_audit_logs (
+        id TEXT PRIMARY KEY,
+        actor_admin_id TEXT REFERENCES admin_users(id),
+        action TEXT NOT NULL,
+        resource_type TEXT,
+        resource_id TEXT,
+        detail_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, expires_at);
+      CREATE INDEX IF NOT EXISTS idx_user_dota_accounts_user ON user_dota_accounts(user_id, binding_status);
+      CREATE INDEX IF NOT EXISTS idx_user_dota_accounts_account ON user_dota_accounts(dota_account_id);
+      CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin ON admin_sessions(admin_user_id, expires_at);
+      CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_actor ON admin_audit_logs(actor_admin_id, created_at DESC);
+    `);
+
+    this.ensureColumn("app_users", "union_id", "TEXT");
+  }
+
+  private ensureInitialAdminUser(): void {
+    const adminCount = numberValue(this.database.prepare("SELECT COUNT(*) AS count FROM admin_users").get() ?? {}, "count");
+
+    if (adminCount > 0) {
+      return;
+    }
+
+    const username = process.env.ADMIN_INITIAL_USERNAME?.trim() || "admin";
+    const configuredPassword = process.env.ADMIN_INITIAL_PASSWORD?.trim();
+
+    if (process.env.NODE_ENV === "production" && (configuredPassword === undefined || configuredPassword.length === 0 || configuredPassword === "change-me")) {
+      throw new Error("ADMIN_INITIAL_PASSWORD must be configured before bootstrapping the first production admin");
+    }
+
+    const password = configuredPassword || "change-me";
+    const displayName = process.env.ADMIN_INITIAL_DISPLAY_NAME?.trim() || "赛事管理员";
+    const adminId = uniqueId("admin", username);
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO admin_users (id, username, password_hash, display_name, status)
+          VALUES (?, ?, ?, ?, 'active')
+        `,
+      )
+      .run(adminId, username, hashPassword(password), displayName);
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO admin_roles (admin_user_id, role, scope_type, scope_id)
+          VALUES (?, 'super_admin', 'global', 'global')
+        `,
+      )
+      .run(adminId);
   }
 
   private ensureTagTables(): void {
@@ -1856,6 +2055,7 @@ export class SqliteTournamentRepository {
 
   upsertAppUser(input: UpsertAppUserInput): AppUserView {
     const openId = requiredString(input.openId, "openId");
+    const unionId = cleanOptionalText(input.unionId) ?? null;
     const nickname = cleanOptionalText(input.nickname) ?? "微信用户";
     const existing = this.database.prepare("SELECT * FROM app_users WHERE open_id = ?").get(openId) as DbRow | undefined;
 
@@ -1866,12 +2066,13 @@ export class SqliteTournamentRepository {
           `
             UPDATE app_users
             SET
+              union_id = COALESCE(?, union_id),
               nickname = ?,
               updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ?
           `,
         )
-        .run(nickname, userId);
+        .run(unionId, nickname, userId);
 
       const updated = this.database.prepare("SELECT * FROM app_users WHERE id = ?").get(userId);
 
@@ -1886,11 +2087,11 @@ export class SqliteTournamentRepository {
     this.database
       .prepare(
         `
-          INSERT INTO app_users (id, open_id, nickname, role)
-          VALUES (?, ?, ?, 'viewer')
+          INSERT INTO app_users (id, open_id, union_id, nickname, role)
+          VALUES (?, ?, ?, ?, 'viewer')
         `,
       )
-      .run(userId, openId, nickname);
+      .run(userId, openId, unionId, nickname);
 
     const created = this.database.prepare("SELECT * FROM app_users WHERE id = ?").get(userId);
 
@@ -1899,6 +2100,335 @@ export class SqliteTournamentRepository {
     }
 
     return this.mapAppUser(created as DbRow);
+  }
+
+  createUserSession(userId: string): UserSessionView {
+    const user = this.getAppUser(requiredString(userId, "userId"));
+
+    if (user === undefined) {
+      throw new Error("app user not found");
+    }
+
+    const token = newSessionToken("usr");
+    const expiresAt = sessionExpiresAt(userSessionTtlMs());
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO user_sessions (id, user_id, token_hash, expires_at)
+          VALUES (?, ?, ?, ?)
+        `,
+      )
+      .run(uniqueId("user_session", `${user.id}-${Date.now()}`), user.id, hashToken(token), expiresAt);
+
+    return { token, expiresAt, user };
+  }
+
+  resolveAppUserBySessionToken(token: string): AppUserView | undefined {
+    const tokenValue = token.trim();
+
+    if (tokenValue.length === 0) {
+      return undefined;
+    }
+
+    const row = this.database
+      .prepare(
+        `
+          SELECT u.*
+          FROM user_sessions s
+          JOIN app_users u ON u.id = s.user_id
+          WHERE s.token_hash = ?
+            AND s.revoked_at IS NULL
+            AND s.expires_at > ?
+          LIMIT 1
+        `,
+      )
+      .get(hashToken(tokenValue), new Date().toISOString()) as DbRow | undefined;
+
+    if (row === undefined) {
+      return undefined;
+    }
+
+    this.database
+      .prepare("UPDATE user_sessions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE token_hash = ?")
+      .run(hashToken(tokenValue));
+
+    return this.mapAppUser(row);
+  }
+
+  revokeUserSession(token: string): { revoked: true } {
+    const tokenValue = requiredString(token, "token");
+
+    this.database
+      .prepare(
+        `
+          UPDATE user_sessions
+          SET revoked_at = COALESCE(revoked_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+          WHERE token_hash = ?
+        `,
+      )
+      .run(hashToken(tokenValue));
+
+    return { revoked: true };
+  }
+
+  getAppUserMe(userId: string): AppUserMeView | undefined {
+    const user = this.getAppUser(userId);
+
+    return user === undefined
+      ? undefined
+      : {
+          ...user,
+          bindings: this.listDotaAccountBindings(user.id),
+        };
+  }
+
+  bindAppUserDotaAccount(userId: string, input: BindDotaAccountInput): DotaAccountBindingView {
+    const user = this.getAppUser(requiredString(userId, "userId"));
+
+    if (user === undefined) {
+      throw new Error("app user not found");
+    }
+
+    const identity = accountIdentityFromBindingInput(input);
+    const player = this.ensurePlayerForDotaAccount(identity.accountId, identity.steamId64);
+
+    this.database
+      .prepare(
+        `
+          UPDATE user_dota_accounts
+          SET
+            binding_status = 'revoked',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE user_id = ?
+            AND player_id <> ?
+            AND binding_status = 'active'
+        `,
+      )
+      .run(user.id, player.id);
+
+    const existing = this.database
+      .prepare("SELECT id FROM user_dota_accounts WHERE user_id = ? AND player_id = ?")
+      .get(user.id, player.id) as DbRow | undefined;
+    const bindingId = existing === undefined ? uniqueId("binding", `${user.id}-${player.id}`) : text(existing, "id");
+
+    if (existing === undefined) {
+      this.database
+        .prepare(
+          `
+            INSERT INTO user_dota_accounts (
+              id,
+              user_id,
+              player_id,
+              dota_account_id,
+              steam_id64,
+              binding_status,
+              verification_status
+            )
+            VALUES (?, ?, ?, ?, ?, 'active', 'unverified')
+          `,
+        )
+        .run(bindingId, user.id, player.id, identity.accountId, identity.steamId64);
+    } else {
+      this.database
+        .prepare(
+          `
+            UPDATE user_dota_accounts
+            SET
+              dota_account_id = ?,
+              steam_id64 = ?,
+              binding_status = 'active',
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(identity.accountId, identity.steamId64, bindingId);
+    }
+
+    const binding = this.getDotaAccountBindingById(bindingId);
+
+    if (binding === undefined) {
+      throw new Error("Dota account binding could not be loaded");
+    }
+
+    return binding;
+  }
+
+  getAppUserStats(userId: string): AppUserStatsView | undefined {
+    const user = this.getAppUser(requiredString(userId, "userId"));
+
+    if (user === undefined) {
+      return undefined;
+    }
+
+    const binding = this.getActiveDotaAccountBinding(user.id);
+
+    if (binding === undefined) {
+      return {
+        user,
+        binding: null,
+        player: null,
+        stats: emptyPlayerStats(),
+        matches: [],
+        tournamentHistory: [],
+        emptyReason: "not_bound",
+      };
+    }
+
+    const player = this.getPlayerById(binding.playerId);
+
+    if (player === undefined) {
+      return {
+        user,
+        binding,
+        player: null,
+        stats: emptyPlayerStats(),
+        matches: [],
+        tournamentHistory: [],
+        emptyReason: "no_matches",
+      };
+    }
+
+    const tournamentIds = this.listPlayerTournamentIds(player.id);
+
+    if (tournamentIds.length === 0) {
+      return {
+        user,
+        binding,
+        player,
+        stats: emptyPlayerStats(),
+        matches: [],
+        tournamentHistory: [],
+        emptyReason: "no_matches",
+      };
+    }
+
+    const currentTournamentId = tournamentIds[0] ?? "";
+    const stats = this.getPlayerStatsSnapshot(currentTournamentId, player.id);
+    const matches = this.getPlayerMatchSnapshot(currentTournamentId, player.id);
+    const tournamentHistory = this.listPlayerTournamentHistory(currentTournamentId, player.id);
+    const hasData = matches.length > 0 || stats.totalMatches > 0 || tournamentHistory.some((entry) => entry.matches.length > 0 || entry.stats.totalMatches > 0);
+
+    return {
+      user,
+      binding,
+      player,
+      stats,
+      matches,
+      tournamentHistory,
+      emptyReason: hasData ? null : "no_matches",
+    };
+  }
+
+  loginAdmin(input: AdminLoginInput): AdminSessionView {
+    const username = requiredString(input.username, "username");
+    const password = requiredString(input.password, "password");
+    const row = this.database.prepare("SELECT * FROM admin_users WHERE username = ?").get(username) as DbRow | undefined;
+
+    if (row === undefined || text(row, "status") !== "active" || !verifyPassword(password, text(row, "password_hash"))) {
+      throw new Error("invalid admin credentials");
+    }
+
+    const admin = this.mapAdminUser(row);
+    const token = newSessionToken("adm");
+    const expiresAt = sessionExpiresAt(adminSessionTtlMs());
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO admin_sessions (id, admin_user_id, token_hash, expires_at)
+          VALUES (?, ?, ?, ?)
+        `,
+      )
+      .run(uniqueId("admin_session", `${admin.id}-${Date.now()}`), admin.id, hashToken(token), expiresAt);
+
+    this.recordAdminAudit({
+      actorAdminId: admin.id,
+      action: "admin.login",
+      resourceType: "admin_session",
+      detail: { username: admin.username },
+    });
+
+    return { token, expiresAt, admin };
+  }
+
+  resolveAdminBySessionToken(token: string): AdminUserView | undefined {
+    const tokenValue = token.trim();
+
+    if (tokenValue.length === 0) {
+      return undefined;
+    }
+
+    const row = this.database
+      .prepare(
+        `
+          SELECT u.*
+          FROM admin_sessions s
+          JOIN admin_users u ON u.id = s.admin_user_id
+          WHERE s.token_hash = ?
+            AND s.revoked_at IS NULL
+            AND s.expires_at > ?
+            AND u.status = 'active'
+          LIMIT 1
+        `,
+      )
+      .get(hashToken(tokenValue), new Date().toISOString()) as DbRow | undefined;
+
+    if (row === undefined) {
+      return undefined;
+    }
+
+    this.database
+      .prepare("UPDATE admin_sessions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE token_hash = ?")
+      .run(hashToken(tokenValue));
+
+    return this.mapAdminUser(row);
+  }
+
+  revokeAdminSession(token: string): { revoked: true } {
+    const tokenValue = requiredString(token, "token");
+    const tokenHash = hashToken(tokenValue);
+    const row = this.database
+      .prepare("SELECT admin_user_id FROM admin_sessions WHERE token_hash = ?")
+      .get(tokenHash) as DbRow | undefined;
+
+    this.database
+      .prepare(
+        `
+          UPDATE admin_sessions
+          SET revoked_at = COALESCE(revoked_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+          WHERE token_hash = ?
+        `,
+      )
+      .run(tokenHash);
+
+    if (row !== undefined) {
+      this.recordAdminAudit({
+        actorAdminId: text(row, "admin_user_id"),
+        action: "admin.logout",
+        resourceType: "admin_session",
+      });
+    }
+
+    return { revoked: true };
+  }
+
+  recordAdminAudit(input: AdminAuditLogInput): void {
+    this.database
+      .prepare(
+        `
+          INSERT INTO admin_audit_logs (id, actor_admin_id, action, resource_type, resource_id, detail_json)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        uniqueId("admin_audit", `${input.actorAdminId}-${input.action}-${Date.now()}`),
+        requiredString(input.actorAdminId, "actorAdminId"),
+        requiredString(input.action, "action"),
+        input.resourceType?.trim() || null,
+        input.resourceId?.trim() || null,
+        JSON.stringify(input.detail ?? {}),
+      );
   }
 
   listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined {
@@ -2679,6 +3209,146 @@ export class SqliteTournamentRepository {
       createdAt: text(row, "created_at"),
       updatedAt: text(row, "updated_at"),
     };
+  }
+
+  private listDotaAccountBindings(userId: string): DotaAccountBindingView[] {
+    return this.database
+      .prepare(
+        `
+          SELECT
+            b.*,
+            p.display_name AS player_display_name,
+            p.avatar_url AS player_avatar_url
+          FROM user_dota_accounts b
+          JOIN players p ON p.id = b.player_id
+          WHERE b.user_id = ?
+          ORDER BY
+            CASE b.binding_status WHEN 'active' THEN 0 ELSE 1 END,
+            b.updated_at DESC,
+            b.created_at DESC
+        `,
+      )
+      .all(userId)
+      .map((row) => this.mapDotaAccountBinding(row));
+  }
+
+  private getActiveDotaAccountBinding(userId: string): DotaAccountBindingView | undefined {
+    const row = this.database
+      .prepare(
+        `
+          SELECT
+            b.*,
+            p.display_name AS player_display_name,
+            p.avatar_url AS player_avatar_url
+          FROM user_dota_accounts b
+          JOIN players p ON p.id = b.player_id
+          WHERE b.user_id = ?
+            AND b.binding_status = 'active'
+          ORDER BY b.updated_at DESC, b.created_at DESC
+          LIMIT 1
+        `,
+      )
+      .get(userId) as DbRow | undefined;
+
+    return row === undefined ? undefined : this.mapDotaAccountBinding(row);
+  }
+
+  private getDotaAccountBindingById(bindingId: string): DotaAccountBindingView | undefined {
+    const row = this.database
+      .prepare(
+        `
+          SELECT
+            b.*,
+            p.display_name AS player_display_name,
+            p.avatar_url AS player_avatar_url
+          FROM user_dota_accounts b
+          JOIN players p ON p.id = b.player_id
+          WHERE b.id = ?
+        `,
+      )
+      .get(bindingId) as DbRow | undefined;
+
+    return row === undefined ? undefined : this.mapDotaAccountBinding(row);
+  }
+
+  private mapDotaAccountBinding(row: DbRow): DotaAccountBindingView {
+    return {
+      id: text(row, "id"),
+      userId: text(row, "user_id"),
+      playerId: text(row, "player_id"),
+      accountId: numberValue(row, "dota_account_id"),
+      steamId64: text(row, "steam_id64"),
+      bindingStatus: text(row, "binding_status") as DotaAccountBindingStatus,
+      verificationStatus: text(row, "verification_status") as DotaAccountVerificationStatus,
+      displayName: text(row, "player_display_name"),
+      avatarUrl: nullableText(row, "player_avatar_url"),
+      createdAt: text(row, "created_at"),
+      updatedAt: text(row, "updated_at"),
+    };
+  }
+
+  private ensurePlayerForDotaAccount(accountId: number, steamId64: string): PlayerBrief {
+    const existing = this.getPlayerByAccountIdentity(accountId, steamId64);
+    const placeholderName = `玩家 ${accountId}`;
+
+    if (existing !== undefined) {
+      this.database
+        .prepare(
+          `
+            UPDATE players
+            SET
+              account_id = COALESCE(account_id, ?),
+              steam_id64 = COALESCE(steam_id64, ?),
+              display_name = CASE WHEN display_name = '' THEN ? ELSE display_name END,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(accountId, steamId64, placeholderName, existing.id);
+
+      return this.requirePlayer(existing.id);
+    }
+
+    const playerId = uniqueId("player", `${accountId}-${placeholderName}`);
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO players (id, account_id, steam_id64, display_name, current_team_id, avatar_url)
+          VALUES (?, ?, ?, ?, NULL, NULL)
+        `,
+      )
+      .run(playerId, accountId, steamId64, placeholderName);
+
+    return this.requirePlayer(playerId);
+  }
+
+  private mapAdminUser(row: DbRow): AdminUserView {
+    const adminId = text(row, "id");
+
+    return {
+      id: adminId,
+      username: text(row, "username"),
+      displayName: text(row, "display_name"),
+      status: text(row, "status") as AdminUserStatus,
+      roles: this.listAdminRoles(adminId),
+      createdAt: text(row, "created_at"),
+      updatedAt: text(row, "updated_at"),
+    };
+  }
+
+  private listAdminRoles(adminId: string): string[] {
+    return this.database
+      .prepare(
+        `
+          SELECT role
+          FROM admin_roles
+          WHERE admin_user_id = ?
+          ORDER BY role ASC
+        `,
+      )
+      .all(adminId)
+      .map((row) => text(row, "role"));
   }
 
   backfillCachedTournamentEntities(tournamentId?: string): EntityBackfillSummary {
@@ -6080,6 +6750,8 @@ export class SqliteTournamentRepository {
 
       const teamId = sideFromPlayer(player) === "radiant" ? radiantTeamId : direTeamId;
       const displayName = player.personaname?.trim() || player.name?.trim() || player.player_name?.trim() || `玩家 ${accountId}`;
+      const placeholderName = `玩家 ${accountId}`;
+      const steamId64 = accountIdToSteamId64(accountId);
       const existing = this.database.prepare("SELECT id FROM players WHERE account_id = ?").get(accountId);
       const playerId = existing === undefined ? uniqueId("player", `${accountId}-${displayName}`) : text(existing, "id");
 
@@ -6087,24 +6759,25 @@ export class SqliteTournamentRepository {
         this.database
           .prepare(
             `
-              INSERT INTO players (id, account_id, display_name, current_team_id, avatar_url)
-              VALUES (?, ?, ?, ?, NULL)
+              INSERT INTO players (id, account_id, steam_id64, display_name, current_team_id, avatar_url)
+              VALUES (?, ?, ?, ?, ?, NULL)
             `,
           )
-          .run(playerId, accountId, displayName, teamId);
+          .run(playerId, accountId, steamId64, displayName, teamId);
       } else {
         this.database
           .prepare(
             `
               UPDATE players
               SET
-                display_name = CASE WHEN display_name = '' THEN ? ELSE display_name END,
+                display_name = CASE WHEN display_name = '' OR display_name = ? THEN ? ELSE display_name END,
+                steam_id64 = COALESCE(steam_id64, ?),
                 current_team_id = ?,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
               WHERE id = ?
             `,
           )
-          .run(displayName, teamId, playerId);
+          .run(placeholderName, displayName, steamId64, teamId, playerId);
       }
 
       this.database
@@ -7795,7 +8468,7 @@ function requiredString(value: string | undefined, fieldName: string): string {
   return trimmed;
 }
 
-function cleanOptionalText(value: string | undefined): string | undefined {
+function cleanOptionalText(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim();
 
   return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
@@ -7899,6 +8572,99 @@ function normalizeSteamId64(rawSteamId: string | null | undefined, accountId: nu
 
 function steamId64FromAccountId(accountId: number | null): string | null {
   return accountId === null ? null : accountIdToSteamId64(accountId);
+}
+
+function accountIdentityFromBindingInput(input: BindDotaAccountInput): { accountId: number; steamId64: string } {
+  if (input.accountId !== undefined && input.accountId !== null) {
+    const accountId = requiredPositiveInteger(input.accountId, "accountId");
+    return {
+      accountId,
+      steamId64: normalizeSteamId64(input.steamId64 ?? input.steamId, accountId) ?? accountIdToSteamId64(accountId),
+    };
+  }
+
+  const rawSteamId = input.steamId64 ?? input.steamId;
+
+  if (rawSteamId === undefined || rawSteamId === null || rawSteamId.trim().length === 0) {
+    throw new Error("accountId or steamId64 is required");
+  }
+
+  const normalized = normalizeSteamIdentity(rawSteamId);
+
+  if (normalized.length >= 16) {
+    const accountId = steamId64ToAccountId(normalized);
+
+    if (accountId === null) {
+      throw new Error("steamId64 must be a valid SteamID64 or Dota account_id");
+    }
+
+    return {
+      accountId,
+      steamId64: accountIdToSteamId64(accountId),
+    };
+  }
+
+  const accountId = Number(normalized);
+
+  if (!Number.isSafeInteger(accountId) || accountId <= 0) {
+    throw new Error("steamId64 must be a valid SteamID64 or Dota account_id");
+  }
+
+  return {
+    accountId,
+    steamId64: accountIdToSteamId64(accountId),
+  };
+}
+
+function newSessionToken(prefix: "usr" | "adm"): string {
+  return `${prefix}_${randomBytes(32).toString("base64url")}`;
+}
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function sessionExpiresAt(ttlMs: number): string {
+  return new Date(Date.now() + ttlMs).toISOString();
+}
+
+function userSessionTtlMs(): number {
+  return positiveEnvNumber("USER_SESSION_TTL_DAYS", 30) * 24 * 60 * 60_000;
+}
+
+function adminSessionTtlMs(): number {
+  return positiveEnvNumber("ADMIN_SESSION_TTL_HOURS", 12) * 60 * 60_000;
+}
+
+function positiveEnvNumber(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  const value = raw === undefined || raw.length === 0 ? NaN : Number(raw);
+
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const derived = scryptSync(password, salt, 64).toString("hex");
+
+  return `scrypt$${salt}$${derived}`;
+}
+
+function verifyPassword(password: string, storedHash: string): boolean {
+  const [algorithm, salt, hash] = storedHash.split("$");
+
+  if (algorithm !== "scrypt" || salt === undefined || hash === undefined) {
+    return false;
+  }
+
+  try {
+    const expected = Buffer.from(hash, "hex");
+    const actual = scryptSync(password, salt, expected.length);
+
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeSteamIdentity(rawSteamId: string): string {

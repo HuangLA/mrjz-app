@@ -2,6 +2,7 @@ import {
   advanceBracketNode,
   addStageGroupTeam,
   adjustPlayerTagLikes,
+  bindAppUserDotaAccount,
   createKnockoutBracket,
   createRound,
   createSeries,
@@ -15,17 +16,19 @@ import {
   clearTournamentScheduleRecords,
   confirmSwissRound,
   createAdminPlayerTag,
+  createUserSession,
   deletePlayerTag,
   deleteSeries,
   deleteStageGroup,
   getMatchDetail,
+  getAppUserMe,
+  getAppUserStats,
   getOfficialScheduleManagement,
   getOfficialSchedulePublicStatus,
   getStageBracket,
   listStageGroups,
   getStageRounds,
   getStageStandings,
-  getAppUser,
   generateGroupRoundRobin,
   generateSwissPairings,
   getTournamentPlayerDetail,
@@ -44,13 +47,19 @@ import {
   listSyncTasks,
   listTournaments,
   lockOfficialScheduleRoster,
+  loginAdmin,
   randomizeStageGroups,
   addTeamMember,
   backfillCachedTournamentEntities,
+  recordAdminAudit,
   removeTeamMember,
   removeStageGroupTeam,
+  resolveAdminBySessionToken,
+  resolveAppUserBySessionToken,
   retractBracketNode,
   retractSwissRound,
+  revokeAdminSession,
+  revokeUserSession,
   setBracketNodeSlot,
   submitPlayerTag,
   unlikePlayerTag,
@@ -73,7 +82,7 @@ import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
 import { readSteamAvatarCache } from "../opendota/steamAvatarCache.js";
 import { readJsonBody } from "./body.js";
 import { binary, json, ok, fail } from "./responses.js";
-import { Router } from "./router.js";
+import { Router, type RouteGuardContext } from "./router.js";
 
 export type HealthStatus = {
   ok: true;
@@ -90,7 +99,7 @@ export type HealthStatus = {
 };
 
 export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
-  const router = new Router();
+  const router = new Router(adminRouteGuard);
 
   router.get("/health", () => json(200, getHealthStatus()));
   router.get("/api/health", () => json(200, getHealthStatus()));
@@ -99,14 +108,24 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     try {
       const body = await readJsonBody(request);
       const login = await resolveWechatLogin(body);
-      const user = upsertAppUser({
-        openId: login.openId,
-        nickname: login.nickname,
-      });
+      const user = upsertAppUser(
+        login.unionId === undefined
+          ? {
+              openId: login.openId,
+              nickname: login.nickname,
+            }
+          : {
+              openId: login.openId,
+              unionId: login.unionId,
+              nickname: login.nickname,
+            },
+      );
+      const session = createUserSession(user.id);
 
       return ok({
-        token: user.id,
-        user,
+        token: session.token,
+        expiresAt: session.expiresAt,
+        user: session.user,
         authProvider: login.provider,
       });
     } catch (error) {
@@ -114,20 +133,90 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
   });
 
-  router.get("/api/me", ({ request }) => {
-    const userId = appUserIdFromRequest(request);
+  router.post("/api/auth/logout", ({ request }) => {
+    const token = bearerTokenFromRequest(request);
 
-    if (userId === null) {
+    if (token === null) {
       return fail(401, "UNAUTHORIZED", "Login is required");
     }
 
-    const user = getAppUser(userId);
+    return ok(revokeUserSession(token));
+  });
 
-    if (user === undefined) {
+  router.get("/api/me", ({ request }) => {
+    const user = appUserFromRequest(request);
+
+    if (user === null) {
+      return fail(401, "UNAUTHORIZED", "Login is required");
+    }
+
+    const me = getAppUserMe(user.id);
+
+    if (me === undefined) {
       return fail(401, "UNAUTHORIZED", "App user not found");
     }
 
-    return ok(user);
+    return ok(me);
+  });
+
+  router.post("/api/me/player-binding", async ({ request }) => {
+    const user = appUserFromRequest(request);
+
+    if (user === null) {
+      return fail(401, "UNAUTHORIZED", "Login is required");
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      return ok(bindAppUserDotaAccount(user.id, bodyToBindDotaAccountInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.get("/api/me/stats", ({ request }) => {
+    const user = appUserFromRequest(request);
+
+    if (user === null) {
+      return fail(401, "UNAUTHORIZED", "Login is required");
+    }
+
+    const stats = getAppUserStats(user.id);
+
+    if (stats === undefined) {
+      return fail(401, "UNAUTHORIZED", "App user not found");
+    }
+
+    return ok(stats);
+  });
+
+  router.post("/api/admin/auth/login", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(loginAdmin(bodyToAdminLoginInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.post("/api/admin/auth/logout", ({ request }) => {
+    const token = bearerTokenFromRequest(request);
+
+    if (token === null) {
+      return fail(401, "UNAUTHORIZED", "Admin login is required");
+    }
+
+    return ok(revokeAdminSession(token));
+  });
+
+  router.get("/api/admin/auth/me", ({ request }) => {
+    const admin = adminUserFromRequest(request);
+
+    if (admin === null) {
+      return fail(401, "UNAUTHORIZED", "Admin login is required");
+    }
+
+    return ok(admin);
   });
 
   router.get("/api/assets/steam-avatars/:filename", async ({ params }) => {
@@ -237,43 +326,43 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.post("/api/miniprogram/tournaments/:id/players/:playerId/tags", async ({ request, params }) => {
-    const userId = appUserIdFromRequest(request);
+    const user = appUserFromRequest(request);
 
-    if (userId === null) {
+    if (user === null) {
       return fail(401, "UNAUTHORIZED", "Mini program tag submission requires an app user token");
     }
 
     try {
       const body = await readJsonBody(request);
-      return ok(submitPlayerTag(params.id ?? "", params.playerId ?? "", bodyToSubmitPlayerTagInput(body, userId)), 201);
+      return ok(submitPlayerTag(params.id ?? "", params.playerId ?? "", bodyToSubmitPlayerTagInput(body, user.id)), 201);
     } catch (error) {
       return validationError(error);
     }
   });
 
   router.post("/api/miniprogram/tags/:tagId/like", ({ request, params }) => {
-    const userId = appUserIdFromRequest(request);
+    const user = appUserFromRequest(request);
 
-    if (userId === null) {
+    if (user === null) {
       return fail(401, "UNAUTHORIZED", "Mini program tag likes require an app user token");
     }
 
     try {
-      return ok(likePlayerTag(params.tagId ?? "", { userId }));
+      return ok(likePlayerTag(params.tagId ?? "", { userId: user.id }));
     } catch (error) {
       return validationError(error);
     }
   });
 
   router.delete("/api/miniprogram/tags/:tagId/like", ({ request, params }) => {
-    const userId = appUserIdFromRequest(request);
+    const user = appUserFromRequest(request);
 
-    if (userId === null) {
+    if (user === null) {
       return fail(401, "UNAUTHORIZED", "Mini program tag likes require an app user token");
     }
 
     try {
-      return ok(unlikePlayerTag(params.tagId ?? "", { userId }));
+      return ok(unlikePlayerTag(params.tagId ?? "", { userId: user.id }));
     } catch (error) {
       return validationError(error);
     }
@@ -763,6 +852,74 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   return router;
 }
 
+function adminRouteGuard(context: RouteGuardContext) {
+  if (isPublicRoute(context) || isAppUserRoute(context) || context.pattern === "/api/admin/auth/login") {
+    return null;
+  }
+
+  const admin = adminUserFromRequest(context.request);
+
+  if (admin === null) {
+    return fail(401, "UNAUTHORIZED", "Admin login is required");
+  }
+
+  if (context.method !== "GET" && context.pattern !== "/api/admin/auth/logout") {
+    recordAdminAudit({
+      actorAdminId: admin.id,
+      action: `${context.method} ${context.pattern}`,
+      resourceType: "api_route",
+      resourceId: context.pattern,
+      detail: {
+        path: context.url.pathname,
+      },
+    });
+  }
+
+  return null;
+}
+
+function isPublicRoute(context: RouteGuardContext): boolean {
+  if (context.pattern === "/health" || context.pattern === "/api/health") {
+    return true;
+  }
+
+  if (context.method !== "GET") {
+    return false;
+  }
+
+  return PUBLIC_GET_PATTERNS.has(context.pattern);
+}
+
+function isAppUserRoute(context: RouteGuardContext): boolean {
+  return (
+    context.pattern === "/api/auth/wechat-login" ||
+    context.pattern === "/api/auth/logout" ||
+    context.pattern === "/api/me" ||
+    context.pattern === "/api/me/player-binding" ||
+    context.pattern === "/api/me/stats" ||
+    context.pattern.startsWith("/api/miniprogram/")
+  );
+}
+
+const PUBLIC_GET_PATTERNS = new Set([
+  "/api/assets/steam-avatars/:filename",
+  "/api/leagues",
+  "/api/tournaments",
+  "/api/tournaments/:id",
+  "/api/tournaments/:id/matches",
+  "/api/tournaments/:id/teams",
+  "/api/tournaments/:id/teams/:teamId",
+  "/api/tournaments/:id/players",
+  "/api/tournaments/:id/players/:playerId",
+  "/api/tournaments/:id/players/:playerId/tags",
+  "/api/tournaments/:id/official-schedule",
+  "/api/stages/:stageId/standings",
+  "/api/stages/:stageId/rounds",
+  "/api/stages/:stageId/bracket",
+  "/api/stages/:stageId/groups",
+  "/api/matches/:matchId",
+]);
+
 function bodyToCreateTeamInput(body: Record<string, unknown>) {
   return withoutUndefined({
     name: stringField(body, "name"),
@@ -1188,6 +1345,21 @@ function bodyToSubmitPlayerTagInput(body: Record<string, unknown>, userId: strin
   } satisfies Parameters<typeof submitPlayerTag>[2];
 }
 
+function bodyToBindDotaAccountInput(body: Record<string, unknown>) {
+  return withoutUndefined({
+    accountId: optionalNumberOrNullField(body, "accountId"),
+    steamId64: optionalStringOrNullField(body, "steamId64"),
+    steamId: optionalStringField(body, "steamId"),
+  }) as Parameters<typeof bindAppUserDotaAccount>[1];
+}
+
+function bodyToAdminLoginInput(body: Record<string, unknown>) {
+  return {
+    username: stringField(body, "username"),
+    password: stringField(body, "password"),
+  } satisfies Parameters<typeof loginAdmin>[0];
+}
+
 function queryToListAdminTagsInput(url: URL) {
   const status = url.searchParams.get("status")?.trim();
 
@@ -1254,23 +1426,30 @@ function bodyToDeletePlayerTagInput(body: Record<string, unknown>) {
   }) as Parameters<typeof deletePlayerTag>[1];
 }
 
-function appUserIdFromRequest(request: { headers: Record<string, string | string[] | undefined> }): string | null {
-  const explicitHeader = request.headers["x-mrjz-user-id"];
-  const explicitUserId = Array.isArray(explicitHeader) ? explicitHeader[0] : explicitHeader;
+function appUserFromRequest(request: { headers: Record<string, string | string[] | undefined> }) {
+  const token = bearerTokenFromRequest(request);
 
-  if (typeof explicitUserId === "string" && explicitUserId.trim().length > 0) {
-    return explicitUserId.trim();
-  }
+  return token === null ? null : resolveAppUserBySessionToken(token) ?? null;
+}
 
+function adminUserFromRequest(request: { headers: Record<string, string | string[] | undefined> }) {
+  const token = bearerTokenFromRequest(request);
+
+  return token === null ? null : resolveAdminBySessionToken(token) ?? null;
+}
+
+function bearerTokenFromRequest(request: { headers: Record<string, string | string[] | undefined> }): string | null {
   const authorization = request.headers.authorization;
-  const token = Array.isArray(authorization) ? authorization[0] : authorization;
-  const match = typeof token === "string" ? /^Bearer\s+(.+)$/i.exec(token.trim()) : null;
+  const headerValue = Array.isArray(authorization) ? authorization[0] : authorization;
+  const match = typeof headerValue === "string" ? /^Bearer\s+(.+)$/i.exec(headerValue.trim()) : null;
+  const token = match?.[1]?.trim();
 
-  return match?.[1]?.trim() || null;
+  return token === undefined || token.length === 0 ? null : token;
 }
 
 type ResolvedWechatLogin = {
   openId: string;
+  unionId?: string;
   nickname: string;
   provider: "wechat" | "development";
 };
@@ -1289,17 +1468,23 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
       grant_type: "authorization_code",
     });
     const response = await fetch(`https://api.weixin.qq.com/sns/jscode2session?${params.toString()}`);
-    const payload = (await response.json()) as { openid?: string; errcode?: number; errmsg?: string };
+    const payload = (await response.json()) as { openid?: string; unionid?: string; errcode?: number; errmsg?: string };
 
     if (!response.ok || typeof payload.openid !== "string" || payload.openid.trim().length === 0) {
       throw new Error(payload.errmsg ?? "WeChat code2Session failed");
     }
 
-    return {
+    const result: ResolvedWechatLogin = {
       openId: `wechat:${payload.openid.trim()}`,
       nickname,
       provider: "wechat",
     };
+
+    if (typeof payload.unionid === "string" && payload.unionid.trim().length > 0) {
+      result.unionId = `wechat:${payload.unionid.trim()}`;
+    }
+
+    return result;
   }
 
   const devUserId = optionalStringField(body, "devUserId") ?? process.env.MRJZ_DEV_WECHAT_USER_ID?.trim() ?? "local";

@@ -9,6 +9,13 @@ export type RouteContext = {
 
 export type RouteHandler = (context: RouteContext) => RouteResult | Promise<RouteResult>;
 
+export type RouteGuardContext = RouteContext & {
+  method: string;
+  pattern: string;
+};
+
+export type RouteGuard = (context: RouteGuardContext) => RouteResult | null | Promise<RouteResult | null>;
+
 type Route = {
   method: string;
   pattern: string;
@@ -29,6 +36,8 @@ const JSON_HEADERS = {
 
 export class Router {
   private readonly routes: Route[] = [];
+
+  constructor(private readonly guard?: RouteGuard) {}
 
   get(pattern: string, handler: RouteHandler): void {
     this.addRoute("GET", pattern, handler);
@@ -75,6 +84,19 @@ export class Router {
     }
 
     try {
+      const guarded = await this.guard?.({
+        request,
+        url,
+        params: route.params,
+        method: route.route.method,
+        pattern: route.route.pattern,
+      });
+
+      if (guarded !== undefined && guarded !== null) {
+        send(response, guarded);
+        return;
+      }
+
       const result = await route.route.handler({
         request,
         url,

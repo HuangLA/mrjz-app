@@ -1,7 +1,14 @@
 import {
   SqliteTournamentRepository,
   type AdminCreatePlayerTagInput,
+  type AdminAuditLogInput,
+  type AdminLoginInput,
+  type AdminSessionView,
   type AdminTagPlayerItem,
+  type AdminUserView,
+  type AppUserMeView,
+  type AppUserStatsView,
+  type BindDotaAccountInput,
   type CreateRoundInput,
   type CreateSeriesInput,
   type CreateStageInput,
@@ -11,6 +18,7 @@ import {
   type CreatePlayerInput,
   type CreateTournamentInput,
   type DeletePlayerTagInput,
+  type DotaAccountBindingView,
   type LeagueSyncTarget,
   type LinkOpenDotaMatchInput,
   type LikePlayerTagInput,
@@ -32,6 +40,7 @@ import {
   type UpdateGameResultInput,
   type AppUserView,
   type UpsertAppUserInput,
+  type UserSessionView,
   type UpsertOpenDotaMatchInput,
   type AddTeamMemberInput,
   type AdvanceBracketNodeInput,
@@ -95,6 +104,16 @@ type Repository = {
   getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined;
   getAppUser(userId: string): AppUserView | undefined;
   upsertAppUser(input: UpsertAppUserInput): AppUserView;
+  createUserSession(userId: string): UserSessionView;
+  resolveAppUserBySessionToken(token: string): AppUserView | undefined;
+  revokeUserSession(token: string): { revoked: true };
+  getAppUserMe(userId: string): AppUserMeView | undefined;
+  bindAppUserDotaAccount(userId: string, input: BindDotaAccountInput): DotaAccountBindingView;
+  getAppUserStats(userId: string): AppUserStatsView | undefined;
+  loginAdmin(input: AdminLoginInput): AdminSessionView;
+  resolveAdminBySessionToken(token: string): AdminUserView | undefined;
+  revokeAdminSession(token: string): { revoked: true };
+  recordAdminAudit(input: AdminAuditLogInput): void;
   listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined;
   submitPlayerTag(tournamentId: string, playerId: string, input: SubmitPlayerTagInput): PlayerTagView;
   likePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView;
@@ -228,6 +247,46 @@ export function getAppUser(userId: string) {
 
 export function upsertAppUser(input: UpsertAppUserInput) {
   return repository.upsertAppUser(input);
+}
+
+export function createUserSession(userId: string) {
+  return repository.createUserSession(userId);
+}
+
+export function resolveAppUserBySessionToken(token: string) {
+  return repository.resolveAppUserBySessionToken(token);
+}
+
+export function revokeUserSession(token: string) {
+  return repository.revokeUserSession(token);
+}
+
+export function getAppUserMe(userId: string) {
+  return repository.getAppUserMe(userId);
+}
+
+export function bindAppUserDotaAccount(userId: string, input: BindDotaAccountInput) {
+  return repository.bindAppUserDotaAccount(userId, input);
+}
+
+export function getAppUserStats(userId: string) {
+  return repository.getAppUserStats(userId);
+}
+
+export function loginAdmin(input: AdminLoginInput) {
+  return repository.loginAdmin(input);
+}
+
+export function resolveAdminBySessionToken(token: string) {
+  return repository.resolveAdminBySessionToken(token);
+}
+
+export function revokeAdminSession(token: string) {
+  return repository.revokeAdminSession(token);
+}
+
+export function recordAdminAudit(input: AdminAuditLogInput) {
+  return repository.recordAdminAudit(input);
 }
 
 export function listPlayerTags(tournamentId: string, playerId: string) {

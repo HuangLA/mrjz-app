@@ -271,10 +271,73 @@ CREATE TABLE IF NOT EXISTS opendota_matches (
 CREATE TABLE IF NOT EXISTS app_users (
   id TEXT PRIMARY KEY,
   open_id TEXT UNIQUE,
+  union_id TEXT,
   nickname TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'player', 'admin')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  last_seen_at TEXT
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS user_dota_accounts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  dota_account_id INTEGER NOT NULL,
+  steam_id64 TEXT NOT NULL,
+  binding_status TEXT NOT NULL DEFAULT 'active' CHECK (binding_status IN ('active', 'revoked')),
+  verification_status TEXT NOT NULL DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'pending_review', 'verified', 'rejected')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (user_id, player_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS admin_roles (
+  admin_user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  scope_type TEXT NOT NULL DEFAULT 'global',
+  scope_id TEXT NOT NULL DEFAULT 'global',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (admin_user_id, role, scope_type, scope_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  id TEXT PRIMARY KEY,
+  admin_user_id TEXT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  last_seen_at TEXT
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+  id TEXT PRIMARY KEY,
+  actor_admin_id TEXT REFERENCES admin_users(id),
+  action TEXT NOT NULL,
+  resource_type TEXT,
+  resource_id TEXT,
+  detail_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS tournament_player_stats (
@@ -364,6 +427,11 @@ CREATE INDEX IF NOT EXISTS idx_series_round ON series(round_id, scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_series_games_match ON series_games(match_id);
 CREATE INDEX IF NOT EXISTS idx_standings_stage_rank ON standings(stage_id, rank);
 CREATE INDEX IF NOT EXISTS idx_opendota_matches_league ON opendota_matches(league_id, match_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, expires_at);
+CREATE INDEX IF NOT EXISTS idx_user_dota_accounts_user ON user_dota_accounts(user_id, binding_status);
+CREATE INDEX IF NOT EXISTS idx_user_dota_accounts_account ON user_dota_accounts(dota_account_id);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin ON admin_sessions(admin_user_id, expires_at);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_actor ON admin_audit_logs(actor_admin_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tags_target ON tags(target_type, target_id, status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_player_identity_text ON tags(target_id, normalized_text) WHERE target_type = 'player';
 CREATE INDEX IF NOT EXISTS idx_tag_audit_logs_tag ON tag_audit_logs(tag_id, created_at DESC);

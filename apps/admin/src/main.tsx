@@ -33,6 +33,7 @@ import {
   ListRestart,
   Loader2,
   Lock,
+  LogOut,
   Minus,
   MousePointer2,
   Play,
@@ -50,9 +51,15 @@ import {
 } from "lucide-react";
 import "./react-admin.css";
 import {
+  adminLogin,
+  adminLogout,
   apiBaseUrl,
+  clearStoredAdminSession,
+  getAdminMe,
   getJson,
+  getStoredAdminSession,
   sendAdminRequest,
+  type AdminAuthSession,
   type AdminTagPlayerItem,
   type BracketNode,
   type OfficialScheduleManagement,
@@ -76,6 +83,7 @@ import {
 } from "./api";
 
 type ViewKey = "tournament" | "teams" | "matches" | "tags" | "sync";
+type AdminAuthStatus = "checking" | "authenticated" | "unauthenticated";
 type RequestMethod = "POST" | "PATCH" | "DELETE";
 type CompetitionMode = "single_elimination" | "double_elimination";
 type RosterDropTarget = "pool" | "entrant" | "seeded";
@@ -274,6 +282,8 @@ const navItems: Array<{ key: ViewKey; label: string; hint: string; icon: React.C
 
 function App() {
   const [activeView, setActiveView] = useState<ViewKey>(() => viewFromHash());
+  const [authStatus, setAuthStatus] = useState<AdminAuthStatus>("checking");
+  const [adminSession, setAdminSession] = useState<AdminAuthSession | null>(() => getStoredAdminSession());
   const [data, setData] = useState<AdminData>(initialData);
   const [notice, setNotice] = useState<{ tone: Tone; text: string } | null>(null);
   const [stageForm, setStageForm] = useState<StageFormState>(initialStageForm);
@@ -307,7 +317,58 @@ function App() {
   const selectedKnockoutEntrantIdSet = useMemo(() => new Set(selectedKnockoutEntrantIds), [selectedKnockoutEntrantIds]);
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+
+    async function verifyAdminSession() {
+      const stored = getStoredAdminSession();
+
+      if (stored === null) {
+        if (!cancelled) {
+          setAdminSession(null);
+          setAuthStatus("unauthenticated");
+        }
+        return;
+      }
+
+      try {
+        const admin = await getAdminMe();
+        const session = { ...stored, admin };
+
+        if (!cancelled) {
+          setAdminSession(session);
+          setAuthStatus("authenticated");
+        }
+      } catch {
+        clearStoredAdminSession();
+        if (!cancelled) {
+          setAdminSession(null);
+          setAuthStatus("unauthenticated");
+        }
+      }
+    }
+
+    void verifyAdminSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      void load();
+    }
+  }, [authStatus]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setAdminSession(null);
+      setAuthStatus("unauthenticated");
+      setData({ ...initialData, loading: false, notice: "Admin 登录已过期，请重新登录。" });
+    };
+
+    window.addEventListener("mrjz:admin-unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("mrjz:admin-unauthorized", handleUnauthorized);
   }, []);
 
   useEffect(() => {
@@ -355,6 +416,21 @@ function App() {
       focusElementById("tournament-create-panel");
       document.getElementById("tournament-create-name-input")?.focus({ preventScroll: true });
     }, 80);
+  }
+
+  async function handleAdminLogin(username: string, password: string) {
+    const session = await adminLogin(username, password);
+    setAdminSession(session);
+    setAuthStatus("authenticated");
+    setNotice({ tone: "good", text: `欢迎回来，${session.admin.displayName}。` });
+  }
+
+  async function handleAdminLogout() {
+    await adminLogout();
+    setAdminSession(null);
+    setAuthStatus("unauthenticated");
+    setData({ ...initialData, loading: false, notice: "已退出 Admin。" });
+    setNotice(null);
   }
 
   async function load(preferredTournamentId = data.selectedTournamentId, preferredStageId = data.selectedStageId) {
@@ -1185,6 +1261,16 @@ function App() {
     return true;
   }
 
+  if (authStatus !== "authenticated") {
+    return (
+      <AdminLoginScreen
+        apiUrl={apiBaseUrl}
+        status={authStatus}
+        onLogin={handleAdminLogin}
+      />
+    );
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -1219,9 +1305,14 @@ function App() {
           <header className="workspace-topbar">
             <div><span>{data.detail?.season?.name ?? "未选择届次"} / {selectedStage?.name ?? "未选择官方阶段"}</span><h1>{data.detail?.name ?? "MRJZ 赛事后台"}</h1><p>{data.notice}</p></div>
             <div className="topbar-actions">
+              <div className="admin-session-chip" title={adminSession?.admin.roles.join(" / ") || "admin"}>
+                <ShieldCheck size={15} />
+                <span>{adminSession?.admin.displayName ?? "Admin"}</span>
+              </div>
               <button className="primary-button topbar-create-button" type="button" onClick={openTournamentCreatePanel} disabled={data.loading} title="新建大的联赛 / 届次，不是赛程阶段" aria-label="新建大联赛 / 届次"><Plus size={15} /><span>新建大联赛</span></button>
               <StatusPill tone={data.source === "api" ? "good" : "danger"}>{data.source === "api" ? "API 在线" : "API 不可用"}</StatusPill>
               <span className="api-chip">{apiBaseUrl}</span>
+              <button className="icon-button" type="button" onClick={() => void handleAdminLogout()} title="退出 Admin" aria-label="退出 Admin"><LogOut size={17} /><span className="sr-only">退出 Admin</span></button>
               <button className="icon-button" type="button" onClick={() => void load()} title="刷新后台数据" aria-label="刷新后台数据">{data.loading ? <Loader2 size={17} className="spin" /> : <RefreshCw size={17} />}<span className="sr-only">刷新后台数据</span></button>
             </div>
           </header>
@@ -1295,6 +1386,65 @@ function App() {
       </div>
       <DragOverlay>{activeDrag.type === "team" ? <div className="drag-overlay" style={{ borderColor: activeDrag.color }}>{activeDrag.label}</div> : null}</DragOverlay>
     </DndContext>
+  );
+}
+
+function AdminLoginScreen(props: {
+  apiUrl: string;
+  status: AdminAuthStatus;
+  onLogin: (username: string, password: string) => Promise<void>;
+}) {
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("请输入 Admin 账号继续。");
+  const [submitting, setSubmitting] = useState(false);
+  const checking = props.status === "checking";
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage("正在登录...");
+    try {
+      await props.onLogin(username, password);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="admin-login-page">
+      <form className="admin-login-panel" onSubmit={submit}>
+        <div className="brand-lockup login-brand">
+          <div className="brand-mark">MR</div>
+          <div>
+            <strong>MRJZ Admin</strong>
+            <span>赛事运营台</span>
+          </div>
+        </div>
+        <div className="admin-login-heading">
+          <Lock size={20} />
+          <div>
+            <h1>Admin 登录</h1>
+            <p>{checking ? "正在检查登录状态..." : message}</p>
+          </div>
+        </div>
+        <label>
+          用户名
+          <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" disabled={checking || submitting} />
+        </label>
+        <label>
+          密码
+          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" disabled={checking || submitting} />
+        </label>
+        <button className="primary-button admin-login-submit" type="submit" disabled={checking || submitting || username.trim().length === 0 || password.trim().length === 0}>
+          {checking || submitting ? <Loader2 size={16} className="spin" /> : <ShieldCheck size={16} />}
+          <span>{checking ? "检查中" : submitting ? "登录中" : "登录"}</span>
+        </button>
+        <span className="api-chip login-api-chip">{props.apiUrl}</span>
+      </form>
+    </main>
   );
 }
 

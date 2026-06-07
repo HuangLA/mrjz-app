@@ -12,7 +12,7 @@
 
 body {
   margin: 0;
-  min-width: 1180px;
+  min-width: 320px;
   background:
     linear-gradient(120deg, rgba(46, 125, 100, .08), transparent 34%),
     linear-gradient(270deg, rgba(34, 92, 152, .08), transparent 34%),
@@ -86,6 +86,64 @@ label {
   color: #5a6679;
   font-size: 12px;
   font-weight: 650;
+}
+
+.admin-login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #edf1f5;
+}
+
+.admin-login-panel {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid #dbe6f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(27, 45, 68, .12);
+}
+
+.login-brand {
+  margin-bottom: 4px;
+  color: #172033;
+}
+
+.admin-login-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e6edf5;
+}
+
+.admin-login-heading svg {
+  color: #2f8f5b;
+}
+
+.admin-login-heading h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.admin-login-heading p {
+  margin: 0;
+  color: #6b7689;
+  font-size: 13px;
+}
+
+.admin-login-submit {
+  width: 100%;
+  justify-content: center;
+}
+
+.login-api-chip {
+  justify-content: center;
+  width: 100%;
 }
 
 .admin-app {
@@ -425,6 +483,25 @@ label {
 .topbar-create-button:hover {
   border-color: #6dd27c;
   background: #e6f7eb;
+}
+
+.admin-session-chip {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid #cfe0ed;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #24344a;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.admin-session-chip svg {
+  color: #2f8f5b;
 }
 
 .icon-button {

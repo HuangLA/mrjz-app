@@ -188,14 +188,16 @@ sequenceDiagram
   MP->>API: POST /auth/wechat-login { code }
   API->>WX: code2Session
   WX-->>API: openid, session_key, unionid
-  API->>DB: upsert user
-  API-->>MP: token, user, roles
-  MP->>API: 携带 token 请求业务接口
+  API->>DB: upsert app_user + create user_session
+  API-->>MP: opaque session token, expiresAt, user
+  MP->>API: Authorization: Bearer userToken
 ```
+
+小程序登录只代表平台普通用户，不要求该用户已经参赛。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。
 
 ### 4.2 Web Admin 登录
 
-MVP 使用管理员账号密码登录，由超级管理员在数据库中创建管理员账号。后续可增加微信扫码登录、邮箱验证码或二次验证。
+MVP 使用管理员账号密码登录。初始超级管理员只通过服务端 bootstrap 创建：当 `admin_users` 为空时，API 启动时读取 `ADMIN_INITIAL_USERNAME`、`ADMIN_INITIAL_PASSWORD` 和 `ADMIN_INITIAL_DISPLAY_NAME` 创建第一个 `super_admin`；生产环境必须显式配置 `ADMIN_INITIAL_PASSWORD`，不能使用默认开发密码。后续可增加微信扫码登录、邮箱验证码或二次验证。
 
 ```mermaid
 sequenceDiagram
@@ -205,17 +207,18 @@ sequenceDiagram
 
   Admin->>API: POST /api/admin/auth/login { username, password }
   API->>DB: 校验密码哈希和角色
-  API-->>Admin: adminToken, profile, permissions
-  Admin->>API: 携带 adminToken 请求 /api/admin/*
+  API->>DB: create admin_session + audit log
+  API-->>Admin: opaque admin token, expiresAt, profile, roles
+  Admin->>API: Authorization: Bearer adminToken
 ```
 
 安全要求：
 
 - `session_key` 只保存在服务端，不返回给小程序。
-- token 可用 JWT 或 opaque session token，推荐服务端可撤销 token。
-- 管理员角色存数据库，接口层统一校验，不能依赖前端隐藏菜单。
+- 小程序 token 和 Admin token 都使用服务端可撤销 opaque session token，生产环境不能直接使用 `user.id` 作为 token。
+- 管理员角色存数据库，接口层统一校验，不能依赖前端隐藏菜单；公开 GET 白名单外的后台读写接口都必须校验 Admin token。
 - Web Admin token 与小程序 token 分开管理，便于设置更短有效期和更严格权限。
-- 绑定 Dota 账号需要审核或白名单，防止冒领选手数据。
+- 绑定 Dota 账号允许先建立 `active + unverified` 关系，不要求该账号已有比赛记录；后续可通过审核、绑定码或白名单把 `verification_status` 提升为 `verified`，防止冒领选手身份。
 
 ### 4.3 H5 登录策略
 
@@ -242,12 +245,16 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 | 表 | 关键字段 |
 | --- | --- |
-| `users` | id, openid, unionid, nickname, avatar_url, status, last_login_at |
-| `admin_users` | id, username, password_hash, display_name, status, last_login_at |
-| `user_roles` | user_id, role, scope_type, scope_id |
+| `app_users` | id, open_id, union_id, nickname, role, created_at, updated_at |
+| `user_sessions` | id, user_id, token_hash, expires_at, revoked_at, last_seen_at |
+| `user_dota_accounts` | id, user_id, player_id, dota_account_id, steam_id64, binding_status, verification_status |
+| `players` | id, account_id, steam_id64, display_name, current_team_id, avatar_url |
+| `admin_users` | id, username, password_hash, display_name, status, created_at, updated_at |
+| `admin_sessions` | id, admin_user_id, token_hash, expires_at, revoked_at, last_seen_at |
 | `admin_roles` | admin_user_id, role, scope_type, scope_id |
-| `player_bindings` | user_id, player_id, dota_account_id, status, reviewed_by, reviewed_at |
-| `admin_audit_logs` | actor_user_id, action, resource_type, resource_id, before_json, after_json |
+| `admin_audit_logs` | actor_admin_id, action, resource_type, resource_id, detail_json, created_at |
+
+`players.account_id` 是 Dota 玩家身份的归并主键。用户绑定一个尚未参赛的账号时，后端会创建空 player 档案；未来 OpenDota 同步命中同一个 `account_id` 时复用该 player，并补齐昵称、SteamID64、队伍和比赛统计。
 
 ### 5.2 赛事域
 
@@ -370,8 +377,8 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | --- | --- | --- |
 | POST | `/api/auth/wechat-login` | 微信 code 登录 |
 | POST | `/api/auth/logout` | 退出登录 |
-| GET | `/api/me` | 当前用户 |
-| POST | `/api/me/player-binding` | 申请绑定 Dota 账号 |
+| GET | `/api/me` | 当前用户和账号绑定 |
+| POST | `/api/me/player-binding` | 绑定 Dota account_id 或 SteamID64，可无比赛记录 |
 | GET | `/api/me/stats` | 我的本联赛数据 |
 
 ### 6.2 Web Admin 认证
