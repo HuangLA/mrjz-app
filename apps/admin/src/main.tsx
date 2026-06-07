@@ -6792,7 +6792,7 @@ function groupTagsForAdmin(tags: PlayerTagModerationItem[]): Array<{ status: Pla
       status,
       tags: tags
         .filter((tag) => tag.status === status)
-        .sort((left, right) => right.likeCount - left.likeCount || right.createdAt.localeCompare(left.createdAt)),
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)),
     }))
     .filter((section) => section.tags.length > 0);
 }

@@ -2339,19 +2339,84 @@ type FloatingTagBody = {
   vy: number;
   width: number;
   height: number;
+  radius: number;
+  driftSpeed: number;
+};
+
+type FloatingTagBurst = {
+  sequence: number;
+  tagId: string;
+  x: number;
+  y: number;
+};
+
+type FloatingTagCheer = {
+  sequence: number;
+  x: number;
+  y: number;
+  driftX: number;
+};
+
+type FloatingTagActiveBurst = {
+  sequence: number;
+  sourceId: string;
+  centerX: number;
+  centerY: number;
+  startedAt: number;
+  duration: number;
+  radius: number;
+  strength: number;
+};
+
+type ScaledPlayerTag = PlayerTag & {
+  popularityRatio: number;
+  labelWidth: number;
+  labelHeight: number;
+  textSize: number;
+  heat: number;
+  accentColor: string;
+  accentGlow: string;
 };
 
 function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
   const fieldRef = useRef<HTMLDivElement | null>(null);
   const tagRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const bodiesRef = useRef<FloatingTagBody[]>([]);
+  const activeBurstsRef = useRef<FloatingTagActiveBurst[]>([]);
+  const burstSequenceRef = useRef(0);
+  const energizedTimerRef = useRef<number | null>(null);
+  const burstTimerRef = useRef<number | null>(null);
+  const cheerTimersRef = useRef<number[]>([]);
   const [energizedTagId, setEnergizedTagId] = useState<string | null>(null);
+  const [burst, setBurst] = useState<FloatingTagBurst | null>(null);
+  const [cheers, setCheers] = useState<FloatingTagCheer[]>([]);
+  const scaledTags = useMemo(() => scalePlayerTags(tags), [tags]);
+
+  useEffect(
+    () => () => {
+      if (energizedTimerRef.current !== null) {
+        window.clearTimeout(energizedTimerRef.current);
+      }
+
+      if (burstTimerRef.current !== null) {
+        window.clearTimeout(burstTimerRef.current);
+      }
+
+      for (const cheerTimer of cheerTimersRef.current) {
+        window.clearTimeout(cheerTimer);
+      }
+
+      cheerTimersRef.current = [];
+    },
+    [],
+  );
 
   useEffect(() => {
     const field = fieldRef.current;
 
-    if (field === null || tags.length === 0) {
+    if (field === null || scaledTags.length === 0) {
       bodiesRef.current = [];
+      activeBurstsRef.current = [];
       return;
     }
 
@@ -2363,17 +2428,17 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
       const bounds = field.getBoundingClientRect();
       const previousBodies = new Map(bodiesRef.current.map((body) => [body.id, body]));
 
-      bodiesRef.current = tags.map((tag, index) => {
+      bodiesRef.current = scaledTags.map((tag, index) => {
         const element = tagRefs.current[tag.id];
         const elementBounds = element?.getBoundingClientRect();
-        const width = Math.max(58, elementBounds?.width ?? 76);
-        const height = Math.max(34, elementBounds?.height ?? 42);
+        const width = Math.max(tag.labelWidth, elementBounds?.width ?? tag.labelWidth);
+        const height = Math.max(tag.labelHeight, elementBounds?.height ?? tag.labelHeight);
         const previous = previousBodies.get(tag.id);
         const seed = seededUnit(`${tag.id}:${index}:${tag.text}`);
         const maxX = Math.max(0, bounds.width - width);
         const maxY = Math.max(0, bounds.height - height);
         const angle = seed * Math.PI * 2;
-        const speed = 0.16 + tag.sizeLevel * 0.018 + Math.min(0.05, tag.likeCount * 0.002);
+        const speed = 0.11 + tag.popularityRatio * 0.008 + tag.heat * 0.034;
 
         return {
           id: tag.id,
@@ -2383,6 +2448,8 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
           vy: previous?.vy ?? Math.sin(angle) * speed,
           width,
           height,
+          radius: Math.max(width * 0.24, height * 0.62),
+          driftSpeed: speed,
         };
       });
 
@@ -2392,20 +2459,12 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
       }
     };
 
-    const drawBodies = () => {
-      for (const body of bodiesRef.current) {
-        const element = tagRefs.current[body.id];
-
-        if (element) {
-          element.style.transform = `translate3d(${body.x}px, ${body.y}px, 0)`;
-        }
-      }
-    };
-
     const tick = (time: number) => {
       const bounds = field.getBoundingClientRect();
       const delta = Math.min(2.4, Math.max(0.45, (time - lastTime) / 16.67));
       lastTime = time;
+
+      applyFloatingTagBursts(bodiesRef.current, activeBurstsRef.current, time, delta);
 
       for (const body of bodiesRef.current) {
         const maxX = Math.max(0, bounds.width - body.width);
@@ -2416,29 +2475,44 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
 
         if (body.x <= 0 || body.x >= maxX) {
           body.x = clampNumber(body.x, 0, maxX);
-          body.vx *= -0.96;
+          body.vx *= -0.92;
         }
 
         if (body.y <= 0 || body.y >= maxY) {
           body.y = clampNumber(body.y, 0, maxY);
-          body.vy *= -0.96;
+          body.vy *= -0.92;
         }
+
+        const speed = Math.hypot(body.vx, body.vy);
+
+        if (speed > body.driftSpeed * 2.4) {
+          const damping = Math.pow(0.935, delta);
+          body.vx *= damping;
+          body.vy *= damping;
+        } else if (speed < body.driftSpeed * 0.72) {
+          const driftAngle = seededUnit(`${body.id}:${Math.floor(time / 900)}`) * Math.PI * 2;
+
+          body.vx += Math.cos(driftAngle) * 0.012 * delta;
+          body.vy += Math.sin(driftAngle) * 0.012 * delta;
+        }
+
+        clampFloatingTagSpeed(body, 8.4);
       }
 
-      for (let iteration = 0; iteration < 2; iteration += 1) {
+      for (let iteration = 0; iteration < 3; iteration += 1) {
         resolveFloatingTagCollisions(bodiesRef.current);
         clampFloatingTagBodies(bodiesRef.current, bounds);
       }
-      drawBodies();
+      drawFloatingTagBodies(tagRefs.current, bodiesRef.current);
       animationFrame = window.requestAnimationFrame(tick);
     };
 
     readBodies();
-    drawBodies();
+    drawFloatingTagBodies(tagRefs.current, bodiesRef.current);
 
     const resizeObserver = new ResizeObserver(() => {
       readBodies();
-      drawBodies();
+      drawFloatingTagBodies(tagRefs.current, bodiesRef.current);
     });
     resizeObserver.observe(field);
 
@@ -2450,13 +2524,76 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
       resizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrame);
     };
-  }, [tags]);
+  }, [scaledTags]);
 
-  const energizeTag = (tag: PlayerTag) => {
+  const energizeTag = (tag: ScaledPlayerTag) => {
+    const sequence = burstSequenceRef.current + 1;
+    const field = fieldRef.current;
+    const clickedBody = bodiesRef.current.find((body) => body.id === tag.id);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    burstSequenceRef.current = sequence;
     setEnergizedTagId(tag.id);
-    window.setTimeout(() => {
+
+    if (energizedTimerRef.current !== null) {
+      window.clearTimeout(energizedTimerRef.current);
+    }
+
+    if (burstTimerRef.current !== null) {
+      window.clearTimeout(burstTimerRef.current);
+    }
+
+    if (field !== null && clickedBody !== undefined) {
+      const bounds = field.getBoundingClientRect();
+      const centerX = clickedBody.x + clickedBody.width / 2;
+      const centerY = clickedBody.y + clickedBody.height / 2;
+      const burstX = bounds.width <= 0 ? 50 : (centerX / bounds.width) * 100;
+      const burstY = bounds.height <= 0 ? 50 : (centerY / bounds.height) * 100;
+
+      setBurst({ sequence, tagId: tag.id, x: burstX, y: burstY });
+      pushFloatingTagCheer(sequence, burstX, burstY, tag);
+
+      if (!reducedMotion) {
+        activeBurstsRef.current = activeBurstsRef.current
+          .filter((activeBurst) => activeBurst.sourceId !== tag.id)
+          .slice(-2);
+        activeBurstsRef.current.push({
+          sequence,
+          sourceId: tag.id,
+          centerX,
+          centerY,
+          startedAt: performance.now(),
+          duration: 380,
+          radius: Math.max(190, Math.min(340, Math.max(bounds.width, bounds.height) * 0.78)),
+          strength: 0.96,
+        });
+      }
+    } else {
+      setBurst({ sequence, tagId: tag.id, x: 50, y: 50 });
+      pushFloatingTagCheer(sequence, 50, 50, tag);
+    }
+
+    energizedTimerRef.current = window.setTimeout(() => {
       setEnergizedTagId((current) => (current === tag.id ? null : current));
+    }, 620);
+
+    burstTimerRef.current = window.setTimeout(() => {
+      setBurst((current) => (current?.sequence === sequence ? null : current));
+    }, 700);
+
+  };
+
+  const pushFloatingTagCheer = (sequence: number, x: number, y: number, tag: ScaledPlayerTag) => {
+    const driftX = (seededUnit(`${tag.id}:${sequence}:cheer`) - 0.5) * 18;
+
+    setCheers((current) => [...current.slice(-5), { sequence, x, y, driftX }]);
+
+    const timer = window.setTimeout(() => {
+      setCheers((current) => current.filter((item) => item.sequence !== sequence));
+      cheerTimersRef.current = cheerTimersRef.current.filter((cheerTimer) => cheerTimer !== timer);
     }, 520);
+
+    cheerTimersRef.current.push(timer);
   };
 
   return (
@@ -2466,9 +2603,37 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
           <h2 id="player-tag-heading">选手应援标签</h2>
         </div>
       </div>
-      {tags.length > 0 ? (
-        <div className="floating-tag-field" ref={fieldRef} aria-label="已审核通过的选手标签">
-          {tags.map((tag) => (
+      {scaledTags.length > 0 ? (
+        <div
+          className={`floating-tag-field${burst !== null ? " is-bursting" : ""}`}
+          ref={fieldRef}
+          style={
+            burst !== null
+              ? cssVars({
+                  "--burst-x": `${burst.x}%`,
+                  "--burst-y": `${burst.y}%`,
+                })
+              : undefined
+          }
+          aria-label="已审核通过的选手标签"
+        >
+          {burst !== null ? <span key={`${burst.tagId}:${burst.sequence}`} className="floating-tag-shockwave" aria-hidden="true" /> : null}
+          {cheers.map((item) => (
+            <span
+              key={item.sequence}
+              className="floating-tag-like-pop"
+              style={cssVars({
+                "--cheer-x": `${item.x}%`,
+                "--cheer-y": `${item.y}%`,
+                "--cheer-drift-mid": `${item.driftX * 0.45}px`,
+                "--cheer-drift-end": `${item.driftX}px`,
+              })}
+              aria-hidden="true"
+            >
+              ❤️ +1
+            </span>
+          ))}
+          {scaledTags.map((tag) => (
             <button
               key={tag.id}
               ref={(element) => {
@@ -2477,15 +2642,19 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
               type="button"
               className={`floating-tag floating-tag-${tag.sizeLevel}${energizedTagId === tag.id ? " is-energized" : ""}`}
               style={cssVars({
-                "--tag-heat": Math.min(1, Math.log1p(tag.likeCount) / Math.log(61)),
+                "--tag-heat": tag.heat,
+                "--tag-ratio": tag.popularityRatio,
+                "--tag-accent": tag.accentColor,
+                "--tag-glow": tag.accentGlow,
+                "--tag-width": `clamp(32px, ${tag.labelWidth}px, min(78vw, 300px))`,
+                "--tag-height": `${tag.labelHeight}px`,
+                "--tag-font": `clamp(12px, ${tag.textSize}px, min(11vw, 44px))`,
               })}
-              title={`${tag.createdAt} · ${tag.likeCount} 赞`}
-              aria-label={`${tag.text}，当前 ${tag.likeCount} 赞，播放应援效果`}
+              title={tag.text}
+              aria-label={`${tag.text}，播放应援效果`}
               onClick={() => energizeTag(tag)}
             >
               <span className="floating-tag-text">{tag.text}</span>
-              <span className="floating-tag-likes">{tag.likeCount} 赞</span>
-              <span className="floating-tag-pulse" aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -2494,6 +2663,152 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
       )}
     </section>
   );
+}
+
+function applyFloatingTagBursts(
+  bodies: FloatingTagBody[],
+  activeBursts: FloatingTagActiveBurst[],
+  time: number,
+  delta: number,
+): void {
+  for (let burstIndex = activeBursts.length - 1; burstIndex >= 0; burstIndex -= 1) {
+    const burst = activeBursts[burstIndex];
+
+    if (burst === undefined) {
+      continue;
+    }
+
+    const progress = clampNumber((time - burst.startedAt) / burst.duration, 0, 1);
+
+    if (progress >= 1) {
+      activeBursts.splice(burstIndex, 1);
+      continue;
+    }
+
+    const attack = progress < 0.18 ? progress / 0.18 : 1;
+    const decay = Math.pow(1 - progress, 1.65);
+    const force = burst.strength * attack * decay;
+
+    if (force <= 0.015) {
+      continue;
+    }
+
+    for (const body of bodies) {
+      const bodyCenterX = body.x + body.width / 2;
+      const bodyCenterY = body.y + body.height / 2;
+      let dx = bodyCenterX - burst.centerX;
+      let dy = bodyCenterY - burst.centerY;
+      let distance = Math.hypot(dx, dy);
+
+      if (distance < 1) {
+        const angle = seededUnit(`${body.id}:${burst.sequence}:burst`) * Math.PI * 2;
+
+        dx = Math.cos(angle);
+        dy = Math.sin(angle);
+        distance = 1;
+      }
+
+      const nx = dx / distance;
+      const ny = dy / distance;
+
+      if (body.id === burst.sourceId) {
+        continue;
+      }
+
+      const falloff = Math.pow(clampNumber(1 - distance / burst.radius, 0, 1), 1.18);
+
+      if (falloff <= 0) {
+        continue;
+      }
+
+      const impulse = force * falloff * delta;
+      const swirlDirection = seededUnit(`${burst.sequence}:${body.id}:swirl`) > 0.5 ? 1 : -1;
+      const swirl = impulse * 0.16 * swirlDirection;
+
+      body.vx += nx * impulse - ny * swirl;
+      body.vy += ny * impulse + nx * swirl;
+      clampFloatingTagSpeed(body, 7.4);
+    }
+  }
+}
+
+const FLOATING_TAG_MAX_POPULARITY_RATIO = 20;
+const FLOATING_TAG_BASE_TEXT_SIZE = 13;
+const FLOATING_TAG_MAX_TEXT_SIZE = 44;
+const FLOATING_TAG_TEXT_VERTICAL_PADDING = 12;
+const FLOATING_TAG_TEXT_HORIZONTAL_PADDING = 20;
+const FLOATING_TAG_CHARACTER_COLORS = [
+  { color: "#ff6b8a", glow: "rgba(255, 107, 138, .46)" },
+  { color: "#ffb347", glow: "rgba(255, 179, 71, .42)" },
+  { color: "#66d9ff", glow: "rgba(102, 217, 255, .42)" },
+  { color: "#a78bfa", glow: "rgba(167, 139, 250, .44)" },
+  { color: "#f472b6", glow: "rgba(244, 114, 182, .44)" },
+  { color: "#60a5fa", glow: "rgba(96, 165, 250, .42)" },
+  { color: "#facc15", glow: "rgba(250, 204, 21, .38)" },
+  { color: "#fb7185", glow: "rgba(251, 113, 133, .42)" },
+  { color: "#c084fc", glow: "rgba(192, 132, 252, .42)" },
+  { color: "#f97316", glow: "rgba(249, 115, 22, .38)" },
+] as const;
+
+type FloatingTagCharacterColor = (typeof FLOATING_TAG_CHARACTER_COLORS)[number];
+
+function scalePlayerTags(tags: PlayerTag[]): ScaledPlayerTag[] {
+  const positiveLikeCounts = tags.map((tag) => tag.likeCount).filter((likeCount) => likeCount > 0);
+  const baselineLikeCount = positiveLikeCounts.length > 0 ? Math.min(...positiveLikeCounts) : 1;
+  const rawRatios = tags.map((tag) => (tag.likeCount > 0 ? Math.max(1, tag.likeCount / baselineLikeCount) : 1));
+  const maxRawRatio = Math.max(1, ...rawRatios);
+
+  return tags.map((tag, index) => {
+    const popularityRatio = normalizeFloatingTagPopularityRatio(rawRatios[index] ?? 1, maxRawRatio);
+    const heat = (popularityRatio - 1) / (FLOATING_TAG_MAX_POPULARITY_RATIO - 1);
+    const textSize = roundToTenth(
+      FLOATING_TAG_BASE_TEXT_SIZE + (FLOATING_TAG_MAX_TEXT_SIZE - FLOATING_TAG_BASE_TEXT_SIZE) * heat,
+    );
+    const visualTextLength = Math.max(2, Array.from(tag.text).length);
+    const labelWidth = Math.round(textSize * visualTextLength * 1.08 + FLOATING_TAG_TEXT_HORIZONTAL_PADDING);
+    const labelHeight = Math.round(textSize * 1.18 + FLOATING_TAG_TEXT_VERTICAL_PADDING);
+    const accentColor = floatingTagAccentColor(tag, index);
+
+    return {
+      ...tag,
+      popularityRatio: roundToTenth(popularityRatio),
+      labelWidth,
+      labelHeight,
+      textSize,
+      heat: roundToTenth(heat),
+      accentColor: accentColor.color,
+      accentGlow: accentColor.glow,
+    };
+  });
+}
+
+function normalizeFloatingTagPopularityRatio(rawRatio: number, maxRawRatio: number): number {
+  if (maxRawRatio <= FLOATING_TAG_MAX_POPULARITY_RATIO) {
+    return clampNumber(rawRatio, 1, FLOATING_TAG_MAX_POPULARITY_RATIO);
+  }
+
+  if (rawRatio <= 1) {
+    return 1;
+  }
+
+  const compressedRatio =
+    1 +
+    (FLOATING_TAG_MAX_POPULARITY_RATIO - 1) *
+      (Math.log(rawRatio) / Math.log(maxRawRatio));
+
+  return clampNumber(compressedRatio, 1, FLOATING_TAG_MAX_POPULARITY_RATIO);
+}
+
+function roundToTenth(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function floatingTagAccentColor(tag: PlayerTag, index: number): FloatingTagCharacterColor {
+  const paletteIndex =
+    (Math.floor(seededUnit(`${tag.id}:${tag.text}:accent`) * FLOATING_TAG_CHARACTER_COLORS.length) + index * 2) %
+    FLOATING_TAG_CHARACTER_COLORS.length;
+
+  return FLOATING_TAG_CHARACTER_COLORS[paletteIndex] ?? FLOATING_TAG_CHARACTER_COLORS[0];
 }
 
 function resolveFloatingTagCollisions(bodies: FloatingTagBody[]): void {
@@ -2518,13 +2833,13 @@ function resolveFloatingTagCollisions(bodies: FloatingTagBody[]): void {
       const dx = rightCenterX - leftCenterX;
       const dy = rightCenterY - leftCenterY;
       const distance = Math.hypot(dx, dy) || 1;
-      const minDistance = (Math.max(left.width, left.height) + Math.max(right.width, right.height)) * 0.46;
+      const minDistance = Math.max(6, (left.radius + right.radius) * 0.68);
 
       if (distance >= minDistance) {
         continue;
       }
 
-      const overlap = (minDistance - distance) / 2;
+      const overlap = (minDistance - distance) / 2.6;
       const nx = dx / distance;
       const ny = dy / distance;
 
@@ -2537,10 +2852,13 @@ function resolveFloatingTagCollisions(bodies: FloatingTagBody[]): void {
       const rightVelocity = right.vx * nx + right.vy * ny;
       const impulse = rightVelocity - leftVelocity;
 
-      left.vx += impulse * nx * 0.58;
-      left.vy += impulse * ny * 0.58;
-      right.vx -= impulse * nx * 0.58;
-      right.vy -= impulse * ny * 0.58;
+      left.vx += impulse * nx * 0.64;
+      left.vy += impulse * ny * 0.64;
+      right.vx -= impulse * nx * 0.64;
+      right.vy -= impulse * ny * 0.64;
+
+      clampFloatingTagSpeed(left, 8.2);
+      clampFloatingTagSpeed(right, 8.2);
     }
   }
 }
@@ -2549,6 +2867,32 @@ function clampFloatingTagBodies(bodies: FloatingTagBody[], bounds: { width: numb
   for (const body of bodies) {
     body.x = clampNumber(body.x, 0, Math.max(0, bounds.width - body.width));
     body.y = clampNumber(body.y, 0, Math.max(0, bounds.height - body.height));
+  }
+}
+
+function clampFloatingTagSpeed(body: FloatingTagBody, maxSpeed: number): void {
+  const speed = Math.hypot(body.vx, body.vy);
+
+  if (speed <= maxSpeed || speed === 0) {
+    return;
+  }
+
+  const scale = maxSpeed / speed;
+
+  body.vx *= scale;
+  body.vy *= scale;
+}
+
+function drawFloatingTagBodies(
+  tagRefs: Record<string, HTMLButtonElement | null>,
+  bodies: FloatingTagBody[],
+): void {
+  for (const body of bodies) {
+    const element = tagRefs[body.id];
+
+    if (element) {
+      element.style.transform = `translate3d(${body.x}px, ${body.y}px, 0)`;
+    }
   }
 }
 

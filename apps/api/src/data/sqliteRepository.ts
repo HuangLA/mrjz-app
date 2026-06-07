@@ -2085,7 +2085,8 @@ export class SqliteTournamentRepository {
               WHEN 'hidden' THEN 2
               ELSE 3
             END,
-            tags.created_at DESC
+            tags.created_at ASC,
+            tags.id ASC
           LIMIT 300
         `,
       )
@@ -2466,7 +2467,8 @@ export class SqliteTournamentRepository {
               WHEN 'hidden' THEN 2
               ELSE 3
             END,
-            tags.created_at DESC
+            tags.created_at ASC,
+            tags.id ASC
         `,
       )
       .all(...playerIds)
