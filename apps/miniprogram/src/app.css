@@ -3998,21 +3998,7 @@ button[disabled] {
 }
 
 .bracket-unified-column.is-grand_final {
-  align-self: center;
-}
-
-.bracket-source-final-line {
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  height: 1px;
-  transform: translateY(-50%);
-  background: rgba(240, 195, 106, 0.58);
-  pointer-events: none;
-}
-
-.bracket-source-final-line.is-loser {
-  background: rgba(244, 136, 93, 0.56);
+  align-self: end;
 }
 
 .bracket-group-lane {

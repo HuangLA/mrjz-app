@@ -295,8 +295,6 @@ type UnifiedMiniBracketColumn = {
   roundName: string;
   displayColumn: number;
   nodes: BracketNode[];
-  finalConnectorKind?: "winner" | "loser";
-  finalConnectorWidth?: number;
 };
 
 function BracketUnifiedColumn(props: { column: UnifiedMiniBracketColumn; nodeLookup: Map<string, BracketNode> }) {
@@ -306,11 +304,10 @@ function BracketUnifiedColumn(props: { column: UnifiedMiniBracketColumn; nodeLoo
   return (
     <View
       className={`bracket-column bracket-unified-column is-${column.groupKey}`}
-      style={{ gridColumn: `${column.displayColumn + 1}`, gridRow: isGrandFinal ? "1 / span 2" : column.groupKey === "winner" ? "1" : "2" }}
+      style={{ gridColumn: `${column.displayColumn + 1}`, gridRow: isGrandFinal ? "1" : column.groupKey === "winner" ? "1" : "2" }}
     >
       <Text className="bracket-round-title">{column.roundName}</Text>
       <View className="bracket-column-body">
-        {column.finalConnectorKind && column.finalConnectorWidth ? <View className={`bracket-source-final-line is-${column.finalConnectorKind}`} style={{ width: `${column.finalConnectorWidth}px` }} /> : null}
         {column.nodes.map((node) => (
           <BracketNodeCard key={node.id} node={node} nodeLookup={props.nodeLookup} />
         ))}
@@ -432,15 +429,12 @@ function buildUnifiedMiniBracketLayout(groups: BracketGroupLayout[], nodes: Brac
   const winnerFinalColumn = Math.max(...winnerColumns.map((column) => column.displayColumn));
   const loserFinalColumn = Math.max(...loserColumns.map((column) => column.displayColumn));
   const grandFinalDisplayColumn = Math.max(winnerFinalColumn, loserFinalColumn) + 1;
-  const linkWidth = (sourceColumn: number) => Math.max(MINI_BRACKET_COLUMN_GAP, (grandFinalDisplayColumn - sourceColumn) * (MINI_BRACKET_COLUMN_WIDTH + MINI_BRACKET_COLUMN_GAP) - MINI_BRACKET_COLUMN_WIDTH);
-  const winnerColumnsWithConnectors = winnerColumns.map((column) => column.displayColumn === winnerFinalColumn ? { ...column, finalConnectorKind: "winner" as const, finalConnectorWidth: linkWidth(winnerFinalColumn) } : column);
-  const loserColumnsWithConnectors = loserColumns.map((column) => column.displayColumn === loserFinalColumn ? { ...column, finalConnectorKind: "loser" as const, finalConnectorWidth: linkWidth(loserFinalColumn) } : column);
   const grandFinalColumns = grandFinalGroup.columns.map((column, index) => ({
     ...column,
     groupKey: "grand_final",
     displayColumn: grandFinalDisplayColumn + index,
   }));
-  const columns: UnifiedMiniBracketColumn[] = [...winnerColumnsWithConnectors, ...loserColumnsWithConnectors, ...grandFinalColumns]
+  const columns: UnifiedMiniBracketColumn[] = [...winnerColumns, ...loserColumns, ...grandFinalColumns]
     .sort((left, right) => left.displayColumn - right.displayColumn || bracketGroupSortValue(left.groupKey) - bracketGroupSortValue(right.groupKey) || left.roundName.localeCompare(right.roundName));
   const columnCount = Math.max(...columns.map((column) => column.displayColumn)) + 1;
 
