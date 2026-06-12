@@ -107,11 +107,19 @@ type SeriesFocusTarget = { seriesId: string; filterMode: SeriesFilterMode };
 type MatchIdFocusTarget = SeriesFocusTarget & { gameIndex?: number };
 type CreateTournamentStatus = "draft" | "upcoming" | "running" | "completed" | "archived";
 type GroupAdvancePreset = { label: string; text: string; teamIds: string[]; targetCount: number; groupCount: number; perGroup: number };
+type DoubleEliminationPreset = { label: string; title: string; bracketSize: number; winnerTeamCount: number; loserTeamCount: number };
 type EntrantSeedRole = { badge: string; detail: string; tone: "winner" | "play" | "wait" | "loser" };
 type ManualSeriesCreateOverrides = Partial<Pick<StageFormState, "manualRadiantTeamId" | "manualDireTeamId" | "manualRoundId" | "manualRoundName" | "manualGroupId" | "manualSeriesKind" | "manualScheduledAt">>;
 type CreateManualSeriesHandler = (overrides?: ManualSeriesCreateOverrides) => Promise<void>;
 
 const ungroupedStandingKey = "__all__";
+const doubleEliminationPresets: DoubleEliminationPreset[] = [
+  { label: "4 队", title: "4 支都从胜者组开始", bracketSize: 4, winnerTeamCount: 4, loserTeamCount: 0 },
+  { label: "6 队 · 4/2", title: "4 支胜者组，2 支初始败者组", bracketSize: 4, winnerTeamCount: 4, loserTeamCount: 2 },
+  { label: "8 队 · 4/4", title: "4 支胜者组，4 支初始败者组", bracketSize: 8, winnerTeamCount: 4, loserTeamCount: 4 },
+  { label: "8 队 · 全胜者", title: "8 支都从胜者组首轮开始", bracketSize: 8, winnerTeamCount: 8, loserTeamCount: 0 },
+  { label: "16 队", title: "16 支都从胜者组首轮开始", bracketSize: 16, winnerTeamCount: 16, loserTeamCount: 0 },
+];
 
 interface AdminData {
   loading: boolean;
@@ -469,7 +477,11 @@ function App() {
         : DEFAULT_GROUP_COUNT;
       setStageForm((current) => {
         const savedKnockoutMode = schedule?.knockoutType === "double_elimination" ? "double_elimination" : schedule?.knockoutType === "single_elimination" ? "single_elimination" : current.knockoutMode;
-        const bracketSize = savedKnockoutMode === "double_elimination" && current.bracketSize === 6 ? 8 : current.bracketSize;
+        const bracketSize = savedKnockoutMode === "double_elimination" && current.bracketSize === 6 ? 4 : current.bracketSize;
+        const winnerTeamCount = savedKnockoutMode === "double_elimination" && current.bracketSize === 6
+          ? 4
+          : clampInteger(current.winnerTeamCount, 2, bracketSize);
+        const maxLoserTeamCount = winnerTeamCount <= 4 ? Math.min(4, Math.floor(bracketSize / 2)) : 0;
         return {
           ...current,
           selectedTeamIds: current.selectedTeamIds.length > 0 ? current.selectedTeamIds.filter((id) => bracketTeamIds.includes(id)) : defaultBracketTeamIds,
@@ -482,8 +494,12 @@ function App() {
           swissRoundNumber: Math.max(1, ...stageData.rounds.map((round) => round.roundNumber + 1)),
           knockoutMode: savedKnockoutMode,
           bracketSize,
-          winnerTeamCount: savedKnockoutMode === "double_elimination" ? clampInteger(current.winnerTeamCount, 2, bracketSize) : bracketSize,
-          loserTeamCount: savedKnockoutMode === "double_elimination" ? clampInteger(current.loserTeamCount, 0, Math.floor(bracketSize / 2)) : 0,
+          winnerTeamCount: savedKnockoutMode === "double_elimination" ? winnerTeamCount : bracketSize,
+          loserTeamCount: savedKnockoutMode === "double_elimination"
+            ? current.bracketSize === 6
+              ? 2
+              : clampInteger(current.loserTeamCount, 0, maxLoserTeamCount)
+            : 0,
         };
       });
       setData({
@@ -605,11 +621,21 @@ function App() {
     if (!requireTournament() || !requireEditableSchedule()) return;
     const result = await runAction("保存赛制", "PATCH", `/tournaments/${encodeURIComponent(data.selectedTournamentId)}/schedule-management`, { preliminaryType, knockoutType, actor: "admin" });
     if (result.ok) {
-      setStageForm((current) => ({
-        ...current,
-        knockoutMode: knockoutType,
-        bracketSize: knockoutType === "double_elimination" && current.bracketSize === 6 ? 8 : current.bracketSize,
-      }));
+      setStageForm((current) => {
+        if (knockoutType !== "double_elimination") {
+          return { ...current, knockoutMode: knockoutType, loserTeamCount: 0 };
+        }
+        const bracketSize = current.bracketSize === 6 ? 4 : current.bracketSize;
+        const winnerTeamCount = current.bracketSize === 6 ? 4 : clampInteger(current.winnerTeamCount, 2, bracketSize);
+        const maxLoserTeamCount = winnerTeamCount <= 4 ? Math.min(4, Math.floor(bracketSize / 2)) : 0;
+        return {
+          ...current,
+          knockoutMode: knockoutType,
+          bracketSize,
+          winnerTeamCount,
+          loserTeamCount: current.bracketSize === 6 ? 2 : clampInteger(current.loserTeamCount, 0, maxLoserTeamCount),
+        };
+      });
     }
   }
 
@@ -2345,7 +2371,13 @@ function BracketSeedPreview(props: {
     );
   }
 
-  const seedOrder = getSeedSlotOrder(props.bracketSize);
+  const winnerSeedSize = getWinnerPreviewSeedSize(
+    props.isDoubleElimination,
+    props.bracketSize,
+    props.winnerTeamCount,
+    props.loserTeamCount,
+  );
+  const seedOrder = getSeedSlotOrder(winnerSeedSize);
   const winnerTeams = props.isDoubleElimination
     ? props.selectedTeams.slice(0, props.winnerTeamCount)
     : props.selectedTeams;
@@ -2354,7 +2386,7 @@ function BracketSeedPreview(props: {
     : [];
   const winnerSlots = seedOrder.map((seed) => ({ label: `Seed ${seed}`, team: winnerTeams[seed - 1] ?? null }));
   const getWinnerSlot = (index: number) => winnerSlots[index] ?? { label: `Seed ${index + 1}`, team: null };
-  const winnerPairs = Array.from({ length: props.bracketSize / 2 }, (_, index) => ({
+  const winnerPairs = Array.from({ length: winnerSeedSize / 2 }, (_, index) => ({
     position: index + 1,
     top: getWinnerSlot(index * 2),
     bottom: getWinnerSlot(index * 2 + 1),
@@ -2372,7 +2404,7 @@ function BracketSeedPreview(props: {
           <strong>{props.isDoubleElimination ? "胜者组首轮槽位预览" : "首轮槽位预览"}</strong>
           <small>{props.isDoubleElimination ? "前面的入围队伍按种子槽进入胜者组；后面的队伍进入败者组首轮。" : "这里使用和后端生成对阵图相同的种子槽位规则。"}</small>
         </div>
-        <span>{props.bracketSize} 队对阵图</span>
+        <span>{props.isDoubleElimination ? `${props.winnerTeamCount + props.loserTeamCount} 队分流` : `${props.bracketSize} 队对阵图`}</span>
       </div>
       <div className="seed-preview-grid">
         {winnerPairs.map((pair) => (
@@ -5546,14 +5578,16 @@ function KnockoutEntryDesk(props: {
   const patch = (patchValue: Partial<StageFormState>) => props.setStageForm((current) => ({ ...current, ...patchValue }));
   const selectedTeams = orderTeamsByIds(props.availableTeams, props.stageForm.selectedTeamIds);
   const isDoubleElimination = props.stageForm.knockoutMode === "double_elimination";
-  const maxLoserTeamCount = Math.floor(props.stageForm.bracketSize / 2);
+  const maxLoserTeamCount = props.stageForm.winnerTeamCount <= 4
+    ? Math.min(4, Math.floor(props.stageForm.bracketSize / 2))
+    : 0;
   const winnerTeamCount = isDoubleElimination
     ? clampInteger(props.stageForm.winnerTeamCount, 2, props.stageForm.bracketSize)
     : selectedTeams.length;
   const loserTeamCount = isDoubleElimination
     ? clampInteger(props.stageForm.loserTeamCount, 0, maxLoserTeamCount)
     : 0;
-  const entrantTargetCount = bracketEntrantTargetCount(props.stageForm.knockoutMode, props.stageForm.bracketSize, props.stageForm.winnerTeamCount, props.stageForm.loserTeamCount);
+  const entrantTargetCount = bracketEntrantTargetCount(props.stageForm.knockoutMode, props.stageForm.bracketSize, winnerTeamCount, loserTeamCount);
   const missingEntrantCount = Math.max(entrantTargetCount - selectedTeams.length, 0);
   const splitCoveredCount = winnerTeamCount + loserTeamCount;
   const splitGapCount = isDoubleElimination ? Math.max(entrantTargetCount - splitCoveredCount, 0) : 0;
@@ -5561,8 +5595,10 @@ function KnockoutEntryDesk(props: {
   const uncoveredTeamCount = isDoubleElimination
     ? Math.max(selectedTeams.length - winnerTeamCount - loserTeamCount, 0)
     : 0;
-  const canGenerate = !isPublished && hasBaseConfig && !knockoutStage && selectedTeams.length >= 2 && missingEntrantCount === 0 && uncoveredTeamCount === 0 && splitGapCount === 0 && splitOverflowCount === 0;
-  const bracketSizeOptions = isDoubleElimination ? [4, 8, 16] : [4, 6, 8, 16];
+  const doubleSplitError = isDoubleElimination ? validateDoubleEliminationSplit(props.stageForm.bracketSize, winnerTeamCount, loserTeamCount) : null;
+  const canGenerate = !isPublished && hasBaseConfig && !knockoutStage && selectedTeams.length >= 2 && missingEntrantCount === 0 && uncoveredTeamCount === 0 && splitGapCount === 0 && splitOverflowCount === 0 && !doubleSplitError;
+  const bracketSizeOptions = [4, 6, 8, 16];
+  const doubleBracketCapacityOptions = [4, 8, 16];
   const groupAdvancePreset = props.data.schedule?.knockoutType === "single_elimination" && !isDoubleElimination
     ? getGroupAdvancePreset(props.data.standings, props.availableTeams, 6)
     : null;
@@ -5585,12 +5621,12 @@ function KnockoutEntryDesk(props: {
     ? "6 队单败会让 1/2 号种子在半决赛等待"
     : `${props.stageForm.bracketSize} 队单败按种子顺序生成首轮`;
   const bracketStructureHint = isDoubleElimination
-    ? `前 ${winnerTeamCount} 支进入胜者组，后 ${loserTeamCount} 支从败者组起步。`
+    ? `共 ${entrantTargetCount} 支：前 ${winnerTeamCount} 支进入胜者组，后 ${loserTeamCount} 支从败者组起步。`
     : props.stageForm.bracketSize === 6
       ? "6 队单败：入围顺序第 1/2 名直接进入半决赛，第 3 vs 第 6、第 4 vs 第 5 先打一轮。"
       : `${props.stageForm.bracketSize} 队单败：按入围顺序作为种子位生成首轮。`;
   const shouldShowStructureHint = isDoubleElimination || props.stageForm.bracketSize === 6;
-  const bracketModeLabel = isDoubleElimination ? `双败 ${props.stageForm.bracketSize} 队` : props.stageForm.bracketSize === 6 ? "6 队单败" : `${props.stageForm.bracketSize} 队单败`;
+  const bracketModeLabel = isDoubleElimination ? `双败 ${entrantTargetCount} 队` : props.stageForm.bracketSize === 6 ? "6 队单败" : `${props.stageForm.bracketSize} 队单败`;
   const commandBracketModeLabel = canApplyGroupAdvanceRecommendation && groupAdvancePreset ? `${groupAdvancePreset.targetCount} 队单败推荐` : bracketModeLabel;
   const entrantProgressLabel = canApplyGroupAdvanceRecommendation && groupAdvancePreset ? `推荐 ${groupAdvancePreset.targetCount} 队入围` : `${selectedTeams.length}/${entrantTargetCount} 入围`;
   const generateButtonLabel = canApplyGroupAdvanceRecommendation && groupAdvancePreset
@@ -5605,6 +5641,8 @@ function KnockoutEntryDesk(props: {
             ? `还差 ${Math.max(missingEntrantCount, entrantTargetCount - selectedTeams.length)} 队`
             : uncoveredTeamCount > 0 || splitGapCount > 0 || splitOverflowCount > 0
               ? "先调整胜败分流"
+              : doubleSplitError
+                ? "调整胜败分流"
               : "暂不可生成";
   const hasGroupAdvanceRecommendation = Boolean(groupAdvancePreset && selectedTeams.length === 0);
   const entrantStatus = canGenerate
@@ -5617,6 +5655,8 @@ function KnockoutEntryDesk(props: {
         ? { tone: "warn", icon: <GitBranch size={16} />, title: "调整胜败组数量", text: `胜者组 + 败者组还差 ${splitGapCount} 支` }
       : splitOverflowCount > 0
         ? { tone: "warn", icon: <GitBranch size={16} />, title: "调整胜败组数量", text: `胜者组 + 败者组多了 ${splitOverflowCount} 支` }
+      : doubleSplitError
+        ? { tone: "warn", icon: <GitBranch size={16} />, title: "当前分流暂不支持", text: doubleSplitError }
       : selectedTeams.length < 2
         ? { tone: "warn", icon: <GripVertical size={16} />, title: "先拖入入围队伍", text: `至少 2 支队伍；当前 ${selectedTeams.length}/${entrantTargetCount}` }
         : missingEntrantCount > 0
@@ -5626,7 +5666,7 @@ function KnockoutEntryDesk(props: {
     ? `按小组名次填入入围：${groupAdvancePreset.text}`
     : canGenerate ? `按当前入围顺序生成 ${bracketModeLabel} 对阵图草稿` : entrantStatus.text;
   const knockoutSecondaryAction = !canGenerate && !canApplyGroupAdvanceRecommendation && !isPublished
-    ? (uncoveredTeamCount > 0 || splitGapCount > 0 || splitOverflowCount > 0)
+    ? (uncoveredTeamCount > 0 || splitGapCount > 0 || splitOverflowCount > 0 || doubleSplitError)
       ? { label: "检查分流", targetId: "knockout-entry-settings-drawer" }
       : selectedTeams.length >= entrantTargetCount
         ? { label: "检查排序", targetId: "bracket-entrant-selected" }
@@ -5645,28 +5685,56 @@ function KnockoutEntryDesk(props: {
     requestBracketNextFocus();
   };
   const updateKnockoutMode = (mode: CompetitionMode) => {
-    props.setStageForm((current) => ({
-      ...current,
-      knockoutMode: mode,
-      bracketSize: mode === "double_elimination" && current.bracketSize === 6 ? 8 : current.bracketSize,
-    }));
+    props.setStageForm((current) => {
+      if (mode !== "double_elimination") return { ...current, knockoutMode: mode, loserTeamCount: 0 };
+      const bracketSize = current.bracketSize === 6 ? 4 : current.bracketSize;
+      const winnerTeamCount = current.bracketSize === 6 ? 4 : clampInteger(current.winnerTeamCount, 2, bracketSize);
+      const maxLoserTeamCount = winnerTeamCount <= 4 ? Math.min(4, Math.floor(bracketSize / 2)) : 0;
+      return {
+        ...current,
+        knockoutMode: mode,
+        bracketSize,
+        winnerTeamCount,
+        loserTeamCount: current.bracketSize === 6 ? 2 : clampInteger(current.loserTeamCount, 0, maxLoserTeamCount),
+      };
+    });
   };
   const updateBracketSize = (nextSize: number) => {
+    props.setStageForm((current) => {
+      const nextWinnerTeamCount = Math.min(current.winnerTeamCount, nextSize);
+      const nextMaxLoserTeamCount = nextWinnerTeamCount <= 4 ? Math.min(4, Math.floor(nextSize / 2)) : 0;
+      const nextLoserTeamCount = Math.min(current.loserTeamCount, nextMaxLoserTeamCount);
+
+      return {
+        ...current,
+        bracketSize: nextSize,
+        selectedTeamIds: current.selectedTeamIds.slice(
+          0,
+          current.knockoutMode === "double_elimination" ? nextWinnerTeamCount + nextLoserTeamCount : nextSize,
+        ),
+        winnerTeamCount: nextWinnerTeamCount,
+        loserTeamCount: nextLoserTeamCount,
+      };
+    });
+  };
+  const applyDoubleEliminationPreset = (preset: DoubleEliminationPreset) => {
     props.setStageForm((current) => ({
       ...current,
-      bracketSize: nextSize,
-      selectedTeamIds: current.selectedTeamIds.slice(
-        0,
-        current.knockoutMode === "double_elimination" ? nextSize + Math.floor(nextSize / 2) : nextSize,
-      ),
-      winnerTeamCount: Math.min(current.winnerTeamCount, nextSize),
-      loserTeamCount: Math.min(current.loserTeamCount, Math.floor(nextSize / 2)),
+      knockoutMode: "double_elimination",
+      bracketSize: preset.bracketSize,
+      winnerTeamCount: preset.winnerTeamCount,
+      loserTeamCount: preset.loserTeamCount,
+      selectedTeamIds: current.selectedTeamIds.slice(0, preset.winnerTeamCount + preset.loserTeamCount),
     }));
   };
   const knockoutModeEditor = (
     <div className="knockout-entry-mode-quick">
       <div className="segmented-grid compact"><button type="button" className={props.stageForm.knockoutMode === "single_elimination" ? "is-active" : ""} onClick={() => updateKnockoutMode("single_elimination")} disabled={isPublished}>单败</button><button type="button" className={props.stageForm.knockoutMode === "double_elimination" ? "is-active" : ""} onClick={() => updateKnockoutMode("double_elimination")} disabled={isPublished}>双败</button></div>
-      {isDoubleElimination ? <div className="split-inputs"><label>胜者组<input type="number" min={2} max={props.stageForm.bracketSize} value={props.stageForm.winnerTeamCount} onChange={(event) => patch({ winnerTeamCount: clampInteger(Number(event.target.value), 2, props.stageForm.bracketSize) })} disabled={isPublished} /></label><label>败者组<input type="number" min={0} max={maxLoserTeamCount} value={props.stageForm.loserTeamCount} onChange={(event) => patch({ loserTeamCount: clampInteger(Number(event.target.value), 0, maxLoserTeamCount) })} disabled={isPublished} /></label></div> : <span className="knockout-mode-pill">{singleModeNote}</span>}
+      {isDoubleElimination ? <div className="split-inputs"><label>胜者组<input type="number" min={2} max={props.stageForm.bracketSize} value={winnerTeamCount} onChange={(event) => {
+        const nextWinnerTeamCount = clampInteger(Number(event.target.value), 2, props.stageForm.bracketSize);
+        const nextMaxLoserTeamCount = nextWinnerTeamCount <= 4 ? Math.min(4, Math.floor(props.stageForm.bracketSize / 2)) : 0;
+        patch({ winnerTeamCount: nextWinnerTeamCount, loserTeamCount: Math.min(props.stageForm.loserTeamCount, nextMaxLoserTeamCount) });
+      }} disabled={isPublished} /></label><label>败者组<input type="number" min={0} max={maxLoserTeamCount} value={loserTeamCount} onChange={(event) => patch({ loserTeamCount: clampInteger(Number(event.target.value), 0, maxLoserTeamCount) })} disabled={isPublished || maxLoserTeamCount === 0} /></label></div> : <span className="knockout-mode-pill">{singleModeNote}</span>}
     </div>
   );
   const knockoutNameEditor = (
@@ -5719,13 +5787,26 @@ function KnockoutEntryDesk(props: {
           </div>
         </div>
         <div className="knockout-entry-setup">
-          <label>规模<select value={props.stageForm.bracketSize} onChange={(event) => updateBracketSize(Number(event.target.value))} disabled={isPublished}>{bracketSizeOptions.map((size) => <option key={size} value={size}>{size} 队</option>)}</select></label>
+          <label>{isDoubleElimination ? "胜者容量" : "规模"}<select value={props.stageForm.bracketSize} onChange={(event) => updateBracketSize(Number(event.target.value))} disabled={isPublished}>{(isDoubleElimination ? doubleBracketCapacityOptions : bracketSizeOptions).map((size) => <option key={size} value={size}>{isDoubleElimination ? `胜者组 ${size}` : `${size} 队`}</option>)}</select></label>
           <div className="knockout-size-quick" aria-label="淘汰赛规模快捷选择">
-            {bracketSizeOptions.map((size) => (
-              <button key={size} type="button" className={props.stageForm.bracketSize === size ? "is-active" : ""} onClick={() => updateBracketSize(size)} disabled={isPublished}>
-                {size === 6 ? "6 队 · 前二半决赛" : `${size} 队`}
-              </button>
-            ))}
+            {isDoubleElimination
+              ? doubleEliminationPresets.map((preset) => (
+                <button
+                  key={`${preset.bracketSize}-${preset.winnerTeamCount}-${preset.loserTeamCount}`}
+                  type="button"
+                  className={props.stageForm.bracketSize === preset.bracketSize && winnerTeamCount === preset.winnerTeamCount && loserTeamCount === preset.loserTeamCount ? "is-active" : ""}
+                  onClick={() => applyDoubleEliminationPreset(preset)}
+                  disabled={isPublished}
+                  title={preset.title}
+                >
+                  {preset.label}
+                </button>
+              ))
+              : bracketSizeOptions.map((size) => (
+                <button key={size} type="button" className={props.stageForm.bracketSize === size ? "is-active" : ""} onClick={() => updateBracketSize(size)} disabled={isPublished}>
+                  {size === 6 ? "6 队 · 前二半决赛" : `${size} 队`}
+                </button>
+              ))}
           </div>
           <div className="knockout-generate-action">
             <div><span>{canApplyGroupAdvanceRecommendation ? "推荐路径" : "生成目标"}</span><strong>{commandBracketModeLabel}</strong><small>{entrantProgressLabel}</small></div>
@@ -5761,7 +5842,7 @@ function KnockoutEntryDesk(props: {
         </div>
       </details>
       <details className="knockout-seed-drawer" open={!isDoubleElimination && props.stageForm.bracketSize === 6}>
-        <summary><span>对阵图预览</span><strong>{!isDoubleElimination && props.stageForm.bracketSize === 6 ? "前 2 种子半决赛等待" : `${selectedTeams.length}/${props.stageForm.bracketSize} 支入围`}</strong></summary>
+        <summary><span>对阵图预览</span><strong>{isDoubleElimination ? `胜者 ${winnerTeamCount} / 败者 ${loserTeamCount}` : props.stageForm.bracketSize === 6 ? "前 2 种子半决赛等待" : `${selectedTeams.length}/${props.stageForm.bracketSize} 支入围`}</strong></summary>
         <BracketSeedPreview
           bracketSize={props.stageForm.bracketSize}
           selectedTeams={selectedTeams}
@@ -7656,20 +7737,29 @@ function validateBracketEntrants(mode: CompetitionMode, bracketSize: number, ent
   if (entrantCount > targetCount) return `入围队伍不能超过 ${targetCount} 支。`;
   if (entrantCount < targetCount) return `还差 ${targetCount - entrantCount} 支入围队伍。`;
   if (mode !== "double_elimination") return null;
-  if (bracketSize === 6) return "双败暂不支持 6 队规模，请选择 4、8 或 16 队。";
   const maxLoserTeamCount = Math.floor(bracketSize / 2);
   const winnerCount = clampInteger(winnerTeamCount, 2, bracketSize);
   const loserCount = clampInteger(loserTeamCount, 0, maxLoserTeamCount);
   const splitDelta = winnerCount + loserCount - targetCount;
   if (splitDelta < 0) return `胜者组和败者组数量需要合计 ${targetCount} 支，还差 ${Math.abs(splitDelta)} 支。`;
   if (splitDelta > 0) return `胜者组和败者组数量需要合计 ${targetCount} 支，多了 ${splitDelta} 支。`;
+  const splitSupportError = validateDoubleEliminationSplit(bracketSize, winnerCount, loserCount);
+  if (splitSupportError) return splitSupportError;
   const uncoveredCount = Math.max(entrantCount - winnerCount - loserCount, 0);
   return uncoveredCount > 0 ? `当前双败分流只覆盖 ${winnerCount + loserCount} 支队伍，请移出 ${uncoveredCount} 支入围队伍，或调高胜者组 / 败者组数量。` : null;
 }
 
+function validateDoubleEliminationSplit(bracketSize: number, winnerTeamCount: number, loserTeamCount: number): string | null {
+  if (loserTeamCount === 0) return null;
+  if (winnerTeamCount <= 4 && loserTeamCount <= 4) return null;
+  return `当前初始败者组只支持胜者组最多 4 支、败者组最多 ${Math.min(4, Math.floor(bracketSize / 2))} 支；需要完整 ${bracketSize} 队双败时请把败者组设为 0。`;
+}
+
 function bracketEntrantTargetCount(mode: CompetitionMode, bracketSize: number, winnerTeamCount: number, loserTeamCount: number): number {
   if (mode === "double_elimination") {
-    return clampInteger(winnerTeamCount, 2, bracketSize) + clampInteger(loserTeamCount, 0, Math.floor(bracketSize / 2));
+    const winnerCount = clampInteger(winnerTeamCount, 2, bracketSize);
+    const maxLoserTeamCount = winnerCount <= 4 ? Math.min(4, Math.floor(bracketSize / 2)) : 0;
+    return winnerCount + clampInteger(loserTeamCount, 0, maxLoserTeamCount);
   }
 
   return bracketSize;
@@ -7749,11 +7839,18 @@ function findNextSwissPair(teams: TeamBrief[], standings: StandingRow[], rounds:
 }
 
 function buildEntrantSeedRoles(props: { bracketSize: number; targetCount: number; isDoubleElimination: boolean; winnerTeamCount: number; loserTeamCount: number }): EntrantSeedRole[] {
+  const winnerSeedSize = getWinnerPreviewSeedSize(
+    props.isDoubleElimination,
+    props.bracketSize,
+    props.winnerTeamCount,
+    props.loserTeamCount,
+  );
+
   return Array.from({ length: props.targetCount }, (_, index) => {
     const seed = index + 1;
     if (props.isDoubleElimination) {
       if (index < props.winnerTeamCount) {
-        const opponentSeed = getOpeningOpponentSeed(props.bracketSize, seed);
+        const opponentSeed = getOpeningOpponentSeed(winnerSeedSize, seed);
         return {
           badge: `胜者 Seed ${seed}`,
           detail: opponentSeed ? `胜者组 Seed ${seed}，首轮对 Seed ${opponentSeed}` : `胜者组 Seed ${seed}`,
@@ -7791,6 +7888,11 @@ function buildEntrantSeedRoles(props: { bracketSize: number; targetCount: number
       tone: "play",
     };
   });
+}
+
+function getWinnerPreviewSeedSize(isDoubleElimination: boolean, bracketSize: number, winnerTeamCount: number, loserTeamCount: number): number {
+  if (isDoubleElimination && loserTeamCount > 0 && winnerTeamCount <= 4) return 4;
+  return bracketSize;
 }
 
 function getOpeningOpponentSeed(bracketSize: number, seed: number): number | null {

@@ -4782,6 +4782,9 @@ export class SqliteTournamentRepository {
       bracketType === "double_elimination" ? teamIds.slice(winnerTeamCount, winnerTeamCount + loserTeamCount) : [];
     const maxTeamCount =
       bracketType === "double_elimination" ? bracketSize + Math.floor(bracketSize / 2) : bracketSize;
+    const usesSplitFourWinnerDoubleElimination =
+      bracketType === "double_elimination" &&
+      shouldUseSplitFourWinnerDoubleElimination(winnerTeamIds.length, loserTeamIds.length);
 
     if (teamIds.length > maxTeamCount) {
       throw new Error(`teamIds cannot contain more than ${maxTeamCount} teams for this bracket`);
@@ -4789,6 +4792,14 @@ export class SqliteTournamentRepository {
 
     if (bracketType === "double_elimination" && winnerTeamIds.length + loserTeamIds.length !== teamIds.length) {
       throw new Error("winnerTeamCount and loserTeamCount must cover all selected teams");
+    }
+
+    if (
+      bracketType === "double_elimination" &&
+      loserTeamIds.length > 0 &&
+      !usesSplitFourWinnerDoubleElimination
+    ) {
+      throw new Error("Initial loser bracket currently supports up to 4 winner-bracket teams and 4 loser-bracket teams");
     }
 
     for (const teamId of teamIds) {
@@ -4803,11 +4814,15 @@ export class SqliteTournamentRepository {
         : `单败淘汰 · ${bracketSize} 队 · 胜者自动推进 · ${boType}`;
     const roundSpecs =
       bracketType === "double_elimination"
-        ? doubleEliminationRoundSpecs(bracketSize)
+        ? usesSplitFourWinnerDoubleElimination
+          ? splitFourWinnerDoubleEliminationRoundSpecs()
+          : doubleEliminationRoundSpecs(bracketSize)
         : singleEliminationRoundSpecs(bracketSize);
     const nodeDrafts =
       bracketType === "double_elimination"
-        ? doubleEliminationNodeDrafts(bracketSize, winnerTeamIds, loserTeamIds)
+        ? usesSplitFourWinnerDoubleElimination
+          ? splitFourWinnerDoubleEliminationNodeDrafts(winnerTeamIds, loserTeamIds)
+          : doubleEliminationNodeDrafts(bracketSize, winnerTeamIds, loserTeamIds)
         : singleEliminationNodeDrafts(bracketSize, teamIds);
 
     this.database.exec("BEGIN;");
@@ -8146,6 +8161,40 @@ function doubleEliminationRoundSpecs(bracketSize: number): BracketRoundSpec[] {
   return rounds;
 }
 
+function splitFourWinnerDoubleEliminationRoundSpecs(): BracketRoundSpec[] {
+  const rounds: BracketRoundSpec[] = [];
+  let roundNumber = 1;
+
+  for (let index = 1; index <= 2; index += 1) {
+    rounds.push({
+      key: bracketRoundKey("winner", index),
+      bracketGroup: "winner",
+      roundNumber,
+      name: index === 2 ? "胜者组决赛" : "胜者组第 1 轮",
+    });
+    roundNumber += 1;
+  }
+
+  for (let index = 1; index <= 4; index += 1) {
+    rounds.push({
+      key: bracketRoundKey("loser", index),
+      bracketGroup: "loser",
+      roundNumber,
+      name: index === 4 ? "败者组决赛" : `败者组第 ${index} 轮`,
+    });
+    roundNumber += 1;
+  }
+
+  rounds.push({
+    key: bracketRoundKey("grand_final", 1),
+    bracketGroup: "grand_final",
+    roundNumber,
+    name: "总决赛",
+  });
+
+  return rounds;
+}
+
 function singleEliminationNodeDrafts(bracketSize: number, teamIds: string[]): BracketNodeDraft[] {
   if (bracketSize === 6) {
     const specs = singleEliminationRoundSpecs(bracketSize);
@@ -8254,6 +8303,143 @@ function singleEliminationNodeDrafts(bracketSize: number, teamIds: string[]): Br
   return drafts;
 }
 
+function splitFourWinnerDoubleEliminationNodeDrafts(
+  winnerTeamIds: string[],
+  loserTeamIds: string[] = [],
+): BracketNodeDraft[] {
+  const specs = new Map(splitFourWinnerDoubleEliminationRoundSpecs().map((round) => [round.key, round]));
+  const winnerSlots = getSeedSlotOrder(4).map((seed) => winnerTeamIds[seed - 1] ?? null);
+  const loserSlots = Array.from({ length: 4 }, (_, index) => loserTeamIds[index] ?? null);
+  const drafts: BracketNodeDraft[] = [];
+  const loserOpeningNodeCount = loserTeamIds.length > 2 ? 2 : 1;
+
+  const pushDraft = (
+    group: BracketNode["bracketGroup"],
+    roundIndex: number,
+    position: number,
+    values: Omit<BracketNodeDraft, "key" | "bracketGroup" | "roundNumber" | "roundName" | "position">,
+  ) => {
+    const spec = specs.get(bracketRoundKey(group, roundIndex));
+
+    if (spec === undefined) {
+      return;
+    }
+
+    drafts.push({
+      key: bracketNodeKey(group, roundIndex, position),
+      bracketGroup: group,
+      roundNumber: spec.roundNumber,
+      roundName: spec.name,
+      position,
+      ...values,
+    });
+  };
+
+  pushDraft("winner", 1, 1, {
+    radiantTeamId: winnerSlots[0] ?? null,
+    direTeamId: winnerSlots[1] ?? null,
+    nextNodeKey: bracketNodeKey("winner", 2, 1),
+    nextSlot: "radiant",
+    loserNextNodeKey: bracketNodeKey("loser", 2, 1),
+    loserNextSlot: loserOpeningNodeCount > 1 ? "dire" : "radiant",
+  });
+  pushDraft("winner", 1, 2, {
+    radiantTeamId: winnerSlots[2] ?? null,
+    direTeamId: winnerSlots[3] ?? null,
+    nextNodeKey: bracketNodeKey("winner", 2, 1),
+    nextSlot: "dire",
+    loserNextNodeKey: loserOpeningNodeCount > 1 ? bracketNodeKey("loser", 2, 2) : bracketNodeKey("loser", 2, 1),
+    loserNextSlot: "dire",
+  });
+  pushDraft("winner", 2, 1, {
+    radiantTeamId: null,
+    direTeamId: null,
+    nextNodeKey: bracketNodeKey("grand_final", 1, 1),
+    nextSlot: "radiant",
+    loserNextNodeKey: bracketNodeKey("loser", 4, 1),
+    loserNextSlot: "dire",
+  });
+
+  if (loserOpeningNodeCount > 1) {
+    pushDraft("loser", 1, 1, {
+      radiantTeamId: loserSlots[0] ?? null,
+      direTeamId: loserSlots[3] ?? null,
+      nextNodeKey: bracketNodeKey("loser", 2, 1),
+      nextSlot: "radiant",
+      loserNextNodeKey: null,
+      loserNextSlot: null,
+    });
+    pushDraft("loser", 1, 2, {
+      radiantTeamId: loserSlots[1] ?? null,
+      direTeamId: loserSlots[2] ?? null,
+      nextNodeKey: bracketNodeKey("loser", 2, 2),
+      nextSlot: "radiant",
+      loserNextNodeKey: null,
+      loserNextSlot: null,
+    });
+    pushDraft("loser", 2, 1, {
+      radiantTeamId: null,
+      direTeamId: null,
+      nextNodeKey: bracketNodeKey("loser", 3, 1),
+      nextSlot: "radiant",
+      loserNextNodeKey: null,
+      loserNextSlot: null,
+    });
+    pushDraft("loser", 2, 2, {
+      radiantTeamId: null,
+      direTeamId: null,
+      nextNodeKey: bracketNodeKey("loser", 3, 1),
+      nextSlot: "dire",
+      loserNextNodeKey: null,
+      loserNextSlot: null,
+    });
+  } else {
+    pushDraft("loser", 1, 1, {
+      radiantTeamId: loserSlots[0] ?? null,
+      direTeamId: loserSlots[1] ?? null,
+      nextNodeKey: bracketNodeKey("loser", 3, 1),
+      nextSlot: "radiant",
+      loserNextNodeKey: null,
+      loserNextSlot: null,
+    });
+    pushDraft("loser", 2, 1, {
+      radiantTeamId: null,
+      direTeamId: null,
+      nextNodeKey: bracketNodeKey("loser", 3, 1),
+      nextSlot: "dire",
+      loserNextNodeKey: null,
+      loserNextSlot: null,
+    });
+  }
+
+  pushDraft("loser", 3, 1, {
+    radiantTeamId: null,
+    direTeamId: null,
+    nextNodeKey: bracketNodeKey("loser", 4, 1),
+    nextSlot: "radiant",
+    loserNextNodeKey: null,
+    loserNextSlot: null,
+  });
+  pushDraft("loser", 4, 1, {
+    radiantTeamId: null,
+    direTeamId: null,
+    nextNodeKey: bracketNodeKey("grand_final", 1, 1),
+    nextSlot: "dire",
+    loserNextNodeKey: null,
+    loserNextSlot: null,
+  });
+  pushDraft("grand_final", 1, 1, {
+    radiantTeamId: null,
+    direTeamId: null,
+    nextNodeKey: null,
+    nextSlot: null,
+    loserNextNodeKey: null,
+    loserNextSlot: null,
+  });
+
+  return drafts;
+}
+
 function doubleEliminationNodeDrafts(bracketSize: number, winnerTeamIds: string[], loserTeamIds: string[] = []): BracketNodeDraft[] {
   const seedSlots = getSeedSlotOrder(bracketSize).map((seed) => winnerTeamIds[seed - 1] ?? null);
   const loserOpeningSlots = Array.from({ length: Math.floor(bracketSize / 2) }, (_, index) => loserTeamIds[index] ?? null);
@@ -8357,6 +8543,10 @@ function bracketNodeKey(group: BracketNode["bracketGroup"], roundNumber: number,
   return `${group}:${roundNumber}:${position}`;
 }
 
+function shouldUseSplitFourWinnerDoubleElimination(winnerTeamCount: number, loserTeamCount: number): boolean {
+  return loserTeamCount > 0 && winnerTeamCount <= 4 && loserTeamCount <= 4;
+}
+
 function normalizeBracketSize(
   value: number | undefined,
   teamCount: number,
@@ -8364,7 +8554,12 @@ function normalizeBracketSize(
 ): number {
   const allowedSizes = bracketType === "single_elimination" ? [4, 6, 8, 16] : [4, 8, 16];
   if (bracketType === "double_elimination" && value !== undefined) {
+    if (value === 6) return 4;
     return allowedSizes.find((size) => size >= value) ?? 16;
+  }
+  if (bracketType === "double_elimination") {
+    const requiredMinimum = Math.max(2, teamCount, value ?? teamCount);
+    return allowedSizes.find((size) => size + Math.floor(size / 2) >= requiredMinimum) ?? 16;
   }
   const requiredMinimum = Math.max(2, teamCount, value ?? teamCount);
   return allowedSizes.find((size) => size >= requiredMinimum) ?? 16;
