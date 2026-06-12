@@ -1,9 +1,11 @@
-import { Image, Slider, Text, View } from "@tarojs/components";
+import { ScrollView, Slider, Text, View } from "@tarojs/components";
 import { useDidShow, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadMatch } from "../../api";
+import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { aghanimIcon, dotaAssetUrl } from "../../dota";
-import { PageShell, SectionTitle, StatGrid } from "../../components";
+import { PageShell, SectionTitle } from "../../components";
+import { SmartImage as Image } from "../../SmartImage";
 import type { ChatLine, DraftStep, IconRef, MatchDetail, MatchDetailPlayer, TalentTreeNode, TeamSide, WardEvent } from "../../types";
 import { formatDateTime, formatInteger } from "../../utils";
 
@@ -13,7 +15,7 @@ export default function MatchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<MatchDetail | null>(null);
-  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => new Set(["radiant:2"]));
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => new Set());
   const [wardSecond, setWardSecond] = useState(0);
 
   useDidShow(() => {
@@ -27,15 +29,28 @@ export default function MatchDetailPage() {
       return;
     }
 
-    setLoading(true);
+    const cacheKey = pageCacheKey("match-detail", matchId);
+    const cached = readPageCache<MatchDetail>(cacheKey);
+
+    if (cached) {
+      setDetail(cached);
+      setExpandedPlayers(defaultExpandedPlayers(cached));
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     setError("");
 
     try {
       const nextDetail = await loadMatch(matchId);
       setDetail(nextDetail);
       setExpandedPlayers(defaultExpandedPlayers(nextDetail));
+      writePageCache(cacheKey, nextDetail);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "比赛详情读取失败");
+      if (!cached) {
+        setError(caught instanceof Error ? caught.message : "比赛详情读取失败");
+      }
     } finally {
       setLoading(false);
     }
@@ -55,28 +70,13 @@ export default function MatchDetailPage() {
     });
   }
 
-  const radiantKills = detail?.players.radiant.reduce((sum, player) => sum + player.kills, 0) ?? 0;
-  const direKills = detail?.players.dire.reduce((sum, player) => sum + player.kills, 0) ?? 0;
-
   return (
     <PageShell loading={loading} error={error} routeKey="records">
       {detail ? (
-        <>
+        <View className="match-detail-page">
           <MatchSummary detail={detail} />
-          <StatGrid
-            items={[
-              { label: "比分", value: detail.score.scoreText, hint: "官方战报" },
-              { label: "击杀", value: `${radiantKills}:${direKills}`, hint: "双方总击杀" },
-              { label: "解析", value: detail.parseStatus, hint: "OpenDota" },
-            ]}
-          />
-          {detail.mvp ? (
-            <View className="content-panel mvp-card-mini">
-              <Text className="kicker">MVP</Text>
-              <Text className="section-heading">{detail.mvp.playerName}</Text>
-              <Text className="muted">{detail.mvp.title} · 评分 {detail.mvp.score}</Text>
-            </View>
-          ) : null}
+          <MvpCard detail={detail} />
+          <MatchQuickStats detail={detail} />
 
           <View className="section-panel player-section">
             <View className="section-title compact">
@@ -108,7 +108,7 @@ export default function MatchDetailPage() {
           <VisionSection durationText={detail.match.durationText} selectedSecond={wardSecond} wards={detail.vision.wards} onChange={setWardSecond} />
           <TrendSection detail={detail} />
           <ChatSection chat={detail.chat} />
-        </>
+        </View>
       ) : null}
     </PageShell>
   );
@@ -121,22 +121,110 @@ function MatchSummary(props: { detail: MatchDetail }) {
     <View className="match-summary battle-summary">
       <View className="summary-meta">
         <Text>比赛编号 {detail.match.matchId}</Text>
-        <Text>{formatDateTime(detail.match.startTime)}</Text>
+        <Text>{formatFullMatchDateTime(detail.match.endedAt ?? detail.match.startTime)}</Text>
       </View>
       <Text className="victory-label">{detail.match.winnerName} 胜利</Text>
       <View className="scoreboard">
         <View className="team-side radiant">
           <Text>天辉</Text>
           <Text>{detail.score.radiantTeamName}</Text>
+          <Text>天辉</Text>
         </View>
         <View className="score-core">
           <Text>{detail.match.tournamentName ?? detail.match.leagueName}</Text>
           <Text className="score-core-value">{detail.score.radiantScore}<Text>:</Text>{detail.score.direScore}</Text>
-          <Text>{detail.match.durationText}</Text>
+          <Text>{detail.match.durationText}{detail.match.gameMode !== null ? ` · Game Mode ${detail.match.gameMode}` : ""}</Text>
         </View>
         <View className="team-side dire">
           <Text>夜魇</Text>
           <Text>{detail.score.direTeamName}</Text>
+          <Text>夜魇</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function formatFullMatchDateTime(value?: string | null): string {
+  if (!value) {
+    return "时间待定";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+}
+
+function MvpCard(props: { detail: MatchDetail }) {
+  const mvp = props.detail.mvp;
+  const player = mvp ? props.detail.players.all.find((item) => item.name === mvp.playerName) ?? null : null;
+  const playerTeamName =
+    player?.side === "radiant"
+      ? props.detail.score.radiantTeamName
+      : player?.side === "dire"
+        ? props.detail.score.direTeamName
+        : "MRJZ";
+
+  if (!mvp) {
+    return null;
+  }
+
+  return (
+    <View className={`content-panel mvp-card-mini ${player?.side ?? ""}`}>
+      <View className="mvp-card-copy">
+        <Text className="kicker">MVP</Text>
+        <Text className="section-heading">{mvp.playerName}</Text>
+        <Text className="muted">{player?.hero ?? mvp.title} · {playerTeamName}</Text>
+        <View className="mvp-metric-row">
+          <View>
+            <Text>{player ? `${player.kills}/${player.deaths}/${player.assists}` : "-"}</Text>
+            <Text>KDA</Text>
+          </View>
+          <View>
+            <Text>{formatPercent(player?.killParticipation ?? null)}</Text>
+            <Text>参战</Text>
+          </View>
+          <View>
+            <Text>{formatPercent(player?.heroDamageShare ?? null)}</Text>
+            <Text>伤害</Text>
+          </View>
+        </View>
+      </View>
+      {player ? (
+        <View className="mvp-portrait-wrap">
+          <Image className="mvp-portrait" mode="aspectFill" src={player.portrait} />
+          <Text>MVP</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function MatchQuickStats(props: { detail: MatchDetail }) {
+  const radiantKills = props.detail.players.radiant.reduce((sum, player) => sum + player.kills, 0);
+  const direKills = props.detail.players.dire.reduce((sum, player) => sum + player.kills, 0);
+
+  return (
+    <View className="match-ribbon">
+      <View className="match-ribbon-stat duration">
+        <Text>{props.detail.match.durationText}</Text>
+        <Text>时长</Text>
+      </View>
+      <View className="match-ribbon-stat kill-score">
+        <Text>击杀</Text>
+        <View>
+          <Text className="radiant-score">{radiantKills}</Text>
+          <Text>:</Text>
+          <Text className="dire-score">{direKills}</Text>
         </View>
       </View>
     </View>
@@ -158,10 +246,10 @@ function TeamPanel(props: {
     <View className={`team-panel ${props.side}`}>
       <View className="team-panel-head">
         <View>
-          <Text>{sideLabel(props.side)} {props.isWinner ? "胜利" : "失败"}</Text>
-          <Text>{props.teamName}</Text>
+          <Text className="team-result-pill">{sideLabel(props.side)} {props.isWinner ? "胜利" : "失败"}</Text>
+          <Text className="team-panel-name">{props.teamName}</Text>
         </View>
-        <Text>杀敌 {kills}</Text>
+        <Text className="team-kill-count">杀敌 {kills}</Text>
       </View>
       <View className="player-list">
         {props.players.map((player) => {
@@ -202,9 +290,11 @@ function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; 
           <Text className="record-title">{player.name}</Text>
           <Text className="history-text">{player.hero}</Text>
           <View className="player-chips">
-            <Text>{player.lane}</Text>
-            <Text>参战 {formatPercent(player.killParticipation)}</Text>
-            <Text>伤害 {formatPercent(player.heroDamageShare)}</Text>
+            <Text className="lane-chip">{player.lane}</Text>
+            <View className="player-mini-metrics">
+              <Text>参战 {formatPercent(player.killParticipation)}</Text>
+              <Text>伤害 {formatPercent(player.heroDamageShare)}</Text>
+            </View>
           </View>
         </View>
         <PlayerLoadout player={player} />
@@ -523,10 +613,16 @@ function ChatSection(props: { chat: ChatLine[] }) {
   return (
     <>
       <SectionTitle kicker="聊天" title="聊天记录" />
-      <View className="chat-list">
-        {props.chat.length > 0 ? props.chat.slice(0, 60).map((line, index) => (
-          <ChatLineItem line={line} key={`${line.time}:${line.player}:${index}`} />
-        )) : <View className="content-panel"><Text className="muted">暂无聊天记录。</Text></View>}
+      <View className="chat-section content-panel">
+        {props.chat.length > 0 ? (
+          <ScrollView className="chat-scroll" scrollY>
+            <View className="chat-list">
+              {props.chat.slice(0, 60).map((line, index) => (
+                <ChatLineItem line={line} key={`${line.time}:${line.player}:${index}`} />
+              ))}
+            </View>
+          </ScrollView>
+        ) : <Text className="muted">暂无聊天记录。</Text>}
       </View>
     </>
   );
@@ -557,9 +653,8 @@ function sideLabel(side: TeamSide): string {
 }
 
 function defaultExpandedPlayers(detail: MatchDetail): Set<string> {
-  const defaultPlayer = detail.players.radiant.find((player) => player.playerSlot === 2) ?? detail.players.radiant[2] ?? detail.players.radiant[0];
-
-  return new Set(defaultPlayer ? [playerRowKey(defaultPlayer)] : []);
+  void detail;
+  return new Set();
 }
 
 function playerRowKey(player: MatchDetailPlayer): string {

@@ -1,10 +1,17 @@
 import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
-import { ensureTournamentId, loadTournamentTeams, loadTournaments, setSelectedTournamentId } from "../../api";
+import { ensureTournamentId, getSelectedTournamentId, loadTournamentTeams, loadTournaments, setSelectedTournamentId } from "../../api";
+import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, TeamDirectoryCard, TournamentScope } from "../../components";
 import type { TeamListItem, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
+
+type TeamsCache = {
+  selectedTournamentId: string;
+  teams: TeamListItem[];
+  tournaments: TournamentOption[];
+};
 
 export default function TeamsPage() {
   const [loading, setLoading] = useState(true);
@@ -18,23 +25,43 @@ export default function TeamsPage() {
   });
 
   async function refresh(nextTournamentId?: string) {
-    setLoading(true);
+    const cacheKey = pageCacheKey("teams", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
+    const cached = readPageCache<TeamsCache>(cacheKey);
+
+    if (cached) {
+      setTournaments(cached.tournaments);
+      setSelectedId(cached.selectedTournamentId);
+      setTeams(cached.teams);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     setError("");
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId()) || allTournaments[0]?.id || "";
+      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
       const nextTeams = targetId ? await loadTournamentTeams(targetId) : [];
 
       if (targetId) {
         setSelectedTournamentId(targetId);
       }
 
-      setTournaments(allTournaments);
-      setSelectedId(targetId);
-      setTeams(nextTeams);
+      const snapshot = {
+        selectedTournamentId: targetId,
+        teams: nextTeams,
+        tournaments: allTournaments,
+      };
+
+      setTournaments(snapshot.tournaments);
+      setSelectedId(snapshot.selectedTournamentId);
+      setTeams(snapshot.teams);
+      writePageCache(pageCacheKey("teams", targetId || "auto"), snapshot);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "队伍读取失败");
+      if (!cached) {
+        setError(caught instanceof Error ? caught.message : "队伍读取失败");
+      }
     } finally {
       setLoading(false);
     }

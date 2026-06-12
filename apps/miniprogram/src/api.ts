@@ -1,5 +1,6 @@
 import Taro from "@tarojs/taro";
 import { normalizeMatchDetail, normalizeMatchRecord, type ApiMatchDetail, type ApiMatchRecord } from "./dota";
+import { getApiBaseUrl, isLocalDeployEnv, setApiBaseUrl } from "./runtimeConfig";
 import type {
   ApiResult,
   AppUserMe,
@@ -21,45 +22,15 @@ import type {
   TournamentOption,
 } from "./types";
 
-declare const __MRJZ_MINIPROGRAM_API_BASE_URL__: string | undefined;
-declare const __MRJZ_DEPLOY_ENV__: string | undefined;
-
-const LOCAL_API_BASE_URL = "http://127.0.0.1:3001/api";
-const DEFAULT_API_BASE_URL = resolveBuildApiBaseUrl();
-const API_BASE_STORAGE_KEY = "mrjz.apiBaseUrl";
 const AUTH_SESSION_STORAGE_KEY = "mrjz.authSession";
 const SELECTED_TOURNAMENT_STORAGE_KEY = "mrjz.selectedTournamentId";
 const LOCAL_LIKED_TAGS_STORAGE_KEY = "mrjz.localLikedTags";
 const DEV_WECHAT_USER_ID_STORAGE_KEY = "mrjz.devWechatUserId";
+const REQUEST_TIMEOUT_MS = 12000;
 
 type RequestMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
-export function getApiBaseUrl(): string {
-  const stored = Taro.getStorageSync<string>(API_BASE_STORAGE_KEY);
-
-  return stored && stored.trim().length > 0 ? trimTrailingSlash(stored) : DEFAULT_API_BASE_URL;
-}
-
-export function setApiBaseUrl(value: string): void {
-  const nextValue = trimTrailingSlash(value.trim());
-
-  if (nextValue.length === 0) {
-    Taro.removeStorageSync(API_BASE_STORAGE_KEY);
-    return;
-  }
-
-  Taro.setStorageSync(API_BASE_STORAGE_KEY, nextValue);
-}
-
-export function isLocalDeployEnv(): boolean {
-  return getDeployEnv() === "local";
-}
-
-function getDeployEnv(): string {
-  return typeof __MRJZ_DEPLOY_ENV__ === "string" && __MRJZ_DEPLOY_ENV__.trim().length > 0
-    ? __MRJZ_DEPLOY_ENV__.trim()
-    : "local";
-}
+export { getApiBaseUrl, setApiBaseUrl };
 
 export function getStoredAuthSession(): AuthSession | null {
   const session = Taro.getStorageSync<AuthSession | "">(AUTH_SESSION_STORAGE_KEY);
@@ -109,15 +80,10 @@ export function setLocalLikedTagIds(userId: string, tagIds: Set<string>): void {
 }
 
 export async function loginWithWeChat(): Promise<AuthSession> {
-  const loginResult = await Taro.login();
-
-  if (typeof loginResult.code !== "string" || loginResult.code.trim().length === 0) {
-    throw new Error("微信登录凭证获取失败，请稍后重试");
-  }
-
   const devUserId = getDevWechatUserId();
+  const code = await getWechatLoginCode();
   const data: { code: string; nickname: string; devUserId?: string } = {
-    code: loginResult.code.trim(),
+    code,
     nickname: "微信用户",
   };
 
@@ -133,6 +99,35 @@ export async function loginWithWeChat(): Promise<AuthSession> {
 
   Taro.setStorageSync(AUTH_SESSION_STORAGE_KEY, session);
   return session;
+}
+
+async function getWechatLoginCode(): Promise<string> {
+  let loginError: unknown;
+
+  try {
+    const loginResult = await Taro.login();
+    const code = typeof loginResult.code === "string" ? loginResult.code.trim() : "";
+
+    if (code.length > 0) {
+      return code;
+    }
+  } catch (caught) {
+    loginError = caught;
+  }
+
+  if (isLocalDeployEnv()) {
+    return "local-dev-code";
+  }
+
+  throw new Error(formatWechatLoginCodeError(loginError));
+}
+
+function formatWechatLoginCodeError(caught: unknown): string {
+  if (typeof caught === "object" && caught !== null && "errMsg" in caught) {
+    return `微信登录凭证获取失败：${String((caught as { errMsg?: unknown }).errMsg ?? "请稍后重试")}`;
+  }
+
+  return caught instanceof Error ? `微信登录凭证获取失败：${caught.message}` : "微信登录凭证获取失败，请稍后重试";
 }
 
 export async function loadMe(): Promise<AppUserMe> {
@@ -236,17 +231,14 @@ export async function loadTeamProfile(tournamentId: string, teamId: string): Pro
   });
 }
 
-export async function ensureTournamentId(): Promise<string> {
+export async function ensureTournamentId(tournaments?: TournamentOption[]): Promise<string> {
   const stored = getSelectedTournamentId();
+  const availableTournaments = tournaments ?? (await loadTournaments());
+  const tournamentId = availableTournaments.some((tournament) => tournament.id === stored)
+    ? stored
+    : availableTournaments[0]?.id ?? "";
 
-  if (stored.length > 0) {
-    return stored;
-  }
-
-  const tournaments = await loadTournaments();
-  const tournamentId = tournaments[0]?.id ?? "";
-
-  if (tournamentId.length > 0) {
+  if (tournamentId.length > 0 && tournamentId !== stored) {
     setSelectedTournamentId(tournamentId);
   }
 
@@ -259,19 +251,29 @@ async function request<T>(
 ): Promise<T> {
   const session = getStoredAuthSession();
   const shouldAttachAuth = options.withAuth !== false && session !== null;
-  const response = await Taro.request<ApiResult<T>>({
-    url: `${getApiBaseUrl()}${path}`,
-    method: options.method ?? "GET",
-    data: options.data,
-    header: {
-      "content-type": "application/json",
-      ...(shouldAttachAuth
-        ? {
-            authorization: `Bearer ${session.token}`,
-          }
-        : {}),
-    },
-  });
+  const apiBaseUrl = getApiBaseUrl();
+  const url = `${apiBaseUrl}${path}`;
+  let response: Taro.request.SuccessCallbackResult<ApiResult<T>>;
+
+  try {
+    response = await Taro.request<ApiResult<T>>({
+      url,
+      method: options.method ?? "GET",
+      data: options.data,
+      timeout: REQUEST_TIMEOUT_MS,
+      header: {
+        "content-type": "application/json",
+        ...(shouldAttachAuth
+          ? {
+              authorization: `Bearer ${session.token}`,
+            }
+          : {}),
+      },
+    });
+  } catch (caught) {
+    throw new Error(formatRequestFailure(caught, apiBaseUrl));
+  }
+
   const result = response.data;
 
   if (result?.success) {
@@ -285,13 +287,21 @@ async function request<T>(
   throw new Error(result?.error?.message ?? `API request failed: ${response.statusCode}`);
 }
 
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, "");
-}
+function formatRequestFailure(caught: unknown, apiBaseUrl: string): string {
+  const message = typeof caught === "object" && caught !== null && "errMsg" in caught
+    ? String((caught as { errMsg?: unknown }).errMsg ?? "")
+    : caught instanceof Error
+      ? caught.message
+      : String(caught);
+  const lowerMessage = message.toLowerCase();
 
-function resolveBuildApiBaseUrl(): string {
-  const buildValue =
-    typeof __MRJZ_MINIPROGRAM_API_BASE_URL__ === "string" ? __MRJZ_MINIPROGRAM_API_BASE_URL__ : "";
+  if (lowerMessage.includes("timeout")) {
+    return `API 请求超时，请确认后端已启动且小程序 API 地址可访问：${apiBaseUrl}`;
+  }
 
-  return trimTrailingSlash(buildValue.trim() || LOCAL_API_BASE_URL);
+  if (lowerMessage.includes("fail")) {
+    return `API 请求失败，请检查小程序开发者工具是否允许访问本地服务，当前地址：${apiBaseUrl}`;
+  }
+
+  return message || `API 请求失败：${apiBaseUrl}`;
 }

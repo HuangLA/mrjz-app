@@ -2,6 +2,7 @@ import abilityIdsJson from "./assets/dota/constants/ability_ids.json";
 import heroAbilitiesJson from "./assets/dota/constants/hero_abilities.json";
 import heroesJson from "./assets/dota/constants/heroes.json";
 import itemIdsJson from "./assets/dota/constants/item_ids.json";
+import { getDotaAssetBaseUrl, getSvgAssetBaseUrl } from "./runtimeConfig";
 import type {
   AghanimState,
   ChatLine,
@@ -182,9 +183,6 @@ type ApiChat = {
   message?: string | null;
 };
 
-const DOTA_ASSET_BASE_URL = "/assets/dota";
-const SVG_ASSET_BASE_URL = "/assets/svg";
-
 const dotaHeroes = heroesJson as Record<string, DotaHeroConstant>;
 const dotaHeroAbilities = heroAbilitiesJson as Record<string, DotaHeroAbilitiesConstant>;
 const dotaItemIds = itemIdsJson as Record<string, string>;
@@ -326,11 +324,11 @@ export function normalizeAssetUrl(url: string | null | undefined): string {
   }
 
   if (url.startsWith("/static/dota/")) {
-    return url.replace("/static/dota", DOTA_ASSET_BASE_URL);
+    return url.replace("/static/dota", getDotaAssetBaseUrl());
   }
 
   if (url.startsWith("/static/svg/")) {
-    return url.replace("/static/svg", SVG_ASSET_BASE_URL);
+    return url.replace("/static/svg", getSvgAssetBaseUrl());
   }
 
   return url;
@@ -338,7 +336,7 @@ export function normalizeAssetUrl(url: string | null | undefined): string {
 
 export function dotaAssetUrl(assetPath: string): string {
   const normalizedPath = assetPath.replace(/^\/+/, "");
-  return `${DOTA_ASSET_BASE_URL}/${normalizedPath}`;
+  return `${getDotaAssetBaseUrl()}/${normalizedPath}`;
 }
 
 export function heroLabel(heroId: number | null | undefined): string {
@@ -418,7 +416,9 @@ export function normalizeMatchDetail(detail: ApiMatchDetail): MatchDetail {
       roundName: detail.match?.roundName ?? null,
       winnerName,
       durationText: detail.match?.durationText ?? "--:--",
+      gameMode: detail.match?.gameMode ?? null,
       startTime: detail.match?.startTime ?? detail.match?.endedAt ?? null,
+      endedAt: detail.match?.endedAt ?? null,
     },
     score: {
       radiantScore: detail.score?.radiantScore ?? 0,
@@ -460,7 +460,7 @@ export function normalizeMatchDetail(detail: ApiMatchDetail): MatchDetail {
 
 export function aghanimIcon(label: "神杖" | "魔晶", state: AghanimState): string {
   const type = label === "魔晶" ? "shard" : "scepter";
-  return `${SVG_ASSET_BASE_URL}/${type}${state === "owned" ? "On" : "Off"}.svg`;
+  return `${getSvgAssetBaseUrl()}/${type}${state === "owned" ? "On" : "Off"}.svg`;
 }
 
 function normalizeRecordHeroLineup(lineup: ApiMatchRecordHero[] | undefined): MatchRecordHero[] {
@@ -679,12 +679,25 @@ function parseClockText(value: string | null | undefined): number {
 
 function itemIcon(itemId: number | null | undefined): IconRef {
   const internalName = itemId ? dotaItemIds[String(itemId)] : undefined;
+  const iconName = normalizeItemIconName(internalName);
   const label = itemId ? prettyDotaName(internalName) ?? `#${itemId}` : "-";
 
   return {
     label,
-    imageUrl: internalName ? dotaAssetUrl(`items/${internalName}.png`) : "",
+    imageUrl: iconName ? dotaAssetUrl(`items/${iconName}.png`) : "",
   };
+}
+
+function normalizeItemIconName(internalName: string | undefined): string | undefined {
+  if (!internalName || internalName === "ability_base" || internalName === "claddish_spyglass") {
+    return undefined;
+  }
+
+  if (internalName.startsWith("recipe_")) {
+    return internalName.slice("recipe_".length);
+  }
+
+  return internalName;
 }
 
 function abilityIcon(abilityId: number | undefined, level: number | undefined): IconRef {

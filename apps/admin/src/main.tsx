@@ -458,9 +458,7 @@ function App() {
       const bracketTeamIds = (schedule?.teams.map((item) => item.team.id) ?? []).length > 0
         ? schedule?.teams.map((item) => item.team.id) ?? []
         : teams.map((team) => team.id);
-      const officialStageSummaries = detail.stages.filter(
-        (stage) => stage.name !== "真实比赛记录" && (stage.type === "group" || stage.type === "swiss" || stage.type === "knockout"),
-      );
+      const officialStageSummaries = detail.stages.filter(isOfficialScheduleStage);
       const hasPreliminaryStage = officialStageSummaries.some((stage) => stage.type === "group" || stage.type === "swiss");
       const hasKnockoutStage = officialStageSummaries.some((stage) => stage.type === "knockout");
       const defaultBracketTeamIds = hasPreliminaryStage && !hasKnockoutStage ? [] : bracketTeamIds.slice(0, 8);
@@ -7191,6 +7189,14 @@ function chooseStageId(detail: TournamentDetail, preferredStageId: string): stri
 }
 
 function isOfficialScheduleStage(stage: StageSummary): boolean {
+  const config = stage.config ?? {};
+  const hasExplicitScheduleFlag = Object.prototype.hasOwnProperty.call(config, "officialSchedule")
+    || Object.prototype.hasOwnProperty.call(config, "scheduleManagement");
+
+  if (hasExplicitScheduleFlag) {
+    return config.officialSchedule === true || config.scheduleManagement === true;
+  }
+
   return stage.name !== "真实比赛记录" && (stage.type === "group" || stage.type === "swiss" || stage.type === "knockout");
 }
 

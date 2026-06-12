@@ -2,6 +2,7 @@ import { Text, View } from "@tarojs/components";
 import { useDidShow, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadTeamProfile } from "../../api";
+import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerHeroStrip, SectionTitle, StatGrid, SteamAvatar } from "../../components";
 import type { TeamProfile } from "../../types";
 import { formatDate, formatInteger, formatPercent, navigate } from "../../utils";
@@ -25,13 +26,26 @@ export default function TeamDetailPage() {
       return;
     }
 
-    setLoading(true);
+    const cacheKey = pageCacheKey("team-detail", tournamentId, teamId);
+    const cached = readPageCache<TeamProfile>(cacheKey);
+
+    if (cached) {
+      setProfile(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     setError("");
 
     try {
-      setProfile(await loadTeamProfile(tournamentId, teamId));
+      const nextProfile = await loadTeamProfile(tournamentId, teamId);
+      setProfile(nextProfile);
+      writePageCache(cacheKey, nextProfile);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "队伍主页读取失败");
+      if (!cached) {
+        setError(caught instanceof Error ? caught.message : "队伍主页读取失败");
+      }
     } finally {
       setLoading(false);
     }

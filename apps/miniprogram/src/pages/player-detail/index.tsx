@@ -1,20 +1,46 @@
 import { Button, Input, Text, View } from "@tarojs/components";
 import { useDidShow, useRouter } from "@tarojs/taro";
-import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { useState } from "react";
 import {
   getLocalLikedTagIds,
   getStoredAuthSession,
   likePlayerTag,
   loadPlayerProfile,
   loadPlayerTags,
+  loadTournaments,
   loginWithWeChat,
   setLocalLikedTagIds,
   submitPlayerTag,
   unlikePlayerTag,
 } from "../../api";
-import { PageShell, PlayerHeroStrip, PlayerTeamMark, SectionTitle, StatGrid, SteamAvatar } from "../../components";
-import type { AuthSession, PlayerProfile, PlayerTag } from "../../types";
+import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { MatchRecordCard, PageShell, PlayerTeamMark, SectionTitle, SteamAvatar, TournamentScope } from "../../components";
+import { heroIcon, heroLabel, heroPortrait } from "../../dota";
+import { SmartImage as Image } from "../../SmartImage";
+import type {
+  AuthSession,
+  MatchRecord,
+  MatchRecordHero,
+  PlayerProfile,
+  PlayerTag,
+  PlayerTournamentHistoryEntry,
+  ProfileMatchSummary,
+  TournamentOption,
+} from "../../types";
 import { formatDate, formatDecimal, formatInteger, formatPercent, navigate, showToast } from "../../utils";
+
+type ProfileHeroLineupItem = Partial<MatchRecordHero> & {
+  heroId?: number;
+  playerName?: string | null;
+  playerSlot?: number;
+};
+
+type PlayerDetailCache = {
+  profile: PlayerProfile;
+  tags: PlayerTag[];
+  tournaments: TournamentOption[];
+};
 
 export default function PlayerDetailPage() {
   const router = useRouter();
@@ -25,7 +51,9 @@ export default function PlayerDetailPage() {
   const [error, setError] = useState("");
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [tags, setTags] = useState<PlayerTag[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
   const [draftTag, setDraftTag] = useState("");
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string>>(() => new Set());
   const [session, setSession] = useState<AuthSession | null>(() => getStoredAuthSession());
   const [likedTagIds, setLikedTagIds] = useState<Set<string>>(() => {
     const storedSession = getStoredAuthSession();
@@ -44,15 +72,39 @@ export default function PlayerDetailPage() {
       return;
     }
 
-    setLoading(true);
+    const cacheKey = pageCacheKey("player-detail", tournamentId, playerId);
+    const cached = readPageCache<PlayerDetailCache>(cacheKey);
+
+    if (cached) {
+      setProfile(cached.profile);
+      setTags(cached.tags);
+      setTournaments(cached.tournaments);
+      setExpandedHistoryIds(new Set([cached.profile.tournamentId]));
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     setError("");
 
     try {
-      const [nextProfile, nextTags] = await Promise.all([loadPlayerProfile(tournamentId, playerId), loadPlayerTags(tournamentId, playerId)]);
+      const [nextProfile, nextTags, nextTournaments] = await Promise.all([
+        loadPlayerProfile(tournamentId, playerId),
+        loadPlayerTags(tournamentId, playerId),
+        loadTournaments(),
+      ]);
       setProfile(nextProfile);
       setTags(nextTags);
+      setTournaments(nextTournaments);
+      writePageCache(cacheKey, {
+        profile: nextProfile,
+        tags: nextTags,
+        tournaments: nextTournaments,
+      });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "选手主页读取失败");
+      if (!cached) {
+        setError(caught instanceof Error ? caught.message : "选手主页读取失败");
+      }
     } finally {
       setLoading(false);
     }
@@ -128,13 +180,27 @@ export default function PlayerDetailPage() {
     }
   }
 
-  const currentHistory = useMemo(() => profile?.tournamentHistory?.find((item) => item.isCurrent), [profile]);
+  function handleToggleHistory(tournamentHistoryId: string) {
+    setExpandedHistoryIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(tournamentHistoryId)) {
+        next.delete(tournamentHistoryId);
+      } else {
+        next.add(tournamentHistoryId);
+      }
+
+      return next;
+    });
+  }
 
   return (
     <PageShell loading={loading} error={error} routeKey="players">
       {profile ? (
         <>
-          <View className="profile-hero player-profile">
+          <TournamentScope tournament={tournaments.find((tournament) => tournament.id === tournamentId)} />
+
+          <View className="profile-hero player-profile" style={profileAccentStyle(profile.currentTeam?.color ?? profile.teams[0]?.color ?? "#5eead4")}>
             <View className="profile-hero-main">
               <SteamAvatar player={profile} size="large" />
               <View>
@@ -152,25 +218,46 @@ export default function PlayerDetailPage() {
             </View>
           </View>
 
-          <StatGrid
+          <View className="section-panel profile-tag-panel-mini">
+            <View className="section-title compact">
+              <View>
+                <Text className="section-heading">选手应援标签</Text>
+              </View>
+            </View>
+            <View className="tag-cloud">
+              {tags.map((tag) => {
+                const liked = likedTagIds.has(tag.id);
+                return (
+                  <Button
+                    key={tag.id}
+                    className={`tag-pill ${liked ? "tag-pill-liked" : ""}`}
+                    disabled={saving}
+                    onClick={() => void handleToggleLike(tag)}
+                  >
+                    {tag.text}
+                  </Button>
+                );
+              })}
+            </View>
+            {tags.length === 0 ? <View className="content-panel"><Text className="muted">暂无已审核标签，提交后需管理员通过才会公开展示。</Text></View> : null}
+          </View>
+
+          <ProfileStatGrid
             items={[
-              { label: "场次", value: formatInteger(profile.stats.totalMatches), hint: `${profile.stats.wins} 胜 ${profile.stats.losses} 负` },
-              { label: "胜率", value: formatPercent(profile.stats.winRate), hint: "当前届次" },
-              { label: "KDA", value: formatDecimal(profile.stats.kda), hint: `${formatDecimal(profile.stats.avgKills)}/${formatDecimal(profile.stats.avgDeaths)}/${formatDecimal(profile.stats.avgAssists)}` },
-              { label: "GPM", value: formatDecimal(profile.stats.avgGpm, 0), hint: "场均" },
-              { label: "XPM", value: formatDecimal(profile.stats.avgXpm, 0), hint: "场均" },
-              { label: "伤害", value: formatDecimal(profile.stats.avgHeroDamage, 0), hint: "英雄伤害" },
+              { label: "场次", value: formatInteger(profile.stats.totalMatches) },
+              { label: "胜率", value: formatPercent(profile.stats.winRate) },
+              { label: "KDA", value: formatDecimal(profile.stats.kda, 2) },
+              { label: "场均K/D/A", value: `${formatDecimal(profile.stats.avgKills)}/${formatDecimal(profile.stats.avgDeaths)}/${formatDecimal(profile.stats.avgAssists)}` },
+              { label: "GPM", value: formatDecimal(profile.stats.avgGpm, 0) },
+              { label: "XPM", value: formatDecimal(profile.stats.avgXpm, 0) },
+              { label: "场均经济", value: formatCompact(profile.stats.avgNetWorth) },
+              { label: "场均伤害", value: formatCompact(profile.stats.avgHeroDamage) },
+              { label: "建筑伤害", value: formatCompact(profile.stats.avgTowerDamage) },
+              { label: "场均承伤", value: formatCompact(profile.stats.avgDamageTaken) },
             ]}
           />
 
-          <View className="section-panel">
-            <View className="section-title compact">
-              <View>
-                <Text className="section-heading">常用英雄</Text>
-              </View>
-            </View>
-            <PlayerHeroStrip heroes={profile.stats.topHeroes} />
-          </View>
+          <SignatureHeroes heroes={profile.stats.topHeroes} />
 
           <SectionTitle kicker="应援标签" title="给选手贴标签" />
           <View className="tag-editor">
@@ -183,48 +270,292 @@ export default function PlayerDetailPage() {
             </View>
           </View>
 
-          <View className="tag-cloud">
-            {tags.map((tag) => {
-              const liked = likedTagIds.has(tag.id);
-              return (
-                <Button
-                  key={tag.id}
-                  className={`tag-pill ${liked ? "tag-pill-liked" : ""}`}
-                  disabled={saving}
-                  onClick={() => void handleToggleLike(tag)}
-                >
-                  {tag.text} +{tag.likeCount}
-                </Button>
-              );
-            })}
-          </View>
-          {tags.length === 0 ? <View className="content-panel"><Text className="muted">暂无已审核标签，提交后需管理员通过才会公开展示。</Text></View> : null}
-
-          <SectionTitle kicker="当前届次" title="近期比赛" />
-          {(currentHistory?.matches ?? profile.matches).slice(0, 8).map((match) => (
-            <View className="content-panel history-item" key={match.matchId} onClick={() => navigate(`/pages/match-detail/index?matchId=${match.matchId}`)}>
-              <View>
-                <Text className="record-title">{match.radiantTeamName} vs {match.direTeamName}</Text>
-                <Text className="history-text">{formatDate(match.startTime)} · KDA {match.kills ?? "-"}/{match.deaths ?? "-"}/{match.assists ?? "-"}</Text>
-              </View>
-              <Text className="status-text">{match.result === "win" ? "胜" : match.result === "loss" ? "负" : "未知"}</Text>
-            </View>
-          ))}
-
-          <SectionTitle kicker="跨届" title="参赛历史" />
-          {profile.tournamentHistory.map((entry) => (
-            <View className="content-panel history-item" key={entry.tournamentId}>
-              <View>
-                <Text className="record-title">{entry.tournamentName}</Text>
-                <Text className="history-text">{formatDate(entry.startsAt)} · {entry.stats.totalMatches} 场 · 胜率 {formatPercent(entry.stats.winRate)}</Text>
-              </View>
-              <Text className="badge">{entry.isCurrent ? "当前" : "往届"}</Text>
-            </View>
-          ))}
+          <PlayerTournamentHistory
+            expandedHistoryIds={expandedHistoryIds}
+            onToggleHistory={handleToggleHistory}
+            profile={profile}
+          />
         </>
       ) : null}
     </PageShell>
   );
+}
+
+function ProfileStatGrid(props: { items: Array<{ label: string; value: string }> }) {
+  return (
+    <View className="profile-stat-grid">
+      {props.items.map((item) => (
+        <View key={item.label}>
+          <Text>{item.label}</Text>
+          <Text>{item.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function SignatureHeroes(props: { heroes: PlayerProfile["stats"]["topHeroes"] }) {
+  return (
+    <View className="section-panel">
+      <View className="section-title compact">
+        <View>
+          <Text className="section-heading">常用英雄</Text>
+        </View>
+      </View>
+      <View className="signature-heroes">
+        {props.heroes.length > 0 ? (
+          props.heroes.map((hero) => (
+            <View className="signature-hero" key={hero.heroId}>
+              <Image mode="aspectFill" src={heroPortrait(hero.heroId)} />
+              <View>
+                <Text>{heroLabel(hero.heroId)}</Text>
+                <Text>{hero.picks} 场 · {hero.wins} 胜 · {formatHeroWinRate(hero.wins, hero.picks)}</Text>
+              </View>
+            </View>
+          ))
+        ) : (
+          <View className="state-inline">
+            <Text>暂无</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function PlayerTournamentHistory(props: {
+  expandedHistoryIds: Set<string>;
+  onToggleHistory: (tournamentHistoryId: string) => void;
+  profile: PlayerProfile;
+}) {
+  const currentEntry =
+    props.profile.tournamentHistory.find((entry) => entry.isCurrent) ??
+    ({
+      tournamentId: props.profile.tournamentId,
+      tournamentName: "本届赛事",
+      startsAt: null,
+      status: "",
+      isCurrent: true,
+      stats: props.profile.stats,
+      matches: props.profile.matches,
+    } satisfies PlayerTournamentHistoryEntry);
+  const previousEntries = props.profile.tournamentHistory.filter((entry) => !entry.isCurrent);
+  const totalMatches = props.profile.tournamentHistory.reduce((sum, entry) => sum + entry.matches.length, 0) || props.profile.matches.length;
+
+  return (
+    <View className="section-panel player-history-panel">
+      <View className="section-title compact">
+        <View>
+          <Text className="section-heading">参赛记录</Text>
+        </View>
+        <Text className="sync-pill">{totalMatches} 场</Text>
+      </View>
+
+      <View className="player-season-current">
+        <SeasonRecordHeader entry={currentEntry} label="本届" />
+        <ProfileMatchCards
+          matches={currentEntry.matches}
+          tournamentId={currentEntry.tournamentId}
+          tournamentName={currentEntry.tournamentName}
+        />
+      </View>
+
+      {previousEntries.length > 0 ? (
+        <View className="player-season-archive">
+          <View className="season-archive-title">
+            <Text>往届参赛</Text>
+            <Text>{previousEntries.length} 届</Text>
+          </View>
+          {previousEntries.map((entry) => {
+            const isOpen = props.expandedHistoryIds.has(entry.tournamentId);
+
+            return (
+              <View className={`season-details ${isOpen ? "is-open" : ""}`} key={entry.tournamentId}>
+                <Button className="season-toggle" onClick={() => props.onToggleHistory(entry.tournamentId)}>
+                  <SeasonRecordHeader entry={entry} />
+                  <Text className="season-toggle-label">{isOpen ? "收起" : "展开"}</Text>
+                </Button>
+                {isOpen ? (
+                  <View className="season-match-list">
+                    <ProfileMatchCards
+                      matches={entry.matches}
+                      tournamentId={entry.tournamentId}
+                      tournamentName={entry.tournamentName}
+                    />
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function SeasonRecordHeader(props: { entry: PlayerTournamentHistoryEntry; label?: string }) {
+  return (
+    <View className="season-record-header">
+      <View>
+        <Text>{props.entry.tournamentName}</Text>
+        <Text>{props.label ?? formatDate(props.entry.startsAt)}</Text>
+      </View>
+      <View className="season-record-metrics">
+        <Text>{props.entry.matches.length} 场</Text>
+        <Text>{formatPercent(props.entry.stats.winRate)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function ProfileMatchCards(props: { matches: ProfileMatchSummary[]; tournamentId: string; tournamentName: string }) {
+  return (
+    <View className="profile-record-list">
+      {props.matches.length > 0 ? (
+        props.matches.map((match, index) => (
+          <MatchRecordCard
+            index={index}
+            key={match.matchId}
+            onOpen={(matchId) => navigate(`/pages/match-detail/index?matchId=${matchId}`)}
+            record={profileMatchToRecord(match, props.tournamentId, props.tournamentName)}
+          />
+        ))
+      ) : (
+        <View className="state-inline">
+          <Text>暂无</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function profileMatchToRecord(match: ProfileMatchSummary, tournamentId: string, tournamentName: string): MatchRecord {
+  const heroLineups = profileMatchHeroLineups(match);
+  const playerCount = match.playerCount ?? heroLineups.radiant.length + heroLineups.dire.length;
+
+  return {
+    matchId: match.matchId,
+    leagueName: "",
+    tournamentId,
+    tournamentName,
+    parseStatus: "比赛记录",
+    startTime: match.startTime,
+    durationText: match.durationText ?? "--:--",
+    radiantWin: deriveRadiantWin(match),
+    radiantScore: match.radiantScore,
+    direScore: match.direScore,
+    radiantTeamName: match.radiantTeamName,
+    direTeamName: match.direTeamName,
+    playerCount,
+    heroLineups,
+    hasDraft: Boolean(match.hasDraft),
+    hasVision: Boolean(match.hasVision),
+    hasChat: Boolean(match.hasChat),
+  };
+}
+
+function profileMatchHeroLineups(match: ProfileMatchSummary): NonNullable<MatchRecord["heroLineups"]> {
+  const heroLineups = {
+    radiant: normalizeProfileHeroLineup(match.heroLineups?.radiant),
+    dire: normalizeProfileHeroLineup(match.heroLineups?.dire),
+  };
+
+  if (heroLineups.radiant.length > 0 || heroLineups.dire.length > 0 || match.heroId === null || match.side === null) {
+    return heroLineups;
+  }
+
+  const profileHero = {
+    playerSlot: match.side === "radiant" ? 0 : 128,
+    heroId: match.heroId,
+    hero: heroLabel(match.heroId),
+    icon: heroIcon(match.heroId),
+    portrait: heroPortrait(match.heroId),
+    playerName: "该选手",
+  };
+
+  return {
+    ...heroLineups,
+    [match.side]: [profileHero],
+  };
+}
+
+function normalizeProfileHeroLineup(lineup: ProfileHeroLineupItem[] | undefined): MatchRecordHero[] {
+  return (lineup ?? [])
+    .map((hero) => {
+      if (typeof hero.heroId !== "number" || hero.heroId <= 0) {
+        return null;
+      }
+
+      const name = heroLabel(hero.heroId);
+
+      return {
+        playerSlot: hero.playerSlot ?? 0,
+        heroId: hero.heroId,
+        hero: hero.hero || name,
+        icon: hero.icon || heroIcon(hero.heroId),
+        portrait: hero.portrait || heroPortrait(hero.heroId),
+        playerName: hero.playerName?.trim() || name,
+      };
+    })
+    .filter((hero): hero is MatchRecordHero => hero !== null)
+    .sort((left, right) => left.playerSlot - right.playerSlot)
+    .slice(0, 5);
+}
+
+function deriveRadiantWin(match: ProfileMatchSummary): boolean | null {
+  if (match.radiantWin !== null) {
+    return match.radiantWin;
+  }
+
+  if (match.side === null || match.result === "unknown") {
+    return null;
+  }
+
+  return match.side === "radiant" ? match.result === "win" : match.result === "loss";
+}
+
+function formatHeroWinRate(wins: number, picks: number): string {
+  if (!Number.isFinite(wins) || !Number.isFinite(picks) || picks <= 0) {
+    return "-";
+  }
+
+  return `${((wins / picks) * 100).toFixed(0)}%`;
+}
+
+function formatCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  if (Math.abs(value) >= 1000) {
+    return `${(value / 1000).toFixed(1)}k`;
+  }
+
+  return String(Math.round(value));
+}
+
+function profileAccentStyle(accent: string): CSSProperties {
+  return {
+    borderColor: hexToRgba(accent, 0.42),
+    background: `linear-gradient(135deg, ${hexToRgba(accent, 0.18)}, rgba(12, 17, 26, 0.74)), rgba(17, 24, 37, 0.92)`,
+  };
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.trim().replace(/^#/, "");
+  const full = normalized.length === 3
+    ? normalized.split("").map((char) => `${char}${char}`).join("")
+    : normalized;
+
+  if (!/^[\da-fA-F]{6}$/.test(full)) {
+    return `rgba(94, 234, 212, ${alpha})`;
+  }
+
+  const red = Number.parseInt(full.slice(0, 2), 16);
+  const green = Number.parseInt(full.slice(2, 4), 16);
+  const blue = Number.parseInt(full.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 function mergeTag(tags: PlayerTag[], updated: PlayerTag): PlayerTag[] {

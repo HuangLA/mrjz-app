@@ -1,15 +1,24 @@
 import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
-import { ensureTournamentId, loadOfficialSchedule, loadStageRounds, loadTournament, loadTournaments, setSelectedTournamentId } from "../../api";
+import { ensureTournamentId, getSelectedTournamentId, loadOfficialSchedule, loadStageRounds, loadTournament, loadTournaments, setSelectedTournamentId } from "../../api";
+import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { FilterRow, PageShell, SeriesCard, TournamentScope, seriesScheduleStatusText } from "../../components";
 import type { OfficialScheduleStatus, StageRound, TournamentDetail, TournamentOption } from "../../types";
-import { labelStageType, labelStatus, navigate } from "../../utils";
+import { isOfficialScheduleStage, labelStageType, labelStatus, navigate } from "../../utils";
 
 type ScheduleOrder = "asc" | "desc";
 
 const scheduleFilters = ["全部", "未开始", "待补录", "已完赛", "延期"] as const;
 type ScheduleFilter = (typeof scheduleFilters)[number];
+
+type ScheduleCache = {
+  detail: TournamentDetail | null;
+  officialSchedule: OfficialScheduleStatus | null;
+  rounds: StageRound[];
+  selectedTournamentId: string;
+  tournaments: TournamentOption[];
+};
 
 export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
@@ -27,28 +36,52 @@ export default function SchedulePage() {
   });
 
   async function refresh(nextTournamentId?: string) {
-    setLoading(true);
+    const cacheKey = pageCacheKey("schedule", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
+    const cached = readPageCache<ScheduleCache>(cacheKey);
+
+    if (cached) {
+      setTournaments(cached.tournaments);
+      setSelectedId(cached.selectedTournamentId);
+      setDetail(cached.detail);
+      setOfficialSchedule(cached.officialSchedule);
+      setRounds(cached.rounds);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     setError("");
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId()) || allTournaments[0]?.id || "";
+      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
       const nextDetail = targetId ? await loadTournament(targetId) : null;
       const nextSchedule = targetId ? await loadOfficialSchedule(targetId).catch(() => null) : null;
-      const officialStages = nextDetail?.stages?.filter((stage) => ["group", "swiss", "knockout"].includes(stage.type)) ?? [];
+      const officialStages = nextDetail?.stages?.filter(isOfficialScheduleStage) ?? [];
       const stageRounds = await Promise.all(officialStages.map((stage) => loadStageRounds(stage.id).catch(() => [])));
 
       if (targetId) {
         setSelectedTournamentId(targetId);
       }
 
-      setTournaments(allTournaments);
-      setSelectedId(targetId);
-      setDetail(nextDetail);
-      setOfficialSchedule(nextSchedule);
-      setRounds(stageRounds.flat());
+      const snapshot = {
+        detail: nextDetail,
+        officialSchedule: nextSchedule,
+        rounds: stageRounds.flat(),
+        selectedTournamentId: targetId,
+        tournaments: allTournaments,
+      };
+
+      setTournaments(snapshot.tournaments);
+      setSelectedId(snapshot.selectedTournamentId);
+      setDetail(snapshot.detail);
+      setOfficialSchedule(snapshot.officialSchedule);
+      setRounds(snapshot.rounds);
+      writePageCache(pageCacheKey("schedule", targetId || "auto"), snapshot);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "赛程读取失败");
+      if (!cached) {
+        setError(caught instanceof Error ? caught.message : "赛程读取失败");
+      }
     } finally {
       setLoading(false);
     }

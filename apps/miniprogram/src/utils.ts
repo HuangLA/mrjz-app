@@ -49,7 +49,9 @@ export function formatDate(value?: string | null): string {
 }
 
 export function formatPercent(value: number | null | undefined): string {
-  return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value * 100)}%` : "-";
+  return typeof value === "number" && Number.isFinite(value)
+    ? `${value.toFixed(1).replace(/\.0$/, "")}%`
+    : "-";
 }
 
 export function formatDecimal(value: number | null | undefined, digits = 1): string {
@@ -72,6 +74,18 @@ export function labelStageType(value: StageSummary["type"] | string | undefined)
   if (value === "swiss") return "瑞士轮";
   if (value === "knockout") return "淘汰赛";
   return "赛事阶段";
+}
+
+export function isOfficialScheduleStage(stage: Pick<StageSummary, "type" | "name" | "config">): boolean {
+  const config = stage.config ?? {};
+  const hasExplicitScheduleFlag = Object.prototype.hasOwnProperty.call(config, "officialSchedule")
+    || Object.prototype.hasOwnProperty.call(config, "scheduleManagement");
+
+  if (hasExplicitScheduleFlag) {
+    return config.officialSchedule === true || config.scheduleManagement === true;
+  }
+
+  return stage.name !== "真实比赛记录" && (stage.type === "group" || stage.type === "swiss" || stage.type === "knockout");
 }
 
 export function labelStatus(value?: string | null): string {

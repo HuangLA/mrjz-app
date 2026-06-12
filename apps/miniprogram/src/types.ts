@@ -50,6 +50,7 @@ export type StageSummary = {
   name: string;
   status: string;
   sortOrder?: number;
+  config?: Record<string, unknown>;
 };
 
 export type SeriesGameSummary = {
@@ -198,6 +199,11 @@ export type ProfileMatchSummary = {
   radiantScore: number | null;
   direScore: number | null;
   radiantWin: boolean | null;
+  playerCount?: number;
+  heroLineups?: Record<TeamSide, MatchRecordHero[]>;
+  hasDraft?: boolean;
+  hasVision?: boolean;
+  hasChat?: boolean;
   side: TeamSide | null;
   heroId: number | null;
   kills: number | null;
@@ -362,7 +368,9 @@ export type MatchDetail = {
     roundName: string | null;
     winnerName: string;
     durationText: string;
+    gameMode: number | null;
     startTime: string | null;
+    endedAt: string | null;
   };
   score: {
     radiantScore: number;

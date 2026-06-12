@@ -1559,26 +1559,7 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
       js_code: code,
       grant_type: "authorization_code",
     });
-    const response = await fetch(`https://api.weixin.qq.com/sns/jscode2session?${params.toString()}`);
-    const payload = (await response.json()) as { openid?: string; unionid?: string; errcode?: number; errmsg?: string };
-
-    if (!response.ok || typeof payload.openid !== "string" || payload.openid.trim().length === 0) {
-      const message = payload.errmsg ?? `HTTP ${response.status}`;
-
-      throw new Error(`WeChat code2Session failed: ${message}`);
-    }
-
-    const result: ResolvedWechatLogin = {
-      openId: `wechat:${payload.openid.trim()}`,
-      nickname,
-      provider: "wechat",
-    };
-
-    if (typeof payload.unionid === "string" && payload.unionid.trim().length > 0) {
-      result.unionId = `wechat:${payload.unionid.trim()}`;
-    }
-
-    return result;
+    return await resolveWechatCode2Session(params, nickname);
   }
 
   if (!isDevelopmentWechatLoginAllowed()) {
@@ -1592,6 +1573,32 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
     nickname: nickname === "微信用户" ? `开发用户 ${devUserId}` : nickname,
     provider: "development",
   };
+}
+
+async function resolveWechatCode2Session(
+  params: URLSearchParams,
+  nickname: string,
+): Promise<ResolvedWechatLogin> {
+  const response = await fetch(`https://api.weixin.qq.com/sns/jscode2session?${params.toString()}`);
+  const payload = (await response.json()) as { openid?: string; unionid?: string; errcode?: number; errmsg?: string };
+
+  if (!response.ok || typeof payload.openid !== "string" || payload.openid.trim().length === 0) {
+    const message = payload.errmsg ?? `HTTP ${response.status}`;
+
+    throw new Error(`WeChat code2Session failed: ${message}`);
+  }
+
+  const result: ResolvedWechatLogin = {
+    openId: `wechat:${payload.openid.trim()}`,
+    nickname,
+    provider: "wechat",
+  };
+
+  if (typeof payload.unionid === "string" && payload.unionid.trim().length > 0) {
+    result.unionId = `wechat:${payload.unionid.trim()}`;
+  }
+
+  return result;
 }
 
 function isDevelopmentWechatLoginAllowed(): boolean {

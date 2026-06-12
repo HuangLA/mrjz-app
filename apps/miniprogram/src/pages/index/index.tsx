@@ -3,22 +3,26 @@ import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import {
   ensureTournamentId,
-  loadTournament,
   loadTournamentMatches,
   loadTournaments,
   setSelectedTournamentId,
 } from "../../api";
-import { MatchRecordCard, PageShell, SectionTitle, SeriesCard, StatGrid } from "../../components";
-import type { MatchRecord, TournamentDetail, TournamentOption } from "../../types";
-import { formatDate, labelStageType, labelStatus, navigate, switchTab } from "../../utils";
+import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { PageShell } from "../../components";
+import type { MatchRecord, TournamentOption } from "../../types";
+import { formatDate, labelStatus, navigate, switchTab } from "../../utils";
+
+type HomeCache = {
+  recentRecordsByTournament: Record<string, MatchRecord[]>;
+  selectedTournamentId: string;
+  tournaments: TournamentOption[];
+};
 
 export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
   const [selectedTournamentId, setSelectedId] = useState("");
-  const [detail, setDetail] = useState<TournamentDetail | null>(null);
-  const [records, setRecords] = useState<MatchRecord[]>([]);
   const [recentRecordsByTournament, setRecentRecordsByTournament] = useState<Record<string, MatchRecord[]>>({});
 
   useDidShow(() => {
@@ -26,44 +30,55 @@ export default function HomePage() {
   });
 
   async function refresh(nextTournamentId?: string) {
-    setLoading(true);
+    const cacheKey = pageCacheKey("home");
+    const cached = nextTournamentId ? null : readPageCache<HomeCache>(cacheKey);
+
+    if (cached) {
+      setTournaments(cached.tournaments);
+      setSelectedId(cached.selectedTournamentId);
+      setRecentRecordsByTournament(cached.recentRecordsByTournament);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     setError("");
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId()) || allTournaments[0]?.id || "";
+      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
 
       if (targetId.length === 0) {
         setTournaments(allTournaments);
         setSelectedId("");
-        setDetail(null);
-        setRecords([]);
         setRecentRecordsByTournament({});
         return;
       }
 
       setSelectedTournamentId(targetId);
-      const recentEntries = await Promise.all(
-        allTournaments.map(async (tournament) => {
-          try {
-            return [tournament.id, await loadTournamentMatches(tournament.id, 6)] as const;
-          } catch {
-            return [tournament.id, []] as const;
-          }
-        }),
-      );
-      const nextRecentRecordsByTournament = Object.fromEntries(recentEntries);
-      const [nextDetail, nextRecords] = await Promise.all([
-        loadTournament(targetId),
-        Promise.resolve(nextRecentRecordsByTournament[targetId] ?? []),
-      ]);
-      setTournaments(allTournaments);
-      setSelectedId(targetId);
-      setDetail(nextDetail);
-      setRecords(nextRecords);
-      setRecentRecordsByTournament(nextRecentRecordsByTournament);
+      const recentEntries: Array<readonly [string, MatchRecord[]]> = [];
+
+      for (const tournament of allTournaments) {
+        try {
+          recentEntries.push([tournament.id, await loadTournamentMatches(tournament.id, 3)] as const);
+        } catch {
+          recentEntries.push([tournament.id, []] as const);
+        }
+      }
+      const snapshot = {
+        recentRecordsByTournament: Object.fromEntries(recentEntries),
+        selectedTournamentId: targetId,
+        tournaments: allTournaments,
+      };
+
+      setTournaments(snapshot.tournaments);
+      setSelectedId(snapshot.selectedTournamentId);
+      setRecentRecordsByTournament(snapshot.recentRecordsByTournament);
+      writePageCache(cacheKey, snapshot);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "赛事数据读取失败");
+      if (!cached) {
+        setError(caught instanceof Error ? caught.message : "赛事数据读取失败");
+      }
     } finally {
       setLoading(false);
     }
@@ -75,8 +90,6 @@ export default function HomePage() {
     switchTab("/pages/stage/index");
   }
 
-  const currentStage = detail?.currentStage ?? detail?.stages?.[0] ?? null;
-  const latestRecord = records[0];
   const recordCount = Object.values(recentRecordsByTournament).reduce((sum, tournamentRecords) => sum + tournamentRecords.length, 0);
 
   return (
@@ -134,23 +147,6 @@ export default function HomePage() {
         ))}
       </View>
 
-      <StatGrid
-        items={[
-          { label: "届次状态", value: labelStatus(detail?.status), hint: detail?.season?.name },
-          { label: "当前阶段", value: labelStageType(currentStage?.type), hint: currentStage?.name ?? "等待后台配置" },
-          { label: "参赛队伍", value: String(detail?.teamCount ?? 0), hint: `league ${detail?.league?.opendotaLeagueId ?? "-"}` },
-        ]}
-      />
-
-      <SectionTitle kicker="下一场" title="近期赛程" actionText="看赛程" onAction={() => switchTab("/pages/schedule/index")} />
-      {detail?.nextSeries ? <SeriesCard series={detail.nextSeries} /> : <View className="content-panel"><Text className="muted">暂无已发布下一场。</Text></View>}
-
-      <SectionTitle kicker="最新战报" title="最近比赛" actionText="全部记录" onAction={() => switchTab("/pages/records/index")} />
-      {latestRecord ? (
-        <MatchRecordCard record={latestRecord} onOpen={(matchId) => navigate(`/pages/match-detail/index?matchId=${matchId}`)} />
-      ) : (
-        <View className="content-panel"><Text className="muted">暂无比赛记录。</Text></View>
-      )}
     </PageShell>
   );
 }

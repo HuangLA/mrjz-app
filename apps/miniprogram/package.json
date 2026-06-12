@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "taro build --type weapp --watch",
     "dev:local": "MRJZ_MINIPROGRAM_API_BASE_URL=http://127.0.0.1:3001/api taro build --type weapp --watch",
+    "dev:local-assets": "MRJZ_MINIPROGRAM_LOCAL_DOTA_ASSETS=1 MRJZ_MINIPROGRAM_API_BASE_URL=http://127.0.0.1:3001/api taro build --type weapp --watch",
     "dev:remote": "MRJZ_DEPLOY_ENV=production MRJZ_MINIPROGRAM_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:?Set MRJZ_REMOTE_API_BASE_URL} taro build --type weapp --watch",
+    "dev:h5-local": "MRJZ_MINIPROGRAM_OUTPUT_ROOT=dist-h5 MRJZ_MINIPROGRAM_API_BASE_URL=http://127.0.0.1:3001/api taro build --type h5 --watch",
     "build": "taro build --type weapp",
     "build:local": "MRJZ_MINIPROGRAM_API_BASE_URL=http://127.0.0.1:3001/api taro build --type weapp",
+    "build:local-assets": "MRJZ_MINIPROGRAM_LOCAL_DOTA_ASSETS=1 MRJZ_MINIPROGRAM_API_BASE_URL=http://127.0.0.1:3001/api taro build --type weapp",
     "build:remote": "MRJZ_DEPLOY_ENV=production MRJZ_MINIPROGRAM_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:?Set MRJZ_REMOTE_API_BASE_URL} taro build --type weapp",
+    "build:h5-local": "MRJZ_MINIPROGRAM_OUTPUT_ROOT=dist-h5 MRJZ_MINIPROGRAM_API_BASE_URL=http://127.0.0.1:3001/api taro build --type h5",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add miniprogram lint\"",
     "test": "echo \"TODO: add miniprogram tests\""
@@ -30,6 +34,7 @@
     "@babel/preset-typescript": "^7.29.7",
     "@tarojs/cli": "^4.2.0",
     "@tarojs/plugin-framework-react": "^4.2.0",
+    "@tarojs/plugin-platform-h5": "^4.2.0",
     "@tarojs/plugin-platform-weapp": "^4.2.0",
     "@tarojs/webpack5-runner": "^4.2.0",
     "@types/react": "^18.3.18",

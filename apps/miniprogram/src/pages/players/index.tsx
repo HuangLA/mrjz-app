@@ -1,7 +1,8 @@
 import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
-import { ensureTournamentId, loadTournamentPlayers, loadTournaments, setSelectedTournamentId } from "../../api";
+import { ensureTournamentId, getSelectedTournamentId, loadTournamentPlayers, loadTournaments, setSelectedTournamentId } from "../../api";
+import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerDirectoryCard, TournamentScope } from "../../components";
 import type { PlayerListItem, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
@@ -32,6 +33,12 @@ const playerSortOptions: Array<{ key: PlayerSortKey; label: string; defaultDirec
   { key: "displayName", label: "名字", defaultDirection: "asc" },
 ];
 
+type PlayersCache = {
+  players: PlayerListItem[];
+  selectedTournamentId: string;
+  tournaments: TournamentOption[];
+};
+
 export default function PlayersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -46,23 +53,43 @@ export default function PlayersPage() {
   });
 
   async function refresh(nextTournamentId?: string) {
-    setLoading(true);
+    const cacheKey = pageCacheKey("players", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
+    const cached = readPageCache<PlayersCache>(cacheKey);
+
+    if (cached) {
+      setTournaments(cached.tournaments);
+      setSelectedId(cached.selectedTournamentId);
+      setPlayers(cached.players);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     setError("");
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId()) || allTournaments[0]?.id || "";
+      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
       const nextPlayers = targetId ? await loadTournamentPlayers(targetId) : [];
 
       if (targetId) {
         setSelectedTournamentId(targetId);
       }
 
-      setTournaments(allTournaments);
-      setSelectedId(targetId);
-      setPlayers(nextPlayers);
+      const snapshot = {
+        players: nextPlayers,
+        selectedTournamentId: targetId,
+        tournaments: allTournaments,
+      };
+
+      setTournaments(snapshot.tournaments);
+      setSelectedId(snapshot.selectedTournamentId);
+      setPlayers(snapshot.players);
+      writePageCache(pageCacheKey("players", targetId || "auto"), snapshot);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "选手读取失败");
+      if (!cached) {
+        setError(caught instanceof Error ? caught.message : "选手读取失败");
+      }
     } finally {
       setLoading(false);
     }

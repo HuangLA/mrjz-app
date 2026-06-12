@@ -204,6 +204,7 @@ type ApiStage = {
   status?: string;
   sortOrder?: number;
   advancementRule?: string;
+  config?: Record<string, unknown>;
   activeRound?: ApiRound | null;
 };
 
@@ -1229,7 +1230,19 @@ function normalizeOfficialStageKeys(payloads: Array<{ stage: ApiStage }>): Stage
 }
 
 function isOfficialScheduleStagePayload(payload: { stage: ApiStage }): boolean {
-  return payload.stage.name !== "真实比赛记录";
+  return isOfficialScheduleStage(payload.stage);
+}
+
+function isOfficialScheduleStage(stage: ApiStage): boolean {
+  const config = stage.config ?? {};
+  const hasExplicitScheduleFlag = Object.prototype.hasOwnProperty.call(config, "officialSchedule")
+    || Object.prototype.hasOwnProperty.call(config, "scheduleManagement");
+
+  if (hasExplicitScheduleFlag) {
+    return config.officialSchedule === true || config.scheduleManagement === true;
+  }
+
+  return stage.name !== "真实比赛记录" && toStageKey(stage.type) !== null;
 }
 
 function unpublishedStageViews(): Record<StageKey, StageView> {
@@ -1974,11 +1987,24 @@ function itemLabel(itemId: number | null | undefined): string {
 
 function itemIcon(itemId: number | null | undefined): IconRef {
   const internalName = itemId ? dotaConstants.itemIds[String(itemId)] : undefined;
+  const iconName = normalizeItemIconName(internalName);
 
   return {
     label: itemLabel(itemId),
-    imageUrl: internalName ? `${localDotaAssetBaseUrl}/items/${internalName}.png` : "",
+    imageUrl: iconName ? `${localDotaAssetBaseUrl}/items/${iconName}.png` : "",
   };
+}
+
+function normalizeItemIconName(internalName: string | undefined): string | undefined {
+  if (!internalName || internalName === "ability_base" || internalName === "claddish_spyglass") {
+    return undefined;
+  }
+
+  if (internalName.startsWith("recipe_")) {
+    return internalName.slice("recipe_".length);
+  }
+
+  return internalName;
 }
 
 function abilityLabel(abilityId: number | undefined): string {

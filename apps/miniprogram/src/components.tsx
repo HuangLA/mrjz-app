@@ -1,7 +1,8 @@
-import { Button, Image, Picker, Text, View } from "@tarojs/components";
+import { Button, Picker, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import type { ReactNode } from "react";
-import { heroIcon } from "./dota";
+import type { CSSProperties, ReactNode } from "react";
+import { dotaAssetUrl, heroIcon } from "./dota";
+import { SmartImage as Image } from "./SmartImage";
 import type { MatchRecord, PlayerListItem, SeriesSummary, TeamBrief, TeamListItem, TournamentOption } from "./types";
 import { formatDateTime, formatDecimal, formatInteger, formatPercent, formatScore, labelStatus, seriesTitle, teamName } from "./utils";
 
@@ -14,6 +15,7 @@ const routeNavItems: Array<{ key: MiniRouteKey; label: string; url: string }> = 
   { key: "records", label: "比赛记录", url: "/pages/records/index" },
   { key: "players", label: "选手", url: "/pages/players/index" },
   { key: "teams", label: "队伍", url: "/pages/teams/index" },
+  { key: "mine", label: "我的", url: "/pages/mine/index" },
 ];
 
 const heroRows: Record<"radiant" | "dire", string[]> = {
@@ -51,10 +53,21 @@ const heroRows: Record<"radiant" | "dire", string[]> = {
   ],
 };
 
+type MiniNavMetrics = {
+  top: number;
+  height: number;
+  sideInset: number;
+};
+
+const DEFAULT_MINI_NAV_METRICS: MiniNavMetrics = {
+  top: 30,
+  height: 30,
+  sideInset: 10,
+};
+
 export function PageShell(props: { children: ReactNode; loading?: boolean; error?: string; routeKey?: MiniRouteKey }) {
   const routeKey = props.routeKey ?? "stage";
   const isHome = routeKey === "home";
-  const showFloatingNav = !isHome && routeKey !== "mine";
 
   return (
     <View className={`app-shell ${isHome ? "route-home" : "route-secondary"}`}>
@@ -65,25 +78,40 @@ export function PageShell(props: { children: ReactNode; loading?: boolean; error
         {!props.loading && props.error ? <StatePanel title="暂时不可用" text={props.error} tone="danger" /> : null}
         {!props.loading && !props.error ? props.children : null}
       </View>
-      {showFloatingNav ? <FloatingRouteNav routeKey={routeKey} /> : null}
+      <FloatingRouteNav routeKey={routeKey} />
     </View>
   );
 }
 
 function AppBar(props: { isHome: boolean }) {
+  const navMetrics = getMiniNavMetrics();
+  const appBarStyle: CSSProperties = {
+    paddingTop: `${navMetrics.top}px`,
+    paddingLeft: `${navMetrics.sideInset}px`,
+    paddingRight: `${navMetrics.sideInset}px`,
+  };
+  const navRowStyle: CSSProperties = {
+    minHeight: `${navMetrics.height}px`,
+  };
+  const navControlStyle: CSSProperties = {
+    height: `${navMetrics.height}px`,
+    lineHeight: `${navMetrics.height}px`,
+  };
+  const navButtonStyle: CSSProperties = {
+    ...navControlStyle,
+    width: `${navMetrics.height}px`,
+  };
+
   return (
-    <View className={`app-bar ${props.isHome ? "home-bar" : ""}`}>
-      <View className="title-line top-only">
+    <View className={`app-bar ${props.isHome ? "home-bar" : ""}`} style={appBarStyle}>
+      <View className="title-line top-only" style={navRowStyle}>
         {props.isHome ? (
-          <Text className="brand-mark">MRJZ</Text>
+          <Text className="brand-mark" style={navControlStyle}>MRJZ</Text>
         ) : (
-          <Button className="icon-button" onClick={goBack}>
+          <Button className="icon-button" style={navButtonStyle} onClick={goBack}>
             ‹
           </Button>
         )}
-        <Button className="account-link" onClick={() => switchRoute("/pages/mine/index")}>
-          我的
-        </Button>
       </View>
     </View>
   );
@@ -124,7 +152,7 @@ function HomeHeroRail(props: { side: "radiant" | "dire" }) {
       <View className="home-hero-track">
         {heroes.map((hero, index) => (
           <View className="home-hero-card" key={`${props.side}-${hero}-${index}`}>
-            <Image className="home-hero-image" mode="aspectFill" src={`/assets/heroes/${hero}.png`} />
+            <Image className="home-hero-image" mode="aspectFill" src={dotaAssetUrl(`heroes/${hero}.png`)} />
           </View>
         ))}
       </View>
@@ -141,6 +169,38 @@ function goBack() {
   }
 
   void Taro.redirectTo({ url: "/pages/index/index" });
+}
+
+function getMiniNavMetrics(): MiniNavMetrics {
+  try {
+    const menuButton = Taro.getMenuButtonBoundingClientRect?.();
+    const systemInfo = Taro.getSystemInfoSync?.();
+    const sideInset =
+      systemInfo?.windowWidth && menuButton?.right
+        ? Math.round(Math.max(8, systemInfo.windowWidth - menuButton.right))
+        : DEFAULT_MINI_NAV_METRICS.sideInset;
+
+    if (menuButton && menuButton.top > 0 && menuButton.height > 0) {
+      return {
+        top: Math.round(menuButton.top),
+        height: Math.round(menuButton.height),
+        sideInset,
+      };
+    }
+
+    const statusBarHeight = systemInfo?.statusBarHeight;
+    if (typeof statusBarHeight === "number" && statusBarHeight > 0) {
+      return {
+        top: Math.round(statusBarHeight + 10),
+        height: DEFAULT_MINI_NAV_METRICS.height,
+        sideInset,
+      };
+    }
+  } catch {
+    // H5 preview and some non-WeChat runtimes do not expose capsule metrics.
+  }
+
+  return DEFAULT_MINI_NAV_METRICS;
 }
 
 function switchRoute(url: string) {
@@ -216,18 +276,37 @@ export function TournamentPicker(props: {
 export function TournamentScope(props: { tournament?: TournamentOption | null | undefined }) {
   const meta = props.tournament;
   const leagueId = meta?.league?.opendotaLeagueId ?? "-";
+  const startsAtText = formatTournamentStart(meta?.startsAt);
 
   return (
     <View className="tournament-scope">
       <View>
         <Text>{meta?.name ?? "选择赛事"}</Text>
-        <Text>League {leagueId} · {labelStatus(meta?.status)}</Text>
+        <Text>League {leagueId} · {labelStatus(meta?.status)}{startsAtText ? ` · ${startsAtText} 开赛` : ""}</Text>
       </View>
       <Button className="link-button" onClick={() => switchRoute("/pages/index/index")}>
         切换
       </Button>
     </View>
   );
+}
+
+function formatTournamentStart(value?: string | null): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  return `${month}/${day} ${hour}:${minute}`;
 }
 
 export function FilterRow<T extends string>(props: { labels: T[]; value?: T; onChange?: (value: T) => void }) {
@@ -358,7 +437,7 @@ export function MatchRecordCard(props: { record: MatchRecord; index?: number; on
       <Button className="record-main" onClick={() => props.onOpen(record.matchId)}>
         <View className="record-head">
           <Text>#{record.matchId}</Text>
-          <Text>{formatDateTime(record.startTime)}</Text>
+          <Text>{formatFullRecordDateTime(record.startTime)}</Text>
         </View>
         <View className="record-score">
           <Text>{record.radiantTeamName}</Text>
@@ -380,6 +459,25 @@ export function MatchRecordCard(props: { record: MatchRecord; index?: number; on
       </Button>
     </View>
   );
+}
+
+function formatFullRecordDateTime(value?: string | null): string {
+  if (!value) {
+    return "时间待定";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hour}:${minute}`;
 }
 
 function RecordHeroMatchup(props: { record: MatchRecord }) {
@@ -433,7 +531,7 @@ function RecordFlag(props: { label: string; active: boolean }) {
 export function PlayerDirectoryCard(props: { player: PlayerListItem; onOpen: (playerId: string) => void }) {
   const { player } = props;
   const team = player.currentTeam ?? player.teams[0] ?? null;
-  const rate = clampPercent((player.stats.winRate ?? 0) * 100);
+  const rate = clampPercent(player.stats.winRate ?? 0);
 
   return (
     <View className="player-stat-card">
@@ -453,7 +551,7 @@ export function PlayerDirectoryCard(props: { player: PlayerListItem; onOpen: (pl
           <View className="player-stat-primary">
             <Text>胜率 <Text>{formatPercent(player.stats.winRate)}</Text></Text>
             <View className="rate-bar"><View style={{ width: `${rate.toFixed(1)}%` }} /></View>
-            <Text>{formatDecimal(player.stats.kda)}</Text>
+            <Text>{formatDecimal(player.stats.kda, 2)}</Text>
             <Text>KDA</Text>
           </View>
         </View>
@@ -462,15 +560,27 @@ export function PlayerDirectoryCard(props: { player: PlayerListItem; onOpen: (pl
           <PlayerStatTile label="GPM" value={formatDecimal(player.stats.avgGpm, 0)} />
           <PlayerStatTile label="XPM" value={formatDecimal(player.stats.avgXpm, 0)} />
           <PlayerStatTile label="击/亡/助" value={`${formatDecimal(player.stats.avgKills)}/${formatDecimal(player.stats.avgDeaths)}/${formatDecimal(player.stats.avgAssists)}`} />
-          <PlayerStatTile label="场均经济" value={formatDecimal(player.stats.avgNetWorth, 0)} />
-          <PlayerStatTile label="英雄伤害" value={formatDecimal(player.stats.avgHeroDamage, 0)} />
-          <PlayerStatTile label="建筑伤害" value={formatDecimal(player.stats.avgTowerDamage, 0)} />
-          <PlayerStatTile label="承伤" value={formatDecimal(player.stats.avgDamageTaken, 0)} />
+          <PlayerStatTile label="场均经济" value={formatCompact(player.stats.avgNetWorth)} />
+          <PlayerStatTile label="英雄伤害" value={formatCompact(player.stats.avgHeroDamage)} />
+          <PlayerStatTile label="建筑伤害" value={formatCompact(player.stats.avgTowerDamage)} />
+          <PlayerStatTile label="承伤" value={formatCompact(player.stats.avgDamageTaken)} />
         </View>
         <PlayerHeroStrip heroes={player.stats.topHeroes} />
       </Button>
     </View>
   );
+}
+
+function formatCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  if (Math.abs(value) >= 1000) {
+    return `${(value / 1000).toFixed(1)}k`;
+  }
+
+  return String(Math.round(value));
 }
 
 export function TeamDirectoryCard(props: { team: TeamListItem; onOpen: (teamId: string) => void }) {
