@@ -387,7 +387,6 @@ function StandingRowItem(props: { row: StandingRow }) {
       <Text>{teamName(row.team)}</Text>
       <Text>{row.seriesWins}-{row.seriesDraws}-{row.seriesLosses}</Text>
       <Text>{row.points} 分</Text>
-      <Text className="status-tag blue">{row.status ?? "排名"}</Text>
     </View>
   );
 }

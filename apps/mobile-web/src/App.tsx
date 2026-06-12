@@ -2944,8 +2944,6 @@ function StandingRow({
     team: string;
     score: string;
     points: string;
-    streak: string;
-    status: string;
   };
 }) {
   return (
@@ -2954,9 +2952,6 @@ function StandingRow({
       <b>{row.team}</b>
       <span>{row.score}</span>
       <span>{row.points}</span>
-      <span className={`status-tag ${row.status === "晋级区" ? "green" : row.status === "淘汰区" ? "red" : "blue"}`}>
-        {row.streak}
-      </span>
     </div>
   );
 }

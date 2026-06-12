@@ -2766,7 +2766,7 @@ button[disabled] {
 
 .standing-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto auto auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
   gap: 6px;
   align-items: center;
   padding: 6px 0;

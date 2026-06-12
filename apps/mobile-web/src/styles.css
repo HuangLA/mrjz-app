@@ -969,7 +969,7 @@ button {
 
 .standing-row {
   display: grid;
-  grid-template-columns: 22px 1fr auto auto auto;
+  grid-template-columns: 22px 1fr auto auto;
   gap: 6px;
   align-items: center;
   padding: 6px 0;
@@ -4488,10 +4488,6 @@ button {
   }
 
   .standing-row {
-    grid-template-columns: 20px 1fr auto;
-  }
-
-  .standing-row span:nth-last-child(-n + 2) {
-    display: none;
+    grid-template-columns: 20px minmax(0, 1fr) auto auto;
   }
 }
