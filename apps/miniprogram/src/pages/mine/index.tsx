@@ -4,12 +4,14 @@ import { useState } from "react";
 import {
   bindDotaAccount,
   getApiBaseUrl,
+  getDevWechatUserId,
   getStoredAuthSession,
   loadMe,
   loadMyStats,
   loginWithWeChat,
   logout,
   setApiBaseUrl,
+  setDevWechatUserId,
 } from "../../api";
 import { PageShell, SectionTitle } from "../../components";
 import type { AppUserMe, AppUserStats, AuthSession } from "../../types";
@@ -21,6 +23,7 @@ export default function MinePage() {
   const [myStats, setMyStats] = useState<AppUserStats | null>(null);
   const [bindingInput, setBindingInput] = useState("");
   const [apiBase, setApiBase] = useState(getApiBaseUrl());
+  const [devUserId, setDevUserId] = useState(getDevWechatUserId());
   const [loading, setLoading] = useState(false);
   const [bindingSaving, setBindingSaving] = useState(false);
   const [error, setError] = useState("");
@@ -28,6 +31,7 @@ export default function MinePage() {
   useDidShow(() => {
     const stored = getStoredAuthSession();
     setSession(stored);
+    setDevUserId(getDevWechatUserId());
     if (stored) {
       void refreshMine();
     } else {
@@ -119,7 +123,9 @@ export default function MinePage() {
 
   function handleSaveApiBase() {
     setApiBaseUrl(apiBase);
-    showToast("API 地址已保存", "success");
+    setDevWechatUserId(devUserId);
+    setDevUserId(getDevWechatUserId());
+    showToast("开发设置已保存", "success");
   }
 
   const authProviderText = session?.authProvider === "wechat" ? "微信账号已登录" : session ? "开发登录" : "未登录";
@@ -220,6 +226,10 @@ export default function MinePage() {
       <SectionTitle kicker="开发" title="API 地址" />
       <View className="tag-editor">
         <Input className="api-input" value={apiBase} placeholder="http://127.0.0.1:3001/api" onInput={(event) => setApiBase(String(event.detail.value))} />
+        <Text className="state-text">
+          本地未配置微信密钥时，后端会用下面的开发用户 ID 签发登录态；留空则使用服务端默认值。
+        </Text>
+        <Input className="api-input" value={devUserId} placeholder="local / tester-a" onInput={(event) => setDevUserId(String(event.detail.value))} />
         <View className="action-row">
           <Button className="secondary-button" onClick={handleSaveApiBase}>
             保存地址

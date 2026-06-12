@@ -39,4 +39,6 @@ For remote preview or upload, set `MRJZ_REMOTE_API_BASE_URL` and use `dev:remote
 
 The mini program calls `POST /api/auth/wechat-login`. When `WECHAT_APP_ID` and `WECHAT_APP_SECRET` are configured, the API resolves the code through WeChat `code2Session`. Without those secrets, the API creates or reuses a local development user, which is enough to test tag submission and tag like/unlike against the SQLite backend.
 
+For local HTTP testing, run the API locally, use `dev:local`, and keep WeChat DevTools `urlCheck` disabled in `project.config.json`. In the My page, set the API base to `http://127.0.0.1:3001/api` for the simulator or to your computer LAN IP for device debugging. The same My page also has a development user ID field; changing it lets you simulate different logged-in users for like de-duplication and Steam binding tests without HTTPS.
+
 The returned token is an opaque MRJZ user session, not the user id. Authenticated requests use `Authorization: Bearer <token>`. The My page can bind a Dota `account_id` or SteamID64 through `POST /api/me/player-binding`; binding succeeds even when that account has no MRJZ match records yet, and `GET /api/me/stats` returns a stable empty state until future tournament data is synced.

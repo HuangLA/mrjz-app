@@ -193,7 +193,7 @@ sequenceDiagram
   MP->>API: Authorization: Bearer userToken
 ```
 
-小程序登录只代表平台普通用户，不要求该用户已经参赛。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET` 后才允许真实微信 code 登录；开发环境可使用本地开发用户兜底。
+小程序登录只代表平台普通用户，不要求该用户已经参赛。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET` 后才允许真实微信 code 登录；开发环境可使用本地开发用户兜底，并允许小程序“我的”页设置开发用户 ID 来模拟不同已登录用户。
 
 ### 4.2 Web Admin 登录
 

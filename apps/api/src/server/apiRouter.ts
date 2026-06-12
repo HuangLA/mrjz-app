@@ -1585,7 +1585,7 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
     throw new Error("WECHAT_APP_ID and WECHAT_APP_SECRET are required for WeChat login");
   }
 
-  const devUserId = optionalStringField(body, "devUserId") ?? process.env.MRJZ_DEV_WECHAT_USER_ID?.trim() ?? "local";
+  const devUserId = resolveDevelopmentWechatUserId(body);
 
   return {
     openId: `dev:${devUserId}`,
@@ -1602,6 +1602,16 @@ function isDevelopmentWechatLoginAllowed(): boolean {
   }
 
   return process.env.NODE_ENV !== "production";
+}
+
+function resolveDevelopmentWechatUserId(body: Record<string, unknown>): string {
+  const devUserId = optionalStringField(body, "devUserId") ?? process.env.MRJZ_DEV_WECHAT_USER_ID?.trim() ?? "local";
+
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(devUserId)) {
+    throw new Error("devUserId must be 1-64 characters and contain only letters, numbers, dot, underscore, or dash");
+  }
+
+  return devUserId;
 }
 
 function stringField(body: Record<string, unknown>, fieldName: string): string {

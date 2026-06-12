@@ -29,6 +29,7 @@ const API_BASE_STORAGE_KEY = "mrjz.apiBaseUrl";
 const AUTH_SESSION_STORAGE_KEY = "mrjz.authSession";
 const SELECTED_TOURNAMENT_STORAGE_KEY = "mrjz.selectedTournamentId";
 const LOCAL_LIKED_TAGS_STORAGE_KEY = "mrjz.localLikedTags";
+const DEV_WECHAT_USER_ID_STORAGE_KEY = "mrjz.devWechatUserId";
 
 type RequestMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -57,6 +58,21 @@ export function getStoredAuthSession(): AuthSession | null {
 
 export function clearStoredAuthSession(): void {
   Taro.removeStorageSync(AUTH_SESSION_STORAGE_KEY);
+}
+
+export function getDevWechatUserId(): string {
+  return Taro.getStorageSync<string>(DEV_WECHAT_USER_ID_STORAGE_KEY)?.trim() ?? "";
+}
+
+export function setDevWechatUserId(value: string): void {
+  const nextValue = value.trim();
+
+  if (nextValue.length === 0) {
+    Taro.removeStorageSync(DEV_WECHAT_USER_ID_STORAGE_KEY);
+    return;
+  }
+
+  Taro.setStorageSync(DEV_WECHAT_USER_ID_STORAGE_KEY, nextValue);
 }
 
 export function getSelectedTournamentId(): string {
@@ -88,12 +104,19 @@ export async function loginWithWeChat(): Promise<AuthSession> {
     throw new Error("微信登录凭证获取失败，请稍后重试");
   }
 
+  const devUserId = getDevWechatUserId();
+  const data: { code: string; nickname: string; devUserId?: string } = {
+    code: loginResult.code.trim(),
+    nickname: "微信用户",
+  };
+
+  if (devUserId.length > 0) {
+    data.devUserId = devUserId;
+  }
+
   const session = await request<AuthSession>("/auth/wechat-login", {
     method: "POST",
-    data: {
-      code: loginResult.code.trim(),
-      nickname: "微信用户",
-    },
+    data,
     withAuth: false,
   });
 
