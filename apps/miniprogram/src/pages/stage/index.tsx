@@ -259,20 +259,24 @@ export default function StagePage() {
 
 function BracketPreview(props: { nodes: BracketNode[] }) {
   const groups = groupBracketNodes(props.nodes);
+  const nodeLookup = new Map(props.nodes.map((node) => [node.id, node]));
 
   return (
     <ScrollView className="bracket-mini-board" scrollX>
       <View className="bracket-scroll-content">
         {groups.map((group) => (
           <View className="bracket-group-lane" key={group.key} style={{ width: `${bracketTrackWidth(group.columns.length)}px` }}>
-            <Text className="bracket-group-title">{group.label}</Text>
+            <View className="bracket-group-title">
+              <Text>{group.label}</Text>
+              <Text>{group.nodeCount} 场</Text>
+            </View>
             <View className="bracket-round-track">
               {group.columns.map((column) => (
                 <View className="bracket-column" key={column.key}>
                   <Text className="bracket-round-title">{column.roundName}</Text>
                   <View className="bracket-column-body">
                     {column.nodes.map((node) => (
-                      <BracketNodeCard key={node.id} node={node} />
+                      <BracketNodeCard key={node.id} node={node} nodeLookup={nodeLookup} />
                     ))}
                   </View>
                 </View>
@@ -285,10 +289,13 @@ function BracketPreview(props: { nodes: BracketNode[] }) {
   );
 }
 
-function BracketNodeCard(props: { node: BracketNode }) {
+function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, BracketNode> }) {
   const { node } = props;
-  const radiantWinner = isSameTeam(node.radiantTeam, node.winnerTeam);
-  const direWinner = isSameTeam(node.direTeam, node.winnerTeam);
+  const radiantWinner = Boolean(node.winnerTeamId && node.radiantTeam?.id === node.winnerTeamId);
+  const direWinner = Boolean(node.winnerTeamId && node.direTeam?.id === node.winnerTeamId);
+  const winnerName = radiantWinner ? teamName(node.radiantTeam) : direWinner ? teamName(node.direTeam) : "";
+  const winnerTarget = formatBracketTarget(props.nodeLookup, node.nextNodeId ?? null, node.nextSlot ?? null, "冠军");
+  const loserTarget = node.loserNextNodeId ? formatBracketTarget(props.nodeLookup, node.loserNextNodeId, node.loserNextSlot ?? null, "淘汰") : "淘汰";
 
   return (
     <View className={`bracket-node ${node.status === "completed" ? "is-completed" : ""}`}>
@@ -304,12 +311,16 @@ function BracketNodeCard(props: { node: BracketNode }) {
         <Text>下</Text>
         <Text>{teamName(node.direTeam)}</Text>
       </View>
-      <Text className="bracket-node-footer">{node.winnerTeam ? `胜者 ${teamName(node.winnerTeam)}` : "胜者待定"}</Text>
+      <Text className="bracket-node-footer">{winnerName ? `胜者 ${winnerName}` : "胜者待定"}</Text>
+      <View className="bracket-flow-row">
+        <Text>胜者 -&gt; {winnerTarget}</Text>
+        <Text>负者 -&gt; {loserTarget}</Text>
+      </View>
     </View>
   );
 }
 
-function groupBracketNodes(nodes: BracketNode[]): Array<{ key: string; label: string; columns: Array<{ key: string; roundName: string; nodes: BracketNode[] }> }> {
+function groupBracketNodes(nodes: BracketNode[]): Array<{ key: string; label: string; nodeCount: number; columns: Array<{ key: string; roundName: string; nodes: BracketNode[] }> }> {
   const groups = new Map<string, Map<string, BracketNode[]>>();
 
   for (const node of nodes) {
@@ -326,6 +337,7 @@ function groupBracketNodes(nodes: BracketNode[]): Array<{ key: string; label: st
     .map(([key, rounds]) => ({
       key,
       label: bracketGroupLabel(key),
+      nodeCount: [...rounds.values()].reduce((total, roundNodes) => total + roundNodes.length, 0),
       columns: [...rounds.entries()]
         .map(([roundKey, roundNodes]) => ({
           key: roundKey,
@@ -357,6 +369,13 @@ function bracketTrackWidth(columnCount: number): number {
   return Math.max(1, columnCount) * 150 + Math.max(0, columnCount - 1) * 14;
 }
 
+function formatBracketTarget(nodes: Map<string, BracketNode>, nodeId: string | null, slot: "radiant" | "dire" | null, fallback: string): string {
+  if (!nodeId) return fallback;
+  const node = nodes.get(nodeId);
+  const slotLabel = slot === "radiant" ? "上位" : slot === "dire" ? "下位" : "待定槽";
+  return node ? `${bracketGroupLabel(node.bracketGroup)} #${node.position} ${slotLabel}` : `下一节点 ${slotLabel}`;
+}
+
 function groupStandingRows(rows: StandingRow[]): Array<{ key: string; label: string; rows: StandingRow[] }> {
   const groups = new Map<string, { key: string; label: string; rows: StandingRow[] }>();
 
@@ -372,10 +391,6 @@ function groupStandingRows(rows: StandingRow[]): Array<{ key: string; label: str
     ...group,
     rows: [...group.rows].sort((left, right) => left.rank - right.rank),
   }));
-}
-
-function isSameTeam(left: BracketNode["radiantTeam"], right: BracketNode["winnerTeam"]): boolean {
-  return Boolean(left && right && left.id === right.id);
 }
 
 function StandingRowItem(props: { row: StandingRow }) {

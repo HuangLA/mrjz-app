@@ -1031,15 +1031,17 @@ function StagePage({
 }
 
 function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
-  const grouped = new Map<string, Map<string, { roundNumber: number; roundName: string; nodes: StageView["bracket"] }>>();
+  const grouped = new Map<string, { label: string; rounds: Map<string, { roundNumber: number; roundName: string; nodes: StageView["bracket"] }> }>();
+  const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
   const linkedNodeIds = new Set<string>();
 
   for (const node of nodes) {
     const roundKey = `${node.bracketGroup}:${node.roundNumber}:${node.roundName}`;
-    const group = grouped.get(node.groupName) ?? new Map<string, { roundNumber: number; roundName: string; nodes: StageView["bracket"] }>();
-    const round = group.get(roundKey) ?? { roundNumber: node.roundNumber, roundName: node.roundName, nodes: [] };
-    group.set(roundKey, { ...round, nodes: [...round.nodes, node] });
-    grouped.set(node.groupName, group);
+    const groupKey = node.bracketGroup || "single";
+    const group = grouped.get(groupKey) ?? { label: node.groupName, rounds: new Map<string, { roundNumber: number; roundName: string; nodes: StageView["bracket"] }>() };
+    const round = group.rounds.get(roundKey) ?? { roundNumber: node.roundNumber, roundName: node.roundName, nodes: [] };
+    group.rounds.set(roundKey, { ...round, nodes: [...round.nodes, node] });
+    grouped.set(groupKey, group);
 
     if (node.nextNodeId) linkedNodeIds.add(node.nextNodeId);
     if (node.loserNextNodeId) linkedNodeIds.add(node.loserNextNodeId);
@@ -1047,8 +1049,8 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
 
   return (
     <div className="bracket-mini-board">
-      {[...grouped.entries()].sort(([groupNameA], [groupNameB]) => bracketGroupSortValue(groupNameA) - bracketGroupSortValue(groupNameB)).map(([groupName, rounds]) => {
-        const columns = [...rounds.entries()]
+      {[...grouped.entries()].sort(([groupA], [groupB]) => bracketGroupSortValue(groupA) - bracketGroupSortValue(groupB) || groupA.localeCompare(groupB)).map(([groupKey, group]) => {
+        const columns = [...group.rounds.entries()]
           .sort(([, roundA], [, roundB]) => roundA.roundNumber - roundB.roundNumber || roundA.roundName.localeCompare(roundB.roundName))
           .map(([roundKey, round]) => ({
             key: roundKey,
@@ -1067,26 +1069,29 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
         }));
         const nodeLayouts = new Map(columnLayouts.flatMap((column) => column.nodes.map((layout) => [layout.node.id, layout])));
         const connectors = columnLayouts.flatMap((column) => column.nodes.flatMap((source) => {
-          const targets = [source.node.nextNodeId, source.node.loserNextNodeId].filter((id): id is string => id !== null);
+          const targets = [
+            { id: source.node.nextNodeId, kind: "winner" },
+            { id: source.node.loserNextNodeId, kind: "loser" },
+          ].filter((target): target is { id: string; kind: "winner" | "loser" } => target.id !== null);
           return targets
-            .map((targetId) => {
-              const target = nodeLayouts.get(targetId);
-              return target && target.columnIndex > source.columnIndex
-                ? { id: `${source.node.id}:${targetId}`, path: bracketConnectorPath(source, target) }
+            .map((target) => {
+              const targetLayout = nodeLayouts.get(target.id);
+              return targetLayout && targetLayout.columnIndex > source.columnIndex
+                ? { id: `${source.node.id}:${target.id}:${target.kind}`, kind: target.kind, path: bracketConnectorPath(source, targetLayout) }
                 : null;
             })
-            .filter((connector): connector is { id: string; path: string } => connector !== null);
+            .filter((connector): connector is { id: string; kind: "winner" | "loser"; path: string } => connector !== null);
         }));
         const trackWidth = bracketTrackWidth(columns.length);
         const trackHeight = bracketTrackHeight(rowCount);
 
         return (
-        <div className="bracket-group-lane" key={groupName}>
-          <strong className="bracket-group-title">{groupName}</strong>
+        <div className={`bracket-group-lane is-${groupKey}`} key={groupKey}>
+          <strong className="bracket-group-title">{group.label}</strong>
           <div className="bracket-round-track">
             {connectors.length > 0 ? (
               <svg className="bracket-connector-layer" width={trackWidth} height={trackHeight} viewBox={`0 0 ${trackWidth} ${trackHeight}`} aria-hidden="true">
-                {connectors.map((connector) => <path key={connector.id} className="bracket-connector-path" d={connector.path} />)}
+                {connectors.map((connector) => <path key={connector.id} className={`bracket-connector-path is-${connector.kind}`} d={connector.path} />)}
               </svg>
             ) : null}
             {columnLayouts.map((column, columnIndex) => (
@@ -1098,6 +1103,8 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
                     const bottomWinner = node.winnerTeamId !== null && node.winnerTeamId === node.bottomTeamId;
                     const hasOutgoing = Boolean(node.nextNodeId || node.loserNextNodeId);
                     const hasIncoming = columnIndex > 0 || linkedNodeIds.has(node.id);
+                    const winnerTarget = formatBracketTarget(nodeLookup, node.nextNodeId, node.nextSlot, "冠军");
+                    const loserTarget = node.loserNextNodeId ? formatBracketTarget(nodeLookup, node.loserNextNodeId, node.loserNextSlot, "淘汰") : "淘汰";
                     const nodeClass = [
                       "bracket-node",
                       node.status === "已完赛" ? "is-completed" : node.status === "待开赛" ? "is-ready" : "is-pending",
@@ -1122,6 +1129,10 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
                           {bottomWinner ? <em>胜</em> : null}
                         </div>
                         <small className="bracket-node-footer">{node.winner === "待定" ? "胜者待定" : `胜者 ${node.winner}`}</small>
+                        <div className="bracket-flow-row">
+                          <span>胜者 -&gt; {winnerTarget}</span>
+                          <span>负者 -&gt; {loserTarget}</span>
+                        </div>
                       </article>
                     );
                   })}
@@ -1137,17 +1148,18 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
 }
 
 function bracketGroupSortValue(groupName: string): number {
-  if (groupName.includes("胜者")) return 1;
-  if (groupName.includes("败者")) return 2;
-  if (groupName.includes("总决赛")) return 3;
-  return 0;
+  if (groupName === "single") return 0;
+  if (groupName === "winner") return 1;
+  if (groupName === "loser") return 2;
+  if (groupName === "grand_final") return 3;
+  return 4;
 }
 
 const BRACKET_COLUMN_WIDTH = 188;
 const BRACKET_COLUMN_GAP = 34;
 const BRACKET_ROUND_TITLE_HEIGHT = 18;
 const BRACKET_ROUND_GAP = 9;
-const BRACKET_ROW_HEIGHT = 128;
+const BRACKET_ROW_HEIGHT = 150;
 const BRACKET_ROW_GAP = 10;
 
 function bracketTrackWidth(columnCount: number): number {
@@ -1175,6 +1187,18 @@ function bracketNodeCenterY(gridRowStart: number, rowSpan: number): number {
   const rowTop = (gridRowStart - 1) * (BRACKET_ROW_HEIGHT + BRACKET_ROW_GAP);
   const spanHeight = rowSpan * BRACKET_ROW_HEIGHT + Math.max(0, rowSpan - 1) * BRACKET_ROW_GAP;
   return BRACKET_ROUND_TITLE_HEIGHT + BRACKET_ROUND_GAP + rowTop + spanHeight / 2;
+}
+
+function formatBracketTarget(
+  nodes: Map<string, StageView["bracket"][number]>,
+  nodeId: string | null,
+  slot: "radiant" | "dire" | null,
+  fallback: string,
+): string {
+  if (!nodeId) return fallback;
+  const node = nodes.get(nodeId);
+  const slotLabel = slot === "radiant" ? "上位" : slot === "dire" ? "下位" : "待定槽";
+  return node ? `${node.groupName} #${node.position} ${slotLabel}` : `下一节点 ${slotLabel}`;
 }
 
 function SchedulePage({

@@ -5934,17 +5934,30 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
           onPickTeam={pickUnplacedTeam}
           actionLabel={firstManualOpenSlotActionLabel}
         />
-        <div className="bracket-board">
+        <div className={grouped.length > 1 ? "bracket-board is-grouped" : "bracket-board"}>
           {grouped.length === 0 ? <EmptyPanel title="还没有淘汰赛对阵图" text="回到预赛主画布，从排名区拖入晋级队伍并生成对阵图。" /> : null}
-          {grouped.map((column) => {
-            const completeCount = column.nodes.filter((node) => node.winnerTeamId !== null).length;
+          {grouped.map((group) => {
+            const completeCount = group.nodes.filter((node) => node.winnerTeamId !== null).length;
             return (
-              <section key={column.key} className="bracket-column">
-                <div className="bracket-column-head">
-                  <strong>{column.roundName}</strong>
-                  <small>{completeCount}/{column.nodes.length} 完成</small>
+              <section key={group.key} className={`bracket-group-section is-${group.bracketGroup}`}>
+                <div className="bracket-group-section-head">
+                  <strong>{bracketGroupLaneLabel(group.bracketGroup)}</strong>
+                  <small>{group.columns.length} 轮 · {completeCount}/{group.nodes.length} 完成</small>
                 </div>
-                {column.nodes.map((node) => <BracketNodeCard key={node.id} nodeLookup={nodeLookup} node={node} incomingSlotKeys={slotSummary.incomingSlotKeys} focusNodeId={firstReadyNodeTargetId} focusSlotId={focusedSlotTargetId} setBracketSlot={props.setBracketSlot} advanceBracketNode={props.advanceBracketNode} retractBracketNode={props.retractBracketNode} />)}
+                <div className="bracket-group-columns">
+                  {group.columns.map((column) => {
+                    const columnCompleteCount = column.nodes.filter((node) => node.winnerTeamId !== null).length;
+                    return (
+                      <section key={column.key} className="bracket-column">
+                        <div className="bracket-column-head">
+                          <strong>{column.roundName}</strong>
+                          <small>{columnCompleteCount}/{column.nodes.length} 完成</small>
+                        </div>
+                        {column.nodes.map((node) => <BracketNodeCard key={node.id} nodeLookup={nodeLookup} node={node} incomingSlotKeys={slotSummary.incomingSlotKeys} focusNodeId={firstReadyNodeTargetId} focusSlotId={focusedSlotTargetId} setBracketSlot={props.setBracketSlot} advanceBracketNode={props.advanceBracketNode} retractBracketNode={props.retractBracketNode} />)}
+                      </section>
+                    );
+                  })}
+                </div>
               </section>
             );
           })}
@@ -7915,14 +7928,38 @@ function seriesPairKey(series: SeriesSummary): string {
 }
 
 function groupBracketNodes(nodes: BracketNode[]) {
-  const map = new Map<string, { key: string; roundName: string; nodes: BracketNode[] }>();
+  const groups = new Map<string, Map<string, { key: string; roundName: string; roundNumber: number; nodes: BracketNode[] }>>();
+
   for (const node of nodes) {
     const key = `${node.bracketGroup}:${node.roundNumber}:${node.roundName}`;
-    const item = map.get(key) ?? { key, roundName: groupLabel(node.bracketGroup, node.roundName), nodes: [] };
-    item.nodes.push(node);
-    map.set(key, item);
+    const group = groups.get(node.bracketGroup) ?? new Map<string, { key: string; roundName: string; roundNumber: number; nodes: BracketNode[] }>();
+    const item = group.get(key) ?? { key, roundName: node.roundName, roundNumber: node.roundNumber, nodes: [] };
+    group.set(key, { ...item, nodes: [...item.nodes, node] });
+    groups.set(node.bracketGroup, group);
   }
-  return [...map.values()].map((item) => ({ ...item, nodes: [...item.nodes].sort((left, right) => left.position - right.position) }));
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => bracketGroupSortValue(left) - bracketGroupSortValue(right) || left.localeCompare(right))
+    .map(([bracketGroup, rounds]) => {
+      const columns = [...rounds.values()]
+        .sort((left, right) => left.roundNumber - right.roundNumber || left.roundName.localeCompare(right.roundName))
+        .map((round) => ({ ...round, nodes: [...round.nodes].sort((left, right) => left.position - right.position) }));
+
+      return {
+        key: bracketGroup,
+        bracketGroup,
+        columns,
+        nodes: columns.flatMap((column) => column.nodes),
+      };
+    });
+}
+
+function bracketGroupSortValue(group: string): number {
+  if (group === "single") return 0;
+  if (group === "winner") return 1;
+  if (group === "loser") return 2;
+  if (group === "grand_final") return 3;
+  return 4;
 }
 
 function bracketSlotKey(nodeId: string, slot: BracketSlotName): string {
@@ -7969,6 +8006,14 @@ function groupLabel(group: string, roundName: string): string {
   if (group === "loser") return `败者组 · ${roundName}`;
   if (group === "grand_final") return `总决赛 · ${roundName}`;
   return roundName;
+}
+
+function bracketGroupLaneLabel(group: string): string {
+  if (group === "winner") return "胜者组";
+  if (group === "loser") return "败者组";
+  if (group === "grand_final") return "总决赛";
+  if (group === "single") return "淘汰赛";
+  return group;
 }
 
 function formatBracketTarget(nodes: Map<string, BracketNode>, nodeId: string | null, slot: BracketSlotName | null): string {

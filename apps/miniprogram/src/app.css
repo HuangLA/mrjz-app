@@ -3955,13 +3955,24 @@ button[disabled] {
 .bracket-group-title {
   width: auto;
   max-width: 150px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
   padding: 3px 7px;
   border: 1px solid rgba(240, 195, 106, 0.24);
   border-radius: 999px;
   background: rgba(240, 195, 106, 0.1);
+  font-weight: 850;
+}
+
+.bracket-group-title text:first-child {
   color: #f5d891;
   font-size: 9px;
-  font-weight: 850;
+}
+
+.bracket-group-title text:last-child {
+  color: #9ca8b8;
+  font-size: 8px;
 }
 
 .bracket-round-track {
@@ -3991,7 +4002,7 @@ button[disabled] {
 }
 
 .bracket-node {
-  min-height: 98px;
+  min-height: 124px;
   padding: 7px;
 }
 
@@ -4012,6 +4023,22 @@ button[disabled] {
 
 .bracket-team.is-winner text:last-child {
   color: #d9ffd5;
+}
+
+.bracket-flow-row {
+  display: grid;
+  gap: 3px;
+  padding-top: 1px;
+}
+
+.bracket-flow-row text {
+  overflow: hidden;
+  color: #9ca8b8;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .record-card.match-record-card {

@@ -210,7 +210,9 @@ export interface BracketPreviewNode {
   winner: string;
   status: string;
   nextNodeId: string | null;
+  nextSlot: "radiant" | "dire" | null;
   loserNextNodeId: string | null;
+  loserNextSlot: "radiant" | "dire" | null;
 }
 
 export interface StageView {

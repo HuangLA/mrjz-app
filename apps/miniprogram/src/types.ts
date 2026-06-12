@@ -109,7 +109,11 @@ export type BracketNode = {
   status: string;
   radiantTeam: TeamBrief | null;
   direTeam: TeamBrief | null;
-  winnerTeam: TeamBrief | null;
+  nextNodeId?: string | null;
+  nextSlot?: "radiant" | "dire" | null;
+  loserNextNodeId?: string | null;
+  loserNextSlot?: "radiant" | "dire" | null;
+  winnerTeamId?: string | null;
 };
 
 export type TournamentOption = {

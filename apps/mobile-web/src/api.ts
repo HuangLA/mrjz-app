@@ -1351,7 +1351,9 @@ function normalizeBracketNode(node: ApiBracketNode): BracketPreviewNode {
     winner,
     status: node.winnerTeamId ? "已完赛" : node.status === "scheduled" ? "待开赛" : "待定",
     nextNodeId: node.nextNodeId ?? null,
+    nextSlot: node.nextSlot ?? null,
     loserNextNodeId: node.loserNextNodeId ?? null,
+    loserNextSlot: node.loserNextSlot ?? null,
   };
 }
 

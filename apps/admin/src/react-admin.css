@@ -8049,6 +8049,55 @@ label {
   padding-bottom: 4px;
 }
 
+.bracket-board.is-grouped {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.bracket-group-section {
+  min-width: max-content;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e1e8f1;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.bracket-group-section.is-loser {
+  background: #fffdf9;
+}
+
+.bracket-group-section.is-grand_final {
+  background: #fbfbff;
+}
+
+.bracket-group-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bracket-group-section-head strong {
+  color: #26364d;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.bracket-group-section-head small {
+  color: #748094;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.bracket-group-columns {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
 .bracket-column {
   min-width: 220px;
   display: grid;
