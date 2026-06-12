@@ -1,5 +1,5 @@
 import { Button, Input, Text, View } from "@tarojs/components";
-import { useDidShow } from "@tarojs/taro";
+import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import {
   bindDotaAccount,
@@ -64,8 +64,15 @@ export default function MinePage() {
   }
 
   async function handleLogin() {
-    setLoading(true);
     setError("");
+
+    const confirmed = await confirmWechatLogin();
+
+    if (!confirmed) {
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const nextSession = await loginWithWeChat();
@@ -78,6 +85,18 @@ export default function MinePage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function confirmWechatLogin(): Promise<boolean> {
+    const result = await Taro.showModal({
+      title: "微信登录说明",
+      content: "MRJZ 会通过微信登录凭证识别你的账号，并生成站内登录态，用于提交标签、点赞和绑定 Dota/Steam 账号。不会获取头像、昵称或手机号。",
+      confirmText: "继续登录",
+      cancelText: "取消",
+      confirmColor: "#d8ad55",
+    });
+
+    return result.confirm === true;
   }
 
   async function handleLogout() {
