@@ -8109,6 +8109,7 @@ label {
 
 .bracket-unified-column {
   min-width: 0;
+  z-index: 1;
 }
 
 .bracket-unified-column.is-loser {
@@ -8121,19 +8122,16 @@ label {
   background: #fbfbff;
 }
 
-.bracket-final-connector-svg {
+.bracket-final-connector-overlay {
   position: absolute;
-  right: 100%;
   top: 0;
-  bottom: 0;
-  height: 100%;
+  left: 0;
   overflow: visible;
   pointer-events: none;
   z-index: 0;
 }
 
-.bracket-final-connector-path,
-.bracket-final-connector-spine {
+.bracket-final-connector-path {
   fill: none;
   stroke: rgba(177, 125, 35, .58);
   stroke-linecap: round;
@@ -8145,11 +8143,6 @@ label {
 .bracket-final-connector-path.is-loser {
   stroke: rgba(218, 105, 71, .56);
   stroke-dasharray: 5 5;
-}
-
-.bracket-final-connector-spine {
-  stroke: rgba(112, 123, 140, .42);
-  stroke-width: 1.5;
 }
 
 .bracket-unified-extra {

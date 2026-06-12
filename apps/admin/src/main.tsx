@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   DndContext,
@@ -5857,6 +5857,8 @@ function KnockoutEntryDesk(props: {
 
 function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]; bracket: BracketNode[]; setBracketSlot: (nodeId: string, slot: BracketSlotName, teamId: string | null) => Promise<void>; advanceBracketNode: (nodeId: string, winnerTeamId: string) => Promise<void>; retractBracketNode: (nodeId: string, description?: string) => Promise<void> }) {
   const [teamFilter, setTeamFilter] = useState("");
+  const [finalConnectorOverlay, setFinalConnectorOverlay] = useState<FinalConnectorOverlay | null>(null);
+  const unifiedMapRef = useRef<HTMLDivElement | null>(null);
   const normalizedTeamFilter = teamFilter.trim().toLowerCase();
   const grouped = groupBracketNodes(props.bracket);
   const isUnifiedDoubleElimination = grouped.some((group) => group.bracketGroup === "winner" || group.bracketGroup === "loser" || group.bracketGroup === "grand_final");
@@ -5932,13 +5934,6 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
 
     return (
       <section key={column.key} className={`bracket-column bracket-unified-column is-${column.bracketGroup}`} style={style}>
-        {column.bracketGroup === "grand_final" && column.finalLinkDepth && column.winnerFinalPath && column.loserFinalPath && column.finalSpinePath ? (
-          <svg className="bracket-final-connector-svg" width={column.finalLinkDepth} height="100%" viewBox={`0 0 ${column.finalLinkDepth} 100`} preserveAspectRatio="none" aria-hidden="true">
-            <path className="bracket-final-connector-path is-winner" d={column.winnerFinalPath} />
-            <path className="bracket-final-connector-path is-loser" d={column.loserFinalPath} />
-            <path className="bracket-final-connector-spine" d={column.finalSpinePath} />
-          </svg>
-        ) : null}
         <div className="bracket-column-head">
           <strong>{column.roundName}</strong>
           <small>{bracketGroupLaneLabel(column.bracketGroup)} · {columnCompleteCount}/{column.nodes.length}</small>
@@ -5955,6 +5950,32 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
     window.addEventListener(BRACKET_NEXT_FOCUS_EVENT, handleBracketFocusRequest);
     return () => window.removeEventListener(BRACKET_NEXT_FOCUS_EVENT, handleBracketFocusRequest);
   }, [nextAction.targetId]);
+
+  useEffect(() => {
+    if (!unifiedLayout) {
+      setFinalConnectorOverlay(null);
+      return;
+    }
+
+    let frame = 0;
+    const updateOverlay = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        setFinalConnectorOverlay(measureFinalConnectorOverlay(unifiedMapRef.current, props.bracket));
+      });
+    };
+
+    updateOverlay();
+    window.addEventListener("resize", updateOverlay);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateOverlay);
+    if (unifiedMapRef.current) observer?.observe(unifiedMapRef.current);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updateOverlay);
+      observer?.disconnect();
+    };
+  }, [props.bracket, Boolean(unifiedLayout)]);
 
   return (
     <div id="bracket-workbench" tabIndex={-1} className="canvas-section bracket-workbench">
@@ -5990,7 +6011,12 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
         <div className={isUnifiedDoubleElimination ? "bracket-board is-unified" : grouped.length > 1 ? "bracket-board is-grouped" : "bracket-board"}>
           {grouped.length === 0 ? <EmptyPanel title="还没有淘汰赛对阵图" text="回到预赛主画布，从排名区拖入晋级队伍并生成对阵图。" /> : null}
           {unifiedLayout ? (
-            <div className="bracket-unified-map is-combined" style={{ "--bracket-column-count": unifiedLayout.columnCount } as React.CSSProperties & Record<"--bracket-column-count", number>}>
+            <div ref={unifiedMapRef} className="bracket-unified-map is-combined" style={{ "--bracket-column-count": unifiedLayout.columnCount } as React.CSSProperties & Record<"--bracket-column-count", number>}>
+              {finalConnectorOverlay ? (
+                <svg className="bracket-final-connector-overlay" width={finalConnectorOverlay.width} height={finalConnectorOverlay.height} viewBox={`0 0 ${finalConnectorOverlay.width} ${finalConnectorOverlay.height}`} aria-hidden="true">
+                  {finalConnectorOverlay.paths.map((path) => <path key={path.id} className={`bracket-final-connector-path is-${path.kind}`} d={path.d} />)}
+                </svg>
+              ) : null}
               <span className="bracket-unified-lane-label is-winner">胜者组</span>
               <span className="bracket-unified-lane-label is-loser">败者组</span>
               {unifiedLayout.columns.map((column) => renderUnifiedColumn(column))}
@@ -6057,7 +6083,7 @@ function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, Bra
   ].filter(Boolean).join(" ");
 
   return (
-    <article id={nodeId} tabIndex={-1} className={nodeClass}>
+    <article id={nodeId} tabIndex={-1} className={nodeClass} data-bracket-node-id={props.node.id}>
       <div className="bracket-node-head">
         <span>#{props.node.position}</span>
         <StatusPill tone={nodeStatusTone}>{nodeStatusLabel}</StatusPill>
@@ -7997,12 +8023,12 @@ type UnifiedBracketColumn = {
   roundName: string;
   displayColumn: number;
   nodes: BracketNode[];
-  winnerFinalLinkWidth?: number;
-  loserFinalLinkWidth?: number;
-  finalLinkDepth?: number;
-  winnerFinalPath?: string;
-  loserFinalPath?: string;
-  finalSpinePath?: string;
+};
+
+type FinalConnectorOverlay = {
+  width: number;
+  height: number;
+  paths: Array<{ id: string; kind: "winner" | "loser"; d: string }>;
 };
 
 function buildUnifiedBracketLayout(groups: BracketGroupLayout[], nodes: BracketNode[]) {
@@ -8034,36 +8060,63 @@ function buildUnifiedBracketLayout(groups: BracketGroupLayout[], nodes: BracketN
   const winnerFinalColumn = Math.max(...winnerColumns.map((column) => column.displayColumn));
   const loserFinalColumn = Math.max(...loserColumns.map((column) => column.displayColumn));
   const grandFinalDisplayColumn = Math.max(winnerFinalColumn, loserFinalColumn) + 1;
-  const columnWidth = 220;
-  const columnGap = 12;
-  const linkWidth = (sourceColumn: number) => Math.max(columnGap, (grandFinalDisplayColumn - sourceColumn) * (columnWidth + columnGap) - columnWidth);
-  const winnerFinalLinkWidth = linkWidth(winnerFinalColumn);
-  const loserFinalLinkWidth = linkWidth(loserFinalColumn);
-  const finalLinkDepth = Math.max(winnerFinalLinkWidth, loserFinalLinkWidth);
-  const finalConnectorPath = (width: number, startY: number, endY: number) => {
-    const startX = finalLinkDepth - width;
-    const curveStartX = Math.max(startX + 20, finalLinkDepth - 36);
-    const curveControlX = Math.max(curveStartX, finalLinkDepth - 18);
-
-    return `M ${startX} ${startY} H ${curveStartX} C ${curveControlX} ${startY} ${curveControlX} ${endY} ${finalLinkDepth} ${endY}`;
-  };
   const grandFinalColumns = grandFinalGroup.columns.map((column, index) => ({
     key: column.key,
     bracketGroup: grandFinalGroup.bracketGroup,
     roundName: column.roundName,
     displayColumn: grandFinalDisplayColumn + index,
     nodes: column.nodes,
-    winnerFinalLinkWidth,
-    loserFinalLinkWidth,
-    finalLinkDepth,
-    winnerFinalPath: finalConnectorPath(winnerFinalLinkWidth, 26, 42),
-    loserFinalPath: finalConnectorPath(loserFinalLinkWidth, 74, 58),
-    finalSpinePath: `M ${finalLinkDepth} 42 V 58`,
   }));
   const columns = [...winnerColumns, ...loserColumns, ...grandFinalColumns].sort((left, right) => left.displayColumn - right.displayColumn || bracketGroupSortValue(left.bracketGroup) - bracketGroupSortValue(right.bracketGroup) || left.roundName.localeCompare(right.roundName));
   const columnCount = Math.max(...columns.map((column) => column.displayColumn)) + 1;
 
   return { columns, columnCount };
+}
+
+function measureFinalConnectorOverlay(container: HTMLElement | null, nodes: BracketNode[]): FinalConnectorOverlay | null {
+  if (!container) {
+    return null;
+  }
+
+  const grandFinalNode = nodes.find((node) => node.bracketGroup === "grand_final") ?? null;
+  if (!grandFinalNode) {
+    return null;
+  }
+
+  const targetElement = container.querySelector<HTMLElement>(bracketNodeDataSelector(grandFinalNode.id));
+  if (!targetElement) {
+    return null;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const targetRect = targetElement.getBoundingClientRect();
+  const targetX = targetRect.left - containerRect.left;
+  const targetY = targetRect.top - containerRect.top + targetRect.height / 2;
+  const paths = nodes
+    .filter((node) => node.nextNodeId === grandFinalNode.id && (node.bracketGroup === "winner" || node.bracketGroup === "loser"))
+    .sort((left, right) => bracketGroupSortValue(left.bracketGroup) - bracketGroupSortValue(right.bracketGroup))
+    .map((node) => {
+      const sourceElement = container.querySelector<HTMLElement>(bracketNodeDataSelector(node.id));
+      if (!sourceElement) {
+        return null;
+      }
+
+      const sourceRect = sourceElement.getBoundingClientRect();
+      const sourceX = sourceRect.right - containerRect.left;
+      const sourceY = sourceRect.top - containerRect.top + sourceRect.height / 2;
+      const distance = Math.max(1, targetX - sourceX);
+      const midX = sourceX + Math.max(24, distance * 0.62);
+      const d = `M ${sourceX} ${sourceY} H ${midX} C ${midX + 18} ${sourceY} ${midX + 18} ${targetY} ${targetX} ${targetY}`;
+
+      return { id: node.id, kind: node.bracketGroup as "winner" | "loser", d };
+    })
+    .filter((path): path is { id: string; kind: "winner" | "loser"; d: string } => path !== null);
+
+  return paths.length > 0 ? { width: container.scrollWidth, height: container.scrollHeight, paths } : null;
+}
+
+function bracketNodeDataSelector(nodeId: string): string {
+  return `[data-bracket-node-id="${nodeId.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"]`;
 }
 
 function bracketGroupSortValue(group: string): number {

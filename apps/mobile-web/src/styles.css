@@ -1094,19 +1094,16 @@ button {
   align-self: center;
 }
 
-.bracket-final-connector-svg {
+.bracket-final-connector-overlay {
   position: absolute;
-  right: 100%;
   top: 0;
-  bottom: 0;
-  height: 100%;
+  left: 0;
   overflow: visible;
   pointer-events: none;
   z-index: 0;
 }
 
-.bracket-final-connector-path,
-.bracket-final-connector-spine {
+.bracket-final-connector-path {
   fill: none;
   stroke: rgba(240, 195, 106, .58);
   stroke-linecap: round;
@@ -1118,11 +1115,6 @@ button {
 .bracket-final-connector-path.is-loser {
   stroke: rgba(244, 136, 93, .54);
   stroke-dasharray: 5 5;
-}
-
-.bracket-final-connector-spine {
-  stroke: rgba(156, 168, 184, .38);
-  stroke-width: 1.25;
 }
 
 .bracket-unified-extra {

@@ -1031,6 +1031,8 @@ function StagePage({
 }
 
 function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
+  const [finalConnectorOverlay, setFinalConnectorOverlay] = useState<StageFinalConnectorOverlay | null>(null);
+  const unifiedMapRef = useRef<HTMLDivElement | null>(null);
   const grouped = new Map<string, { label: string; rounds: Map<string, { roundNumber: number; roundName: string; nodes: StageView["bracket"] }> }>();
   const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
   const linkedNodeIds = new Set<string>();
@@ -1157,13 +1159,6 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
 
     return (
       <div className={`bracket-column bracket-unified-column is-${column.groupKey}`} key={column.key} style={style}>
-        {column.groupKey === "grand_final" && column.finalLinkDepth && column.winnerFinalPath && column.loserFinalPath && column.finalSpinePath ? (
-          <svg className="bracket-final-connector-svg" width={column.finalLinkDepth} height="100%" viewBox={`0 0 ${column.finalLinkDepth} 100`} preserveAspectRatio="none" aria-hidden="true">
-            <path className="bracket-final-connector-path is-winner" d={column.winnerFinalPath} />
-            <path className="bracket-final-connector-path is-loser" d={column.loserFinalPath} />
-            <path className="bracket-final-connector-spine" d={column.finalSpinePath} />
-          </svg>
-        ) : null}
         <strong>{column.roundName}</strong>
         <div className="bracket-column-body" style={columnBodyStyle}>
           {column.nodes.map((node, nodeIndex) => {
@@ -1181,7 +1176,7 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
             ].filter(Boolean).join(" ");
 
             return (
-              <article className={nodeClass} key={node.id} style={{ gridRow: `${nodeIndex * rowSpan + 1} / span ${rowSpan}` }}>
+              <article className={nodeClass} key={node.id} data-bracket-node-id={node.id} style={{ gridRow: `${nodeIndex * rowSpan + 1} / span ${rowSpan}` }}>
                 <div className="bracket-node-topline">
                   <span className="bracket-node-kicker">#{node.position}</span>
                   <span className="bracket-node-state">{node.status}</span>
@@ -1209,10 +1204,41 @@ function StageBracketPreview({ nodes }: { nodes: StageView["bracket"] }) {
     );
   };
 
+  useEffect(() => {
+    if (!unifiedLayout) {
+      setFinalConnectorOverlay(null);
+      return;
+    }
+
+    let frame = 0;
+    const updateOverlay = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        setFinalConnectorOverlay(measureStageFinalConnectorOverlay(unifiedMapRef.current, nodes));
+      });
+    };
+
+    updateOverlay();
+    window.addEventListener("resize", updateOverlay);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateOverlay);
+    if (unifiedMapRef.current) observer?.observe(unifiedMapRef.current);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updateOverlay);
+      observer?.disconnect();
+    };
+  }, [nodes, Boolean(unifiedLayout)]);
+
   return (
     <div className={`bracket-mini-board ${unifiedLayout ? "is-unified" : ""}`}>
       {unifiedLayout ? (
-        <div className="bracket-unified-map is-combined" style={{ "--bracket-column-count": unifiedLayout.columnCount } as CSSProperties & Record<"--bracket-column-count", number>}>
+        <div ref={unifiedMapRef} className="bracket-unified-map is-combined" style={{ "--bracket-column-count": unifiedLayout.columnCount } as CSSProperties & Record<"--bracket-column-count", number>}>
+          {finalConnectorOverlay ? (
+            <svg className="bracket-final-connector-overlay" width={finalConnectorOverlay.width} height={finalConnectorOverlay.height} viewBox={`0 0 ${finalConnectorOverlay.width} ${finalConnectorOverlay.height}`} aria-hidden="true">
+              {finalConnectorOverlay.paths.map((path) => <path key={path.id} className={`bracket-final-connector-path is-${path.kind}`} d={path.d} />)}
+            </svg>
+          ) : null}
           <span className="bracket-unified-lane-label is-winner">胜者组</span>
           <span className="bracket-unified-lane-label is-loser">败者组</span>
           {unifiedLayout.columns.map((column) => renderUnifiedColumn(column))}
@@ -1236,12 +1262,12 @@ type UnifiedStageBracketColumn = {
   displayColumn: number;
   rowCount: number;
   nodes: StageView["bracket"];
-  winnerFinalLinkWidth?: number;
-  loserFinalLinkWidth?: number;
-  finalLinkDepth?: number;
-  winnerFinalPath?: string;
-  loserFinalPath?: string;
-  finalSpinePath?: string;
+};
+
+type StageFinalConnectorOverlay = {
+  width: number;
+  height: number;
+  paths: Array<{ id: string; kind: "winner" | "loser"; d: string }>;
 };
 
 function buildUnifiedStageBracketLayout(groups: StageBracketGroupLayout[], nodes: StageView["bracket"]) {
@@ -1283,34 +1309,63 @@ function buildUnifiedStageBracketLayout(groups: StageBracketGroupLayout[], nodes
   const winnerFinalColumn = Math.max(...winnerColumns.map((column) => column.displayColumn));
   const loserFinalColumn = Math.max(...loserColumns.map((column) => column.displayColumn));
   const grandFinalDisplayColumn = Math.max(winnerFinalColumn, loserFinalColumn) + 1;
-  const linkWidth = (sourceColumn: number) => Math.max(BRACKET_COLUMN_GAP, (grandFinalDisplayColumn - sourceColumn) * (BRACKET_COLUMN_WIDTH + BRACKET_COLUMN_GAP) - BRACKET_COLUMN_WIDTH);
-  const winnerFinalLinkWidth = linkWidth(winnerFinalColumn);
-  const loserFinalLinkWidth = linkWidth(loserFinalColumn);
-  const finalLinkDepth = Math.max(winnerFinalLinkWidth, loserFinalLinkWidth);
-  const finalConnectorPath = (width: number, startY: number, endY: number) => {
-    const startX = finalLinkDepth - width;
-    const curveStartX = Math.max(startX + 20, finalLinkDepth - 36);
-    const curveControlX = Math.max(curveStartX, finalLinkDepth - 18);
-
-    return `M ${startX} ${startY} H ${curveStartX} C ${curveControlX} ${startY} ${curveControlX} ${endY} ${finalLinkDepth} ${endY}`;
-  };
   const grandFinalColumns = grandFinalColumnsRaw.map((column, index) => ({
     ...column,
     groupKey: "grand_final",
     displayColumn: grandFinalDisplayColumn + index,
     rowCount: 1,
-    winnerFinalLinkWidth,
-    loserFinalLinkWidth,
-    finalLinkDepth,
-    winnerFinalPath: finalConnectorPath(winnerFinalLinkWidth, 26, 42),
-    loserFinalPath: finalConnectorPath(loserFinalLinkWidth, 74, 58),
-    finalSpinePath: `M ${finalLinkDepth} 42 V 58`,
   }));
   const columns: UnifiedStageBracketColumn[] = [...winnerColumns, ...loserColumns, ...grandFinalColumns]
     .sort((left, right) => left.displayColumn - right.displayColumn || bracketGroupSortValue(left.groupKey) - bracketGroupSortValue(right.groupKey) || left.roundName.localeCompare(right.roundName));
   const columnCount = Math.max(...columns.map((column) => column.displayColumn)) + 1;
 
   return { columns, columnCount };
+}
+
+function measureStageFinalConnectorOverlay(container: HTMLElement | null, nodes: StageView["bracket"]): StageFinalConnectorOverlay | null {
+  if (!container) {
+    return null;
+  }
+
+  const grandFinalNode = nodes.find((node) => node.bracketGroup === "grand_final") ?? null;
+  if (!grandFinalNode) {
+    return null;
+  }
+
+  const targetElement = container.querySelector<HTMLElement>(bracketNodeDataSelector(grandFinalNode.id));
+  if (!targetElement) {
+    return null;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const targetRect = targetElement.getBoundingClientRect();
+  const targetX = targetRect.left - containerRect.left;
+  const targetY = targetRect.top - containerRect.top + targetRect.height / 2;
+  const paths = nodes
+    .filter((node) => node.nextNodeId === grandFinalNode.id && (node.bracketGroup === "winner" || node.bracketGroup === "loser"))
+    .sort((left, right) => bracketGroupSortValue(left.bracketGroup) - bracketGroupSortValue(right.bracketGroup))
+    .map((node) => {
+      const sourceElement = container.querySelector<HTMLElement>(bracketNodeDataSelector(node.id));
+      if (!sourceElement) {
+        return null;
+      }
+
+      const sourceRect = sourceElement.getBoundingClientRect();
+      const sourceX = sourceRect.right - containerRect.left;
+      const sourceY = sourceRect.top - containerRect.top + sourceRect.height / 2;
+      const distance = Math.max(1, targetX - sourceX);
+      const midX = sourceX + Math.max(24, distance * 0.62);
+      const d = `M ${sourceX} ${sourceY} H ${midX} C ${midX + 18} ${sourceY} ${midX + 18} ${targetY} ${targetX} ${targetY}`;
+
+      return { id: node.id, kind: node.bracketGroup as "winner" | "loser", d };
+    })
+    .filter((path): path is { id: string; kind: "winner" | "loser"; d: string } => path !== null);
+
+  return paths.length > 0 ? { width: container.scrollWidth, height: container.scrollHeight, paths } : null;
+}
+
+function bracketNodeDataSelector(nodeId: string): string {
+  return `[data-bracket-node-id="${nodeId.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"]`;
 }
 
 function bracketGroupSortValue(groupName: string): number {

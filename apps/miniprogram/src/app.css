@@ -4001,70 +4001,18 @@ button[disabled] {
   align-self: center;
 }
 
-.bracket-final-link-layer {
+.bracket-source-final-line {
   position: absolute;
-  top: 0;
-  right: 100%;
-  bottom: 0;
+  left: 100%;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: rgba(240, 195, 106, 0.58);
   pointer-events: none;
 }
 
-.bracket-final-path {
-  position: absolute;
-  right: 0;
-  height: 22px;
-}
-
-.bracket-final-path.is-winner {
-  top: 28%;
-}
-
-.bracket-final-path.is-loser {
-  top: 58%;
-}
-
-.bracket-final-path-horizontal {
-  position: absolute;
-  right: 18px;
-  left: 0;
-  top: 0;
-  height: 1px;
-  background: rgba(240, 195, 106, 0.58);
-}
-
-.bracket-final-path-bend {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 18px;
-  height: 14px;
-  border-top: 1px solid rgba(240, 195, 106, 0.58);
-  border-right: 1px solid rgba(240, 195, 106, 0.58);
-  border-top-right-radius: 9px;
-}
-
-.bracket-final-path.is-loser .bracket-final-path-horizontal {
-  top: auto;
-  bottom: 0;
+.bracket-source-final-line.is-loser {
   background: rgba(244, 136, 93, 0.56);
-}
-
-.bracket-final-path.is-loser .bracket-final-path-bend {
-  top: auto;
-  bottom: 0;
-  border-top: 0;
-  border-bottom: 1px solid rgba(244, 136, 93, 0.56);
-  border-right-color: rgba(244, 136, 93, 0.56);
-  border-radius: 0 0 9px 0;
-}
-
-.bracket-final-spine {
-  position: absolute;
-  top: 42%;
-  right: 0;
-  width: 1px;
-  height: 16%;
-  background: rgba(156, 168, 184, 0.34);
 }
 
 .bracket-group-lane {
@@ -4117,12 +4065,15 @@ button[disabled] {
 }
 
 .bracket-column-body {
+  position: relative;
   display: grid;
   align-content: start;
   gap: 8px;
 }
 
 .bracket-node {
+  position: relative;
+  z-index: 1;
   min-height: 124px;
   padding: 7px;
 }
