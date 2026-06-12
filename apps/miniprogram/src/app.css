@@ -2748,6 +2748,22 @@ button[disabled] {
   gap: 4px;
 }
 
+.standing-tabs {
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  margin-bottom: 8px;
+}
+
+.standing-tabs button {
+  min-height: 32px;
+  gap: 1px;
+}
+
+.standing-tab-count {
+  color: inherit;
+  font-size: 8px;
+  opacity: 0.72;
+}
+
 .standing-row {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) auto auto auto;

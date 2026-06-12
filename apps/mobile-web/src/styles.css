@@ -949,6 +949,24 @@ button {
   gap: 4px;
 }
 
+.standing-tabs {
+  margin: 0 0 8px;
+}
+
+.standing-tabs button {
+  min-width: 68px;
+  display: inline-grid;
+  gap: 2px;
+  place-items: center;
+}
+
+.standing-tabs small {
+  color: currentColor;
+  font-size: 9px;
+  font-weight: 700;
+  opacity: .72;
+}
+
 .standing-row {
   display: grid;
   grid-template-columns: 22px 1fr auto auto auto;

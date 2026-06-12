@@ -188,6 +188,7 @@ export interface TournamentMeta {
 export interface StandingRow {
   rank: number;
   team: string;
+  groupName: string | null;
   score: string;
   points: string;
   streak: string;

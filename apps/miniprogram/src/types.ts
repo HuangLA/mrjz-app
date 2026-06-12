@@ -90,6 +90,7 @@ export type StandingRow = {
   teamId: string;
   team: TeamBrief;
   rank: number;
+  groupName?: string | null;
   points: number;
   seriesWins: number;
   seriesDraws: number;

@@ -8657,6 +8657,54 @@ label {
   color: #8a5a16;
 }
 
+.ranking-group-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 9px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ranking-group-tabs button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  min-width: 76px;
+  display: grid;
+  gap: 1px;
+  place-items: center;
+  border: 1px solid #d9e4ef;
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: #f7f9fc;
+  color: #627086;
+  cursor: pointer;
+}
+
+.ranking-group-tabs button.is-active {
+  border-color: #b6d8c2;
+  background: #edf8f0;
+  color: #1f6c45;
+}
+
+.ranking-group-tabs span,
+.ranking-group-tabs strong {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-group-tabs span {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.ranking-group-tabs strong {
+  font-size: 10px;
+  font-weight: 850;
+  opacity: .72;
+}
+
 .ranking-empty-note {
   min-width: 0;
   display: grid;

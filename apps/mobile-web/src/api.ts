@@ -271,6 +271,7 @@ type ApiOfficialScheduleStatus = {
 type ApiStanding = {
   rank?: number;
   team?: ApiTeam;
+  groupName?: string | null;
   seriesWins?: number;
   seriesDraws?: number;
   seriesLosses?: number;
@@ -1316,6 +1317,7 @@ function normalizeStanding(row: ApiStanding): StandingRow {
   return {
     rank: row.rank ?? 0,
     team: row.team?.name ?? "待定队伍",
+    groupName: typeof row.groupName === "string" && row.groupName.trim().length > 0 ? row.groupName.trim() : null,
     score: draws > 0 ? `${wins}-${draws}-${losses}` : `${wins}-${losses}`,
     points: `${row.points ?? 0} 分`,
     streak: `${row.gameWins ?? 0}-${row.gameLosses ?? 0}`,

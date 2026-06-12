@@ -16,6 +16,8 @@ import { PageShell, SeriesCard, TournamentScope } from "../../components";
 import type { BracketNode, StageRound, StandingRow, TournamentDetail, TournamentOption } from "../../types";
 import { isOfficialScheduleStage, labelStageType, labelStatus, teamName } from "../../utils";
 
+const ungroupedStandingKey = "__all__";
+
 type StageCache = {
   bracket: BracketNode[];
   detail: TournamentDetail | null;
@@ -37,6 +39,7 @@ export default function StagePage() {
   const [rounds, setRounds] = useState<StageRound[]>([]);
   const [standings, setStandings] = useState<StandingRow[]>([]);
   const [bracket, setBracket] = useState<BracketNode[]>([]);
+  const [activeStandingGroupKey, setActiveStandingGroupKey] = useState("");
 
   useDidShow(() => {
     void refresh();
@@ -47,6 +50,15 @@ export default function StagePage() {
       void refreshStage(selectedStageId);
     }
   }, [selectedStageId]);
+
+  useEffect(() => {
+    const groups = groupStandingRows(standings);
+    const nextKey = groups.find((group) => group.key === activeStandingGroupKey)?.key ?? groups[0]?.key ?? "";
+
+    if (activeStandingGroupKey !== nextKey) {
+      setActiveStandingGroupKey(nextKey);
+    }
+  }, [activeStandingGroupKey, standings]);
 
   async function refresh(nextTournamentId?: string) {
     const cacheKey = pageCacheKey("stage", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
@@ -149,6 +161,8 @@ export default function StagePage() {
 
   const officialStages = detail?.stages?.filter(isOfficialScheduleStage) ?? [];
   const selectedStage = officialStages.find((stage) => stage.id === selectedStageId) ?? null;
+  const standingGroups = groupStandingRows(standings);
+  const activeStandingGroup = standingGroups.find((group) => group.key === activeStandingGroupKey) ?? standingGroups[0] ?? null;
 
   return (
     <PageShell loading={loading} error={error} routeKey="stage">
@@ -189,9 +203,23 @@ export default function StagePage() {
                   <Text className="section-heading">积分榜</Text>
                 </View>
               </View>
+              {standingGroups.length > 1 ? (
+                <View className="standing-tabs segmented">
+                  {standingGroups.map((group) => (
+                    <Button
+                      key={group.key}
+                      className={group.key === activeStandingGroup?.key ? "active" : ""}
+                      onClick={() => setActiveStandingGroupKey(group.key)}
+                    >
+                      <Text>{group.label}</Text>
+                      <Text className="standing-tab-count">{group.rows.length} 队</Text>
+                    </Button>
+                  ))}
+                </View>
+              ) : null}
               <View className="standing-list">
-                {standings.length > 0 ? standings.map((row) => (
-                  <StandingRowItem key={`${row.teamId}-${row.rank}`} row={row} />
+                {activeStandingGroup && activeStandingGroup.rows.length > 0 ? activeStandingGroup.rows.map((row) => (
+                  <StandingRowItem key={`${row.groupName ?? "all"}-${row.teamId}-${row.rank}`} row={row} />
                 )) : <View className="content-panel"><Text className="muted">暂无</Text></View>}
               </View>
             </View>
@@ -327,6 +355,23 @@ function bracketGroupSortValue(group: string): number {
 
 function bracketTrackWidth(columnCount: number): number {
   return Math.max(1, columnCount) * 150 + Math.max(0, columnCount - 1) * 14;
+}
+
+function groupStandingRows(rows: StandingRow[]): Array<{ key: string; label: string; rows: StandingRow[] }> {
+  const groups = new Map<string, { key: string; label: string; rows: StandingRow[] }>();
+
+  for (const row of rows) {
+    const groupName = row.groupName?.trim() || "";
+    const key = groupName || ungroupedStandingKey;
+    const group = groups.get(key) ?? { key, label: groupName || "总榜", rows: [] };
+    group.rows.push(row);
+    groups.set(key, group);
+  }
+
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    rows: [...group.rows].sort((left, right) => left.rank - right.rank),
+  }));
 }
 
 function isSameTeam(left: BracketNode["radiantTeam"], right: BracketNode["winnerTeam"]): boolean {

@@ -111,6 +111,8 @@ type EntrantSeedRole = { badge: string; detail: string; tone: "winner" | "play" 
 type ManualSeriesCreateOverrides = Partial<Pick<StageFormState, "manualRadiantTeamId" | "manualDireTeamId" | "manualRoundId" | "manualRoundName" | "manualGroupId" | "manualSeriesKind" | "manualScheduledAt">>;
 type CreateManualSeriesHandler = (overrides?: ManualSeriesCreateOverrides) => Promise<void>;
 
+const ungroupedStandingKey = "__all__";
+
 interface AdminData {
   loading: boolean;
   source: "api" | "unavailable";
@@ -1161,12 +1163,21 @@ function App() {
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : "";
     setActiveDrag({ type: "none" });
-    if (activeId.startsWith("rank:") && overId.startsWith("rank:")) {
-      const activeTeamId = activeId.slice("rank:".length);
-      const overTeamId = overId.slice("rank:".length);
-      const orderedIds = data.standings.map(standingTeamId).filter(Boolean);
+    const activeRank = parseRankSortableId(activeId);
+    const overRank = parseRankSortableId(overId);
+
+    if (activeRank && overRank) {
+      if (activeRank.groupKey !== overRank.groupKey) return;
+
+      const orderedIds = data.standings
+        .filter((row) => standingGroupKey(row) === activeRank.groupKey)
+        .map(standingTeamId)
+        .filter(Boolean);
+      const activeTeamId = activeRank.teamId;
+      const overTeamId = overRank.teamId;
       const activeIndex = orderedIds.indexOf(activeTeamId);
       const overIndex = orderedIds.indexOf(overTeamId);
+
       if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
         void updateManualRanks(arrayMove(orderedIds, activeIndex, overIndex));
       }
@@ -6117,16 +6128,19 @@ function KnockoutResultPanel({ nodes, seriesCount }: { nodes: BracketNode[]; ser
 }
 
 function StandingsTable({ rows, seriesCount, emptyStep, resetManualRanks }: { rows: StandingRow[]; seriesCount: number; emptyStep?: StageNextStep; resetManualRanks: () => Promise<void> }) {
+  const standingGroups = useMemo(() => groupStandingRows(rows), [rows]);
+  const [activeGroupKey, setActiveGroupKey] = useState("");
+  const activeGroup = standingGroups.find((group) => group.key === activeGroupKey) ?? standingGroups[0] ?? null;
+  const visibleRows = activeGroup?.rows ?? [];
   const hasSeries = seriesCount > 0;
-  const hasManualRank = rows.some((row) => row.manualRank !== null && row.manualRank !== undefined);
-  const manualRankCount = rows.filter((row) => row.manualRank !== null && row.manualRank !== undefined).length;
-  const recordCounts = rows.reduce((counts, row) => {
+  const hasManualRank = visibleRows.some((row) => row.manualRank !== null && row.manualRank !== undefined);
+  const recordCounts = visibleRows.reduce((counts, row) => {
     const key = `${row.groupName ?? ""}:${row.points}:${row.seriesWins}:${row.seriesDraws}:${row.seriesLosses}:${row.gameWins}:${row.gameLosses}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
     return counts;
   }, new Map<string, number>());
   const tiedRecordGroupCount = hasSeries ? Array.from(recordCounts.values()).filter((count) => count > 1).length : 0;
-  const rankingTitle = rows.length === 0
+  const rankingTitle = visibleRows.length === 0
     ? "暂无排名"
     : !hasSeries
       ? "排赛后再处理排名"
@@ -6135,14 +6149,25 @@ function StandingsTable({ rows, seriesCount, emptyStep, resetManualRanks }: { ro
       : tiedRecordGroupCount > 0
         ? "存在同战绩，可拖动排序"
         : "自动排序中";
-  const rankingHint = rows.length === 0
+  const rankingHint = visibleRows.length === 0
     ? "录入赛果后，后端会生成积分和排名。"
     : !hasSeries
       ? "当前只有名单或分组，还没有对阵赛果；先完成排赛，排名会在赛果录入后用于晋级。"
     : hasManualRank
       ? "绿色名次为管理员手动覆盖；需要回到积分规则时恢复自动排序。"
-      : "拖动左侧手柄即可手动覆盖名次，适合同分加赛后的最终排序。";
-  const commandTone: Tone = rows.length === 0 || !hasSeries ? "neutral" : hasManualRank ? "warn" : tiedRecordGroupCount > 0 ? "info" : "good";
+      : standingGroups.length > 1
+        ? "当前 tab 只展示本小组排名，拖动左侧手柄会保存本小组手动排序。"
+        : "拖动左侧手柄即可手动覆盖名次，适合同分加赛后的最终排序。";
+  const commandTone: Tone = visibleRows.length === 0 || !hasSeries ? "neutral" : hasManualRank ? "warn" : tiedRecordGroupCount > 0 ? "info" : "good";
+
+  useEffect(() => {
+    const nextKey = activeGroup?.key ?? "";
+
+    if (activeGroupKey !== nextKey) {
+      setActiveGroupKey(nextKey);
+    }
+  }, [activeGroup?.key, activeGroupKey]);
+
   return (
     <section className="data-panel">
       <div className="panel-kicker ranking-kicker"><span><Trophy size={15} /> 积分 / 排名</span></div>
@@ -6152,13 +6177,13 @@ function StandingsTable({ rows, seriesCount, emptyStep, resetManualRanks }: { ro
           <div><strong>{rankingTitle}</strong><small>{rankingHint}</small></div>
         </div>
         <div className="ranking-command-metrics" aria-label="排名状态">
-          <div><span>队伍</span><strong>{rows.length}</strong></div>
+          <div><span>队伍</span><strong>{visibleRows.length}</strong></div>
           <div><span>对阵</span><strong>{seriesCount}</strong></div>
           <div><span>同战绩</span><strong>{tiedRecordGroupCount}</strong></div>
         </div>
-        {hasSeries && rows.length > 0 ? <button type="button" onClick={() => void resetManualRanks()} disabled={!hasManualRank}><RotateCcw size={14} /> 恢复自动排序</button> : null}
+        {hasSeries && visibleRows.length > 0 ? <button type="button" onClick={() => void resetManualRanks()} disabled={!hasManualRank}><RotateCcw size={14} /> 恢复自动排序</button> : null}
       </div>
-      {rows.length === 0 ? (
+      {visibleRows.length === 0 ? (
         <div className="ranking-empty-note">
           <CalendarClock size={15} />
           <div><strong>当前阶段暂无排名</strong><span>创建并录入赛果后，后端会生成积分和排名。</span></div>
@@ -6167,24 +6192,42 @@ function StandingsTable({ rows, seriesCount, emptyStep, resetManualRanks }: { ro
       ) : !hasSeries ? (
         <div className="ranking-empty-note">
           <CalendarClock size={15} />
-          <div><strong>先完成排赛</strong><span>{rows.length} 支队伍已进入排名池；创建并录入赛果后，这里会变成可拖动排序的积分榜。</span></div>
+          <div><strong>先完成排赛</strong><span>{visibleRows.length} 支队伍已进入排名池；创建并录入赛果后，这里会变成可拖动排序的积分榜。</span></div>
           {emptyStep ? <button type="button" onClick={() => focusElementById(emptyStep.targetId)}><ArrowRight size={14} /> {emptyStep.actionLabel}</button> : null}
         </div>
       ) : (
-        <table className="standings-table">
-          <thead><tr><th>拖动</th><th>#</th><th>队伍</th><th>赛果</th><th>小分</th><th>积分</th></tr></thead>
-          <SortableContext items={rows.map((row) => `rank:${standingTeamId(row) || row.rank}`)} strategy={verticalListSortingStrategy}>
-            <tbody>{rows.map((row) => <SortableStandingRow key={standingTeamId(row) || row.rank} row={row} />)}</tbody>
-          </SortableContext>
-        </table>
+        <>
+          {standingGroups.length > 1 ? (
+            <div className="ranking-group-tabs" role="tablist" aria-label="积分榜小组切换">
+              {standingGroups.map((group) => (
+                <button
+                  role="tab"
+                  aria-selected={group.key === activeGroup?.key}
+                  className={group.key === activeGroup?.key ? "is-active" : ""}
+                  type="button"
+                  key={group.key}
+                  onClick={() => setActiveGroupKey(group.key)}
+                >
+                  <span>{group.label}</span>
+                  <strong>{group.rows.length} 队</strong>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <table className="standings-table">
+            <thead><tr><th>拖动</th><th>#</th><th>队伍</th><th>赛果</th><th>小分</th><th>积分</th></tr></thead>
+            <SortableContext items={visibleRows.map(rankSortableId)} strategy={verticalListSortingStrategy}>
+              <tbody>{visibleRows.map((row) => <SortableStandingRow key={rankSortableId(row)} row={row} />)}</tbody>
+            </SortableContext>
+          </table>
+        </>
       )}
     </section>
   );
 }
 
 function SortableStandingRow({ row }: { row: StandingRow }) {
-  const id = standingTeamId(row) || `row-${row.rank}`;
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `rank:${id}` });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: rankSortableId(row) });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -7352,6 +7395,52 @@ function filterPlannedGroupAssignments(assignments: Record<string, number>, team
 
 function standingTeamId(row: StandingRow): string {
   return row.team?.id ?? row.teamId ?? "";
+}
+
+function standingGroupKey(row: StandingRow): string {
+  return row.groupName?.trim() || ungroupedStandingKey;
+}
+
+function standingGroupLabel(key: string): string {
+  return key === ungroupedStandingKey ? "总榜" : key;
+}
+
+function groupStandingRows(rows: StandingRow[]): Array<{ key: string; label: string; rows: StandingRow[] }> {
+  const groups = new Map<string, { key: string; label: string; rows: StandingRow[] }>();
+
+  for (const row of rows) {
+    const key = standingGroupKey(row);
+    const group = groups.get(key) ?? { key, label: standingGroupLabel(key), rows: [] };
+    group.rows.push(row);
+    groups.set(key, group);
+  }
+
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    rows: [...group.rows].sort((left, right) => left.rank - right.rank),
+  }));
+}
+
+function rankSortableId(row: StandingRow): string {
+  const teamId = standingTeamId(row) || `row-${row.rank}`;
+  return `rank:${encodeURIComponent(standingGroupKey(row))}:${encodeURIComponent(teamId)}`;
+}
+
+function parseRankSortableId(value: string): { groupKey: string; teamId: string } | null {
+  const parts = value.split(":");
+
+  if (parts.length !== 3 || parts[0] !== "rank") {
+    return null;
+  }
+
+  try {
+    return {
+      groupKey: decodeURIComponent(parts[1]!),
+      teamId: decodeURIComponent(parts[2]!),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function moveRosterDraftTeam(target: RosterDropTarget, teamId: string, setRosterIds: React.Dispatch<React.SetStateAction<string[]>>, setSeededIds: React.Dispatch<React.SetStateAction<string[]>>) {

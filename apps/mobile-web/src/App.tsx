@@ -95,6 +95,7 @@ const playerSortKeySet = new Set<PlayerSortKey>(playerSortOptions.map((option) =
 
 const defaultApiBaseUrl = "http://127.0.0.1:3001/api";
 const emptyIcon: IconRef = { label: "-", imageUrl: "" };
+const ungroupedStandingKey = "__all__";
 const homeHeroRailCardWidth = 148;
 const homeHeroRailGap = 8;
 const homeHeroPortraitRows: Record<TeamSide, string[]> = {
@@ -866,12 +867,24 @@ function StagePage({
   const activeStageKey = availableStageOptions.some((option) => option.key === stage)
     ? stage
     : availableStageOptions[0]?.key ?? "group";
+  const currentStage = data.stageViews[activeStageKey];
+  const standingGroups = useMemo(() => groupStandingRows(currentStage.standings), [currentStage.standings]);
+  const [activeStandingGroupKey, setActiveStandingGroupKey] = useState("");
+  const activeStandingGroup = standingGroups.find((group) => group.key === activeStandingGroupKey) ?? standingGroups[0] ?? null;
 
   useEffect(() => {
     if (data.officialSchedule.isPublished && activeStageKey !== stage) {
       onStageChange(activeStageKey);
     }
   }, [activeStageKey, data.officialSchedule.isPublished, onStageChange, stage]);
+
+  useEffect(() => {
+    const nextKey = activeStandingGroup?.key ?? "";
+
+    if (activeStandingGroupKey !== nextKey) {
+      setActiveStandingGroupKey(nextKey);
+    }
+  }, [activeStandingGroup?.key, activeStandingGroupKey]);
 
   if (!data.officialSchedule.isPublished) {
     return (
@@ -909,7 +922,6 @@ function StagePage({
     );
   }
 
-  const currentStage = data.stageViews[activeStageKey];
   const isKnockoutStage = activeStageKey === "knockout";
   const stageMatches = data.scheduleGroups
     .flatMap((group) => group.matches)
@@ -955,9 +967,26 @@ function StagePage({
               <h2>积分榜</h2>
             </div>
           </div>
+          {standingGroups.length > 1 ? (
+            <div className="standing-tabs segmented" role="tablist" aria-label="积分榜小组切换">
+              {standingGroups.map((group) => (
+                <button
+                  role="tab"
+                  aria-selected={group.key === activeStandingGroup?.key}
+                  className={group.key === activeStandingGroup?.key ? "active" : ""}
+                  type="button"
+                  key={group.key}
+                  onClick={() => setActiveStandingGroupKey(group.key)}
+                >
+                  <span>{group.label}</span>
+                  <small>{group.rows.length} 队</small>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="standing-list">
-            {currentStage.standings.length > 0 ? (
-              currentStage.standings.map((row) => <StandingRow key={`${row.rank}:${row.team}`} row={row} />)
+            {activeStandingGroup && activeStandingGroup.rows.length > 0 ? (
+              activeStandingGroup.rows.map((row) => <StandingRow key={`${row.groupName ?? "all"}:${row.rank}:${row.team}`} row={row} />)
             ) : (
               <EmptyState text="暂无" />
             )}
@@ -2930,6 +2959,23 @@ function StandingRow({
       </span>
     </div>
   );
+}
+
+function groupStandingRows(rows: StageView["standings"]): Array<{ key: string; label: string; rows: StageView["standings"] }> {
+  const groups = new Map<string, { key: string; label: string; rows: StageView["standings"] }>();
+
+  for (const row of rows) {
+    const groupName = row.groupName?.trim() || "";
+    const key = groupName || ungroupedStandingKey;
+    const group = groups.get(key) ?? { key, label: groupName || "总榜", rows: [] };
+    group.rows.push(row);
+    groups.set(key, group);
+  }
+
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    rows: [...group.rows].sort((left, right) => left.rank - right.rank),
+  }));
 }
 
 function MatchSummary({ match }: { match: MatchData }) {
