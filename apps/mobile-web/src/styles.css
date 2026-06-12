@@ -1094,25 +1094,35 @@ button {
   align-self: center;
 }
 
-.bracket-unified-column.is-grand_final::before,
-.bracket-unified-column.is-grand_final::after {
-  content: "";
+.bracket-final-connector-svg {
   position: absolute;
   right: 100%;
-  width: var(--winner-final-link);
-  border-top: 1.5px solid rgba(213, 166, 79, .65);
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  overflow: visible;
   pointer-events: none;
+  z-index: 0;
 }
 
-.bracket-unified-column.is-grand_final::before {
-  top: 34%;
+.bracket-final-connector-path,
+.bracket-final-connector-spine {
+  fill: none;
+  stroke: rgba(240, 195, 106, .58);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
 }
 
-.bracket-unified-column.is-grand_final::after {
-  top: 66%;
-  width: var(--loser-final-link);
-  border-top-color: rgba(244, 136, 93, .58);
-  border-top-style: dashed;
+.bracket-final-connector-path.is-loser {
+  stroke: rgba(244, 136, 93, .54);
+  stroke-dasharray: 5 5;
+}
+
+.bracket-final-connector-spine {
+  stroke: rgba(156, 168, 184, .38);
+  stroke-width: 1.25;
 }
 
 .bracket-unified-extra {

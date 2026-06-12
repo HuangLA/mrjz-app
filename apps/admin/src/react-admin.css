@@ -8121,25 +8121,35 @@ label {
   background: #fbfbff;
 }
 
-.bracket-unified-column.is-grand_final::before,
-.bracket-unified-column.is-grand_final::after {
-  content: "";
+.bracket-final-connector-svg {
   position: absolute;
   right: 100%;
-  width: var(--winner-final-link);
-  border-top: 2px solid rgba(213, 166, 79, .62);
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  overflow: visible;
   pointer-events: none;
+  z-index: 0;
 }
 
-.bracket-unified-column.is-grand_final::before {
-  top: 32%;
+.bracket-final-connector-path,
+.bracket-final-connector-spine {
+  fill: none;
+  stroke: rgba(177, 125, 35, .58);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
 
-.bracket-unified-column.is-grand_final::after {
-  top: 68%;
-  width: var(--loser-final-link);
-  border-top-color: rgba(244, 136, 93, .62);
-  border-top-style: dashed;
+.bracket-final-connector-path.is-loser {
+  stroke: rgba(218, 105, 71, .56);
+  stroke-dasharray: 5 5;
+}
+
+.bracket-final-connector-spine {
+  stroke: rgba(112, 123, 140, .42);
+  stroke-width: 1.5;
 }
 
 .bracket-unified-extra {

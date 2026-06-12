@@ -297,6 +297,7 @@ type UnifiedMiniBracketColumn = {
   nodes: BracketNode[];
   winnerFinalLinkWidth?: number;
   loserFinalLinkWidth?: number;
+  finalLinkDepth?: number;
 };
 
 function BracketUnifiedColumn(props: { column: UnifiedMiniBracketColumn; nodeLookup: Map<string, BracketNode> }) {
@@ -309,9 +310,16 @@ function BracketUnifiedColumn(props: { column: UnifiedMiniBracketColumn; nodeLoo
       style={{ gridColumn: `${column.displayColumn + 1}`, gridRow: isGrandFinal ? "1 / span 2" : column.groupKey === "winner" ? "1" : "2" }}
     >
       {isGrandFinal ? (
-        <View className="bracket-final-link-layer">
-          <View className="bracket-final-line is-winner" style={{ width: `${column.winnerFinalLinkWidth ?? MINI_BRACKET_COLUMN_GAP}px` }} />
-          <View className="bracket-final-line is-loser" style={{ width: `${column.loserFinalLinkWidth ?? MINI_BRACKET_COLUMN_GAP}px` }} />
+        <View className="bracket-final-link-layer" style={{ width: `${column.finalLinkDepth ?? MINI_BRACKET_COLUMN_GAP}px` }}>
+          <View className="bracket-final-path is-winner" style={{ width: `${column.winnerFinalLinkWidth ?? MINI_BRACKET_COLUMN_GAP}px` }}>
+            <View className="bracket-final-path-horizontal" />
+            <View className="bracket-final-path-bend" />
+          </View>
+          <View className="bracket-final-path is-loser" style={{ width: `${column.loserFinalLinkWidth ?? MINI_BRACKET_COLUMN_GAP}px` }}>
+            <View className="bracket-final-path-horizontal" />
+            <View className="bracket-final-path-bend" />
+          </View>
+          <View className="bracket-final-spine" />
         </View>
       ) : null}
       <Text className="bracket-round-title">{column.roundName}</Text>
@@ -438,12 +446,16 @@ function buildUnifiedMiniBracketLayout(groups: BracketGroupLayout[], nodes: Brac
   const loserFinalColumn = Math.max(...loserColumns.map((column) => column.displayColumn));
   const grandFinalDisplayColumn = Math.max(winnerFinalColumn, loserFinalColumn) + 1;
   const linkWidth = (sourceColumn: number) => Math.max(MINI_BRACKET_COLUMN_GAP, (grandFinalDisplayColumn - sourceColumn) * (MINI_BRACKET_COLUMN_WIDTH + MINI_BRACKET_COLUMN_GAP) - MINI_BRACKET_COLUMN_WIDTH);
+  const winnerFinalLinkWidth = linkWidth(winnerFinalColumn);
+  const loserFinalLinkWidth = linkWidth(loserFinalColumn);
+  const finalLinkDepth = Math.max(winnerFinalLinkWidth, loserFinalLinkWidth);
   const grandFinalColumns = grandFinalGroup.columns.map((column, index) => ({
     ...column,
     groupKey: "grand_final",
     displayColumn: grandFinalDisplayColumn + index,
-    winnerFinalLinkWidth: linkWidth(winnerFinalColumn),
-    loserFinalLinkWidth: linkWidth(loserFinalColumn),
+    winnerFinalLinkWidth,
+    loserFinalLinkWidth,
+    finalLinkDepth,
   }));
   const columns: UnifiedMiniBracketColumn[] = [...winnerColumns, ...loserColumns, ...grandFinalColumns]
     .sort((left, right) => left.displayColumn - right.displayColumn || bracketGroupSortValue(left.groupKey) - bracketGroupSortValue(right.groupKey) || left.roundName.localeCompare(right.roundName));

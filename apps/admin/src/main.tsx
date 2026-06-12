@@ -5928,12 +5928,17 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
     const style = {
       gridColumn: column.displayColumn + 1,
       gridRow: column.bracketGroup === "grand_final" ? "1 / span 2" : column.bracketGroup === "winner" ? 1 : 2,
-      "--winner-final-link": `${column.winnerFinalLinkWidth ?? 12}px`,
-      "--loser-final-link": `${column.loserFinalLinkWidth ?? 12}px`,
-    } as React.CSSProperties & Record<"--winner-final-link" | "--loser-final-link", string>;
+    } as React.CSSProperties;
 
     return (
       <section key={column.key} className={`bracket-column bracket-unified-column is-${column.bracketGroup}`} style={style}>
+        {column.bracketGroup === "grand_final" && column.finalLinkDepth && column.winnerFinalPath && column.loserFinalPath && column.finalSpinePath ? (
+          <svg className="bracket-final-connector-svg" width={column.finalLinkDepth} height="100%" viewBox={`0 0 ${column.finalLinkDepth} 100`} preserveAspectRatio="none" aria-hidden="true">
+            <path className="bracket-final-connector-path is-winner" d={column.winnerFinalPath} />
+            <path className="bracket-final-connector-path is-loser" d={column.loserFinalPath} />
+            <path className="bracket-final-connector-spine" d={column.finalSpinePath} />
+          </svg>
+        ) : null}
         <div className="bracket-column-head">
           <strong>{column.roundName}</strong>
           <small>{bracketGroupLaneLabel(column.bracketGroup)} · {columnCompleteCount}/{column.nodes.length}</small>
@@ -7994,6 +7999,10 @@ type UnifiedBracketColumn = {
   nodes: BracketNode[];
   winnerFinalLinkWidth?: number;
   loserFinalLinkWidth?: number;
+  finalLinkDepth?: number;
+  winnerFinalPath?: string;
+  loserFinalPath?: string;
+  finalSpinePath?: string;
 };
 
 function buildUnifiedBracketLayout(groups: BracketGroupLayout[], nodes: BracketNode[]) {
@@ -8028,14 +8037,28 @@ function buildUnifiedBracketLayout(groups: BracketGroupLayout[], nodes: BracketN
   const columnWidth = 220;
   const columnGap = 12;
   const linkWidth = (sourceColumn: number) => Math.max(columnGap, (grandFinalDisplayColumn - sourceColumn) * (columnWidth + columnGap) - columnWidth);
+  const winnerFinalLinkWidth = linkWidth(winnerFinalColumn);
+  const loserFinalLinkWidth = linkWidth(loserFinalColumn);
+  const finalLinkDepth = Math.max(winnerFinalLinkWidth, loserFinalLinkWidth);
+  const finalConnectorPath = (width: number, startY: number, endY: number) => {
+    const startX = finalLinkDepth - width;
+    const curveStartX = Math.max(startX + 20, finalLinkDepth - 36);
+    const curveControlX = Math.max(curveStartX, finalLinkDepth - 18);
+
+    return `M ${startX} ${startY} H ${curveStartX} C ${curveControlX} ${startY} ${curveControlX} ${endY} ${finalLinkDepth} ${endY}`;
+  };
   const grandFinalColumns = grandFinalGroup.columns.map((column, index) => ({
     key: column.key,
     bracketGroup: grandFinalGroup.bracketGroup,
     roundName: column.roundName,
     displayColumn: grandFinalDisplayColumn + index,
     nodes: column.nodes,
-    winnerFinalLinkWidth: linkWidth(winnerFinalColumn),
-    loserFinalLinkWidth: linkWidth(loserFinalColumn),
+    winnerFinalLinkWidth,
+    loserFinalLinkWidth,
+    finalLinkDepth,
+    winnerFinalPath: finalConnectorPath(winnerFinalLinkWidth, 26, 42),
+    loserFinalPath: finalConnectorPath(loserFinalLinkWidth, 74, 58),
+    finalSpinePath: `M ${finalLinkDepth} 42 V 58`,
   }));
   const columns = [...winnerColumns, ...loserColumns, ...grandFinalColumns].sort((left, right) => left.displayColumn - right.displayColumn || bracketGroupSortValue(left.bracketGroup) - bracketGroupSortValue(right.bracketGroup) || left.roundName.localeCompare(right.roundName));
   const columnCount = Math.max(...columns.map((column) => column.displayColumn)) + 1;
