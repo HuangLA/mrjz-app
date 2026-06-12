@@ -5859,6 +5859,11 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
   const [teamFilter, setTeamFilter] = useState("");
   const normalizedTeamFilter = teamFilter.trim().toLowerCase();
   const grouped = groupBracketNodes(props.bracket);
+  const isUnifiedDoubleElimination = grouped.some((group) => group.bracketGroup === "winner" || group.bracketGroup === "loser" || group.bracketGroup === "grand_final");
+  const winnerGroup = grouped.find((group) => group.bracketGroup === "winner") ?? null;
+  const loserGroup = grouped.find((group) => group.bracketGroup === "loser") ?? null;
+  const grandFinalGroup = grouped.find((group) => group.bracketGroup === "grand_final") ?? null;
+  const extraGroups = grouped.filter((group) => group.bracketGroup !== "winner" && group.bracketGroup !== "loser" && group.bracketGroup !== "grand_final");
   const nodeLookup = new Map(props.bracket.map((node) => [node.id, node]));
   const slotSummary = getBracketSlotSummary(props.bracket);
   const placedTeams = props.bracket.flatMap((node) => [node.radiantTeam, node.direTeam].filter((team): team is TeamBrief => team !== null));
@@ -5894,6 +5899,32 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
   const teamTrayHint = firstManualOpenSlot
     ? `点击队伍填入 ${firstManualOpenSlotLabel}；也可拖到任意待补槽`
     : "从槽位拖回这里可取消落位";
+  const renderBracketGroup = (group: (typeof grouped)[number], extraClass = "") => {
+    const completeCount = group.nodes.filter((node) => node.winnerTeamId !== null).length;
+
+    return (
+      <section key={group.key} className={`bracket-group-section is-${group.bracketGroup} ${extraClass}`.trim()}>
+        <div className="bracket-group-section-head">
+          <strong>{bracketGroupLaneLabel(group.bracketGroup)}</strong>
+          <small>{group.columns.length} 轮 · {completeCount}/{group.nodes.length} 完成</small>
+        </div>
+        <div className="bracket-group-columns">
+          {group.columns.map((column) => {
+            const columnCompleteCount = column.nodes.filter((node) => node.winnerTeamId !== null).length;
+            return (
+              <section key={column.key} className="bracket-column">
+                <div className="bracket-column-head">
+                  <strong>{column.roundName}</strong>
+                  <small>{columnCompleteCount}/{column.nodes.length} 完成</small>
+                </div>
+                {column.nodes.map((node) => <BracketNodeCard key={node.id} nodeLookup={nodeLookup} node={node} incomingSlotKeys={slotSummary.incomingSlotKeys} focusNodeId={firstReadyNodeTargetId} focusSlotId={focusedSlotTargetId} setBracketSlot={props.setBracketSlot} advanceBracketNode={props.advanceBracketNode} retractBracketNode={props.retractBracketNode} />)}
+              </section>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
 
   useEffect(() => {
     const handleBracketFocusRequest = () => {
@@ -5934,33 +5965,23 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
           onPickTeam={pickUnplacedTeam}
           actionLabel={firstManualOpenSlotActionLabel}
         />
-        <div className={grouped.length > 1 ? "bracket-board is-grouped" : "bracket-board"}>
+        <div className={isUnifiedDoubleElimination ? "bracket-board is-unified" : grouped.length > 1 ? "bracket-board is-grouped" : "bracket-board"}>
           {grouped.length === 0 ? <EmptyPanel title="还没有淘汰赛对阵图" text="回到预赛主画布，从排名区拖入晋级队伍并生成对阵图。" /> : null}
-          {grouped.map((group) => {
-            const completeCount = group.nodes.filter((node) => node.winnerTeamId !== null).length;
-            return (
-              <section key={group.key} className={`bracket-group-section is-${group.bracketGroup}`}>
-                <div className="bracket-group-section-head">
-                  <strong>{bracketGroupLaneLabel(group.bracketGroup)}</strong>
-                  <small>{group.columns.length} 轮 · {completeCount}/{group.nodes.length} 完成</small>
+          {isUnifiedDoubleElimination ? (
+            <div className="bracket-unified-map">
+              <div className="bracket-unified-lane is-winner">{winnerGroup ? renderBracketGroup(winnerGroup) : null}</div>
+              <div className="bracket-unified-lane is-loser">{loserGroup ? renderBracketGroup(loserGroup) : null}</div>
+              <div className="bracket-unified-final">
+                <div className="bracket-convergence-label" aria-hidden="true">
+                  <span>胜者组</span>
+                  <strong>汇入总决赛</strong>
+                  <span>败者组</span>
                 </div>
-                <div className="bracket-group-columns">
-                  {group.columns.map((column) => {
-                    const columnCompleteCount = column.nodes.filter((node) => node.winnerTeamId !== null).length;
-                    return (
-                      <section key={column.key} className="bracket-column">
-                        <div className="bracket-column-head">
-                          <strong>{column.roundName}</strong>
-                          <small>{columnCompleteCount}/{column.nodes.length} 完成</small>
-                        </div>
-                        {column.nodes.map((node) => <BracketNodeCard key={node.id} nodeLookup={nodeLookup} node={node} incomingSlotKeys={slotSummary.incomingSlotKeys} focusNodeId={firstReadyNodeTargetId} focusSlotId={focusedSlotTargetId} setBracketSlot={props.setBracketSlot} advanceBracketNode={props.advanceBracketNode} retractBracketNode={props.retractBracketNode} />)}
-                      </section>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
+                {grandFinalGroup ? renderBracketGroup(grandFinalGroup, "is-convergence") : null}
+              </div>
+              {extraGroups.map((group) => <div key={group.key} className="bracket-unified-extra">{renderBracketGroup(group)}</div>)}
+            </div>
+          ) : grouped.map((group) => renderBracketGroup(group))}
         </div>
       </div>
       <details className="bracket-status-drawer">

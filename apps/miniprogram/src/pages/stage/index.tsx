@@ -260,32 +260,70 @@ export default function StagePage() {
 function BracketPreview(props: { nodes: BracketNode[] }) {
   const groups = groupBracketNodes(props.nodes);
   const nodeLookup = new Map(props.nodes.map((node) => [node.id, node]));
+  const isUnifiedDoubleElimination = groups.some((group) => group.key === "winner" || group.key === "loser" || group.key === "grand_final");
+  const winnerGroup = groups.find((group) => group.key === "winner") ?? null;
+  const loserGroup = groups.find((group) => group.key === "loser") ?? null;
+  const grandFinalGroup = groups.find((group) => group.key === "grand_final") ?? null;
+  const extraGroups = groups.filter((group) => group.key !== "winner" && group.key !== "loser" && group.key !== "grand_final");
+  const trunkWidth = Math.max(bracketTrackWidth(winnerGroup?.columns.length ?? 1), bracketTrackWidth(loserGroup?.columns.length ?? 1));
+  const finalWidth = bracketTrackWidth(grandFinalGroup?.columns.length ?? 1);
 
   return (
     <ScrollView className="bracket-mini-board" scrollX>
-      <View className="bracket-scroll-content">
-        {groups.map((group) => (
-          <View className="bracket-group-lane" key={group.key} style={{ width: `${bracketTrackWidth(group.columns.length)}px` }}>
-            <View className="bracket-group-title">
-              <Text>{group.label}</Text>
-              <Text>{group.nodeCount} 场</Text>
+      <View className={`bracket-scroll-content ${isUnifiedDoubleElimination ? "is-unified" : ""}`} {...(isUnifiedDoubleElimination ? { style: { width: `${trunkWidth + finalWidth + 70}px` } } : {})}>
+        {isUnifiedDoubleElimination ? (
+          <View className="bracket-unified-map">
+            <View className="bracket-unified-lanes" style={{ width: `${trunkWidth}px` }}>
+              {winnerGroup ? <BracketGroupLane group={winnerGroup} nodeLookup={nodeLookup} width={trunkWidth} /> : null}
+              {loserGroup ? <BracketGroupLane group={loserGroup} nodeLookup={nodeLookup} width={trunkWidth} /> : null}
             </View>
-            <View className="bracket-round-track">
-              {group.columns.map((column) => (
-                <View className="bracket-column" key={column.key}>
-                  <Text className="bracket-round-title">{column.roundName}</Text>
-                  <View className="bracket-column-body">
-                    {column.nodes.map((node) => (
-                      <BracketNodeCard key={node.id} node={node} nodeLookup={nodeLookup} />
-                    ))}
-                  </View>
-                </View>
+            <View className="bracket-unified-final">
+              <View className="bracket-convergence-label">
+                <View className="bracket-convergence-line is-winner" />
+                <Text className="bracket-convergence-text">汇入总决赛</Text>
+                <View className="bracket-convergence-line is-loser" />
+              </View>
+              {grandFinalGroup ? <BracketGroupLane group={grandFinalGroup} nodeLookup={nodeLookup} width={finalWidth} extraClassName="is-convergence" /> : null}
+            </View>
+            {extraGroups.map((group) => <BracketGroupLane key={group.key} group={group} nodeLookup={nodeLookup} width={bracketTrackWidth(group.columns.length)} />)}
+          </View>
+        ) : groups.map((group) => (
+          <BracketGroupLane key={group.key} group={group} nodeLookup={nodeLookup} width={bracketTrackWidth(group.columns.length)} />
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+type BracketGroupLayout = {
+  key: string;
+  label: string;
+  nodeCount: number;
+  columns: Array<{ key: string; roundName: string; nodes: BracketNode[] }>;
+};
+
+function BracketGroupLane(props: { group: BracketGroupLayout; nodeLookup: Map<string, BracketNode>; width: number; extraClassName?: string }) {
+  const { group } = props;
+
+  return (
+    <View className={`bracket-group-lane ${props.extraClassName ?? ""}`.trim()} style={{ width: `${props.width}px` }}>
+      <View className="bracket-group-title">
+        <Text>{group.label}</Text>
+        <Text>{group.nodeCount} 场</Text>
+      </View>
+      <View className="bracket-round-track">
+        {group.columns.map((column) => (
+          <View className="bracket-column" key={column.key}>
+            <Text className="bracket-round-title">{column.roundName}</Text>
+            <View className="bracket-column-body">
+              {column.nodes.map((node) => (
+                <BracketNodeCard key={node.id} node={node} nodeLookup={props.nodeLookup} />
               ))}
             </View>
           </View>
         ))}
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -320,7 +358,7 @@ function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, Bra
   );
 }
 
-function groupBracketNodes(nodes: BracketNode[]): Array<{ key: string; label: string; nodeCount: number; columns: Array<{ key: string; roundName: string; nodes: BracketNode[] }> }> {
+function groupBracketNodes(nodes: BracketNode[]): BracketGroupLayout[] {
   const groups = new Map<string, Map<string, BracketNode[]>>();
 
   for (const node of nodes) {
