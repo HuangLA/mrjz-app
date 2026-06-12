@@ -5860,9 +5860,7 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
   const normalizedTeamFilter = teamFilter.trim().toLowerCase();
   const grouped = groupBracketNodes(props.bracket);
   const isUnifiedDoubleElimination = grouped.some((group) => group.bracketGroup === "winner" || group.bracketGroup === "loser" || group.bracketGroup === "grand_final");
-  const winnerGroup = grouped.find((group) => group.bracketGroup === "winner") ?? null;
-  const loserGroup = grouped.find((group) => group.bracketGroup === "loser") ?? null;
-  const grandFinalGroup = grouped.find((group) => group.bracketGroup === "grand_final") ?? null;
+  const unifiedLayout = isUnifiedDoubleElimination ? buildUnifiedBracketLayout(grouped, props.bracket) : null;
   const extraGroups = grouped.filter((group) => group.bracketGroup !== "winner" && group.bracketGroup !== "loser" && group.bracketGroup !== "grand_final");
   const nodeLookup = new Map(props.bracket.map((node) => [node.id, node]));
   const slotSummary = getBracketSlotSummary(props.bracket);
@@ -5925,6 +5923,25 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
       </section>
     );
   };
+  const renderUnifiedColumn = (column: UnifiedBracketColumn) => {
+    const columnCompleteCount = column.nodes.filter((node) => node.winnerTeamId !== null).length;
+    const style = {
+      gridColumn: column.displayColumn + 1,
+      gridRow: column.bracketGroup === "grand_final" ? "1 / span 2" : column.bracketGroup === "winner" ? 1 : 2,
+      "--winner-final-link": `${column.winnerFinalLinkWidth ?? 12}px`,
+      "--loser-final-link": `${column.loserFinalLinkWidth ?? 12}px`,
+    } as React.CSSProperties & Record<"--winner-final-link" | "--loser-final-link", string>;
+
+    return (
+      <section key={column.key} className={`bracket-column bracket-unified-column is-${column.bracketGroup}`} style={style}>
+        <div className="bracket-column-head">
+          <strong>{column.roundName}</strong>
+          <small>{bracketGroupLaneLabel(column.bracketGroup)} · {columnCompleteCount}/{column.nodes.length}</small>
+        </div>
+        {column.nodes.map((node) => <BracketNodeCard key={node.id} nodeLookup={nodeLookup} node={node} incomingSlotKeys={slotSummary.incomingSlotKeys} focusNodeId={firstReadyNodeTargetId} focusSlotId={focusedSlotTargetId} setBracketSlot={props.setBracketSlot} advanceBracketNode={props.advanceBracketNode} retractBracketNode={props.retractBracketNode} />)}
+      </section>
+    );
+  };
 
   useEffect(() => {
     const handleBracketFocusRequest = () => {
@@ -5967,18 +5984,11 @@ function BracketCanvas(props: { stage: StageSummary; availableTeams: TeamBrief[]
         />
         <div className={isUnifiedDoubleElimination ? "bracket-board is-unified" : grouped.length > 1 ? "bracket-board is-grouped" : "bracket-board"}>
           {grouped.length === 0 ? <EmptyPanel title="还没有淘汰赛对阵图" text="回到预赛主画布，从排名区拖入晋级队伍并生成对阵图。" /> : null}
-          {isUnifiedDoubleElimination ? (
-            <div className="bracket-unified-map">
-              <div className="bracket-unified-lane is-winner">{winnerGroup ? renderBracketGroup(winnerGroup) : null}</div>
-              <div className="bracket-unified-lane is-loser">{loserGroup ? renderBracketGroup(loserGroup) : null}</div>
-              <div className="bracket-unified-final">
-                <div className="bracket-convergence-label" aria-hidden="true">
-                  <span>胜者组</span>
-                  <strong>汇入总决赛</strong>
-                  <span>败者组</span>
-                </div>
-                {grandFinalGroup ? renderBracketGroup(grandFinalGroup, "is-convergence") : null}
-              </div>
+          {unifiedLayout ? (
+            <div className="bracket-unified-map is-combined" style={{ "--bracket-column-count": unifiedLayout.columnCount } as React.CSSProperties & Record<"--bracket-column-count", number>}>
+              <span className="bracket-unified-lane-label is-winner">胜者组</span>
+              <span className="bracket-unified-lane-label is-loser">败者组</span>
+              {unifiedLayout.columns.map((column) => renderUnifiedColumn(column))}
               {extraGroups.map((group) => <div key={group.key} className="bracket-unified-extra">{renderBracketGroup(group)}</div>)}
             </div>
           ) : grouped.map((group) => renderBracketGroup(group))}
@@ -7973,6 +7983,64 @@ function groupBracketNodes(nodes: BracketNode[]) {
         nodes: columns.flatMap((column) => column.nodes),
       };
     });
+}
+
+type BracketGroupLayout = ReturnType<typeof groupBracketNodes>[number];
+type UnifiedBracketColumn = {
+  key: string;
+  bracketGroup: BracketNode["bracketGroup"];
+  roundName: string;
+  displayColumn: number;
+  nodes: BracketNode[];
+  winnerFinalLinkWidth?: number;
+  loserFinalLinkWidth?: number;
+};
+
+function buildUnifiedBracketLayout(groups: BracketGroupLayout[], nodes: BracketNode[]) {
+  const winnerGroup = groups.find((group) => group.bracketGroup === "winner") ?? null;
+  const loserGroup = groups.find((group) => group.bracketGroup === "loser") ?? null;
+  const grandFinalGroup = groups.find((group) => group.bracketGroup === "grand_final") ?? null;
+
+  if (!winnerGroup || !loserGroup || !grandFinalGroup) {
+    return null;
+  }
+
+  const firstLoserColumnNodeIds = new Set(loserGroup.columns[0]?.nodes.map((node) => node.id) ?? []);
+  const firstLoserRoundReceivesWinnerDrop = nodes.some((node) => node.bracketGroup === "winner" && node.loserNextNodeId !== null && firstLoserColumnNodeIds.has(node.loserNextNodeId));
+  const loserOpeningColumnOffset = firstLoserRoundReceivesWinnerDrop ? 1 : 0;
+  const winnerColumns = winnerGroup.columns.map((column, index) => ({
+    key: column.key,
+    bracketGroup: winnerGroup.bracketGroup,
+    roundName: column.roundName,
+    displayColumn: index + 1,
+    nodes: column.nodes,
+  }));
+  const loserColumns = loserGroup.columns.map((column, index) => ({
+    key: column.key,
+    bracketGroup: loserGroup.bracketGroup,
+    roundName: column.roundName,
+    displayColumn: index + loserOpeningColumnOffset,
+    nodes: column.nodes,
+  }));
+  const winnerFinalColumn = Math.max(...winnerColumns.map((column) => column.displayColumn));
+  const loserFinalColumn = Math.max(...loserColumns.map((column) => column.displayColumn));
+  const grandFinalDisplayColumn = Math.max(winnerFinalColumn, loserFinalColumn) + 1;
+  const columnWidth = 220;
+  const columnGap = 12;
+  const linkWidth = (sourceColumn: number) => Math.max(columnGap, (grandFinalDisplayColumn - sourceColumn) * (columnWidth + columnGap) - columnWidth);
+  const grandFinalColumns = grandFinalGroup.columns.map((column, index) => ({
+    key: column.key,
+    bracketGroup: grandFinalGroup.bracketGroup,
+    roundName: column.roundName,
+    displayColumn: grandFinalDisplayColumn + index,
+    nodes: column.nodes,
+    winnerFinalLinkWidth: linkWidth(winnerFinalColumn),
+    loserFinalLinkWidth: linkWidth(loserFinalColumn),
+  }));
+  const columns = [...winnerColumns, ...loserColumns, ...grandFinalColumns].sort((left, right) => left.displayColumn - right.displayColumn || bracketGroupSortValue(left.bracketGroup) - bracketGroupSortValue(right.bracketGroup) || left.roundName.localeCompare(right.roundName));
+  const columnCount = Math.max(...columns.map((column) => column.displayColumn)) + 1;
+
+  return { columns, columnCount };
 }
 
 function bracketGroupSortValue(group: string): number {
