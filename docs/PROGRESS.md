@@ -84,6 +84,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序“我的”页微信登录入口收口为真实微信 code 登录：前端只上送 `wx.login` code，后端在配置 `WECHAT_APP_ID` / `WECHAT_APP_SECRET` 时调用微信 `jscode2session` 换取用户身份并签发 MRJZ opaque session；生产环境缺少微信配置时不再静默回退为开发用户。
 - 小程序本地 HTTP 登录联调补强：开发环境缺少微信密钥时仍可通过“我的”页设置开发用户 ID 获取正式 MRJZ user session，用于本地验证标签点赞去重和 Steam / Dota 账号绑定；后端限制开发用户 ID 字符集并保留生产环境微信密钥要求。
 - 小程序正式发布登录收紧：remote / production 构建隐藏“我的”页开发设置，前端不再发送开发用户 ID 或本地假 code；后端只在未配置微信密钥且显式允许开发登录时走本地用户，已配置微信密钥时严格以 `code2Session` 成败为准。
+- 小程序正式 AppID 已切换到当前发布账号，微信登录已在本地后端验证真实用户落库、登录态接口、标签点赞 / 取消点赞和 Steam / Dota 绑定链路。
 - H5 已优先使用真实比赛库最新一场作为默认战报，避免开发种子赛程中的占位 match_id 影响展示。
 - 移除运行时本地示例数据：API 只读 SQLite，Admin/H5 不再拼接本地赛事、赛程、标签或同步任务。
 - 重置本地 SQLite：仅保留三届真实联赛壳、3 个真实阶段和 119 条 OpenDota 比赛 JSON；队伍、赛程、积分榜、标签等待管理员真实录入。
