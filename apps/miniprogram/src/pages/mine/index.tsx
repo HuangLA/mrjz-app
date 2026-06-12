@@ -6,6 +6,7 @@ import {
   getApiBaseUrl,
   getDevWechatUserId,
   getStoredAuthSession,
+  isLocalDeployEnv,
   loadMe,
   loadMyStats,
   loginWithWeChat,
@@ -129,6 +130,7 @@ export default function MinePage() {
   }
 
   const authProviderText = session?.authProvider === "wechat" ? "微信账号已登录" : session ? "开发登录" : "未登录";
+  const showDevelopmentSettings = isLocalDeployEnv();
 
   return (
     <PageShell loading={false} error="" routeKey="mine">
@@ -223,19 +225,23 @@ export default function MinePage() {
         <Text className="state-text">只对已审核标签生效；同一用户对同一标签只能点赞一次。</Text>
       </View>
 
-      <SectionTitle kicker="开发" title="API 地址" />
-      <View className="tag-editor">
-        <Input className="api-input" value={apiBase} placeholder="http://127.0.0.1:3001/api" onInput={(event) => setApiBase(String(event.detail.value))} />
-        <Text className="state-text">
-          本地未配置微信密钥时，后端会用下面的开发用户 ID 签发登录态；留空则使用服务端默认值。
-        </Text>
-        <Input className="api-input" value={devUserId} placeholder="local / tester-a" onInput={(event) => setDevUserId(String(event.detail.value))} />
-        <View className="action-row">
-          <Button className="secondary-button" onClick={handleSaveApiBase}>
-            保存地址
-          </Button>
-        </View>
-      </View>
+      {showDevelopmentSettings ? (
+        <>
+          <SectionTitle kicker="开发" title="API 地址" />
+          <View className="tag-editor">
+            <Input className="api-input" value={apiBase} placeholder="http://127.0.0.1:3001/api" onInput={(event) => setApiBase(String(event.detail.value))} />
+            <Text className="state-text">
+              本地未配置微信密钥时，后端会用下面的开发用户 ID 签发登录态；留空则使用服务端默认值。
+            </Text>
+            <Input className="api-input" value={devUserId} placeholder="local / tester-a" onInput={(event) => setDevUserId(String(event.detail.value))} />
+            <View className="action-row">
+              <Button className="secondary-button" onClick={handleSaveApiBase}>
+                保存地址
+              </Button>
+            </View>
+          </View>
+        </>
+      ) : null}
     </PageShell>
   );
 }

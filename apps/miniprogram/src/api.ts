@@ -22,6 +22,7 @@ import type {
 } from "./types";
 
 declare const __MRJZ_MINIPROGRAM_API_BASE_URL__: string | undefined;
+declare const __MRJZ_DEPLOY_ENV__: string | undefined;
 
 const LOCAL_API_BASE_URL = "http://127.0.0.1:3001/api";
 const DEFAULT_API_BASE_URL = resolveBuildApiBaseUrl();
@@ -48,6 +49,16 @@ export function setApiBaseUrl(value: string): void {
   }
 
   Taro.setStorageSync(API_BASE_STORAGE_KEY, nextValue);
+}
+
+export function isLocalDeployEnv(): boolean {
+  return getDeployEnv() === "local";
+}
+
+function getDeployEnv(): string {
+  return typeof __MRJZ_DEPLOY_ENV__ === "string" && __MRJZ_DEPLOY_ENV__.trim().length > 0
+    ? __MRJZ_DEPLOY_ENV__.trim()
+    : "local";
 }
 
 export function getStoredAuthSession(): AuthSession | null {
@@ -110,7 +121,7 @@ export async function loginWithWeChat(): Promise<AuthSession> {
     nickname: "微信用户",
   };
 
-  if (devUserId.length > 0) {
+  if (isLocalDeployEnv() && devUserId.length > 0) {
     data.devUserId = devUserId;
   }
 

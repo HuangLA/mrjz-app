@@ -33,7 +33,7 @@ API base priority:
 3. Build-time `PUBLIC_API_BASE_URL` or `VITE_PUBLIC_API_BASE_URL`.
 4. Local fallback `http://127.0.0.1:3001/api`.
 
-For remote preview or upload, set `MRJZ_REMOTE_API_BASE_URL` and use `dev:remote` or `build:remote`. The URL must be configured as a WeChat Mini Program request legal domain when running on real devices.
+For remote preview or upload, set `MRJZ_REMOTE_API_BASE_URL` and use `dev:remote` or `build:remote`. Remote builds set `MRJZ_DEPLOY_ENV=production`, hide local development controls, and require the backend to complete real WeChat `code2Session`. The URL must be configured as a WeChat Mini Program request legal domain when running on real devices.
 
 ## Auth Notes
 

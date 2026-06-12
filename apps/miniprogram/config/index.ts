@@ -11,6 +11,20 @@ function resolveBuildApiBaseUrl(): string {
   ).replace(/\/+$/, "");
 }
 
+function resolveDeployEnv(): string {
+  const configured = process.env.MRJZ_DEPLOY_ENV?.trim();
+
+  if (configured) {
+    return configured;
+  }
+
+  const apiBaseUrl = resolveBuildApiBaseUrl().toLowerCase();
+
+  return apiBaseUrl.startsWith("http://127.0.0.1") || apiBaseUrl.startsWith("http://localhost")
+    ? "local"
+    : "production";
+}
+
 export default defineConfig({
   projectName: "mrjz-miniprogram",
   date: "2026-06-07",
@@ -31,7 +45,7 @@ export default defineConfig({
   },
   defineConstants: {
     __MRJZ_MINIPROGRAM_API_BASE_URL__: JSON.stringify(resolveBuildApiBaseUrl()),
-    __MRJZ_DEPLOY_ENV__: JSON.stringify(process.env.MRJZ_DEPLOY_ENV?.trim() || "local"),
+    __MRJZ_DEPLOY_ENV__: JSON.stringify(resolveDeployEnv()),
   },
   mini: {
     postcss: {
