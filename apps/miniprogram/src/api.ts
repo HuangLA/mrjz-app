@@ -83,12 +83,16 @@ export function setLocalLikedTagIds(userId: string, tagIds: Set<string>): void {
 
 export async function loginWithWeChat(): Promise<AuthSession> {
   const loginResult = await Taro.login();
+
+  if (typeof loginResult.code !== "string" || loginResult.code.trim().length === 0) {
+    throw new Error("微信登录凭证获取失败，请稍后重试");
+  }
+
   const session = await request<AuthSession>("/auth/wechat-login", {
     method: "POST",
     data: {
-      code: loginResult.code,
+      code: loginResult.code.trim(),
       nickname: "微信用户",
-      devUserId: "local",
     },
     withAuth: false,
   });

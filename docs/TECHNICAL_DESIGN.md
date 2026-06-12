@@ -185,7 +185,7 @@ sequenceDiagram
   participant DB as 数据库
 
   MP->>MP: wx.login 获取 code
-  MP->>API: POST /auth/wechat-login { code }
+  MP->>API: POST /api/auth/wechat-login { code }
   API->>WX: code2Session
   WX-->>API: openid, session_key, unionid
   API->>DB: upsert app_user + create user_session
@@ -193,7 +193,7 @@ sequenceDiagram
   MP->>API: Authorization: Bearer userToken
 ```
 
-小程序登录只代表平台普通用户，不要求该用户已经参赛。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。
+小程序登录只代表平台普通用户，不要求该用户已经参赛。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET` 后才允许真实微信 code 登录；开发环境可使用本地开发用户兜底。
 
 ### 4.2 Web Admin 登录
 
@@ -636,6 +636,7 @@ MYSQL_PASSWORD=
 REDIS_URL=
 WECHAT_APP_ID=
 WECHAT_APP_SECRET=
+MRJZ_ALLOW_DEV_WECHAT_LOGIN=
 OPENDOTA_API_KEY=
 TOKEN_SECRET=
 ADMIN_TOKEN_SECRET=

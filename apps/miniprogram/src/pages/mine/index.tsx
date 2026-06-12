@@ -122,12 +122,15 @@ export default function MinePage() {
     showToast("API 地址已保存", "success");
   }
 
+  const authProviderText = session?.authProvider === "wechat" ? "微信账号已登录" : session ? "开发登录" : "未登录";
+
   return (
     <PageShell loading={false} error="" routeKey="mine">
       <View className="hero-panel">
         <Text className="kicker">微信登录</Text>
         <Text className="brand-title">{session ? me?.nickname ?? session.user.nickname : "未登录"}</Text>
         <Text className="brand-subtitle">登录后可在选手主页提交标签，并给已审核标签点赞 +1。</Text>
+        <Text className="badge">{authProviderText}</Text>
       </View>
 
       {error ? <View className="content-panel"><Text className="muted">{error}</Text></View> : null}

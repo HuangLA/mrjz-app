@@ -1550,8 +1550,9 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
   const nickname = optionalStringField(body, "nickname") ?? "微信用户";
   const appId = process.env.WECHAT_APP_ID?.trim();
   const appSecret = process.env.WECHAT_APP_SECRET?.trim();
+  const hasWechatCredentials = appId !== undefined && appId.length > 0 && appSecret !== undefined && appSecret.length > 0;
 
-  if (appId !== undefined && appId.length > 0 && appSecret !== undefined && appSecret.length > 0) {
+  if (hasWechatCredentials) {
     const params = new URLSearchParams({
       appid: appId,
       secret: appSecret,
@@ -1562,7 +1563,9 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
     const payload = (await response.json()) as { openid?: string; unionid?: string; errcode?: number; errmsg?: string };
 
     if (!response.ok || typeof payload.openid !== "string" || payload.openid.trim().length === 0) {
-      throw new Error(payload.errmsg ?? "WeChat code2Session failed");
+      const message = payload.errmsg ?? `HTTP ${response.status}`;
+
+      throw new Error(`WeChat code2Session failed: ${message}`);
     }
 
     const result: ResolvedWechatLogin = {
@@ -1578,6 +1581,10 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
     return result;
   }
 
+  if (!isDevelopmentWechatLoginAllowed()) {
+    throw new Error("WECHAT_APP_ID and WECHAT_APP_SECRET are required for WeChat login");
+  }
+
   const devUserId = optionalStringField(body, "devUserId") ?? process.env.MRJZ_DEV_WECHAT_USER_ID?.trim() ?? "local";
 
   return {
@@ -1585,6 +1592,16 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
     nickname: nickname === "微信用户" ? `开发用户 ${devUserId}` : nickname,
     provider: "development",
   };
+}
+
+function isDevelopmentWechatLoginAllowed(): boolean {
+  const configured = process.env.MRJZ_ALLOW_DEV_WECHAT_LOGIN?.trim().toLowerCase();
+
+  if (configured !== undefined && configured.length > 0) {
+    return ["1", "true", "yes", "on"].includes(configured);
+  }
+
+  return process.env.NODE_ENV !== "production";
 }
 
 function stringField(body: Record<string, unknown>, fieldName: string): string {
