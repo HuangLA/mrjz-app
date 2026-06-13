@@ -3,19 +3,13 @@ import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import {
   bindDotaAccount,
-  getApiBaseUrl,
-  getDevWechatUserId,
   getStoredAuthSession,
   loadMe,
   loadMyStats,
   loginWithWeChat,
   logout,
-  setApiBaseUrl,
-  setDevWechatUserId,
 } from "../../api";
 import { PageShell, SectionTitle } from "../../components";
-import { getDotaAssetBaseUrl, isLocalDeployEnv } from "../../runtimeConfig";
-import { SmartImage as Image } from "../../SmartImage";
 import type { AppUserMe, AppUserStats, AuthSession } from "../../types";
 import { formatDecimal, formatPercent, showToast } from "../../utils";
 
@@ -24,10 +18,6 @@ export default function MinePage() {
   const [me, setMe] = useState<AppUserMe | null>(null);
   const [myStats, setMyStats] = useState<AppUserStats | null>(null);
   const [bindingInput, setBindingInput] = useState("");
-  const [apiBase, setApiBase] = useState(getApiBaseUrl());
-  const [devUserId, setDevUserId] = useState(getDevWechatUserId());
-  const [assetBase, setAssetBase] = useState(getDotaAssetBaseUrl());
-  const [assetProbeStatus, setAssetProbeStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [bindingSaving, setBindingSaving] = useState(false);
   const [error, setError] = useState("");
@@ -35,10 +25,6 @@ export default function MinePage() {
   useDidShow(() => {
     const stored = getStoredAuthSession();
     setSession(stored);
-    setApiBase(getApiBaseUrl());
-    setDevUserId(getDevWechatUserId());
-    setAssetBase(getDotaAssetBaseUrl());
-    setAssetProbeStatus("");
     if (stored) {
       void refreshMine();
     } else {
@@ -147,19 +133,7 @@ export default function MinePage() {
     }
   }
 
-  function handleSaveApiBase() {
-    setApiBaseUrl(apiBase);
-    setDevWechatUserId(devUserId);
-    setApiBase(getApiBaseUrl());
-    setDevUserId(getDevWechatUserId());
-    setAssetBase(getDotaAssetBaseUrl());
-    setAssetProbeStatus("");
-    showToast("开发设置已保存", "success");
-  }
-
-  const assetProbeUrl = `${assetBase}/heroes/axe.png`;
-  const authProviderText = session?.authProvider === "wechat" ? "微信账号已登录" : session ? "开发登录" : "未登录";
-  const showDevelopmentSettings = isLocalDeployEnv();
+  const authProviderText = session ? "微信账号已登录" : "未登录";
 
   return (
     <PageShell loading={false} error="" routeKey="mine">
@@ -203,7 +177,7 @@ export default function MinePage() {
               </View>
             ) : null}
             <View className="tag-input-row">
-              <Input className="api-input" value={bindingInput} placeholder="Dota account_id / SteamID64" onInput={(event) => setBindingInput(String(event.detail.value))} />
+              <Input className="account-input" value={bindingInput} placeholder="Dota account_id / SteamID64" onInput={(event) => setBindingInput(String(event.detail.value))} />
               <Button className="primary-button" loading={bindingSaving} onClick={() => void handleBindAccount()}>
                 绑定
               </Button>
@@ -254,39 +228,6 @@ export default function MinePage() {
         <Text className="state-text">只对已审核标签生效；同一用户对同一标签只能点赞一次。</Text>
       </View>
 
-      {showDevelopmentSettings ? (
-        <>
-          <SectionTitle kicker="开发" title="API 地址" />
-          <View className="tag-editor">
-            <Text className="state-text">
-              真机调试请填写电脑局域网 IP，不要使用 127.0.0.1；Dota 图片会从该地址的 /assets/dota 加载。
-            </Text>
-            <Input className="api-input" value={apiBase} placeholder="http://192.168.x.x:3001/api" onInput={(event) => setApiBase(String(event.detail.value))} />
-            <Text className="state-text">
-              本地未配置微信密钥时，后端会用下面的开发用户 ID 签发登录态；留空则使用服务端默认值。
-            </Text>
-            <Input className="api-input" value={devUserId} placeholder="local / tester-a" onInput={(event) => setDevUserId(String(event.detail.value))} />
-            <View className="asset-probe-row">
-              <Image
-                className="asset-probe-image"
-                mode="aspectFill"
-                src={assetProbeUrl}
-                onError={() => setAssetProbeStatus("测试图载入失败：请检查真机是否允许加载该 HTTP / LAN 图片地址")}
-                onLoad={() => setAssetProbeStatus("测试图已载入")}
-              />
-              <View>
-                <Text className="state-text">当前图片资源：{assetProbeUrl}</Text>
-                <Text className="state-text">{assetProbeStatus || "保存地址后此处会用同一个资源域名测试图片加载。"}</Text>
-              </View>
-            </View>
-            <View className="action-row">
-              <Button className="secondary-button" onClick={handleSaveApiBase}>
-                保存地址
-              </Button>
-            </View>
-          </View>
-        </>
-      ) : null}
     </PageShell>
   );
 }

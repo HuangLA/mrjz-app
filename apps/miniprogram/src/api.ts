@@ -1,6 +1,6 @@
 import Taro from "@tarojs/taro";
 import { normalizeMatchDetail, normalizeMatchRecord, type ApiMatchDetail, type ApiMatchRecord } from "./dota";
-import { getApiBaseUrl, isLocalDeployEnv, setApiBaseUrl } from "./runtimeConfig";
+import { getApiBaseUrl } from "./runtimeConfig";
 import type {
   ApiResult,
   AppUserMe,
@@ -25,12 +25,9 @@ import type {
 const AUTH_SESSION_STORAGE_KEY = "mrjz.authSession";
 const SELECTED_TOURNAMENT_STORAGE_KEY = "mrjz.selectedTournamentId";
 const LOCAL_LIKED_TAGS_STORAGE_KEY = "mrjz.localLikedTags";
-const DEV_WECHAT_USER_ID_STORAGE_KEY = "mrjz.devWechatUserId";
 const REQUEST_TIMEOUT_MS = 12000;
 
 type RequestMethod = "GET" | "POST" | "PATCH" | "DELETE";
-
-export { getApiBaseUrl, setApiBaseUrl };
 
 export function getStoredAuthSession(): AuthSession | null {
   const session = Taro.getStorageSync<AuthSession | "">(AUTH_SESSION_STORAGE_KEY);
@@ -40,21 +37,6 @@ export function getStoredAuthSession(): AuthSession | null {
 
 export function clearStoredAuthSession(): void {
   Taro.removeStorageSync(AUTH_SESSION_STORAGE_KEY);
-}
-
-export function getDevWechatUserId(): string {
-  return Taro.getStorageSync<string>(DEV_WECHAT_USER_ID_STORAGE_KEY)?.trim() ?? "";
-}
-
-export function setDevWechatUserId(value: string): void {
-  const nextValue = value.trim();
-
-  if (nextValue.length === 0) {
-    Taro.removeStorageSync(DEV_WECHAT_USER_ID_STORAGE_KEY);
-    return;
-  }
-
-  Taro.setStorageSync(DEV_WECHAT_USER_ID_STORAGE_KEY, nextValue);
 }
 
 export function getSelectedTournamentId(): string {
@@ -80,16 +62,11 @@ export function setLocalLikedTagIds(userId: string, tagIds: Set<string>): void {
 }
 
 export async function loginWithWeChat(): Promise<AuthSession> {
-  const devUserId = getDevWechatUserId();
   const code = await getWechatLoginCode();
-  const data: { code: string; nickname: string; devUserId?: string } = {
+  const data = {
     code,
     nickname: "微信用户",
   };
-
-  if (isLocalDeployEnv() && devUserId.length > 0) {
-    data.devUserId = devUserId;
-  }
 
   const session = await request<AuthSession>("/auth/wechat-login", {
     method: "POST",
@@ -113,10 +90,6 @@ async function getWechatLoginCode(): Promise<string> {
     }
   } catch (caught) {
     loginError = caught;
-  }
-
-  if (isLocalDeployEnv()) {
-    return "local-dev-code";
   }
 
   throw new Error(formatWechatLoginCodeError(loginError));
@@ -271,7 +244,7 @@ async function request<T>(
       },
     });
   } catch (caught) {
-    throw new Error(formatRequestFailure(caught, apiBaseUrl));
+    throw new Error(formatRequestFailure(caught));
   }
 
   const result = response.data;
@@ -287,7 +260,7 @@ async function request<T>(
   throw new Error(result?.error?.message ?? `API request failed: ${response.statusCode}`);
 }
 
-function formatRequestFailure(caught: unknown, apiBaseUrl: string): string {
+function formatRequestFailure(caught: unknown): string {
   const message = typeof caught === "object" && caught !== null && "errMsg" in caught
     ? String((caught as { errMsg?: unknown }).errMsg ?? "")
     : caught instanceof Error
@@ -296,12 +269,12 @@ function formatRequestFailure(caught: unknown, apiBaseUrl: string): string {
   const lowerMessage = message.toLowerCase();
 
   if (lowerMessage.includes("timeout")) {
-    return `API 请求超时，请确认后端已启动且小程序 API 地址可访问：${apiBaseUrl}`;
+    return "API 请求超时，请稍后重试";
   }
 
   if (lowerMessage.includes("fail")) {
-    return `API 请求失败，请检查小程序开发者工具是否允许访问本地服务，当前地址：${apiBaseUrl}`;
+    return "API 请求失败，请稍后重试";
   }
 
-  return message || `API 请求失败：${apiBaseUrl}`;
+  return message || "API 请求失败，请稍后重试";
 }

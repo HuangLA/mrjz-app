@@ -14,7 +14,7 @@ export type AuthSession = {
   token: string;
   expiresAt: string;
   user: AppUser;
-  authProvider: "wechat" | "development";
+  authProvider: "wechat";
 };
 
 export type DotaAccountBinding = {

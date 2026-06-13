@@ -1141,7 +1141,7 @@ button[disabled] {
 
 .tag-input,
 .search-input,
-.api-input {
+.account-input {
   width: 100%;
   min-height: 38px;
   padding: 0 10px;
@@ -1157,35 +1157,9 @@ button[disabled] {
 }
 
 .tag-input-row .tag-input,
-.tag-input-row .api-input {
+.tag-input-row .account-input {
   flex: 1;
   width: 0;
-}
-
-.asset-probe-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-
-.asset-probe-image {
-  flex: 0 0 auto;
-  width: 48px;
-  height: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.asset-probe-row > view {
-  min-width: 0;
-}
-
-.asset-probe-row .state-text {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .tag-pill {

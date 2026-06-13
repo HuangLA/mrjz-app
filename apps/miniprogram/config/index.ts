@@ -1,16 +1,20 @@
 import { defineConfig } from "@tarojs/cli";
 
-const LOCAL_API_BASE_URL = "http://127.0.0.1:3001/api";
 const outputRoot = process.env.MRJZ_MINIPROGRAM_OUTPUT_ROOT?.trim() || "dist";
 const useLocalDotaAssets = isEnabled(process.env.MRJZ_MINIPROGRAM_LOCAL_DOTA_ASSETS);
 
 function resolveBuildApiBaseUrl(): string {
-  return (
+  const configured =
     process.env.MRJZ_MINIPROGRAM_API_BASE_URL?.trim() ||
     process.env.PUBLIC_API_BASE_URL?.trim() ||
     process.env.VITE_PUBLIC_API_BASE_URL?.trim() ||
-    LOCAL_API_BASE_URL
-  ).replace(/\/+$/, "");
+    "";
+
+  if (configured.length === 0) {
+    throw new Error("Set MRJZ_MINIPROGRAM_API_BASE_URL, PUBLIC_API_BASE_URL, or VITE_PUBLIC_API_BASE_URL before building the mini program.");
+  }
+
+  return configured.replace(/\/+$/, "");
 }
 
 function resolveDotaAssetBaseUrl(): string {
@@ -19,20 +23,6 @@ function resolveDotaAssetBaseUrl(): string {
   }
 
   return (process.env.MRJZ_MINIPROGRAM_DOTA_ASSET_BASE_URL?.trim() || "").replace(/\/+$/, "");
-}
-
-function resolveDeployEnv(): string {
-  const configured = process.env.MRJZ_DEPLOY_ENV?.trim();
-
-  if (configured) {
-    return configured;
-  }
-
-  const apiBaseUrl = resolveBuildApiBaseUrl().toLowerCase();
-
-  return apiBaseUrl.startsWith("http://127.0.0.1") || apiBaseUrl.startsWith("http://localhost")
-    ? "local"
-    : "production";
 }
 
 function assetCopyPatterns() {
@@ -71,7 +61,6 @@ export default defineConfig({
     __MRJZ_MINIPROGRAM_API_BASE_URL__: JSON.stringify(resolveBuildApiBaseUrl()),
     __MRJZ_MINIPROGRAM_DOTA_ASSET_BASE_URL__: JSON.stringify(resolveDotaAssetBaseUrl()),
     __MRJZ_MINIPROGRAM_USE_LOCAL_DOTA_ASSETS__: JSON.stringify(useLocalDotaAssets),
-    __MRJZ_DEPLOY_ENV__: JSON.stringify(resolveDeployEnv()),
   },
   mini: {
     postcss: {

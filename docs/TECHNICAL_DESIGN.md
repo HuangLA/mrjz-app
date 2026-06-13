@@ -193,7 +193,7 @@ sequenceDiagram
   MP->>API: Authorization: Bearer userToken
 ```
 
-小程序登录只代表平台普通用户，不要求该用户已经参赛。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。提审、体验版和生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`，并严格使用微信 `code2Session`；本地开发用户兜底只允许 local 构建和本地服务调试使用。
+小程序登录只代表平台普通用户，不要求该用户已经参赛。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。提审、体验版和生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`，并严格使用微信 `code2Session`；小程序端不提供本地开发用户、运行期 API 地址切换或假 code 兜底。
 
 ### 4.2 Web Admin 登录
 
@@ -608,8 +608,8 @@ api.example.com/api/*   -> Node.js API
 - H5 读取 `PUBLIC_API_BASE_URL` 或 `VITE_PUBLIC_API_BASE_URL` 作为构建期 API 地址；开发时可用 `npm run dev:mobile-web:local` 或设置 `MRJZ_REMOTE_API_BASE_URL` 后运行 `npm run dev:mobile-web:remote`。
 - H5 支持运行期临时覆盖：访问 `?apiBaseUrl=https://api.example.com/api` 会写入浏览器 localStorage，`?apiBaseUrl=local` 切回本地，`?apiBaseUrl=reset` 清除覆盖。
 - 小程序读取 `MRJZ_MINIPROGRAM_API_BASE_URL` 作为构建期默认 API 地址，也兼容 `PUBLIC_API_BASE_URL` / `VITE_PUBLIC_API_BASE_URL`；开发者工具预览可用 `dev:miniprogram:local` 或设置 `MRJZ_REMOTE_API_BASE_URL` 后运行 `dev:miniprogram:remote`。
-- 小程序“我的”页保留手动 API 地址覆盖，便于真机测试临时切换；本地真机调试应填写电脑局域网 IP，例如 `http://192.168.x.x:3001/api`，不能使用只指向手机自身的 `127.0.0.1`；上传正式版前必须使用已配置微信 request 合法域名的 HTTPS API。
-- 小程序默认不打包全量 Dota 图片素材，构建时只复制本地 `src/assets/svg`；英雄、物品、技能和地图等 Dota 图片默认跟随当前 API 地址读取 `/api/assets/dota`，也可用 `MRJZ_MINIPROGRAM_DOTA_ASSET_BASE_URL` 指向独立静态域名。若需要全量本地素材调试，可运行 `dev:miniprogram:local-assets` 或 `build:miniprogram:local-assets`。真机本地调试遇到 HTTP 局域网图片被 `<image>` 拦截时，小程序会先用 `wx.request` 拉取二进制并写入本地缓存，再把本地文件路径交给 `<image>` 展示。
+- 小程序不支持运行期手动切换 API 地址；提审、体验版和正式版必须通过构建期变量注入已配置微信 request 合法域名的 HTTPS API。
+- 小程序默认不打包全量 Dota 图片素材，构建时只复制本地 `src/assets/svg`；英雄、物品、技能和地图等 Dota 图片默认跟随当前 API 地址读取 `/api/assets/dota`，也可用 `MRJZ_MINIPROGRAM_DOTA_ASSET_BASE_URL` 指向独立静态域名。若需要全量本地素材调试，可运行 `dev:miniprogram:local-assets` 或 `build:miniprogram:local-assets`。
 - 小程序公开页采用 stale-while-revalidate 数据缓存：页面进入时先按当前 API 地址读取本地页面快照并立即渲染，再在后台静默请求最新接口；接口成功后更新 UI 和缓存，接口失败时保留旧缓存内容，不用错误页覆盖已有数据。
 
 服务器进程：
