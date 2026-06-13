@@ -1271,6 +1271,14 @@ button[disabled] {
   min-height: 48px;
 }
 
+.history-item.is-clickable {
+  border-color: rgba(213, 166, 79, 0.18);
+}
+
+.history-item.is-clickable:active {
+  background: rgba(213, 166, 79, 0.08);
+}
+
 .history-item > view,
 .player-line > view,
 .match-player-row > view {
@@ -1280,6 +1288,7 @@ button[disabled] {
 
 .history-item .status-text,
 .history-item .badge,
+.history-item .status-tag,
 .player-line .muted,
 .match-player-row .status-text {
   flex-shrink: 0;

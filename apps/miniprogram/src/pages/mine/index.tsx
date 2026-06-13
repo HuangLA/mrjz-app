@@ -8,10 +8,11 @@ import {
   loadMyStats,
   loginWithWeChat,
   logout,
+  setSelectedTournamentId,
 } from "../../api";
 import { PageShell, SectionTitle } from "../../components";
 import type { AppUserMe, AppUserStats, AuthSession } from "../../types";
-import { formatDecimal, formatPercent, showToast } from "../../utils";
+import { formatDecimal, formatPercent, navigate, showToast } from "../../utils";
 
 export default function MinePage() {
   const [session, setSession] = useState<AuthSession | null>(() => getStoredAuthSession());
@@ -133,6 +134,18 @@ export default function MinePage() {
     }
   }
 
+  function handleOpenTournamentPlayer(tournamentId: string) {
+    const playerId = myStats?.binding?.playerId ?? myStats?.player?.id ?? "";
+
+    if (!playerId) {
+      showToast("暂无绑定选手数据");
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
+    navigate(`/pages/player-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&playerId=${encodeURIComponent(playerId)}`);
+  }
+
   const authProviderText = session ? "微信账号已登录" : "未登录";
 
   return (
@@ -202,15 +215,19 @@ export default function MinePage() {
                 <View className="stat-cell"><Text className="stat-value">{formatPercent(myStats.stats.winRate)}</Text><Text className="stat-hint">胜率</Text></View>
                 <View className="stat-cell"><Text className="stat-value">{formatDecimal(myStats.stats.kda)}</Text><Text className="stat-hint">KDA</Text></View>
               </View>
-              {myStats.tournamentHistory.slice(0, 3).map((entry) => (
-                <View className="content-panel history-item" key={entry.tournamentId}>
-                  <View>
-                    <Text className="state-title">{entry.tournamentName}</Text>
-                    <Text className="state-text">{entry.matches.length} 场 · {formatPercent(entry.stats.winRate)} 胜率</Text>
+              {myStats.tournamentHistory.slice(0, 3).map((entry) => {
+                const status = getTournamentHistoryStatus(entry);
+
+                return (
+                  <View className="content-panel history-item is-clickable" key={entry.tournamentId} onClick={() => handleOpenTournamentPlayer(entry.tournamentId)}>
+                    <View>
+                      <Text className="state-title">{entry.tournamentName}</Text>
+                      <Text className="state-text">{entry.matches.length} 场 · {formatPercent(entry.stats.winRate)} 胜率</Text>
+                    </View>
+                    <Text className={status.className}>{status.label}</Text>
                   </View>
-                  <Text className="badge">{entry.isCurrent ? "当前" : entry.status}</Text>
-                </View>
-              ))}
+                );
+              })}
             </>
           ) : (
             <View className="content-panel"><Text className="muted">我的数据读取中。</Text></View>
@@ -230,4 +247,23 @@ export default function MinePage() {
 
     </PageShell>
   );
+}
+
+function getTournamentHistoryStatus(entry: AppUserStats["tournamentHistory"][number]): { label: string; className: string } {
+  const normalized = entry.status.trim().toLowerCase();
+  const isRunning = entry.isCurrent || ["running", "ongoing", "active", "in_progress"].includes(normalized);
+
+  if (isRunning) {
+    return { label: "进行中", className: "status-tag green" };
+  }
+
+  if (["completed", "complete", "finished"].includes(normalized)) {
+    return { label: "已完成", className: "status-tag" };
+  }
+
+  if (["upcoming", "pending", "draft"].includes(normalized)) {
+    return { label: "未开始", className: "status-tag blue" };
+  }
+
+  return { label: entry.status || "赛事", className: "status-tag" };
 }
