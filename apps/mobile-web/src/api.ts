@@ -631,9 +631,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
   const normalizedRecords = matchRecords.map(normalizeMatchRecord);
   const tournamentRecentRecords = await loadTournamentRecentRecords(apiBaseUrl, tournamentList, selectedTournamentId, normalizedRecords);
   const matchId = findFeaturedMatchId(tournament, scheduleGroups, normalizedRecords);
-  const matchDetail =
-    matchId === null ? null : await fetchApi<ApiMatchDetail>(apiBaseUrl, `/matches/${matchId}`).catch(() => null);
-  const match = matchDetail === null ? emptyMatchData(matchId ?? "-") : normalizeMatchDetail(matchDetail);
+  const match = emptyMatchData(matchId ?? normalizedRecords[0]?.matchId ?? "-");
 
   return {
     apiBaseUrl,
@@ -652,7 +650,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     players: [],
     teams: [],
     featuredMatch: match,
-    notice: matchDetail === null ? "该赛事暂无可展示的真实比赛详情。" : null,
+    notice: null,
   };
 }
 
