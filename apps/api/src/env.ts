@@ -23,6 +23,22 @@ for (const root of candidateRoots) {
   }
 }
 
+export function validateProductionEnvironment(): void {
+  if (process.env.NODE_ENV !== "production") {
+    return;
+  }
+
+  if (isTruthy(process.env.MRJZ_ALLOW_DEV_WECHAT_LOGIN)) {
+    throw new Error("MRJZ_ALLOW_DEV_WECHAT_LOGIN must not be enabled in production");
+  }
+
+  const allowedOrigins = parseCsvEnv(process.env.MRJZ_ALLOWED_ORIGINS);
+
+  if (allowedOrigins.includes("*")) {
+    throw new Error("MRJZ_ALLOWED_ORIGINS must not contain * in production");
+  }
+}
+
 function loadEnvFile(filePath: string): void {
   const lines = readFileSync(filePath, "utf8").split(/\r?\n/);
 
@@ -57,4 +73,15 @@ function unquote(value: string): string {
   }
 
   return value;
+}
+
+function parseCsvEnv(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function isTruthy(value: string | undefined): boolean {
+  return ["1", "true", "yes", "on"].includes(value?.trim().toLowerCase() ?? "");
 }

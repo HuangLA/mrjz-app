@@ -98,6 +98,14 @@ const assetContentTypes: Record<string, string> = {
   ".png": "image/png",
   ".svg": "image/svg+xml; charset=utf-8",
 };
+const adminLoginRateLimiter = createFixedWindowRateLimiter(
+  readPositiveInteger(process.env.ADMIN_LOGIN_RATE_LIMIT_MAX, 20),
+  readPositiveInteger(process.env.ADMIN_LOGIN_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
+);
+const wechatLoginRateLimiter = createFixedWindowRateLimiter(
+  readPositiveInteger(process.env.WECHAT_LOGIN_RATE_LIMIT_MAX, 60),
+  readPositiveInteger(process.env.WECHAT_LOGIN_RATE_LIMIT_WINDOW_MS, 60 * 1000),
+);
 
 export type HealthStatus = {
   ok: true;
@@ -120,6 +128,13 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.get("/api/health", () => json(200, getHealthStatus()));
 
   router.post("/api/auth/wechat-login", async ({ request }) => {
+    const rateLimitKey = requestRateLimitKey(request, "wechat-login");
+    const rateLimited = wechatLoginRateLimiter.check(rateLimitKey);
+
+    if (rateLimited !== null) {
+      return rateLimited;
+    }
+
     try {
       const body = await readJsonBody(request);
       const login = await resolveWechatLogin(body);
@@ -206,9 +221,18 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.post("/api/admin/auth/login", async ({ request }) => {
+    const rateLimitKey = requestRateLimitKey(request, "admin-login");
+    const rateLimited = adminLoginRateLimiter.check(rateLimitKey);
+
+    if (rateLimited !== null) {
+      return rateLimited;
+    }
+
     try {
       const body = await readJsonBody(request);
-      return ok(loginAdmin(bodyToAdminLoginInput(body)));
+      const session = loginAdmin(bodyToAdminLoginInput(body));
+      adminLoginRateLimiter.reset(rateLimitKey);
+      return ok(session);
     } catch (error) {
       return validationError(error);
     }
@@ -1604,11 +1628,7 @@ async function resolveWechatCode2Session(
 function isDevelopmentWechatLoginAllowed(): boolean {
   const configured = process.env.MRJZ_ALLOW_DEV_WECHAT_LOGIN?.trim().toLowerCase();
 
-  if (configured !== undefined && configured.length > 0) {
-    return ["1", "true", "yes", "on"].includes(configured);
-  }
-
-  return process.env.NODE_ENV !== "production";
+  return process.env.NODE_ENV !== "production" && ["1", "true", "yes", "on"].includes(configured ?? "");
 }
 
 function resolveDevelopmentWechatUserId(body: Record<string, unknown>): string {
@@ -1749,10 +1769,80 @@ function validationError(error: unknown) {
   return fail(400, "VALIDATION_ERROR", error instanceof Error ? error.message : "Invalid request body");
 }
 
+function tooManyRequests(retryAfterMs: number) {
+  return {
+    ...fail(429, "RATE_LIMITED", "Too many requests, try again later"),
+    headers: {
+      "retry-after": String(Math.max(1, Math.ceil(retryAfterMs / 1000))),
+    },
+  };
+}
+
 function positiveIntegerQuery(url: URL, fieldName: string, fallback: number): number {
   const value = Number(url.searchParams.get(fieldName));
 
   return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = value === undefined || value.trim().length === 0 ? NaN : Number(value);
+
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function createFixedWindowRateLimiter(maxAttempts: number, windowMs: number) {
+  const attempts = new Map<string, { count: number; resetAt: number }>();
+
+  return {
+    check(key: string) {
+      const now = Date.now();
+      const current = attempts.get(key);
+
+      if (current === undefined || current.resetAt <= now) {
+        attempts.set(key, { count: 1, resetAt: now + windowMs });
+        return null;
+      }
+
+      if (current.count >= maxAttempts) {
+        return tooManyRequests(current.resetAt - now);
+      }
+
+      current.count += 1;
+      return null;
+    },
+    reset(key: string) {
+      attempts.delete(key);
+    },
+  };
+}
+
+function requestRateLimitKey(
+  request: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string | undefined } },
+  scope: string,
+): string {
+  return `${scope}:${clientAddressFromRequest(request)}`;
+}
+
+function clientAddressFromRequest(request: {
+  headers: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string | undefined };
+}): string {
+  if (process.env.MRJZ_RATE_LIMIT_TRUST_PROXY === "1") {
+    const forwardedFor = headerValue(request.headers["x-forwarded-for"]);
+    const firstForwardedFor = forwardedFor?.split(",")[0]?.trim();
+
+    if (firstForwardedFor !== undefined && firstForwardedFor.length > 0) {
+      return firstForwardedFor;
+    }
+  }
+
+  return request.socket?.remoteAddress ?? "unknown";
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  const first = Array.isArray(value) ? value[0] : value;
+
+  return typeof first === "string" && first.trim().length > 0 ? first.trim() : undefined;
 }
 
 function optionalQueryString(url: URL, fieldName: string): string | undefined {

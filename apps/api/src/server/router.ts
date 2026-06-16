@@ -23,16 +23,14 @@ type Route = {
   handler: RouteHandler;
 };
 
-const BASE_HEADERS = {
-  "access-control-allow-origin": "*",
+const BASE_HEADERS: Record<string, string> = {
   "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "access-control-allow-headers": "content-type, authorization, x-mrjz-user-id",
+  "access-control-max-age": "600",
+  "x-content-type-options": "nosniff",
 };
 
-const JSON_HEADERS = {
-  ...BASE_HEADERS,
-  "content-type": "application/json; charset=utf-8",
-};
+const allowedOrigins = parseAllowedOrigins();
 
 export class Router {
   private readonly routes: Route[] = [];
@@ -70,7 +68,7 @@ export class Router {
 
   async handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     if (request.method === "OPTIONS") {
-      response.writeHead(204, JSON_HEADERS);
+      response.writeHead(204, headersForRequest(request));
       response.end();
       return;
     }
@@ -79,7 +77,7 @@ export class Router {
     const route = this.match(request.method ?? "GET", url.pathname);
 
     if (route === null) {
-      send(response, fail(404, "NOT_FOUND", "Route not found"));
+      send(request, response, fail(404, "NOT_FOUND", "Route not found"));
       return;
     }
 
@@ -93,7 +91,7 @@ export class Router {
       });
 
       if (guarded !== undefined && guarded !== null) {
-        send(response, guarded);
+        send(request, response, guarded);
         return;
       }
 
@@ -102,10 +100,16 @@ export class Router {
         url,
         params: route.params,
       });
-      send(response, result);
+      send(request, response, result);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unexpected server error";
-      send(response, fail(500, "INTERNAL_SERVER_ERROR", message));
+      console.error("Unhandled API error", error);
+      const message =
+        process.env.NODE_ENV === "production"
+          ? "Unexpected server error"
+          : error instanceof Error
+            ? error.message
+            : "Unexpected server error";
+      send(request, response, fail(500, "INTERNAL_SERVER_ERROR", message));
     }
   }
 
@@ -153,10 +157,10 @@ export class Router {
   }
 }
 
-function send(response: ServerResponse, result: RouteResult): void {
+function send(request: IncomingMessage, response: ServerResponse, result: RouteResult): void {
   if (result.raw === true) {
     response.writeHead(result.status, {
-      ...BASE_HEADERS,
+      ...headersForRequest(request),
       ...result.headers,
     });
     response.end(result.body);
@@ -164,10 +168,56 @@ function send(response: ServerResponse, result: RouteResult): void {
   }
 
   response.writeHead(result.status, {
-    ...JSON_HEADERS,
+    ...headersForRequest(request),
+    "content-type": "application/json; charset=utf-8",
     ...result.headers,
   });
   response.end(JSON.stringify(result.body, null, 2));
+}
+
+function headersForRequest(request: IncomingMessage): Record<string, string> {
+  const headers = { ...BASE_HEADERS };
+  const origin = headerValue(request.headers.origin);
+  const allowedOrigin = resolveAllowedOrigin(origin);
+
+  if (allowedOrigin !== undefined) {
+    headers["access-control-allow-origin"] = allowedOrigin;
+    headers.vary = "Origin";
+  }
+
+  return headers;
+}
+
+function resolveAllowedOrigin(origin: string | undefined): string | undefined {
+  if (allowedOrigins.allowAll) {
+    return "*";
+  }
+
+  if (origin !== undefined && allowedOrigins.exact.has(origin)) {
+    return origin;
+  }
+
+  return undefined;
+}
+
+function parseAllowedOrigins(): { allowAll: boolean; exact: Set<string> } {
+  const configuredOrigins = (process.env.MRJZ_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  const allowDevelopmentWildcard = configuredOrigins.length === 0 && process.env.NODE_ENV !== "production";
+  const allowConfiguredWildcard = configuredOrigins.includes("*") && process.env.NODE_ENV !== "production";
+
+  return {
+    allowAll: allowDevelopmentWildcard || allowConfiguredWildcard,
+    exact: new Set(configuredOrigins.filter((origin) => origin !== "*")),
+  };
+}
+
+function headerValue(value: string | string[] | undefined): string | undefined {
+  const first = Array.isArray(value) ? value[0] : value;
+
+  return typeof first === "string" && first.trim().length > 0 ? first.trim() : undefined;
 }
 
 function parseRequestUrl(request: IncomingMessage): URL {

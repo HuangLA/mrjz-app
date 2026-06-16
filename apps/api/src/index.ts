@@ -1,8 +1,10 @@
-import "./env.js";
+import { validateProductionEnvironment } from "./env.js";
 import { createServer } from "node:http";
 import { getRepositoryInfo } from "./data/repository.js";
 import { startOpenDotaSyncScheduler, startSteamProfileSyncScheduler } from "./opendota/syncWorker.js";
 import { createApiRouter, type HealthStatus } from "./server/apiRouter.js";
+
+validateProductionEnvironment();
 
 const serviceName = "mrjz-api";
 const startedAt = Date.now();
