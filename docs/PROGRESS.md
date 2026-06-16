@@ -584,6 +584,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 云端 API 和 SQLite 数据库已部署到服务器：API 由 `mrjz-api.service` 托管在 `127.0.0.1:3001`，数据库位于 `/var/lib/mrjz-api/mrjz.sqlite`；Nginx 将 `https://api.dota2mrjz.icu` 反代到 API，Let’s Encrypt 证书已签发并由 certbot timer 自动续期；DDNS 同步范围扩展为 `@,www,api,admin`，其中 `dota2mrjz.icu` / `www.dota2mrjz.icu` 留给 H5，`admin.dota2mrjz.icu` 留给 Admin Web。
 - 本地 Admin、H5 和小程序构建默认切到云端 API：Admin 和 H5 fallback 使用 `https://api.dota2mrjz.icu/api`，H5 / 小程序本地与远端脚本默认注入同一地址；云端 API CORS 已放行本地 `5173` / `5174` / `5175` 预览来源，便于直接查看云服务器数据。
 - 云端第三届当前阶段已指向双败淘汰赛：第一、第二届保持已完成，第三届真实比赛记录和小组赛预赛标记为已完成，双败淘汰赛为进行中；Admin 登录后会直接进入当前淘汰赛处理台。
+- Web Admin 补齐届次生命周期控制：当前届次顶部可直接设为进行中或结束为已完成，新建届次选择进行中时会提示旧 running 届次自动收尾；后端生命周期更新也会保证同一时间只有一个 running 届次。
 
 ## 最近提交
 

@@ -553,6 +553,19 @@ function App() {
       return;
     }
 
+    const willCreateRunning = tournamentForm.status === "running";
+    const runningTournamentIds = data.tournaments.filter((item) => item.status === "running").map((item) => item.id);
+
+    if (willCreateRunning) {
+      const runningNames = data.tournaments
+        .filter((item) => runningTournamentIds.includes(item.id))
+        .map((item) => item.name);
+      const message = runningNames.length > 0
+        ? `创建为进行中后，已有进行中届次“${runningNames.join("、")}”会自动改为已完成。确认继续？`
+        : "确认把新届次直接创建为进行中？";
+      if (!window.confirm(message)) return;
+    }
+
     setNotice({ tone: "info", text: "创建联赛处理中..." });
     const result = await sendAdminRequest("/tournaments", "POST", {
       name,
@@ -569,6 +582,23 @@ function App() {
     setTournamentForm(initialTournamentForm);
     setTournamentCreateOpen(false);
     const createdTournamentId = typeof created?.id === "string" ? created.id : "";
+
+    if (willCreateRunning && runningTournamentIds.length > 0) {
+      for (const runningTournamentId of runningTournamentIds) {
+        const lifecycleResult = await sendAdminRequest(
+          `/tournaments/${encodeURIComponent(runningTournamentId)}/lifecycle`,
+          "PATCH",
+          { status: "completed" },
+        );
+
+        if (!lifecycleResult.ok) {
+          setNotice({ tone: "warn", text: `新届次已创建，但旧届次结束失败：${lifecycleResult.message}` });
+          await load(createdTournamentId, "");
+          return;
+        }
+      }
+    }
+
     await load(createdTournamentId, "");
     if (createdTournamentId) {
       void triggerTournamentOpenDotaSync(createdTournamentId);
@@ -583,6 +613,51 @@ function App() {
       text: result.ok ? "OpenDota 比赛记录同步完成，已刷新新届次。" : `OpenDota 同步未完成：${result.message}`,
     });
     if (result.ok) await load(tournamentId, "");
+  }
+
+  async function updateTournamentLifecycleStatus(nextStatus: CreateTournamentStatus) {
+    if (!requireTournament() || !data.detail) return;
+
+    const currentStatus = data.detail.status;
+    if (nextStatus === currentStatus) {
+      setNotice({ tone: "info", text: `当前已经是${labelTournamentStatus(nextStatus)}。` });
+      return;
+    }
+
+    if (nextStatus === "completed") {
+      if (!window.confirm(`确认结束“${data.detail.name}”？该届次会标记为已完成，并从当前进行中届次里移除。`)) {
+        return;
+      }
+    } else if (nextStatus === "running") {
+      const runningTournaments = data.tournaments.filter((item) => item.id !== data.selectedTournamentId && item.status === "running");
+      const runningNames = runningTournaments.map((item) => item.name);
+      const message = runningNames.length > 0
+        ? `确认把“${data.detail.name}”设为进行中？“${runningNames.join("、")}”会自动改为已完成。`
+        : `确认把“${data.detail.name}”设为进行中？`;
+      if (!window.confirm(message)) return;
+
+      setNotice({ tone: "info", text: "切换进行中届次处理中..." });
+      for (const tournament of runningTournaments) {
+        const completedResult = await sendAdminRequest(
+          `/tournaments/${encodeURIComponent(tournament.id)}/lifecycle`,
+          "PATCH",
+          { status: "completed" },
+        );
+
+        if (!completedResult.ok) {
+          setNotice({ tone: "warn", text: `结束“${tournament.name}”失败：${completedResult.message}` });
+          return;
+        }
+      }
+    }
+
+    await runAction(
+      "更新届次状态",
+      "PATCH",
+      `/tournaments/${encodeURIComponent(data.selectedTournamentId)}/lifecycle`,
+      { status: nextStatus },
+      data.selectedStageId,
+    );
   }
 
   function requireTournament() {
@@ -1362,6 +1437,7 @@ function App() {
               onSubmit={createTournament}
             />
           ) : null}
+          {data.detail ? <TournamentLifecyclePanel data={data} onSetStatus={updateTournamentLifecycleStatus} /> : null}
           {notice ? <div className={`notice-bar notice-${notice.tone}`}>{notice.text}</div> : null}
           {activeView === "tournament" ? (
             <TournamentWorkspace
@@ -1533,6 +1609,61 @@ function TournamentCreatePanel(props: {
           <p>创建成功后自动切换到新届次并拉取 OpenDota 比赛记录；小组赛、瑞士轮和淘汰赛仍在“赛事管理”里单独搭建。</p>
         </form>
       ) : null}
+    </section>
+  );
+}
+
+function TournamentLifecyclePanel(props: {
+  data: AdminData;
+  onSetStatus: (status: CreateTournamentStatus) => Promise<void>;
+}) {
+  const detail = props.data.detail;
+
+  if (detail === null) {
+    return null;
+  }
+
+  const currentRunning = props.data.tournaments.find((item) => item.status === "running");
+  const selectedIsRunning = detail.status === "running";
+  const selectedIsCompleted = detail.status === "completed";
+
+  return (
+    <section className="tournament-lifecycle-panel" aria-label="届次状态">
+      <div className="tournament-lifecycle-summary">
+        <span>届次状态</span>
+        <strong>{labelTournamentStatus(detail.status)}</strong>
+        <StatusPill tone={toneForStatus(detail.status)}>{detail.status}</StatusPill>
+      </div>
+      <div className="tournament-lifecycle-context">
+        <span>当前进行中</span>
+        <strong>{currentRunning?.name ?? "暂无"}</strong>
+      </div>
+      <div className="tournament-lifecycle-actions">
+        <button
+          className="primary-button"
+          type="button"
+          disabled={props.data.loading || selectedIsRunning}
+          onClick={() => void props.onSetStatus("running")}
+        >
+          <Play size={14} /> 设为进行中
+        </button>
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={props.data.loading || selectedIsCompleted}
+          onClick={() => void props.onSetStatus("completed")}
+        >
+          <Check size={14} /> 结束当前届次
+        </button>
+        <select
+          value={detail.status}
+          disabled={props.data.loading}
+          aria-label="调整届次状态"
+          onChange={(event) => void props.onSetStatus(event.target.value as CreateTournamentStatus)}
+        >
+          {tournamentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </div>
     </section>
   );
 }
@@ -8264,6 +8395,23 @@ function labelStageType(value: string | null | undefined): string {
   if (value === "swiss") return "瑞士轮";
   if (value === "knockout") return "淘汰赛";
   return value ?? "阶段";
+}
+
+function labelTournamentStatus(value: string | null | undefined): string {
+  switch (value) {
+    case "draft":
+      return "草稿";
+    case "upcoming":
+      return "未开始";
+    case "running":
+      return "进行中";
+    case "completed":
+      return "已完成";
+    case "archived":
+      return "已归档";
+    default:
+      return value ?? "未知";
+  }
 }
 
 function labelStageStatus(value: string | null | undefined): string {

@@ -504,6 +504,58 @@ label {
   color: #2f8f5b;
 }
 
+.tournament-lifecycle-panel {
+  display: grid;
+  grid-template-columns: minmax(160px, .7fr) minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid #d8e1ec;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 10px 24px rgba(35, 47, 68, .04);
+}
+
+.tournament-lifecycle-summary,
+.tournament-lifecycle-context {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tournament-lifecycle-summary span,
+.tournament-lifecycle-context span {
+  color: #6b7689;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tournament-lifecycle-summary strong,
+.tournament-lifecycle-context strong {
+  min-width: 0;
+  color: #182338;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tournament-lifecycle-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tournament-lifecycle-actions select {
+  width: 116px;
+  height: 34px;
+}
+
 .icon-button {
   width: 36px;
   height: 36px;
@@ -11545,6 +11597,21 @@ label {
     min-height: 28px;
     padding: 0 8px;
     font-size: 11px;
+  }
+
+  .tournament-lifecycle-panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 9px;
+  }
+
+  .tournament-lifecycle-actions {
+    justify-content: stretch;
+  }
+
+  .tournament-lifecycle-actions button,
+  .tournament-lifecycle-actions select {
+    flex: 1 1 130px;
   }
 
   .stage-canvas.is-stage-active .board-shell {

@@ -1176,6 +1176,10 @@ export class SqliteTournamentRepository {
         )
         .run(stageId, tournamentId, stageStatus, "先承载 OpenDota 已同步比赛；后续可继续新增小组赛、瑞士轮或淘汰赛阶段。");
 
+      if (status === "running") {
+        this.completeOtherRunningTournaments(tournamentId);
+      }
+
       this.database.exec("COMMIT;");
     } catch (error) {
       this.database.exec("ROLLBACK;");
@@ -3516,12 +3520,13 @@ export class SqliteTournamentRepository {
 
   updateTournamentLifecycle(tournamentId: string, input: UpdateTournamentLifecycleInput): TournamentDetail {
     const id = requiredString(tournamentId, "tournamentId");
-    const row = this.database.prepare("SELECT starts_at, ends_at FROM tournaments WHERE id = ? OR slug = ?").get(id, id);
+    const row = this.database.prepare("SELECT id, starts_at, ends_at FROM tournaments WHERE id = ? OR slug = ?").get(id, id);
 
     if (row === undefined) {
       throw new Error("Tournament not found");
     }
 
+    const resolvedTournamentId = text(row, "id");
     const startsAt = input.startsAt === undefined ? nullableText(row, "starts_at") : input.startsAt;
     const currentEndsAt = nullableText(row, "ends_at");
     const endsAt =
@@ -3533,27 +3538,104 @@ export class SqliteTournamentRepository {
             ? currentEndsAt
             : null;
 
-    this.database
-      .prepare(
-        `
-          UPDATE tournaments
-          SET
-            status = ?,
-            starts_at = ?,
-            ends_at = ?,
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id = ? OR slug = ?
-        `,
-      )
-      .run(input.status, startsAt, endsAt, id, id);
+    this.database.exec("BEGIN;");
 
-    const updated = this.getTournamentDetail(id);
+    try {
+      this.database
+        .prepare(
+          `
+            UPDATE tournaments
+            SET
+              status = ?,
+              starts_at = ?,
+              ends_at = ?,
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = ?
+          `,
+        )
+        .run(input.status, startsAt, endsAt, resolvedTournamentId);
+      this.syncTournamentLifecycleStages(resolvedTournamentId, input.status);
+
+      if (input.status === "running") {
+        this.completeOtherRunningTournaments(resolvedTournamentId);
+      }
+
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const updated = this.getTournamentDetail(resolvedTournamentId);
 
     if (updated === undefined) {
       throw new Error("Updated tournament could not be loaded");
     }
 
     return updated;
+  }
+
+  private syncTournamentLifecycleStages(tournamentId: string, status: TournamentLifecycleStatus): void {
+    if (status === "completed") {
+      this.database
+        .prepare(
+          `
+            UPDATE stages
+            SET status = 'completed',
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE tournament_id = ?
+          `,
+        )
+        .run(tournamentId);
+      return;
+    }
+
+    if (status === "running") {
+      this.database
+        .prepare(
+          `
+            UPDATE stages
+            SET status = 'running',
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = (
+              SELECT current_stage_id
+              FROM tournaments
+              WHERE id = ?
+            )
+          `,
+        )
+        .run(tournamentId);
+    }
+  }
+
+  private completeOtherRunningTournaments(activeTournamentId: string): void {
+    this.database
+      .prepare(
+        `
+          UPDATE stages
+          SET status = 'completed',
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE tournament_id IN (
+            SELECT id
+            FROM tournaments
+            WHERE id <> ?
+              AND status = 'running'
+          )
+        `,
+      )
+      .run(activeTournamentId);
+    this.database
+      .prepare(
+        `
+          UPDATE tournaments
+          SET status = 'completed',
+              ends_at = COALESCE(ends_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id <> ?
+            AND status = 'running'
+        `,
+      )
+      .run(activeTournamentId);
   }
 
   createTeam(input: CreateTeamInput): TeamBrief {
