@@ -4,11 +4,11 @@
 
 ## 当前状态
 
-当前阶段：M2 用户与权限体系收束，M4 OpenDota 自动同步校准，M5 H5 / 小程序用户侧 MVP 收口，M7 云服务器上线准备启动。
+当前阶段：M2 用户与权限体系收束，M4 OpenDota 自动同步校准，M5 H5 / 小程序用户侧 MVP 收口，M7 云服务器上线与加固。
 
 总体判断：M0/M1 文档和工程骨架已完成。API、Web Admin、H5 均可构建；本地 SQLite 数据库、三届真实联赛壳、API 读写仓库和 OpenDota backfill 已建立。前三届比赛数据已通过后端固化到本地数据库：第一届 `17485` 共 30 场，第二届 `18365` 共 42 场，第三届 `19483` 共 47 场。H5 已读取真实比赛库，并展示比赛列表、战报、技能加点、Ban/Pick、神杖/魔晶、眼位、趋势、聊天和已审核选手标签。微信小程序端已启动 Taro MVP，可读取赛事 / 赛程 / 战报 / 选手 / 队伍数据，并支持正式用户 session 登录后提交选手标签、真实点赞 / 取消点赞、绑定 Dota / Steam 数字账号和查看“我的”比赛数据空状态；小程序端已修复 Taro WXSS 单位转换和微信端排版稳定性问题，视觉体系向 H5 深色赛事风格对齐，并补齐比赛记录英雄阵容与比赛详情英雄头像、装备、技能、天赋、BP、眼位、趋势和聊天等 H5 核心战报模块；本轮进一步按 H5 像素级复刻比赛详情的天赋树 SVG、眼位 SVG + 时间轴、BP 中轴线、趋势 SVG 折线图和装备栏尺寸体系，并继续把赛事阶段、赛程、比赛记录、选手列表、队伍列表和详情 profile hero 收敛到 H5 当前页面结构；最新修正轮把比赛详情选手行改为 H5 折叠交互，选手榜排序矩阵和赛程状态筛选文案也对齐 H5；自动视觉比对链路已建立并完成本轮收敛，当前 9 个公开页面全部低于 8% 阈值，最新报告为 `artifacts/visual-parity/2026-06-10T06-33-16-572Z/report.md`；最新小程序真机反馈修正已把底部导航改为含“我的”的 7 项常驻导航，并收紧淘汰赛对阵图、比赛记录英雄阵容、比赛详情 MVP / 聊天和选手列表常用英雄排版；Web Admin 已接入账号密码登录和后端 Admin session 保护。
 
-M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GOAL.md`，本轮已按该文件完成第一版用户 session、Dota/Steam 绑定、Admin session、后台接口守卫和前端登录接入；本轮上线前安全预检已收紧 API CORS、生产环境开发登录兜底、登录限流和生产配置校验；后续继续补完整 RBAC 管理界面、绑定审核工作流和更完整的生产监控。
+M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GOAL.md`，本轮已按该文件完成第一版用户 session、Dota/Steam 绑定、Admin session、后台接口守卫和前端登录接入；本轮上线前安全预检已收紧 API CORS、生产环境开发登录兜底、登录限流和生产配置校验；云服务器已部署 API、H5 和 Web Admin，其中 H5 绑定 `https://dota2mrjz.icu` / `https://www.dota2mrjz.icu`，Admin 绑定 `https://admin.dota2mrjz.icu`，API 绑定 `https://api.dota2mrjz.icu`；后续继续补完整 RBAC 管理界面、绑定审核工作流和更完整的生产监控。
 
 ## 里程碑状态
 
@@ -21,7 +21,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 | M4 OpenDota 自动同步 | 进行中 | 10 分钟调度 worker、OpenDota client、parse request、Steam/选手发现和三届 backfill 已建立，待重试队列和生产限速策略 |
 | M5 用户侧 MVP | 进行中 | H5 已接真实 API 和真实比赛库；小程序 Taro MVP 已覆盖公开页面、登录互动、H5 风格导航、比赛记录英雄阵容预览，并继续按 H5 页面结构还原赛事阶段、赛程、选手和队伍页面 |
 | M6 比赛详情增强 | 进行中 | H5 和小程序长复盘均展示技能加点、天赋、Ban/Pick、神杖/魔晶、装备、眼位、趋势和聊天；小程序默认保留本地 SVG，Dota 图片走 API 静态素材 |
-| M7 上线准备 | 进行中 | 已启动后端上线安全预检；部署、真机、审核、合规继续推进 |
+| M7 上线准备 | 进行中 | API、H5 和 Web Admin 已部署到云服务器并完成第一轮安全加固；真机、审核、合规继续推进 |
 
 ## 已完成
 
@@ -36,6 +36,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 建立 agent 开发规则和项目进度追踪文件。
 - 建立 API `/health`、Admin/H5 `index.html`、小程序占位入口和共享类型。
 - API 上线前安全预检补强：CORS 改为按 `MRJZ_ALLOWED_ORIGINS` 白名单返回，生产环境拒绝开发微信登录兜底和 `*` 跨域，Admin / 微信登录增加内存限流，500 错误在生产环境不再透出内部异常信息。
+- 云服务器部署和安全加固完成：API 生产进程仅监听 `127.0.0.1:3001`，Nginx 统一代理 `api.dota2mrjz.icu`，H5 部署到 `dota2mrjz.icu` / `www.dota2mrjz.icu`，Web Admin 部署到 `admin.dota2mrjz.icu`；Let’s Encrypt 证书已签发并配置自动续签，生产 CORS 已移除 localhost，UFW 已限制入站到 SSH / HTTP / HTTPS，SSH 已切换为密钥登录并禁用密码登录。
+- 生产依赖安全审计收口：通过 npm overrides 将 Taro 链路中的 `esbuild` 和 `swiper` 提升到修复版本，`npm audit --workspaces --omit=dev` 已无漏洞。
 - 建立比赛详情共享契约和 OpenDota 字段映射文档。
 - 安装 npm workspace 依赖并生成 `package-lock.json`。
 - 建立 API SQLite 数据仓库、赛事赛程接口和比赛详情 OpenDota normalizer。

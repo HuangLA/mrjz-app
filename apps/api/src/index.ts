@@ -1,6 +1,5 @@
 import { validateProductionEnvironment } from "./env.js";
 import { createServer } from "node:http";
-import { getRepositoryInfo } from "./data/repository.js";
 import { startOpenDotaSyncScheduler, startSteamProfileSyncScheduler } from "./opendota/syncWorker.js";
 import { createApiRouter, type HealthStatus } from "./server/apiRouter.js";
 
@@ -10,32 +9,24 @@ const serviceName = "mrjz-api";
 const startedAt = Date.now();
 
 export function getHealthStatus(now = new Date()): HealthStatus {
-  const repositoryInfo = getRepositoryInfo();
-
   return {
     ok: true,
     service: serviceName,
     timestamp: now.toISOString(),
     uptimeSeconds: Math.round((now.getTime() - startedAt) / 1000),
-    prototype: {
-      runtime: "node:http",
-      dataSource: repositoryInfo.dataSource,
-      databasePath: repositoryInfo.databasePath,
-      externalDependencies: false,
-    },
-    routes: router.patterns(),
   };
 }
 
 const port = Number(process.env.API_PORT ?? 3001);
+const host = process.env.API_HOST ?? (process.env.NODE_ENV === "production" ? "127.0.0.1" : "0.0.0.0");
 const router = createApiRouter(() => getHealthStatus());
 
 const server = createServer((request, response) => {
   void router.handle(request, response);
 });
 
-server.listen(port, () => {
-  console.log(`${serviceName} listening on :${port}`);
+server.listen(port, host, () => {
+  console.log(`${serviceName} listening on ${host}:${port}`);
   startOpenDotaSyncScheduler();
   startSteamProfileSyncScheduler();
 });

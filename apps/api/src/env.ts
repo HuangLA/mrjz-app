@@ -37,6 +37,12 @@ export function validateProductionEnvironment(): void {
   if (allowedOrigins.includes("*")) {
     throw new Error("MRJZ_ALLOWED_ORIGINS must not contain * in production");
   }
+
+  const devOrigins = allowedOrigins.filter(isLocalDevelopmentOrigin);
+
+  if (devOrigins.length > 0) {
+    throw new Error("MRJZ_ALLOWED_ORIGINS must not include localhost or 127.0.0.1 in production");
+  }
 }
 
 function loadEnvFile(filePath: string): void {
@@ -84,4 +90,13 @@ function parseCsvEnv(value: string | undefined): string[] {
 
 function isTruthy(value: string | undefined): boolean {
   return ["1", "true", "yes", "on"].includes(value?.trim().toLowerCase() ?? "");
+}
+
+function isLocalDevelopmentOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
+  } catch {
+    return false;
+  }
 }

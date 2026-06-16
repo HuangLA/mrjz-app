@@ -112,13 +112,6 @@ export type HealthStatus = {
   service: string;
   timestamp: string;
   uptimeSeconds: number;
-  prototype: {
-    runtime: "node:http";
-    dataSource: "sqlite";
-    databasePath: string;
-    externalDependencies: false;
-  };
-  routes: string[];
 };
 
 export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
