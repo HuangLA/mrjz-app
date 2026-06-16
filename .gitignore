@@ -21,6 +21,7 @@ var/**/*.png
 .env.*
 !.env.example
 cloude-server.md
+admin端用户名密码.md
 
 # Logs
 *.log

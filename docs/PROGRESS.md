@@ -581,6 +581,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - Web Admin、H5 和小程序双败图总决赛汇聚线改为低饱和路径层：Web 端使用 SVG 弯折路径和中轴，小程序端使用兼容的线段组合，替代突兀的独立横线。
 - Web Admin 和 H5 双败图总决赛汇聚线改为基于真实节点位置测量的整图 overlay，线段从胜者组决赛 / 败者组决赛卡片右侧正中点发出；小程序端移除汇聚线，并把总决赛上移到胜者组行内、靠近胜者组第 1 轮第二场位置。
 - 云服务器 DDNS 已完成基础配置：服务器通过 root-only 的阿里云 DNS updater 更新 `dota2mrjz.icu` 和 `www.dota2mrjz.icu` 的 A 记录，并由 systemd timer 每 5 分钟执行一次；敏感凭据保存在服务器 `/etc/mrjz-ddns.env`，本地 `cloude-server.md` 已加入忽略，避免误提交。
+- 云端 API 和 SQLite 数据库已部署到服务器：API 由 `mrjz-api.service` 托管在 `127.0.0.1:3001`，数据库位于 `/var/lib/mrjz-api/mrjz.sqlite`；Nginx 将 `https://api.dota2mrjz.icu` 反代到 API，Let’s Encrypt 证书已签发并由 certbot timer 自动续期；DDNS 同步范围扩展为 `@,www,api,admin`，其中 `dota2mrjz.icu` / `www.dota2mrjz.icu` 留给 H5，`admin.dota2mrjz.icu` 留给 Admin Web。
 
 ## 最近提交
 
@@ -638,6 +639,7 @@ docs/
 | 2026-05-18 | 参赛名单解锁会清空官方赛程草稿 | 保证后续小组、瑞士轮和淘汰赛不会引用错误名单 |
 | 2026-06-01 | 重置官方赛程不得删除 OpenDota 比赛详情 | 管理员可重搭赛制赛程，但真实比赛库是基础数据资产 |
 | 2026-06-16 | 域名动态解析使用服务器侧阿里云 DNS API 定时更新 | 当前公网 IP 非固定，DDNS 先独立于后端部署完成，后续 Nginx / HTTPS 可直接复用域名 |
+| 2026-06-16 | 生产 API 使用独立 `api.dota2mrjz.icu` 域名，前端域名只作为 CORS 来源 | API、H5 和 Admin Web 分域部署，降低端口暴露和跨端配置混淆 |
 
 ## 风险和阻塞
 
