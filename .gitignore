@@ -20,6 +20,7 @@ var/**/*.png
 .env
 .env.*
 !.env.example
+cloude-server.md
 
 # Logs
 *.log
