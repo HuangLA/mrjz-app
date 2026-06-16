@@ -39,6 +39,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 云服务器部署和安全加固完成：API 生产进程仅监听 `127.0.0.1:3001`，Nginx 统一代理 `api.dota2mrjz.icu`，H5 部署到 `dota2mrjz.icu` / `www.dota2mrjz.icu`，Web Admin 部署到 `admin.dota2mrjz.icu`；Let’s Encrypt 证书已签发并配置自动续签，生产 CORS 已移除 localhost，UFW 已限制入站到 SSH / HTTP / HTTPS，SSH 已切换为密钥登录并禁用密码登录。
 - H5 线上 API 调用改为同域 `/api`：`dota2mrjz.icu` 和 `www.dota2mrjz.icu` 的 Nginx 已将 `/api/` 反向代理到服务器本机 API，减少浏览器跨域、DNS 和额外 TLS 连接开销；Admin 仍保持 `api.dota2mrjz.icu`。
 - H5 首页首屏加载完成第一轮优化：Nginx 已启用 JS / CSS / JSON gzip 压缩，H5 首页不再预拉完整战报详情，战报详情改为用户进入战报页时再请求。
+- H5 首页赛事总比赛数改为读取后端 `matchCount`：赛事列表接口返回每届真实 OpenDota 比赛入库数量，首页展示三届累计总场次而不是每届最近 3 场预览数。
 - 生产依赖安全审计收口：通过 npm overrides 将 Taro 链路中的 `esbuild` 和 `swiper` 提升到修复版本，`npm audit --workspaces --omit=dev` 已无漏洞。
 - 建立比赛详情共享契约和 OpenDota 字段映射文档。
 - 安装 npm workspace 依赖并生成 `package-lock.json`。

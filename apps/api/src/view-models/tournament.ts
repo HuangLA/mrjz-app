@@ -17,6 +17,7 @@ export type TournamentListItem = TournamentBrief & {
   startsAt: string;
   endsAt: string | null;
   teamCount: number;
+  matchCount: number;
 };
 
 export type TournamentDetail = TournamentListItem & {

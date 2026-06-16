@@ -39,6 +39,7 @@ export type TournamentOption = {
   status: TournamentMeta["status"];
   startsAt: string;
   leagueId: string;
+  matchCount: number;
   source: "api";
 };
 
@@ -192,6 +193,7 @@ type ApiTournament = {
   startsAt?: string;
   endsAt?: string | null;
   teamCount?: number;
+  matchCount?: number;
   stages?: ApiStage[];
   nextSeries?: ApiSeries | null;
   latestResult?: ApiSeries | null;
@@ -1773,6 +1775,7 @@ function tournamentOptions(tournaments: ApiTournament[]): TournamentOption[] {
     status: normalizeTournamentStatus(tournament.status),
     startsAt: shortDateTime(tournament.startsAt),
     leagueId: tournament.league?.opendotaLeagueId ? String(tournament.league.opendotaLeagueId) : "-",
+    matchCount: tournament.matchCount ?? 0,
     source: "api" as const,
   }));
 }

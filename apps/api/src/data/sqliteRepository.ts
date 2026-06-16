@@ -7434,6 +7434,7 @@ export class SqliteTournamentRepository {
       startsAt: text(row, "starts_at"),
       endsAt: nullableText(row, "ends_at"),
       teamCount: this.countTournamentTeams(text(row, "id")),
+      matchCount: this.countTournamentMatches(numberValue(row, "opendota_league_id")),
     };
   }
 
@@ -7493,6 +7494,12 @@ export class SqliteTournamentRepository {
     const row = this.database
       .prepare("SELECT COUNT(*) AS count FROM tournament_teams WHERE tournament_id = ?")
       .get(tournamentId);
+
+    return numberValue(row ?? {}, "count");
+  }
+
+  private countTournamentMatches(opendotaLeagueId: number): number {
+    const row = this.database.prepare("SELECT COUNT(*) AS count FROM opendota_matches WHERE league_id = ?").get(opendotaLeagueId);
 
     return numberValue(row ?? {}, "count");
   }

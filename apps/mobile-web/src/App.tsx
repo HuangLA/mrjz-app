@@ -688,10 +688,7 @@ function HomePage({
 }) {
   const activeTournament =
     data.tournamentOptions.find((option) => option.id === data.selectedTournamentId) ?? data.tournamentOptions[0] ?? null;
-  const recordTotal = data.tournamentOptions.reduce(
-    (sum, option) => sum + (data.tournamentRecentRecords[option.id]?.length ?? 0),
-    0,
-  );
+  const recordTotal = data.tournamentOptions.reduce((sum, option) => sum + option.matchCount, 0);
 
   return (
     <>

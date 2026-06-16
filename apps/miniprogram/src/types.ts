@@ -126,6 +126,7 @@ export type TournamentOption = {
   season?: { name?: string };
   currentStage?: StageSummary | null;
   teamCount?: number;
+  matchCount?: number;
   nextSeries?: SeriesSummary | null;
   latestResult?: SeriesSummary | null;
 };

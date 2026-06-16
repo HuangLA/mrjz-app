@@ -67,6 +67,7 @@ export interface TournamentListItem {
   startsAt?: string;
   endsAt?: string | null;
   teamCount?: number;
+  matchCount?: number;
 }
 
 export interface TournamentDetail extends TournamentListItem {
