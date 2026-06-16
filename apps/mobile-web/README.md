@@ -30,7 +30,7 @@ API base priority:
 
 1. Runtime override in the browser: open `?apiBaseUrl=https://api.example.com/api` to save a temporary override, `?apiBaseUrl=local` to switch to local, or `?apiBaseUrl=reset` to remove the override.
 2. Build-time `PUBLIC_API_BASE_URL` or `VITE_PUBLIC_API_BASE_URL`.
-3. Cloud fallback `https://api.dota2mrjz.icu/api`.
+3. Same-origin fallback `/api`, which is expected to be reverse-proxied by Nginx in production.
 
 Refresh local Dota assets:
 

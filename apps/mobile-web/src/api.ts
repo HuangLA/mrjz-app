@@ -435,7 +435,7 @@ type ApiComparisonMetric = {
   radiantShare?: number;
 };
 
-const defaultApiBaseUrl = "https://api.dota2mrjz.icu/api";
+const defaultApiBaseUrl = "/api";
 const h5ApiBaseStorageKey = "mrjz.h5ApiBaseUrl";
 const localDotaConstantsBaseUrl = "/static/dota/constants";
 const remoteDotaConstantsBaseUrl = "https://raw.githubusercontent.com/odota/dotaconstants/master/build";
