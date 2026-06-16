@@ -18,7 +18,7 @@ WeChat mini program display client built with Taro + React + TypeScript.
 ```sh
 npm --workspace @mrjz/miniprogram run dev
 npm --workspace @mrjz/miniprogram run dev:local
-MRJZ_REMOTE_API_BASE_URL=https://api.example.com/api npm --workspace @mrjz/miniprogram run dev:remote
+npm --workspace @mrjz/miniprogram run dev:remote
 npm --workspace @mrjz/miniprogram run build
 npm --workspace @mrjz/miniprogram run build:remote
 npm --workspace @mrjz/miniprogram run typecheck
@@ -31,7 +31,7 @@ API base priority:
 1. Build-time `MRJZ_MINIPROGRAM_API_BASE_URL`.
 2. Build-time `PUBLIC_API_BASE_URL` or `VITE_PUBLIC_API_BASE_URL`.
 
-For local simulator builds, use `dev:local` or `build:local`; these scripts inject `http://127.0.0.1:3001/api` explicitly. For remote preview or upload, set `MRJZ_REMOTE_API_BASE_URL` and use `dev:remote` or `build:remote`. The URL must be configured as a WeChat Mini Program request legal domain when running on real devices. The mini program does not expose runtime API switching controls.
+For local simulator builds, use `dev:local` or `build:local`; these scripts inject `https://api.dota2mrjz.icu/api` explicitly. For remote preview or upload, `dev:remote` and `build:remote` default to the same cloud API, or can be overridden with `MRJZ_REMOTE_API_BASE_URL`. The URL must be configured as a WeChat Mini Program request legal domain when running on real devices. The mini program does not expose runtime API switching controls.
 
 ## Auth Notes
 

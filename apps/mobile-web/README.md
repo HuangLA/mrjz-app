@@ -14,24 +14,23 @@ Current pages:
 Run locally:
 
 ```bash
-npm run dev:api
 npm run dev:mobile-web
 npm run dev:mobile-web:local
-MRJZ_REMOTE_API_BASE_URL=https://api.example.com/api npm run dev:mobile-web:remote
+npm run dev:mobile-web:remote
 ```
 
 Build for a known API:
 
 ```bash
 npm run build:mobile-web:local
-MRJZ_REMOTE_API_BASE_URL=https://api.example.com/api npm run build:mobile-web:remote
+npm run build:mobile-web:remote
 ```
 
 API base priority:
 
 1. Runtime override in the browser: open `?apiBaseUrl=https://api.example.com/api` to save a temporary override, `?apiBaseUrl=local` to switch to local, or `?apiBaseUrl=reset` to remove the override.
 2. Build-time `PUBLIC_API_BASE_URL` or `VITE_PUBLIC_API_BASE_URL`.
-3. Local fallback `http://127.0.0.1:3001/api`.
+3. Cloud fallback `https://api.dota2mrjz.icu/api`.
 
 Refresh local Dota assets:
 

@@ -93,7 +93,7 @@ const routeSet = new Set<AppRoute>([...routeOptions.map((route) => route.key), "
 const stageSet = new Set<StageKey>(stageOptions.map((stage) => stage.key));
 const playerSortKeySet = new Set<PlayerSortKey>(playerSortOptions.map((option) => option.key));
 
-const defaultApiBaseUrl = "http://127.0.0.1:3001/api";
+const defaultApiBaseUrl = "https://api.dota2mrjz.icu/api";
 const emptyIcon: IconRef = { label: "-", imageUrl: "" };
 const ungroupedStandingKey = "__all__";
 const homeHeroRailCardWidth = 148;

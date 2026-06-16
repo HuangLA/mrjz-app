@@ -346,7 +346,7 @@ type ApiFailure = {
   };
 };
 
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:3001/api";
+const DEFAULT_API_BASE_URL = "https://api.dota2mrjz.icu/api";
 
 export const apiBaseUrl = String(
   import.meta.env.PUBLIC_API_BASE_URL || import.meta.env.VITE_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL,

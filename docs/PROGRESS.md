@@ -582,6 +582,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - Web Admin 和 H5 双败图总决赛汇聚线改为基于真实节点位置测量的整图 overlay，线段从胜者组决赛 / 败者组决赛卡片右侧正中点发出；小程序端移除汇聚线，并把总决赛上移到胜者组行内、靠近胜者组第 1 轮第二场位置。
 - 云服务器 DDNS 已完成基础配置：服务器通过 root-only 的阿里云 DNS updater 更新 `dota2mrjz.icu` 和 `www.dota2mrjz.icu` 的 A 记录，并由 systemd timer 每 5 分钟执行一次；敏感凭据保存在服务器 `/etc/mrjz-ddns.env`，本地 `cloude-server.md` 已加入忽略，避免误提交。
 - 云端 API 和 SQLite 数据库已部署到服务器：API 由 `mrjz-api.service` 托管在 `127.0.0.1:3001`，数据库位于 `/var/lib/mrjz-api/mrjz.sqlite`；Nginx 将 `https://api.dota2mrjz.icu` 反代到 API，Let’s Encrypt 证书已签发并由 certbot timer 自动续期；DDNS 同步范围扩展为 `@,www,api,admin`，其中 `dota2mrjz.icu` / `www.dota2mrjz.icu` 留给 H5，`admin.dota2mrjz.icu` 留给 Admin Web。
+- 本地 Admin、H5 和小程序构建默认切到云端 API：Admin 和 H5 fallback 使用 `https://api.dota2mrjz.icu/api`，H5 / 小程序本地与远端脚本默认注入同一地址；云端 API CORS 已放行本地 `5173` / `5174` / `5175` 预览来源，便于直接查看云服务器数据。
 
 ## 最近提交
 
