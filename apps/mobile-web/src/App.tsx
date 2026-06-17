@@ -54,7 +54,8 @@ type PlayerSortKey =
 type SortDirection = "asc" | "desc";
 type ScheduleStatusFilter = "全部" | ScheduleItem["status"];
 
-type NavigateOptions = { replace?: boolean; scroll?: boolean; profileId?: string };
+type AppRouteSnapshot = { route: AppRoute; profileId: string | null };
+type NavigateOptions = { replace?: boolean; scroll?: boolean; profileId?: string | undefined };
 
 const routeOptions: Array<{ key: AppRoute; label: string; kicker: string }> = [
   { key: "home", label: "首页", kicker: "入口" },
@@ -150,7 +151,7 @@ export function App() {
   const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
   const [floatingNavHidden, setFloatingNavHidden] = useState(false);
 
-  const routeHistoryRef = useRef<AppRoute[]>([]);
+  const routeHistoryRef = useRef<AppRouteSnapshot[]>([]);
   const loadingKeysRef = useRef(new Set<string>());
   const lastFloatingNavScrollYRef = useRef(0);
   const floatingNavScrollTickingRef = useRef(false);
@@ -244,7 +245,7 @@ export function App() {
           : `#${nextRoute}`;
 
       if (nextRoute !== route && !options.replace) {
-        routeHistoryRef.current.push(route);
+        routeHistoryRef.current.push({ route, profileId });
       }
 
       setRoute(nextRoute);
@@ -268,7 +269,7 @@ export function App() {
     const previousRoute = routeHistoryRef.current.pop();
 
     if (previousRoute) {
-      navigateTo(previousRoute, { replace: true });
+      navigateTo(previousRoute.route, { replace: true, profileId: previousRoute.profileId ?? undefined });
       return;
     }
 

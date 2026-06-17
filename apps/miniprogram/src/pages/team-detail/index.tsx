@@ -88,7 +88,13 @@ export default function TeamDetailPage() {
 
           <SectionTitle kicker="成员" title="当前名单" />
           {profile.members.map((member) => (
-            <View className="content-panel roster-item" key={member.id} onClick={() => navigate(`/pages/player-detail/index?tournamentId=${tournamentId}&playerId=${member.id}`)}>
+            <View
+              className="content-panel roster-item"
+              key={member.id}
+              onClick={() => navigate(
+                `/pages/player-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&playerId=${encodeURIComponent(member.id)}&fromTeamId=${encodeURIComponent(teamId)}`,
+              )}
+            >
               <SteamAvatar player={member} size="small" />
               <Text className="record-title">{member.displayName}</Text>
               <Text className="muted">ID {member.accountId ?? member.id}</Text>

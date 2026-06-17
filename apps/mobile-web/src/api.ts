@@ -1,3 +1,4 @@
+import { formatDotaGameMode } from "@mrjz/shared/dota-game-mode";
 import type {
   AghanimState,
   BracketPreviewNode,
@@ -1899,11 +1900,7 @@ function parseStatusText(status: string | undefined): string {
 }
 
 function modeText(mode: number | null | undefined): string | null {
-  if (mode === null || mode === undefined) {
-    return null;
-  }
-
-  return `Game Mode ${mode}`;
+  return formatDotaGameMode(mode);
 }
 
 function stageNameFromId(stageId: string): string {

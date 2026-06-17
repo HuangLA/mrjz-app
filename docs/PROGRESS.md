@@ -67,6 +67,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - H5 比赛详情眼位时间轴已切换为本地 Dota 小地图视图，支持按比赛时间滑动查看天辉/夜魇眼位和视野范围。
 - H5 已本地化 Dota 常量、英雄头像、物品图标和技能图标，运行时优先读取 `public/static/dota`，减少外部 CDN 请求导致的空图风险。
 - API 新增公开 Dota / SVG 静态素材路由；小程序默认只复制本地 `/assets/svg`，战报 Dota 图片从当前 API 的 `/assets/dota` 加载，必要时可用 `MRJZ_MINIPROGRAM_LOCAL_DOTA_ASSETS=1` 生成全量本地素材调试包。
+- 小程序本地调试新增 `dev:miniprogram:api-proxy` / `dev:miniprogram:proxy`：微信开发者工具可请求 `http://127.0.0.1:8787/api`，再由本机代理使用 TLS 1.3 转发到云端 API，用于绕过部分本地网络对 `dota2mrjz.icu` TLS 1.2/SNI 的连接重置。
 - 小程序比赛记录补齐与 H5 一致的双方 5v5 英雄阵容缩略图。
 - 小程序比赛详情补齐 H5 核心战报信息密度：英雄头像、装备 / 背包 / 中立物品、神杖 / 魔晶、技能加点、天赋图例、Ban/Pick、眼位地图、趋势对比和聊天记录。
 - 小程序比赛详情完成像素级复刻追加轮：天赋图例改为 H5 同源树枝 / 弧点 SVG；眼位地图使用阵营染色 SVG 图标和 15 秒步进时间轴筛选；Ban/Pick 改回 H5 中轴左右时间线；趋势区改为经济 / 经验差和选手经济 SVG 折线图；装备栏、背包、中立物品、神杖 / 魔晶和天赋图标尺寸回到 H5 紧凑体系。

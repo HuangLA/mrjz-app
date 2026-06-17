@@ -9,6 +9,11 @@
       "types": "./src/bracket-seeding.d.ts",
       "import": "./src/bracket-seeding.js",
       "default": "./src/bracket-seeding.js"
+    },
+    "./dota-game-mode": {
+      "types": "./src/dota-game-mode.d.ts",
+      "import": "./src/dota-game-mode.js",
+      "default": "./src/dota-game-mode.js"
     }
   },
   "scripts": {

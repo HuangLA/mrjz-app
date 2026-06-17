@@ -65,14 +65,14 @@ const DEFAULT_MINI_NAV_METRICS: MiniNavMetrics = {
   sideInset: 10,
 };
 
-export function PageShell(props: { children: ReactNode; loading?: boolean; error?: string; routeKey?: MiniRouteKey }) {
+export function PageShell(props: { children: ReactNode; loading?: boolean; error?: string; routeKey?: MiniRouteKey; backUrl?: string | undefined }) {
   const routeKey = props.routeKey ?? "stage";
   const isHome = routeKey === "home";
 
   return (
     <View className={`app-shell ${isHome ? "route-home" : "route-secondary"}`}>
       {isHome ? <HomeBackgroundMarquee /> : null}
-      <AppBar isHome={isHome} />
+      <AppBar backUrl={props.backUrl} isHome={isHome} />
       <View className="view">
         {props.loading ? <StatePanel title="读取中" text="正在同步赛事数据" /> : null}
         {!props.loading && props.error ? <StatePanel title="暂时不可用" text={props.error} tone="danger" /> : null}
@@ -83,7 +83,7 @@ export function PageShell(props: { children: ReactNode; loading?: boolean; error
   );
 }
 
-function AppBar(props: { isHome: boolean }) {
+function AppBar(props: { backUrl?: string | undefined; isHome: boolean }) {
   const navMetrics = getMiniNavMetrics();
   const appBarStyle: CSSProperties = {
     paddingTop: `${navMetrics.top}px`,
@@ -108,7 +108,7 @@ function AppBar(props: { isHome: boolean }) {
         {props.isHome ? (
           <Text className="brand-mark" style={navControlStyle}>MRJZ</Text>
         ) : (
-          <Button className="icon-button" style={navButtonStyle} onClick={goBack}>
+          <Button className="icon-button" style={navButtonStyle} onClick={() => goBack(props.backUrl)}>
             ‹
           </Button>
         )}
@@ -160,7 +160,12 @@ function HomeHeroRail(props: { side: "radiant" | "dire" }) {
   );
 }
 
-function goBack() {
+function goBack(backUrl?: string) {
+  if (backUrl) {
+    void Taro.redirectTo({ url: backUrl });
+    return;
+  }
+
   const pages = Taro.getCurrentPages();
 
   if (pages.length > 1) {

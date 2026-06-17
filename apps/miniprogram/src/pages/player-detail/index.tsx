@@ -46,6 +46,7 @@ export default function PlayerDetailPage() {
   const router = useRouter();
   const tournamentId = String(router.params.tournamentId ?? "");
   const playerId = String(router.params.playerId ?? "");
+  const fromTeamId = String(router.params.fromTeamId ?? "");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -195,7 +196,12 @@ export default function PlayerDetailPage() {
   }
 
   return (
-    <PageShell loading={loading} error={error} routeKey="players">
+    <PageShell
+      backUrl={fromTeamId ? `/pages/team-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&teamId=${encodeURIComponent(fromTeamId)}` : undefined}
+      loading={loading}
+      error={error}
+      routeKey="players"
+    >
       {profile ? (
         <>
           <TournamentScope tournament={tournaments.find((tournament) => tournament.id === tournamentId)} />

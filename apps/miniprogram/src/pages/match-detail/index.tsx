@@ -1,4 +1,5 @@
 import { ScrollView, Slider, Text, View } from "@tarojs/components";
+import { formatDotaGameMode } from "@mrjz/shared/dota-game-mode";
 import { useDidShow, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadMatch } from "../../api";
@@ -116,6 +117,7 @@ export default function MatchDetailPage() {
 
 function MatchSummary(props: { detail: MatchDetail }) {
   const { detail } = props;
+  const gameModeText = formatDotaGameMode(detail.match.gameMode);
 
   return (
     <View className="match-summary battle-summary">
@@ -133,7 +135,7 @@ function MatchSummary(props: { detail: MatchDetail }) {
         <View className="score-core">
           <Text>{detail.match.tournamentName ?? detail.match.leagueName}</Text>
           <Text className="score-core-value">{detail.score.radiantScore}<Text>:</Text>{detail.score.direScore}</Text>
-          <Text>{detail.match.durationText}{detail.match.gameMode !== null ? ` · Game Mode ${detail.match.gameMode}` : ""}</Text>
+          <Text>{detail.match.durationText}{gameModeText ? ` · ${gameModeText}` : ""}</Text>
         </View>
         <View className="team-side dire">
           <Text>夜魇</Text>
