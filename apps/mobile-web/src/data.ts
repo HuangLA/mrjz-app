@@ -343,6 +343,18 @@ export interface ComparisonMetric {
   radiantShare: number;
 }
 
+export interface MatchAward {
+  code: string;
+  title: string;
+  description: string;
+  playerId: string;
+  playerName: string;
+  side: TeamSide;
+  hero: string;
+  portrait: string;
+  valueText: string;
+}
+
 export interface MatchData {
   id: string;
   league: string;
@@ -362,5 +374,6 @@ export interface MatchData {
   wardTimeline: WardEvent[];
   trends: TrendCharts;
   comparisons: ComparisonMetric[];
+  awards: MatchAward[];
   chat: ChatLine[];
 }

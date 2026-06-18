@@ -23,6 +23,7 @@ import {
   type DraftStep,
   type EntityTeamInfo,
   type IconRef,
+  type MatchAward,
   type MatchData,
   type MatchRecord,
   type PlayerDirectoryItem,
@@ -3357,6 +3358,7 @@ function TeamPanel({
             player={player}
             expanded={expandedPlayers.has(player.id)}
             isMvp={player.id === match.mvpPlayerId}
+            awards={match.awards.filter((award) => award.playerId === player.id)}
             onToggle={onPlayerToggle}
           />
         ))}
@@ -3369,11 +3371,13 @@ function PlayerRow({
   player,
   expanded,
   isMvp,
+  awards,
   onToggle,
 }: {
   player: PlayerStats;
   expanded: boolean;
   isMvp: boolean;
+  awards: MatchAward[];
   onToggle: (playerId: string) => void;
 }) {
   const abilitySteps = player.abilityOrder.filter((ability) => ability.kind === "ability");
@@ -3415,6 +3419,7 @@ function PlayerRow({
               <small>伤害 {player.damageShare}</small>
             </span>
           </div>
+          {awards.length > 0 ? <PlayerAwardBadges awards={awards} /> : null}
         </div>
         <div className="player-kda">
           <b>
@@ -3446,6 +3451,19 @@ function PlayerRow({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function PlayerAwardBadges({ awards }: { awards: MatchAward[] }) {
+  return (
+    <div className="player-awards" aria-label="本场称号">
+      {awards.map((award) => (
+        <span key={award.code} title={`${award.title}：${award.description}`}>
+          <b>{award.title}</b>
+          <small>{award.valueText}</small>
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -4326,6 +4344,7 @@ function emptyMatchData(): MatchData {
       playerXp: [],
     },
     comparisons: [],
+    awards: [],
     chat: [],
   };
 }

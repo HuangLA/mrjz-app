@@ -2421,6 +2421,46 @@ button {
   font-size: 9px;
 }
 
+.player-awards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.player-awards span {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border: 1px solid rgba(240, 195, 106, .25);
+  border-radius: 999px;
+  background: rgba(240, 195, 106, .10);
+  color: #f4d58a;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.player-awards b,
+.player-awards small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-awards b {
+  flex: 0 1 auto;
+  font-weight: 900;
+}
+
+.player-awards small {
+  flex: 0 0 auto;
+  color: #dbe8ff;
+}
+
 .player-chips {
   display: flex;
   gap: 4px;

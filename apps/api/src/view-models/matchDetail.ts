@@ -117,6 +117,7 @@ export type MatchPlayerViewModel = {
   deaths: number;
   assists: number;
   kdaText: string;
+  ratingScore: number;
   killParticipation: number | null;
   heroDamageShare: number | null;
   goldPerMin: number | null;
@@ -149,6 +150,38 @@ export type MvpSummaryViewModel = {
   heroId: number;
   score: number;
   title: string;
+};
+
+export type MatchAwardCode =
+  | "lie_flat"
+  | "breaker"
+  | "herbalist"
+  | "healer"
+  | "pianist"
+  | "binder"
+  | "pressure"
+  | "stiff"
+  | "ghost"
+  | "tough"
+  | "violence"
+  | "assist"
+  | "support"
+  | "talker"
+  | "rich"
+  | "cty"
+  | "demolition"
+  | "soul";
+
+export type MatchAwardViewModel = {
+  code: MatchAwardCode;
+  title: string;
+  description: string;
+  playerSlot: number;
+  playerName: string;
+  side: TeamSide;
+  heroId: number;
+  value: number;
+  valueText: string;
 };
 
 export type DraftActionViewModel = {
@@ -242,6 +275,7 @@ export type MatchDetailViewModel = {
     all: MatchPlayerViewModel[];
   };
   mvp: MvpSummaryViewModel | null;
+  awards: MatchAwardViewModel[];
   drafts: DraftActionViewModel[];
   draftSummary: DraftSummaryViewModel;
   vision: {

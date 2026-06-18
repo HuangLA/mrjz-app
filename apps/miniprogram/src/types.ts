@@ -365,6 +365,19 @@ export type ComparisonMetric = {
   radiantShare: number;
 };
 
+export type MatchAward = {
+  code: string;
+  title: string;
+  description: string;
+  playerSlot: number;
+  playerName: string;
+  side: TeamSide;
+  heroId: number;
+  hero: string;
+  portrait: string;
+  valueText: string;
+};
+
 export type MatchDetail = {
   match: {
     matchId: number;
@@ -399,6 +412,7 @@ export type MatchDetail = {
   vision: { wards: WardEvent[]; hasVisionData: boolean };
   charts: TrendCharts;
   comparisons: ComparisonMetric[];
+  awards: MatchAward[];
   chat: ChatLine[];
   dataAvailability: {
     hasAbilityBuilds: boolean;

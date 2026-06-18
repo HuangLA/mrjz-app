@@ -9,6 +9,7 @@ import type {
   ComparisonMetric,
   DraftStep,
   IconRef,
+  MatchAward,
   MatchDetail,
   MatchDetailPlayer,
   MatchRecord,
@@ -86,6 +87,7 @@ export type ApiMatchDetail = {
     title?: string;
     score?: number;
   } | null;
+  awards?: ApiMatchAward[];
   drafts?: ApiDraft[];
   vision?: { wards?: ApiWard[]; hasVisionData?: boolean };
   charts?: {
@@ -100,6 +102,17 @@ export type ApiMatchDetail = {
   chat?: ApiChat[];
   dataAvailability?: MatchDetail["dataAvailability"];
   parseStatus?: string;
+};
+
+type ApiMatchAward = {
+  code?: string;
+  title?: string;
+  description?: string;
+  playerSlot?: number;
+  playerName?: string;
+  side?: TeamSide;
+  heroId?: number;
+  valueText?: string;
 };
 
 type ApiMatchPlayer = {
@@ -446,6 +459,7 @@ export function normalizeMatchDetail(detail: ApiMatchDetail): MatchDetail {
     },
     charts,
     comparisons: (detail.comparisons ?? []).map(normalizeComparisonMetric).filter(isDefined),
+    awards: (detail.awards ?? []).map(normalizeMatchAward).filter(isDefined),
     chat,
     dataAvailability: {
       hasAbilityBuilds: Boolean(detail.dataAvailability?.hasAbilityBuilds ?? abilityBuildCount > 0),
@@ -455,6 +469,33 @@ export function normalizeMatchDetail(detail: ApiMatchDetail): MatchDetail {
       hasTrends: Boolean(detail.dataAvailability?.hasTrends ?? charts.hasTrends),
     },
     parseStatus: parseStatusText(detail.parseStatus),
+  };
+}
+
+function normalizeMatchAward(award: ApiMatchAward): MatchAward | null {
+  if (
+    award.code === undefined ||
+    award.title === undefined ||
+    award.playerSlot === undefined ||
+    award.side === undefined ||
+    award.heroId === undefined
+  ) {
+    return null;
+  }
+
+  const hero = heroLabel(award.heroId);
+
+  return {
+    code: award.code,
+    title: award.title,
+    description: award.description ?? "",
+    playerSlot: award.playerSlot,
+    playerName: award.playerName ?? "未知选手",
+    side: award.side,
+    heroId: award.heroId,
+    hero,
+    portrait: heroPortrait(award.heroId),
+    valueText: award.valueText ?? "",
   };
 }
 

@@ -33,6 +33,12 @@ export type OpenDotaWardLogEntry = {
   key?: string;
 };
 
+export type OpenDotaPurchaseLogEntry = {
+  time?: number;
+  key?: string;
+  charges?: number;
+};
+
 export type OpenDotaChatMessage = {
   time?: number;
   type?: string;
@@ -56,14 +62,22 @@ export type OpenDotaMatchPlayer = {
   gold_per_min?: number;
   xp_per_min?: number;
   net_worth?: number;
+  gold?: number;
+  total_gold?: number;
   last_hits?: number;
   denies?: number;
   hero_damage?: number;
   tower_damage?: number;
   hero_healing?: number;
   damage_taken?: number | Record<string, number>;
+  actions_per_min?: number;
+  pings?: number;
+  stuns?: number;
+  neutral_kills?: number;
   lane?: number;
   lane_role?: number;
+  purchase?: Record<string, number>;
+  purchase_log?: OpenDotaPurchaseLogEntry[];
   item_0?: number;
   item_1?: number;
   item_2?: number;

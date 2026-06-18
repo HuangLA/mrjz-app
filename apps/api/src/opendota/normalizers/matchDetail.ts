@@ -15,6 +15,8 @@ import type {
   DraftActionViewModel,
   DraftSummaryViewModel,
   LaneMatchupViewModel,
+  MatchAwardCode,
+  MatchAwardViewModel,
   MatchDetailContext,
   MatchDetailViewModel,
   MatchPlayerViewModel,
@@ -29,6 +31,7 @@ import type {
 
 const AGHANIMS_SCEPTER_ITEM_ID = 108;
 const AGHANIMS_SHARD_ITEM_ID = 609;
+const SUPPORT_PURCHASE_KEYS = ["ward_sentry", "smoke_of_deceit", "dust", "gem"] as const;
 
 const FALLBACK_TEAMS: Record<TeamSide, TeamBrief> = {
   radiant: {
@@ -79,6 +82,7 @@ export function normalizeOpenDotaMatchDetail(
   const charts = normalizeTrendCharts(allPlayers, rawPlayers);
   const comparisons = normalizeComparisons(radiantPlayers, direPlayers);
   const lanes = normalizeLanes(allPlayers);
+  const awards = pickMatchAwards(allPlayers, rawPlayers, raw.chat, winnerSide);
   const hasAbilityBuilds = allPlayers.some((player) => player.abilityBuild.hasData);
   const hasAdvancedParseSignals =
     hasAbilityBuilds || draftSummary.hasDraft || vision.length > 0 || chat.length > 0 || charts.hasTrends;
@@ -118,6 +122,7 @@ export function normalizeOpenDotaMatchDetail(
       all: allPlayers,
     },
     mvp: pickMvp(allPlayers, winnerSide),
+    awards,
     drafts,
     draftSummary,
     vision: {
@@ -202,6 +207,7 @@ function normalizePlayers(
       deaths: numberOr(player.deaths, 0),
       assists: numberOr(player.assists, 0),
       kdaText: `${numberOr(player.kills, 0)}/${numberOr(player.deaths, 0)}/${numberOr(player.assists, 0)}`,
+      ratingScore: 0,
       killParticipation:
         teamKills > 0 ? roundRatio((numberOr(player.kills, 0) + numberOr(player.assists, 0)) / teamKills) : null,
       heroDamageShare: heroDamage !== null && teamDamage > 0 ? roundRatio(heroDamage / teamDamage) : null,
@@ -220,7 +226,10 @@ function normalizePlayers(
       abilityBuild,
       aghanim: normalizeAghanimState(items, player),
     };
-  });
+  }).map((player) => ({
+    ...player,
+    ratingScore: playerRatingScore(player),
+  }));
 }
 
 function normalizeAbilityBuild(player: OpenDotaMatchPlayer): MatchPlayerViewModel["abilityBuild"] {
@@ -533,19 +542,174 @@ function normalizeLanes(players: MatchPlayerViewModel[]): LaneMatchupViewModel[]
     }));
 }
 
+function pickMatchAwards(
+  players: MatchPlayerViewModel[],
+  rawPlayers: OpenDotaMatchPlayer[],
+  rawChat: OpenDotaChatMessage[] | undefined,
+  winnerSide: TeamSide,
+): MatchAwardViewModel[] {
+  const rawBySlot = new Map(rawPlayers.map((player) => [player.player_slot, player]));
+  const chatCounts = chatCountBySlot(rawChat);
+  const loserSide = winnerSide === "radiant" ? "dire" : "radiant";
+  const winnerPlayers = players.filter((player) => player.side === winnerSide);
+  const loserPlayers = players.filter((player) => player.side === loserSide);
+  const awards: MatchAwardViewModel[] = [];
+
+  appendAward(
+    awards,
+    "lie_flat",
+    "躺",
+    "胜方阵营综合评分最低",
+    pickLowest(winnerPlayers, (player) => player.ratingScore),
+    (value) => `评分 ${formatDecimal(value)}`,
+  );
+  appendAward(
+    awards,
+    "breaker",
+    "破",
+    "全场击杀最多",
+    pickHighest(players, (player) => player.kills),
+    (value) => `${formatInteger(value)} 杀`,
+  );
+  appendAward(
+    awards,
+    "herbalist",
+    "采灵芝",
+    "击杀野怪最多",
+    pickHighest(players, (player) => numberOrNull(rawBySlot.get(player.playerSlot)?.neutral_kills), { minValue: 1 }),
+    (value) => `${formatInteger(value)} 野怪`,
+  );
+  appendAward(
+    awards,
+    "healer",
+    "奶",
+    "治疗量最高",
+    pickHighest(players, (player) => player.heroHealing, { minValue: 1 }),
+    (value) => formatCompactNumber(value),
+  );
+  appendAward(
+    awards,
+    "pianist",
+    "钢琴手",
+    "APM 最高",
+    pickHighest(players, (player) => numberOrNull(rawBySlot.get(player.playerSlot)?.actions_per_min), { minValue: 1 }),
+    (value) => `${formatInteger(value)} APM`,
+  );
+  appendAward(
+    awards,
+    "binder",
+    "捆绑王",
+    "眩晕时间最长",
+    pickHighest(players, (player) => numberOrNull(rawBySlot.get(player.playerSlot)?.stuns), { minValue: 0.1 }),
+    (value) => `${formatDecimal(value)} 秒`,
+  );
+  appendAward(
+    awards,
+    "pressure",
+    "压力怪",
+    "发信号次数最多",
+    pickHighest(players, (player) => numberOrNull(rawBySlot.get(player.playerSlot)?.pings), { minValue: 1 }),
+    (value) => `${formatInteger(value)} 次`,
+  );
+  appendAward(
+    awards,
+    "stiff",
+    "僵",
+    "败方阵营综合评分最低",
+    pickLowest(loserPlayers, (player) => player.ratingScore),
+    (value) => `评分 ${formatDecimal(value)}`,
+  );
+  appendAward(
+    awards,
+    "ghost",
+    "鬼",
+    "全场死亡数最高",
+    pickHighest(players, (player) => player.deaths),
+    (value) => `${formatInteger(value)} 死`,
+  );
+  appendAward(
+    awards,
+    "tough",
+    "硬",
+    "承受伤害总和最高",
+    pickHighest(players, (player) => player.damageTaken, { minValue: 1 }),
+    (value) => formatCompactNumber(value),
+  );
+  appendAward(
+    awards,
+    "violence",
+    "力中暴力",
+    "英雄伤害最高",
+    pickHighest(players, (player) => player.heroDamage, { minValue: 1 }),
+    (value) => formatCompactNumber(value),
+  );
+  appendAward(
+    awards,
+    "assist",
+    "助",
+    "助攻最高",
+    pickHighest(players, (player) => player.assists),
+    (value) => `${formatInteger(value)} 助`,
+  );
+  appendAward(
+    awards,
+    "support",
+    "辅",
+    "真眼、雾、粉和真视宝石购买次数最多",
+    pickHighest(players, (player) => supportPurchaseCount(rawBySlot.get(player.playerSlot)), { minValue: 1 }),
+    (value) => `${formatInteger(value)} 次`,
+  );
+  appendAward(
+    awards,
+    "talker",
+    "话痨",
+    "聊天区文字记录条数最多",
+    pickHighest(players, (player) => chatCounts.get(player.playerSlot) ?? 0, { minValue: 1 }),
+    (value) => `${formatInteger(value)} 条`,
+  );
+  appendAward(
+    awards,
+    "rich",
+    "富",
+    "全场经济最高",
+    pickHighest(players, (player) => richestValue(player, rawBySlot.get(player.playerSlot)), { minValue: 1 }),
+    (value) => formatCompactNumber(value),
+  );
+  appendAward(
+    awards,
+    "cty",
+    "CTY",
+    "10 分钟经济最高",
+    pickHighest(players, (player) => tenMinuteGold(rawBySlot.get(player.playerSlot)), { minValue: 1 }),
+    (value) => formatCompactNumber(value),
+  );
+  appendAward(
+    awards,
+    "demolition",
+    "拆",
+    "对建筑伤害最高",
+    pickHighest(players, (player) => player.towerDamage, { minValue: 1 }),
+    (value) => formatCompactNumber(value),
+  );
+  appendAward(
+    awards,
+    "soul",
+    "魂",
+    "败方阵营综合评分最高",
+    pickHighest(loserPlayers, (player) => player.ratingScore),
+    (value) => `评分 ${formatDecimal(value)}`,
+  );
+
+  return awards;
+}
+
 function pickMvp(players: MatchPlayerViewModel[], winnerSide: TeamSide): MvpSummaryViewModel | null {
   const candidates = players.filter((player) => player.side === winnerSide);
   let bestPlayer: MatchPlayerViewModel | null = null;
   let bestScore = Number.NEGATIVE_INFINITY;
 
   for (const player of candidates) {
-    const kda = (player.kills + player.assists) / Math.max(1, player.deaths);
-    const score =
-      kda * 0.25 +
-      (player.killParticipation ?? 0) * 100 * 0.25 +
-      (player.heroDamageShare ?? 0) * 100 * 0.2 +
-      ((player.towerDamage ?? 0) / 1000) * 0.15 +
-      ((player.goldPerMin ?? 0) / 10) * 0.15;
+    const score = playerRatingScore(player);
 
     if (score > bestScore) {
       bestScore = score;
@@ -562,9 +726,133 @@ function pickMvp(players: MatchPlayerViewModel[], winnerSide: TeamSide): MvpSumm
     playerName: bestPlayer.name,
     side: bestPlayer.side,
     heroId: bestPlayer.heroId,
-    score: Math.round(bestScore * 10) / 10,
+    score: roundDecimal(bestScore),
     title: "MVP",
   };
+}
+
+function playerRatingScore(player: MatchPlayerViewModel): number {
+  const kda = (player.kills + player.assists) / Math.max(1, player.deaths);
+  const score =
+    kda * 0.25 +
+    (player.killParticipation ?? 0) * 100 * 0.25 +
+    (player.heroDamageShare ?? 0) * 100 * 0.2 +
+    ((player.towerDamage ?? 0) / 1000) * 0.15 +
+    ((player.goldPerMin ?? 0) / 10) * 0.15;
+
+  return roundDecimal(score);
+}
+
+type AwardCandidate = {
+  player: MatchPlayerViewModel;
+  value: number;
+};
+
+type AwardPickOptions = {
+  minValue?: number;
+};
+
+function appendAward(
+  awards: MatchAwardViewModel[],
+  code: MatchAwardCode,
+  title: string,
+  description: string,
+  candidate: AwardCandidate | null,
+  valueText: (value: number) => string,
+): void {
+  if (candidate === null) {
+    return;
+  }
+
+  awards.push({
+    code,
+    title,
+    description,
+    playerSlot: candidate.player.playerSlot,
+    playerName: candidate.player.name,
+    side: candidate.player.side,
+    heroId: candidate.player.heroId,
+    value: roundDecimal(candidate.value),
+    valueText: valueText(candidate.value),
+  });
+}
+
+function pickHighest(
+  players: MatchPlayerViewModel[],
+  selector: (player: MatchPlayerViewModel) => number | null,
+  options: AwardPickOptions = {},
+): AwardCandidate | null {
+  return pickBy(players, selector, "highest", options);
+}
+
+function pickLowest(
+  players: MatchPlayerViewModel[],
+  selector: (player: MatchPlayerViewModel) => number | null,
+  options: AwardPickOptions = {},
+): AwardCandidate | null {
+  return pickBy(players, selector, "lowest", options);
+}
+
+function pickBy(
+  players: MatchPlayerViewModel[],
+  selector: (player: MatchPlayerViewModel) => number | null,
+  direction: "highest" | "lowest",
+  options: AwardPickOptions,
+): AwardCandidate | null {
+  let selected: AwardCandidate | null = null;
+
+  for (const player of players) {
+    const value = selector(player);
+
+    if (value === null || !Number.isFinite(value) || value < (options.minValue ?? Number.NEGATIVE_INFINITY)) {
+      continue;
+    }
+
+    if (
+      selected === null ||
+      (direction === "highest" && value > selected.value) ||
+      (direction === "lowest" && value < selected.value) ||
+      (value === selected.value && player.playerSlot < selected.player.playerSlot)
+    ) {
+      selected = { player, value };
+    }
+  }
+
+  return selected;
+}
+
+function supportPurchaseCount(player: OpenDotaMatchPlayer | undefined): number | null {
+  if (player?.purchase === undefined) {
+    return null;
+  }
+
+  return SUPPORT_PURCHASE_KEYS.reduce((total, key) => total + numberOr(player.purchase?.[key], 0), 0);
+}
+
+function chatCountBySlot(rawChat: OpenDotaChatMessage[] | undefined): Map<number, number> {
+  const counts = new Map<number, number>();
+
+  for (const message of rawChat ?? []) {
+    const playerSlot = message.player_slot ?? message.slot;
+
+    if (message.type !== "chat" || typeof playerSlot !== "number") {
+      continue;
+    }
+
+    counts.set(playerSlot, (counts.get(playerSlot) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
+function richestValue(player: MatchPlayerViewModel, rawPlayer: OpenDotaMatchPlayer | undefined): number | null {
+  return player.netWorth ?? numberOrNull(rawPlayer?.total_gold) ?? numberOrNull(rawPlayer?.gold);
+}
+
+function tenMinuteGold(player: OpenDotaMatchPlayer | undefined): number | null {
+  const value = player?.gold_t?.[10];
+
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function comparison(
@@ -670,8 +958,34 @@ function sumBy<T>(items: T[], selector: (item: T) => number): number {
   return items.reduce((total, item) => total + selector(item), 0);
 }
 
+function roundDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 function roundRatio(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+function formatDecimal(value: number): string {
+  return roundDecimal(value).toFixed(1);
+}
+
+function formatInteger(value: number): string {
+  return Math.round(value).toString();
+}
+
+function formatCompactNumber(value: number): string {
+  const absolute = Math.abs(value);
+
+  if (absolute >= 10000) {
+    return `${formatDecimal(value / 1000)}K`;
+  }
+
+  if (absolute >= 1000) {
+    return `${formatDecimal(value / 1000)}K`;
+  }
+
+  return formatInteger(value);
 }
 
 function laneName(lane: number): string {

@@ -32,6 +32,8 @@ API base priority:
 2. Build-time `PUBLIC_API_BASE_URL` or `VITE_PUBLIC_API_BASE_URL`.
 3. Same-origin fallback `/api`, which is expected to be reverse-proxied by Nginx in production.
 
+Default dev/build scripts use `http://127.0.0.1:3001/api`; the root `dev:mobile-web` script follows the same local default. Use `dev:mobile-web:remote` or `build:mobile-web:remote` when preparing a remote preview or release build.
+
 Refresh local Dota assets:
 
 ```bash

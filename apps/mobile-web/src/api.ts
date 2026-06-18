@@ -8,6 +8,7 @@ import type {
   IconRef,
   MatchRecord,
   MatchRecordHero,
+  MatchAward,
   MatchData,
   OfficialScheduleStatus,
   PlayerDirectoryItem,
@@ -312,6 +313,7 @@ type ApiMatchDetail = {
     all?: ApiMatchPlayer[];
   };
   mvp?: { playerSlot?: number; playerName?: string } | null;
+  awards?: ApiMatchAward[];
   drafts?: ApiDraft[];
   vision?: { wards?: ApiWard[] };
   charts?: {
@@ -325,6 +327,17 @@ type ApiMatchDetail = {
   comparisons?: ApiComparisonMetric[];
   chat?: ApiChat[];
   parseStatus?: string;
+};
+
+type ApiMatchAward = {
+  code?: string;
+  title?: string;
+  description?: string;
+  playerSlot?: number;
+  playerName?: string;
+  side?: TeamSide;
+  heroId?: number;
+  valueText?: string;
 };
 
 type ApiMatchRecord = {
@@ -439,6 +452,7 @@ type ApiComparisonMetric = {
 };
 
 const defaultApiBaseUrl = "/api";
+const localApiBaseUrl = "http://127.0.0.1:3001/api";
 const h5ApiBaseStorageKey = "mrjz.h5ApiBaseUrl";
 const localDotaConstantsBaseUrl = "/static/dota/constants";
 const remoteDotaConstantsBaseUrl = "https://raw.githubusercontent.com/odota/dotaconstants/master/build";
@@ -898,7 +912,7 @@ function resolveRuntimeApiBaseUrl(): string | undefined {
 }
 
 function normalizeApiBaseUrlOverride(value: string): string {
-  return (value === "local" ? defaultApiBaseUrl : value).replace(/\/+$/, "");
+  return (value === "local" ? localApiBaseUrl : value).replace(/\/+$/, "");
 }
 
 function normalizeTournamentStats(
@@ -1474,7 +1488,34 @@ function normalizeMatchDetail(detail: ApiMatchDetail): MatchData {
     wardTimeline: (detail.vision?.wards ?? []).map(normalizeWard).filter(isDefined),
     trends: normalizeTrendCharts(detail.charts),
     comparisons: (detail.comparisons ?? []).map(normalizeComparisonMetric).filter(isDefined),
+    awards: (detail.awards ?? []).map(normalizeMatchAward).filter(isDefined),
     chat: (detail.chat ?? []).map(normalizeChat).filter(isDefined),
+  };
+}
+
+function normalizeMatchAward(award: ApiMatchAward): MatchAward | null {
+  if (
+    award.code === undefined ||
+    award.title === undefined ||
+    award.playerSlot === undefined ||
+    award.side === undefined ||
+    award.heroId === undefined
+  ) {
+    return null;
+  }
+
+  const hero = heroLabel(award.heroId);
+
+  return {
+    code: award.code,
+    title: award.title,
+    description: award.description ?? "",
+    playerId: String(award.playerSlot),
+    playerName: award.playerName ?? "未知选手",
+    side: award.side,
+    hero,
+    portrait: heroPortrait(award.heroId),
+    valueText: award.valueText ?? "",
   };
 }
 
@@ -1748,6 +1789,7 @@ function emptyMatchData(matchId = "-"): MatchData {
       playerXp: [],
     },
     comparisons: [],
+    awards: [],
     chat: [],
   };
 }

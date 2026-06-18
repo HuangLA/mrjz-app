@@ -143,7 +143,47 @@ OpenDota 的 match detail 在解析完成后会包含更多高级字段。未解
 - 负数代表天辉落后，正数代表天辉领先。
 - 前端不重新计算曲线，只绘制后端返回数组。
 
-## 10. 参考
+## 10. 趣味称号
+
+比赛详情页称号由后端从 OpenDota `raw_match_json` 统一计算，H5 和小程序只展示返回结果，并把称号写入对应选手数据卡片。
+
+评分相关称号复用当前 MVP 评分公式，但对全场 10 名选手计算：
+
+```text
+score =
+  KDA * 0.25 +
+  参战率 * 100 * 0.25 +
+  英雄伤害占比 * 100 * 0.20 +
+  建筑伤害 / 1000 * 0.15 +
+  GPM / 10 * 0.15
+```
+
+称号字段：
+
+| 称号 | 规则 | OpenDota 字段 |
+| --- | --- | --- |
+| 躺 | 胜方阵营综合评分最低 | MVP 评分公式 |
+| 破 | 全场击杀最多 | `players[].kills` |
+| 采灵芝 | 击杀野怪最多，最高值为 0 时不显示 | `players[].neutral_kills` |
+| 奶 | 治疗量最高，最高值为 0 时不显示 | `players[].hero_healing` |
+| 钢琴手 | APM 最高 | `players[].actions_per_min` |
+| 捆绑王 | 眩晕时间最长，最高值为 0 时不显示 | `players[].stuns` |
+| 压力怪 | 发信号次数最多，缺字段或最高值为 0 时不显示 | `players[].pings` |
+| 僵 | 败方阵营综合评分最低 | MVP 评分公式 |
+| 鬼 | 全场死亡数最高 | `players[].deaths` |
+| 硬 | 承受伤害总和最高 | `players[].damage_taken` |
+| 力中暴力 | 英雄伤害最高 | `players[].hero_damage` |
+| 助 | 助攻最高 | `players[].assists` |
+| 辅 | 真眼、雾、粉、真视宝石购买次数最多 | `players[].purchase.ward_sentry`, `smoke_of_deceit`, `dust`, `gem` |
+| 话痨 | 聊天区文字记录条数最多 | `chat[].type = chat` 按 `player_slot` 计数 |
+| 富 | 全场净值最高，缺失时降级到总经济 | `players[].net_worth`, `players[].total_gold`, `players[].gold` |
+| CTY | 10 分钟经济最高，缺 10 分钟经济时不显示 | `players[].gold_t[10]` |
+| 拆 | 对建筑伤害最高 | `players[].tower_damage` |
+| 魂 | 败方阵营综合评分最高 | MVP 评分公式 |
+
+`ward_observer` 和 `ward_dispenser` 不计入“辅”：前者为 0 金币，后者可能与真假眼购买重复计数。
+
+## 11. 参考
 
 - OpenDota OpenAPI: `https://api.opendota.com/api`
 - dotaconstants permanent buffs: `https://github.com/odota/dotaconstants/blob/master/json/permanent_buffs.json`

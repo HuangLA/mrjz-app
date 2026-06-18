@@ -31,7 +31,7 @@ API base priority:
 1. Build-time `MRJZ_MINIPROGRAM_API_BASE_URL`.
 2. Build-time `PUBLIC_API_BASE_URL` or `VITE_PUBLIC_API_BASE_URL`.
 
-For local simulator builds, use `dev:local` or `build:local`; these scripts inject `https://api.dota2mrjz.icu/api` explicitly. For remote preview or upload, `dev:remote` and `build:remote` default to the same cloud API, or can be overridden with `MRJZ_REMOTE_API_BASE_URL`. The URL must be configured as a WeChat Mini Program request legal domain when running on real devices. The mini program does not expose runtime API switching controls.
+Default `dev` and `build` use the local API at `http://127.0.0.1:3001/api`; `dev:local`, `build:local`, and the local asset variants inject the same address explicitly. For remote preview or upload, `dev:remote` and `build:remote` default to the cloud API, or can be overridden with `MRJZ_REMOTE_API_BASE_URL`. The URL must be configured as a WeChat Mini Program request legal domain when running on real devices. The mini program does not expose runtime API switching controls.
 
 ## Auth Notes
 

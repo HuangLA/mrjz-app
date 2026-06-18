@@ -7,7 +7,7 @@ import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { aghanimIcon, dotaAssetUrl } from "../../dota";
 import { PageShell, SectionTitle } from "../../components";
 import { SmartImage as Image } from "../../SmartImage";
-import type { ChatLine, DraftStep, IconRef, MatchDetail, MatchDetailPlayer, TalentTreeNode, TeamSide, WardEvent } from "../../types";
+import type { ChatLine, DraftStep, IconRef, MatchAward, MatchDetail, MatchDetailPlayer, TalentTreeNode, TeamSide, WardEvent } from "../../types";
 import { formatDateTime, formatInteger } from "../../utils";
 
 export default function MatchDetailPage() {
@@ -89,6 +89,7 @@ export default function MatchDetailPage() {
               expandedPlayers={expandedPlayers}
               isWinner={detail.match.winnerName === detail.score.radiantTeamName}
               mvpPlayerName={detail.mvp?.playerName ?? null}
+              awards={detail.awards}
               players={detail.players.radiant}
               side="radiant"
               teamName={detail.score.radiantTeamName}
@@ -98,6 +99,7 @@ export default function MatchDetailPage() {
               expandedPlayers={expandedPlayers}
               isWinner={detail.match.winnerName === detail.score.direTeamName}
               mvpPlayerName={detail.mvp?.playerName ?? null}
+              awards={detail.awards}
               players={detail.players.dire}
               side="dire"
               teamName={detail.score.direTeamName}
@@ -239,6 +241,7 @@ function TeamPanel(props: {
   players: MatchDetailPlayer[];
   isWinner: boolean;
   mvpPlayerName: string | null;
+  awards: MatchAward[];
   expandedPlayers: Set<string>;
   onPlayerToggle: (playerKey: string) => void;
 }) {
@@ -262,6 +265,7 @@ function TeamPanel(props: {
               expanded={props.expandedPlayers.has(playerKey)}
               isMvp={props.mvpPlayerName === player.name}
               key={player.playerSlot}
+              awards={props.awards.filter((award) => award.playerSlot === player.playerSlot)}
               player={player}
               onToggle={props.onPlayerToggle}
             />
@@ -272,7 +276,7 @@ function TeamPanel(props: {
   );
 }
 
-function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; isMvp: boolean; onToggle: (playerKey: string) => void }) {
+function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; isMvp: boolean; awards: MatchAward[]; onToggle: (playerKey: string) => void }) {
   const { player } = props;
   const abilitySteps = player.abilityOrder.filter((ability) => ability.kind === "ability");
   const playerKey = playerRowKey(player);
@@ -298,6 +302,7 @@ function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; 
               <Text>伤害 {formatPercent(player.heroDamageShare)}</Text>
             </View>
           </View>
+          {props.awards.length > 0 ? <PlayerAwardBadges awards={props.awards} /> : null}
         </View>
         <PlayerLoadout player={player} />
         <View className="player-kda">
@@ -327,6 +332,19 @@ function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; 
           </View>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function PlayerAwardBadges(props: { awards: MatchAward[] }) {
+  return (
+    <View className="player-awards">
+      {props.awards.map((award) => (
+        <View className="player-award-badge" key={award.code}>
+          <Text>{award.title}</Text>
+          <Text>{award.valueText}</Text>
+        </View>
+      ))}
     </View>
   );
 }
