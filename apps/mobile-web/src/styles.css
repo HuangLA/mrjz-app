@@ -2268,7 +2268,7 @@ button {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 50px minmax(82px, 1fr) 147px 45px;
+  grid-template-columns: 80px minmax(52px, 1fr) 147px 45px;
   gap: 5px;
   align-items: center;
   width: 100%;
@@ -2374,6 +2374,12 @@ button {
   display: block;
 }
 
+.hero-avatar-stack {
+  width: 80px;
+  min-width: 0;
+  overflow: visible;
+}
+
 .hero-avatar {
   width: 50px;
   height: 32px;
@@ -2424,42 +2430,50 @@ button {
 .player-awards {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 4px;
-  overflow: hidden;
+  column-gap: 4px;
+  row-gap: 4px;
+  width: 72px;
+  margin-top: 10px;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .player-awards span {
   display: inline-flex;
-  max-width: 100%;
-  min-width: 0;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 3px;
-  padding: 1px 5px;
-  border: 1px solid rgba(240, 195, 106, .25);
-  border-radius: 999px;
-  background: rgba(240, 195, 106, .10);
-  color: #f4d58a;
-  font-size: 8px;
-  line-height: 1.45;
-}
-
-.player-awards b,
-.player-awards small {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  justify-content: center;
+  padding: 1px 4px;
+  border: 1px solid color-mix(in srgb, var(--award-color, #f4d58a) 58%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--award-color, #f4d58a) 15%, rgba(7, 12, 20, .88));
+  color: var(--award-color, #f4d58a);
+  font-size: 8.5px;
+  font-weight: 950;
+  line-height: 1.1;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--award-color, #f4d58a) 16%, transparent);
+  text-shadow: 0 0 7px color-mix(in srgb, var(--award-color, #f4d58a) 28%, transparent);
   white-space: nowrap;
 }
 
-.player-awards b {
-  flex: 0 1 auto;
-  font-weight: 900;
-}
-
-.player-awards small {
-  flex: 0 0 auto;
-  color: #dbe8ff;
-}
+.award-lie_flat { --award-color: #8ce26d; }
+.award-breaker { --award-color: #ff7a7a; }
+.award-herbalist { --award-color: #62d05d; }
+.award-healer { --award-color: #65d8ff; }
+.award-pianist { --award-color: #92c7ff; }
+.award-binder { --award-color: #c9a6ff; }
+.award-pressure { --award-color: #ffb86b; }
+.award-stiff { --award-color: #8aa4d6; }
+.award-ghost { --award-color: #8fb3ff; }
+.award-tough { --award-color: #5bb7ff; }
+.award-violence { --award-color: #ff6f91; }
+.award-assist { --award-color: #74e0c0; }
+.award-support { --award-color: #f4d58a; }
+.award-talker { --award-color: #f0a6ff; }
+.award-rich { --award-color: #ffe27a; }
+.award-cty { --award-color: #ffc15a; }
+.award-demolition { --award-color: #ff9f6e; }
+.award-soul { --award-color: #d8b4fe; }
 
 .player-chips {
   display: flex;

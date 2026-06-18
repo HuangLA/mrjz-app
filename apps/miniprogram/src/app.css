@@ -3634,7 +3634,7 @@ button[disabled] {
 .match-player-card.player-row .match-player-main {
   position: relative;
   display: grid;
-  grid-template-columns: 62.5px minmax(102.5px, 1fr) 183.75px 56.25px;
+  grid-template-columns: 96px minmax(69px, 1fr) 183.75px 56.25px;
   gap: 6.25px;
   align-items: center;
   width: 100%;
@@ -3720,43 +3720,58 @@ button[disabled] {
   white-space: nowrap;
 }
 
+.match-player-card.player-row .hero-avatar-stack {
+  width: 96px;
+  min-width: 0;
+  overflow: visible;
+}
+
 .match-player-card.player-row .player-awards {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 3.75px;
-  overflow: hidden;
+  column-gap: 5px;
+  row-gap: 5px;
+  width: 90px;
+  margin-top: 12px;
+  overflow: visible;
 }
 
-.match-player-card.player-row .player-award-badge {
+.match-player-card.player-row .player-award-title {
   display: flex;
-  max-width: 100%;
-  min-width: 0;
+  flex-shrink: 0;
   align-items: center;
-  gap: 3px;
-  padding: 1px 5px;
-  border: 1px solid rgba(240, 195, 106, 0.25);
-  border-radius: 999px;
+  justify-content: center;
+  padding: 1.25px 5px;
+  border: 1px solid rgba(240, 195, 106, 0.42);
+  border-radius: 5px;
   background: rgba(240, 195, 106, 0.1);
   color: #f4d58a;
-  font-size: 8.75px;
-  line-height: 1.35;
-}
-
-.match-player-card.player-row .player-award-badge text {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 9.5px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-shadow: 0 0 8px rgba(240, 195, 106, 0.3);
   white-space: nowrap;
 }
 
-.match-player-card.player-row .player-award-badge text:first-child {
-  font-weight: 900;
-}
-
-.match-player-card.player-row .player-award-badge text:last-child {
-  flex-shrink: 0;
-  color: #dbe8ff;
-}
+.match-player-card.player-row .award-lie_flat { color: #8ce26d; border-color: rgba(140, 226, 109, 0.48); background: rgba(140, 226, 109, 0.1); }
+.match-player-card.player-row .award-breaker { color: #ff7a7a; border-color: rgba(255, 122, 122, 0.48); background: rgba(255, 122, 122, 0.1); }
+.match-player-card.player-row .award-herbalist { color: #62d05d; border-color: rgba(98, 208, 93, 0.48); background: rgba(98, 208, 93, 0.1); }
+.match-player-card.player-row .award-healer { color: #65d8ff; }
+.match-player-card.player-row .award-pianist { color: #92c7ff; }
+.match-player-card.player-row .award-binder { color: #c9a6ff; }
+.match-player-card.player-row .award-pressure { color: #ffb86b; }
+.match-player-card.player-row .award-stiff { color: #8aa4d6; }
+.match-player-card.player-row .award-ghost { color: #8fb3ff; }
+.match-player-card.player-row .award-tough { color: #5bb7ff; }
+.match-player-card.player-row .award-violence { color: #ff6f91; }
+.match-player-card.player-row .award-assist { color: #74e0c0; }
+.match-player-card.player-row .award-support { color: #f4d58a; }
+.match-player-card.player-row .award-talker { color: #f0a6ff; }
+.match-player-card.player-row .award-rich { color: #ffe27a; }
+.match-player-card.player-row .award-cty { color: #ffc15a; }
+.match-player-card.player-row .award-demolition { color: #ff9f6e; }
+.match-player-card.player-row .award-soul { color: #d8b4fe; }
 
 .match-player-card.player-row .hero-avatar-shell {
   position: relative;
@@ -4351,7 +4366,7 @@ button[disabled] {
 }
 
 .match-player-card.player-row .match-player-main {
-  grid-template-columns: 44px minmax(78px, 1fr) 126px 44px;
+  grid-template-columns: 80px minmax(42px, 1fr) 126px 44px;
   gap: 5px;
   min-height: 66px;
   padding: 5px 6px;
@@ -4379,16 +4394,22 @@ button[disabled] {
   font-size: 7px;
 }
 
-.match-player-card.player-row .player-awards {
-  gap: 2px;
-  margin-top: 2px;
+.match-player-card.player-row .hero-avatar-stack {
+  width: 80px;
 }
 
-.match-player-card.player-row .player-award-badge {
-  gap: 2px;
-  padding: 0 4px;
-  font-size: 7px;
-  line-height: 1.35;
+.match-player-card.player-row .player-awards {
+  column-gap: 3px;
+  row-gap: 3px;
+  width: 74px;
+  margin-top: 8px;
+}
+
+.match-player-card.player-row .player-award-title {
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 8px;
+  line-height: 1.1;
 }
 
 .match-player-card.player-row .hero-avatar-shell,
