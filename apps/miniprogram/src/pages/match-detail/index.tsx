@@ -288,12 +288,9 @@ function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; 
     >
       <View className="match-player-main">
         {props.isMvp ? <Text className="player-mvp-badge">MVP</Text> : null}
-        <View className="hero-avatar-stack">
-          <View className="hero-avatar-shell">
-            <Image className="hero-avatar" mode="aspectFill" src={player.portrait} />
-            <Text>{player.level ?? "-"}</Text>
-          </View>
-          {props.awards.length > 0 ? <PlayerAwardBadges awards={props.awards} /> : null}
+        <View className="hero-avatar-shell">
+          <Image className="hero-avatar" mode="aspectFill" src={player.portrait} />
+          <Text>{player.level ?? "-"}</Text>
         </View>
         <View className="match-player-copy">
           <Text className="record-title">{player.name}</Text>
@@ -305,6 +302,7 @@ function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; 
               <Text>伤害 {formatPercent(player.heroDamageShare)}</Text>
             </View>
           </View>
+          {props.awards.length > 0 ? <PlayerAwardBadges awards={props.awards} /> : null}
         </View>
         <PlayerLoadout player={player} />
         <View className="player-kda">

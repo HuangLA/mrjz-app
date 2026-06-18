@@ -2268,7 +2268,7 @@ button {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 80px minmax(52px, 1fr) 147px 45px;
+  grid-template-columns: 50px minmax(82px, 1fr) 147px 45px;
   gap: 5px;
   align-items: center;
   width: 100%;
@@ -2374,12 +2374,6 @@ button {
   display: block;
 }
 
-.hero-avatar-stack {
-  width: 80px;
-  min-width: 0;
-  overflow: visible;
-}
-
 .hero-avatar {
   width: 50px;
   height: 32px;
@@ -2432,8 +2426,8 @@ button {
   flex-wrap: wrap;
   column-gap: 4px;
   row-gap: 4px;
-  width: 72px;
-  margin-top: 10px;
+  width: 100%;
+  margin-top: 5px;
   overflow: visible;
   pointer-events: none;
 }

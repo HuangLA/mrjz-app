@@ -3400,18 +3400,15 @@ function PlayerRow({
     >
       <div className="player-main">
         {isMvp ? <span className="player-mvp-badge">MVP</span> : null}
-        <div className="hero-avatar-stack">
-          <span className="hero-avatar-shell">
-            <ImageWithFallback
-              className="hero-avatar"
-              src={player.portrait}
-              fallback="/static/dota/heroes/unknown.svg"
-              alt={player.hero}
-            />
-            <i>{player.level}</i>
-          </span>
-          {awards.length > 0 ? <PlayerAwardBadges awards={awards} /> : null}
-        </div>
+        <span className="hero-avatar-shell">
+          <ImageWithFallback
+            className="hero-avatar"
+            src={player.portrait}
+            fallback="/static/dota/heroes/unknown.svg"
+            alt={player.hero}
+          />
+          <i>{player.level}</i>
+        </span>
         <div className="player-id">
           <b>{player.name}</b>
           <span>{player.hero}</span>
@@ -3422,6 +3419,7 @@ function PlayerRow({
               <small>伤害 {player.damageShare}</small>
             </span>
           </div>
+          {awards.length > 0 ? <PlayerAwardBadges awards={awards} /> : null}
         </div>
         <div className="player-kda">
           <b>

@@ -3634,7 +3634,7 @@ button[disabled] {
 .match-player-card.player-row .match-player-main {
   position: relative;
   display: grid;
-  grid-template-columns: 96px minmax(69px, 1fr) 183.75px 56.25px;
+  grid-template-columns: 62.5px minmax(102.5px, 1fr) 183.75px 56.25px;
   gap: 6.25px;
   align-items: center;
   width: 100%;
@@ -3720,20 +3720,14 @@ button[disabled] {
   white-space: nowrap;
 }
 
-.match-player-card.player-row .hero-avatar-stack {
-  width: 96px;
-  min-width: 0;
-  overflow: visible;
-}
-
 .match-player-card.player-row .player-awards {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   column-gap: 5px;
   row-gap: 5px;
-  width: 90px;
-  margin-top: 12px;
+  width: 100%;
+  margin-top: 6.25px;
   overflow: visible;
 }
 
@@ -4366,7 +4360,7 @@ button[disabled] {
 }
 
 .match-player-card.player-row .match-player-main {
-  grid-template-columns: 80px minmax(42px, 1fr) 126px 44px;
+  grid-template-columns: 44px minmax(78px, 1fr) 126px 44px;
   gap: 5px;
   min-height: 66px;
   padding: 5px 6px;
@@ -4394,15 +4388,11 @@ button[disabled] {
   font-size: 7px;
 }
 
-.match-player-card.player-row .hero-avatar-stack {
-  width: 80px;
-}
-
 .match-player-card.player-row .player-awards {
   column-gap: 3px;
   row-gap: 3px;
-  width: 74px;
-  margin-top: 8px;
+  width: 100%;
+  margin-top: 4px;
 }
 
 .match-player-card.player-row .player-award-title {

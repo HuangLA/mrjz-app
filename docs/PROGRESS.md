@@ -590,7 +590,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 云端 API 和 SQLite 数据库已部署到服务器：API 由 `mrjz-api.service` 托管在 `127.0.0.1:3001`，数据库位于 `/var/lib/mrjz-api/mrjz.sqlite`；Nginx 将 `https://api.dota2mrjz.icu` 反代到 API，Let’s Encrypt 证书已签发并由 certbot timer 自动续期；DDNS 同步范围扩展为 `@,www,api,admin`，其中 `dota2mrjz.icu` / `www.dota2mrjz.icu` 留给 H5，`admin.dota2mrjz.icu` 留给 Admin Web。
 - 本地 Admin、H5 和小程序构建默认切到云端 API：Admin 和 H5 fallback 使用 `https://api.dota2mrjz.icu/api`，H5 / 小程序本地与远端脚本默认注入同一地址；云端 API CORS 已放行本地 `5173` / `5174` / `5175` 预览来源，便于直接查看云服务器数据。
 - 比赛详情新增趣味称号系统：后端基于 OpenDota raw JSON 统一计算 MVP 评分复用类称号和击杀、野怪、治疗、APM、眩晕、ping、死亡、承伤、伤害、助攻、辅助物品、聊天、经济、10 分钟经济、建筑伤害等称号；H5 和小程序在每个选手数据卡片内展示该选手获得的称号；默认 / `local` 构建和开发脚本重新指向本机 API `http://127.0.0.1:3001/api`，`remote` 脚本继续保留云端 API。
-- 比赛详情称号展示完成收口：H5 和小程序选手卡片只展示称号名，不再显示具体数据，并把带框的彩色称号移动到英雄头像下方，避免挤压原有选手名、分路、参战、装备和 KDA 数据布局。
+- 比赛详情称号展示完成收口：H5 和小程序选手卡片只展示称号名，不再显示具体数据；带框彩色称号改为显示在选手名、分路、参战等信息区下方的独立一行，避免挤压长 ID、头像、装备和 KDA 数据布局。
 - 云端第三届当前阶段已指向双败淘汰赛：第一、第二届保持已完成，第三届真实比赛记录和小组赛预赛标记为已完成，双败淘汰赛为进行中；Admin 登录后会直接进入当前淘汰赛处理台。
 - Web Admin 补齐届次生命周期控制：当前届次顶部可直接设为进行中或结束为已完成，新建届次选择进行中时会提示旧 running 届次自动收尾；后端生命周期更新也会保证同一时间只有一个 running 届次。
 
@@ -598,7 +598,9 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit | 内容 |
 | --- | --- |
-| `pending` | Move player awards under hero avatars |
+| `pending` | Move player awards below player info |
+| `136fe83` | Move MVP badge away from hero avatar |
+| `7a1a84f` | Refine player award badge layout |
 | `87a55b2` | Add match detail player award badges |
 | `e3ab432` | Update progress after database setup |
 | `6cb020f` | Add SQLite database baseline |
