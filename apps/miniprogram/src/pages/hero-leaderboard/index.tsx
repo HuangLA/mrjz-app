@@ -125,29 +125,33 @@ function HeroLeaderboardCard(props: {
   return (
     <View className={`hero-leaderboard-card ${props.expanded ? "expanded" : ""}`}>
       <Button className="hero-leaderboard-main" onClick={props.onToggle}>
-        <View className="hero-leaderboard-title">
-          <Text>{props.board.title}</Text>
-          <Text>{props.board.description}</Text>
+        <View className="hero-leaderboard-main-top">
+          <View className="hero-leaderboard-title">
+            <Text>{props.board.title}</Text>
+            <Text>{props.board.description}</Text>
+          </View>
+          <View className="hero-leaderboard-actions">
+            <View className="hero-leaderboard-value">
+              <Text>{winner ? formatLeaderboardValue(winner.average, props.board) : "-"}</Text>
+              <Text>{props.board.metricLabel}</Text>
+            </View>
+            <View className="hero-leaderboard-toggle">
+              <Text>{props.expanded ? "收起" : "前五"}</Text>
+              <Text className={`hero-leaderboard-toggle-icon ${props.expanded ? "expanded" : ""}`} />
+            </View>
+          </View>
         </View>
         {winner ? (
           <View className="hero-leaderboard-winner">
             <SteamAvatar player={winner.player} size="small" />
-            <View>
-              <Text>{winner.player.displayName}</Text>
-              <Text>{leaderboardTeamName(winner)}</Text>
+            <View className="hero-leaderboard-identity">
+              <Text className="hero-leaderboard-player-name">{winner.player.displayName}</Text>
+              <Text className="hero-leaderboard-team-name">{leaderboardTeamName(winner)}</Text>
             </View>
           </View>
         ) : (
           <Text className="hero-leaderboard-empty">暂无获得者</Text>
         )}
-        <View className="hero-leaderboard-value">
-          <Text>{winner ? formatLeaderboardValue(winner.average, props.board) : "-"}</Text>
-          <Text>{props.board.metricLabel}</Text>
-        </View>
-        <View className="hero-leaderboard-toggle">
-          <Text>{props.expanded ? "收起" : "前五"}</Text>
-          <Text className={`hero-leaderboard-toggle-icon ${props.expanded ? "expanded" : ""}`} />
-        </View>
       </Button>
       {props.expanded ? (
         <View className="hero-leaderboard-candidates">
@@ -160,8 +164,8 @@ function HeroLeaderboardCard(props: {
               <Text className="hero-leaderboard-rank">#{candidate.rank}</Text>
               <SteamAvatar player={candidate.player} size="small" />
               <View className="hero-leaderboard-name">
-                <Text>{candidate.player.displayName}</Text>
-                <Text>{leaderboardTeamName(candidate)} · {formatInteger(candidate.matches)} 场</Text>
+                <Text className="hero-leaderboard-player-name">{candidate.player.displayName}</Text>
+                <Text className="hero-leaderboard-team-name">{leaderboardTeamName(candidate)} · {formatInteger(candidate.matches)} 场</Text>
               </View>
               <View className="hero-leaderboard-row-value">
                 <Text>{formatLeaderboardValue(candidate.average, props.board)}</Text>

@@ -2991,23 +2991,33 @@ button[disabled] {
 }
 
 .hero-leaderboard-main {
-  display: grid;
-  grid-template-columns: minmax(62px, 0.78fr) minmax(0, 1.38fr) minmax(52px, 64px) 30px;
-  gap: 6px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
   width: 100%;
-  min-height: 54px;
   padding: 8px;
   color: #edf4ff;
   text-align: left;
 }
 
+.hero-leaderboard-main-top {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  gap: 6px;
+}
+
 .hero-leaderboard-title,
 .hero-leaderboard-winner,
+.hero-leaderboard-identity,
 .hero-leaderboard-value,
 .hero-leaderboard-name,
 .hero-leaderboard-row-value {
   min-width: 0;
+}
+
+.hero-leaderboard-title {
+  flex: 1 1 auto;
 }
 
 .hero-leaderboard-title text:first-child {
@@ -3020,7 +3030,7 @@ button[disabled] {
   white-space: nowrap;
 }
 
-.hero-leaderboard-winner text:first-child,
+.hero-leaderboard-player-name,
 .hero-leaderboard-row-value text:first-child {
   display: block;
   overflow: hidden;
@@ -3033,9 +3043,7 @@ button[disabled] {
 }
 
 .hero-leaderboard-title text:last-child,
-.hero-leaderboard-winner text:last-child,
 .hero-leaderboard-value text:last-child,
-.hero-leaderboard-name text:last-child,
 .hero-leaderboard-row-value text:last-child {
   display: block;
   overflow: hidden;
@@ -3045,20 +3053,30 @@ button[disabled] {
   white-space: nowrap;
 }
 
-.hero-leaderboard-winner text:last-child,
-.hero-leaderboard-name text:last-child {
-  overflow: visible;
-  line-height: 1.16;
+.hero-leaderboard-team-name {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #8794a8;
+  font-size: 9px;
+  line-height: 1.18;
+  max-height: 22px;
   overflow-wrap: break-word;
-  text-overflow: clip;
+  text-overflow: ellipsis;
   white-space: normal;
   word-break: break-all;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .hero-leaderboard-winner {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 6px;
+}
+
+.hero-leaderboard-identity {
+  flex: 1 1 auto;
 }
 
 .hero-leaderboard-winner .steam-avatar-shell,
@@ -3067,14 +3085,23 @@ button[disabled] {
 .hero-leaderboard-row .steam-avatar,
 .hero-leaderboard-winner .profile-avatar-fallback,
 .hero-leaderboard-row .profile-avatar-fallback {
-  width: 30px;
-  height: 30px;
+  width: 28px !important;
+  height: 28px !important;
+  flex: 0 0 28px;
   border-radius: 7px;
 }
 
+.hero-leaderboard-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .hero-leaderboard-value {
-  justify-self: end;
-  min-width: 0;
+  flex: 0 0 58px;
+  width: 58px;
   text-align: right;
 }
 
@@ -3089,9 +3116,11 @@ button[disabled] {
 
 .hero-leaderboard-toggle {
   display: flex;
+  flex: 0 0 28px;
   align-items: center;
   justify-content: flex-end;
   gap: 3px;
+  width: 28px;
   color: #d5b16e;
   font-size: 8px;
   font-weight: 800;
@@ -3123,14 +3152,14 @@ button[disabled] {
 }
 
 .hero-leaderboard-candidates {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 5px;
   padding: 0 8px 8px;
 }
 
 .hero-leaderboard-row {
-  display: grid;
-  grid-template-columns: 26px 28px minmax(0, 1fr) minmax(56px, 66px);
+  display: flex;
   gap: 6px;
   align-items: center;
   width: 100%;
@@ -3144,24 +3173,19 @@ button[disabled] {
 }
 
 .hero-leaderboard-rank {
+  flex: 0 0 24px;
   color: #e2b65f;
   font-size: 10px;
   font-weight: 900;
 }
 
-.hero-leaderboard-name text:first-child {
-  display: block;
-  overflow: hidden;
-  color: #edf4ff;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.hero-leaderboard-name {
+  flex: 1 1 auto;
 }
 
 .hero-leaderboard-row-value {
-  justify-self: end;
+  flex: 0 0 60px;
+  width: 60px;
   text-align: right;
 }
 
