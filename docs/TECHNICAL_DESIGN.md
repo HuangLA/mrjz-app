@@ -273,6 +273,7 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | `teams` | id, season_id, name, short_name, logo_url, color |
 | `team_members` | team_id, player_id, role, joined_at, left_at |
 | `players` | id, dota_account_id, steam_id64, display_name, avatar_url |
+| `tournament_players` | tournament_id, player_id, current_team_id, source, first_seen_match_id, last_seen_match_id |
 
 说明：
 
@@ -280,6 +281,7 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 - `config_json` 保存阶段规则，例如积分规则、排名规则、瑞士轮总轮数、是否允许重复交手、淘汰赛规模、是否有三四名决赛。
 - `stage_standings` 是后端重算后的当前排名快照，用户端直接读取，不在前端临时计算。
 - `bracket_nodes` 表达淘汰赛节点；MVP 先支持单败淘汰，后续可扩展双败。
+- 用户端展示选手队伍时优先读取 `tournament_players.current_team_id`，同一玩家跨届参赛时不能回落到全局最新队伍。
 
 ### 5.3 赛程和赛果
 

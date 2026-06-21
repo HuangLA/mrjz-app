@@ -3966,10 +3966,9 @@ button {
 
 .hero-leaderboard-main {
   appearance: none;
-  display: grid;
-  grid-template-columns: minmax(64px, .78fr) minmax(0, 1.42fr) minmax(54px, 66px) 32px;
-  gap: 6px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
   width: 100%;
   padding: 9px;
   border: 0;
@@ -3979,6 +3978,7 @@ button {
 }
 
 .hero-leaderboard-title,
+.hero-leaderboard-main-row,
 .hero-leaderboard-winner,
 .hero-leaderboard-value,
 .hero-leaderboard-name,
@@ -3990,9 +3990,17 @@ button {
   display: block;
   overflow: hidden;
   color: #f0c36a;
+  font-size: 13px;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hero-leaderboard-main-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 7px;
 }
 
 .hero-leaderboard-winner b,
@@ -4031,8 +4039,15 @@ button {
 
 .hero-leaderboard-winner {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 7px;
+}
+
+.hero-leaderboard-winner > div,
+.hero-leaderboard-main-row .hero-leaderboard-empty {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .leaderboard-avatar {
@@ -4055,8 +4070,8 @@ button {
 }
 
 .hero-leaderboard-value {
-  justify-self: end;
-  min-width: 0;
+  flex: 0 0 58px;
+  width: 58px;
   text-align: right;
 }
 
@@ -4071,9 +4086,11 @@ button {
 
 .hero-leaderboard-toggle {
   display: inline-flex;
+  flex: 0 0 32px;
   align-items: center;
   gap: 4px;
-  justify-self: end;
+  justify-content: flex-end;
+  width: 32px;
   color: #d5b16e;
   font-size: 9px;
   font-weight: 800;

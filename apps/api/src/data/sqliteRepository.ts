@@ -2169,22 +2169,22 @@ export class SqliteTournamentRepository {
           SELECT DISTINCT p.*
           FROM players p
           LEFT JOIN tournament_players tp ON tp.player_id = p.id AND tp.tournament_id = ?
-          LEFT JOIN team_members tm ON tm.player_id = p.id
-          LEFT JOIN tournament_teams tt ON tt.team_id = tm.team_id OR tt.team_id = p.current_team_id
+          LEFT JOIN team_members tm ON tm.player_id = p.id AND tm.left_at IS NULL
+          LEFT JOIN tournament_teams tt ON tt.team_id = tm.team_id AND tt.tournament_id = ?
           WHERE tp.tournament_id = ? OR tt.tournament_id = ?
           ORDER BY p.display_name ASC, p.id ASC
         `,
       )
-      .all(target.tournamentId, target.tournamentId, target.tournamentId)
+      .all(target.tournamentId, target.tournamentId, target.tournamentId, target.tournamentId)
       .forEach((row) => {
-        const player = this.playerFromRow(row);
+        const player = this.playerFromTournamentRow(row, target.tournamentId);
         players.set(player.id, player);
       });
 
     return [...players.values()]
       .map((player) => ({
         ...player,
-        teams: this.getPlayerTeams(player.id),
+        teams: this.getPlayerTeamsForTournament(target.tournamentId, player.id),
         stats: this.getPlayerStatsSnapshot(target.tournamentId, player.id),
       }))
       .sort((left, right) => left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id));
@@ -2230,7 +2230,7 @@ export class SqliteTournamentRepository {
           .slice(0, 5)
           .map((candidate, index) => ({
             rank: index + 1,
-            player: candidate.player.player,
+            player: this.contextualizePlayerForTournament(target.tournamentId, candidate.player.player),
             teams: candidate.player.teams,
             matches: candidate.player.matches,
             average: roundTo(candidate.average, definition.precision),
@@ -2259,7 +2259,7 @@ export class SqliteTournamentRepository {
       return undefined;
     }
 
-    const player = this.getPlayerById(playerId);
+    const player = this.getPlayerForTournament(target.tournamentId, playerId);
 
     if (player === undefined) {
       return undefined;
@@ -2268,7 +2268,7 @@ export class SqliteTournamentRepository {
     return {
       ...player,
       tournamentId: target.tournamentId,
-      teams: this.getPlayerTeams(player.id),
+      teams: this.getPlayerTeamsForTournament(target.tournamentId, player.id),
       stats: this.getPlayerStatsSnapshot(target.tournamentId, player.id),
       matches: this.getPlayerMatchSnapshot(target.tournamentId, player.id),
       tournamentHistory: this.listPlayerTournamentHistory(target.tournamentId, player.id),
@@ -6442,6 +6442,12 @@ export class SqliteTournamentRepository {
     return row === undefined ? undefined : this.playerFromRow(row);
   }
 
+  private getPlayerForTournament(tournamentId: string, playerId: string): PlayerBrief | undefined {
+    const row = this.database.prepare("SELECT * FROM players WHERE id = ?").get(playerId);
+
+    return row === undefined ? undefined : this.playerFromTournamentRow(row, tournamentId);
+  }
+
   private playerFromRow(row: DbRow): PlayerBrief {
     const currentTeamId = nullableText(row, "current_team_id");
 
@@ -6452,6 +6458,19 @@ export class SqliteTournamentRepository {
       displayName: text(row, "display_name"),
       avatarUrl: nullableText(row, "avatar_url"),
       currentTeam: currentTeamId === null ? null : this.requireTeam(currentTeamId),
+    };
+  }
+
+  private playerFromTournamentRow(row: DbRow, tournamentId: string): PlayerBrief {
+    return this.contextualizePlayerForTournament(tournamentId, this.playerFromRow(row));
+  }
+
+  private contextualizePlayerForTournament(tournamentId: string, player: PlayerBrief): PlayerBrief {
+    const teams = this.getPlayerTeamsForTournament(tournamentId, player.id);
+
+    return {
+      ...player,
+      currentTeam: teams[0] ?? null,
     };
   }
 
@@ -6488,6 +6507,59 @@ export class SqliteTournamentRepository {
       )
       .all(playerId)
       .map((row) => teamFromPrefixedRow(row, "team"));
+  }
+
+  private getPlayerTeamsForTournament(tournamentId: string, playerId: string): TeamBrief[] {
+    const teams = new Map<string, TeamBrief>();
+    this.database
+      .prepare(
+        `
+          SELECT
+            team_id AS team_team_id,
+            team_name AS team_team_name,
+            team_short_name AS team_team_short_name,
+            team_logo_url AS team_team_logo_url,
+            team_color AS team_team_color
+          FROM (
+            SELECT
+              team.id AS team_id,
+              team.name AS team_name,
+              team.short_name AS team_short_name,
+              team.logo_url AS team_logo_url,
+              team.color AS team_color,
+              0 AS source_order,
+              COALESCE(tt.seed, 999999) AS seed
+            FROM tournament_players tp
+            JOIN teams team ON team.id = tp.current_team_id
+            LEFT JOIN tournament_teams tt ON tt.tournament_id = tp.tournament_id AND tt.team_id = tp.current_team_id
+            WHERE tp.tournament_id = ? AND tp.player_id = ? AND tp.current_team_id IS NOT NULL
+            UNION ALL
+            SELECT
+              team.id AS team_id,
+              team.name AS team_name,
+              team.short_name AS team_short_name,
+              team.logo_url AS team_logo_url,
+              team.color AS team_color,
+              1 AS source_order,
+              COALESCE(tt.seed, 999999) AS seed
+            FROM tournament_teams tt
+            JOIN team_members member ON member.team_id = tt.team_id AND member.left_at IS NULL
+            JOIN teams team ON team.id = member.team_id
+            WHERE tt.tournament_id = ? AND member.player_id = ?
+          )
+          ORDER BY source_order ASC, seed ASC, team_name ASC, team_id ASC
+        `,
+      )
+      .all(tournamentId, playerId, tournamentId, playerId)
+      .forEach((row) => {
+        const team = teamFromPrefixedRow(row, "team");
+
+        if (!teams.has(team.id)) {
+          teams.set(team.id, team);
+        }
+      });
+
+    return [...teams.values()];
   }
 
   private resolveStageForTournament(tournamentId: string, preferredStageId: string | undefined): string {
@@ -7166,10 +7238,11 @@ export class SqliteTournamentRepository {
           existing ??
           (() => {
             const player = this.getPlayerByAccountId(accountId) ?? fallbackPlayerFromOpenDota(rawPlayer, accountId);
+            const tournamentPlayer = this.contextualizePlayerForTournament(target.tournamentId, player);
 
             return {
-              player,
-              teams: this.getPlayerTeams(player.id),
+              player: tournamentPlayer,
+              teams: this.getPlayerTeamsForTournament(target.tournamentId, tournamentPlayer.id),
               matches: 0,
               totals: emptyHeroLeaderboardTotals(),
             };

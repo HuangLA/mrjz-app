@@ -19,7 +19,7 @@ npm run db:reset
 ## 核心模块
 
 - 赛事：`leagues`、`seasons`、`tournaments`、`teams`、`tournament_teams`
-- 选手：`players`、`team_members`
+- 选手：`players`、`team_members`、`tournament_players`
 - 赛制：`stages`、`rounds`、`series`、`series_games`
 - 榜单：`standings`、`bracket_nodes`
 - OpenDota：`opendota_matches`、`sync_tasks`
@@ -56,6 +56,7 @@ npm run db:reset
 - `opendota_matches.raw_json` 暂存原始 OpenDota 返回，后端 normalizer 统一生成比赛详情视图。
 - `sync_tasks.kind` 当前支持 `discover_match`、`request_parse`、`refresh_match`、`schedule_link`，对应联赛发现、请求解析、单场刷新和人工赛程关联。
 - `tags` 首版只通过 API 开放选手标签；选手标签按 `target_id + normalized_text` 跨届归并，`tournament_id` 记录提交来源届次；`pending_review` 标签需管理员审核为 `approved` 后才向 H5 展示，`tag_likes` 支持小程序登录用户对已通过标签点赞且不进入审核，H5 点击标签只做本地动效；管理员可为测试或运营纠偏直接调整 `like_count`，`tag_audit_logs` 记录审核、隐藏、恢复和点赞数调整动作。
+- `tournament_players.current_team_id` 是用户端展示某届选手队伍归属的优先来源；`players.current_team_id` 只代表全局 / 最新归属，不能用于历史届次展示。
 
 ## 后续迁移方向
 

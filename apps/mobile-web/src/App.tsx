@@ -1741,25 +1741,27 @@ function HeroLeaderboardCard({
           <span>{board.title}</span>
           <small>{board.description}</small>
         </div>
-        {winner ? (
-          <div className="hero-leaderboard-winner">
-            <PlayerAvatar player={winner.player} />
-            <div>
-              <b>{winner.player.displayName}</b>
-              <small>{leaderboardTeamName(winner)}</small>
+        <div className="hero-leaderboard-main-row">
+          {winner ? (
+            <div className="hero-leaderboard-winner">
+              <PlayerAvatar player={winner.player} />
+              <div>
+                <b>{winner.player.displayName}</b>
+                <small>{leaderboardTeamName(winner)}</small>
+              </div>
             </div>
+          ) : (
+            <div className="hero-leaderboard-empty">暂无获得者</div>
+          )}
+          <div className="hero-leaderboard-value">
+            <b>{winner ? formatLeaderboardValue(winner.average, board) : "-"}</b>
+            <small>{board.metricLabel}</small>
           </div>
-        ) : (
-          <div className="hero-leaderboard-empty">暂无获得者</div>
-        )}
-        <div className="hero-leaderboard-value">
-          <b>{winner ? formatLeaderboardValue(winner.average, board) : "-"}</b>
-          <small>{board.metricLabel}</small>
+          <span className="hero-leaderboard-toggle">
+            <span>{expanded ? "收起" : "前五"}</span>
+            <span className={`hero-leaderboard-toggle-icon ${expanded ? "expanded" : ""}`} aria-hidden="true" />
+          </span>
         </div>
-        <span className="hero-leaderboard-toggle">
-          <span>{expanded ? "收起" : "前五"}</span>
-          <span className={`hero-leaderboard-toggle-icon ${expanded ? "expanded" : ""}`} aria-hidden="true" />
-        </span>
       </button>
       {expanded ? (
         <div className="hero-leaderboard-candidates">
