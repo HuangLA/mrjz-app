@@ -86,7 +86,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     title: "采蘑菇的小姑娘",
     description: "场均击杀野怪最多",
     metricLabel: "场均野怪击杀",
-    unit: "野怪",
+    unit: "只",
     precision: 1,
     value: (player) => positiveNumber(player.neutral_kills),
   },

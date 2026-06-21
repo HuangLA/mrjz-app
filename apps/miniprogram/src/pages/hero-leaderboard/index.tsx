@@ -144,7 +144,10 @@ function HeroLeaderboardCard(props: {
           <Text>{winner ? formatLeaderboardValue(winner.average, props.board) : "-"}</Text>
           <Text>{props.board.metricLabel}</Text>
         </View>
-        <Text className="hero-leaderboard-toggle">{props.expanded ? "收起" : "前五"}</Text>
+        <View className="hero-leaderboard-toggle">
+          <Text>{props.expanded ? "收起" : "前五"}</Text>
+          <Text className={`hero-leaderboard-toggle-icon ${props.expanded ? "expanded" : ""}`} />
+        </View>
       </Button>
       {props.expanded ? (
         <View className="hero-leaderboard-candidates">
@@ -180,7 +183,7 @@ function HeroLeaderboardCard(props: {
 function leaderboardTeamName(candidate: HeroLeaderboardCandidate): string {
   const team = candidate.player.currentTeam ?? candidate.player.teams[0] ?? candidate.teams[0] ?? null;
 
-  return team?.shortName || team?.name || "自由人";
+  return team?.name || team?.shortName || "自由人";
 }
 
 function formatLeaderboardValue(value: number, board: Pick<HeroLeaderboardItem, "precision" | "unit">): string {

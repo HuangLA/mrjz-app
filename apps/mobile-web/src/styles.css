@@ -3967,8 +3967,8 @@ button {
 .hero-leaderboard-main {
   appearance: none;
   display: grid;
-  grid-template-columns: minmax(72px, .9fr) minmax(0, 1.2fr) minmax(64px, auto) 38px;
-  gap: 8px;
+  grid-template-columns: minmax(64px, .78fr) minmax(0, 1.42fr) minmax(54px, 66px) 32px;
+  gap: 6px;
   align-items: center;
   width: 100%;
   padding: 9px;
@@ -4000,7 +4000,9 @@ button {
   display: block;
   overflow: hidden;
   color: #edf4ff;
+  font-size: 11px;
   font-weight: 900;
+  line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4018,10 +4020,19 @@ button {
   white-space: nowrap;
 }
 
+.hero-leaderboard-winner small,
+.hero-leaderboard-name small {
+  overflow: visible;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .hero-leaderboard-winner {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .leaderboard-avatar {
@@ -4044,21 +4055,42 @@ button {
 }
 
 .hero-leaderboard-value {
+  justify-self: end;
+  min-width: 0;
   text-align: right;
 }
 
 .hero-leaderboard-value b {
   display: block;
   color: #f0c36a;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 900;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .hero-leaderboard-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   justify-self: end;
   color: #d5b16e;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.hero-leaderboard-toggle-icon {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-1px) rotate(45deg);
+  transition: transform .16s ease;
+}
+
+.hero-leaderboard-toggle-icon.expanded {
+  transform: translateY(2px) rotate(225deg);
 }
 
 .hero-leaderboard-empty {
@@ -4074,8 +4106,8 @@ button {
 
 .hero-leaderboard-row {
   display: grid;
-  grid-template-columns: 34px 34px minmax(0, 1fr) minmax(76px, auto);
-  gap: 8px;
+  grid-template-columns: 28px 32px minmax(0, 1fr) minmax(58px, 68px);
+  gap: 6px;
   align-items: center;
   width: 100%;
   padding: 7px;
@@ -4088,7 +4120,7 @@ button {
 
 .hero-leaderboard-rank {
   color: #e2b65f;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
 }
 
@@ -4096,9 +4128,19 @@ button {
   display: block;
   overflow: hidden;
   color: #edf4ff;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.16;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hero-leaderboard-row-value {
+  justify-self: end;
+  text-align: right;
+}
+
+.hero-leaderboard-row-value b {
+  color: #edf4ff;
 }
 
 .player-stat-card {

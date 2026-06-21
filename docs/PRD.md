@@ -188,7 +188,7 @@
 | 称号 | 排名字段 | 展示口径 |
 | --- | --- | --- |
 | 人头帝 | `players[].kills` | 场均击杀 |
-| 采蘑菇的小姑娘 | `players[].neutral_kills` | 场均野怪击杀 |
+| 采蘑菇的小姑娘 | `players[].neutral_kills` | 场均野怪击杀，数值单位显示为“只” |
 | 奶妈王 | `players[].hero_healing` | 场均治疗 |
 | 压力狂 | `players[].pings` | 场均 ping 次数 |
 | SM帝 | `players[].stuns` | 场均控制时长 |

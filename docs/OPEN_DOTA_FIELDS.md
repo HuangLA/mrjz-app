@@ -190,7 +190,7 @@ score =
 | 英雄榜称号 | 场均字段 | 备注 |
 | --- | --- | --- |
 | 人头帝 | `players[].kills` | 场均击杀 |
-| 采蘑菇的小姑娘 | `players[].neutral_kills` | 场均野怪击杀 |
+| 采蘑菇的小姑娘 | `players[].neutral_kills` | 场均野怪击杀，数值单位显示为“只” |
 | 奶妈王 | `players[].hero_healing` | 场均治疗量 |
 | 压力狂 | `players[].pings` | 场均发 ping 次数 |
 | SM帝 | `players[].stuns` | 场均控制时长，单位秒 |

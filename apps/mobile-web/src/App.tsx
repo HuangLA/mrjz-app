@@ -1756,7 +1756,10 @@ function HeroLeaderboardCard({
           <b>{winner ? formatLeaderboardValue(winner.average, board) : "-"}</b>
           <small>{board.metricLabel}</small>
         </div>
-        <span className="hero-leaderboard-toggle">{expanded ? "收起" : "前五"}</span>
+        <span className="hero-leaderboard-toggle">
+          <span>{expanded ? "收起" : "前五"}</span>
+          <span className={`hero-leaderboard-toggle-icon ${expanded ? "expanded" : ""}`} aria-hidden="true" />
+        </span>
       </button>
       {expanded ? (
         <div className="hero-leaderboard-candidates">
@@ -4724,7 +4727,7 @@ function formatTrendValue(value: number): string {
 function leaderboardTeamName(candidate: HeroLeaderboardCandidate): string {
   const team = candidate.player.currentTeam ?? candidate.player.teams[0] ?? null;
 
-  return team?.shortName || team?.name || "自由人";
+  return team?.name || team?.shortName || "自由人";
 }
 
 function formatLeaderboardValue(value: number, board: Pick<HeroLeaderboardItem, "precision" | "unit">): string {
