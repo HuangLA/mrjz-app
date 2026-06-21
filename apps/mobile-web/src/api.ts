@@ -932,8 +932,17 @@ function apiUrl(apiBaseUrl: string, path: string): string {
 function resolveApiBaseUrl(): string {
   const env = import.meta.env as Record<string, string | undefined>;
   const runtimeOverride = resolveRuntimeApiBaseUrl();
+  const envBaseUrl = env.PUBLIC_API_BASE_URL ?? env.VITE_PUBLIC_API_BASE_URL;
 
-  return runtimeOverride ?? env.PUBLIC_API_BASE_URL ?? env.VITE_PUBLIC_API_BASE_URL ?? defaultApiBaseUrl;
+  if (runtimeOverride !== undefined) {
+    return runtimeOverride;
+  }
+
+  if ((envBaseUrl === undefined || envBaseUrl === defaultApiBaseUrl) && isLocalViteHost()) {
+    return localApiBaseUrl;
+  }
+
+  return envBaseUrl ?? defaultApiBaseUrl;
 }
 
 function resolveRuntimeApiBaseUrl(): string | undefined {
@@ -963,6 +972,14 @@ function resolveRuntimeApiBaseUrl(): string | undefined {
 
 function normalizeApiBaseUrlOverride(value: string): string {
   return (value === "local" ? localApiBaseUrl : value).replace(/\/+$/, "");
+}
+
+function isLocalViteHost(): boolean {
+  try {
+    return ["localhost:5174", "127.0.0.1:5174"].includes(window.location.host);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeTournamentStats(
