@@ -1029,6 +1029,7 @@ const PUBLIC_GET_PATTERNS = new Set([
   "/api/tournaments/:id/teams",
   "/api/tournaments/:id/teams/:teamId",
   "/api/tournaments/:id/players",
+  "/api/tournaments/:id/hero-leaderboards",
   "/api/tournaments/:id/players/:playerId",
   "/api/tournaments/:id/players/:playerId/tags",
   "/api/tournaments/:id/official-schedule",
