@@ -8,6 +8,7 @@ import type {
   AuthSession,
   DotaAccountBinding,
   BracketNode,
+  HeroLeaderboardsView,
   MatchDetail,
   MatchRecord,
   OfficialScheduleStatus,
@@ -164,6 +165,12 @@ export async function loadMatch(matchId: number | string): Promise<MatchDetail> 
 
 export async function loadTournamentPlayers(tournamentId: string): Promise<PlayerListItem[]> {
   return request<PlayerListItem[]>(`/tournaments/${encodeURIComponent(tournamentId)}/players`, { withAuth: false });
+}
+
+export async function loadHeroLeaderboards(tournamentId: string): Promise<HeroLeaderboardsView> {
+  return request<HeroLeaderboardsView>(`/tournaments/${encodeURIComponent(tournamentId)}/hero-leaderboards`, {
+    withAuth: false,
+  });
 }
 
 export async function loadPlayerProfile(tournamentId: string, playerId: string): Promise<PlayerProfile> {

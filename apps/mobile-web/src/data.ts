@@ -1,4 +1,14 @@
-export type AppRoute = "home" | "stage" | "schedule" | "records" | "match" | "players" | "teams" | "player" | "team";
+export type AppRoute =
+  | "home"
+  | "stage"
+  | "schedule"
+  | "records"
+  | "match"
+  | "leaderboard"
+  | "players"
+  | "teams"
+  | "player"
+  | "team";
 
 export type StageKey = "group" | "swiss" | "knockout";
 
@@ -97,6 +107,34 @@ export interface PlayerDirectoryItem {
   currentTeam: EntityTeamInfo | null;
   teams: EntityTeamInfo[];
   stats: ProfileStatsSummary;
+}
+
+export interface HeroLeaderboardCandidate {
+  rank: number;
+  player: PlayerDirectoryItem;
+  matches: number;
+  average: number;
+  total: number;
+}
+
+export interface HeroLeaderboardItem {
+  key: string;
+  title: string;
+  description: string;
+  metricLabel: string;
+  unit: string;
+  precision: number;
+  minMatches: number;
+  winner: HeroLeaderboardCandidate | null;
+  candidates: HeroLeaderboardCandidate[];
+}
+
+export interface HeroLeaderboardsView {
+  tournamentId: string;
+  tournamentName: string;
+  basis: "per_match";
+  minMatches: number;
+  leaderboards: HeroLeaderboardItem[];
 }
 
 export interface TeamDirectoryItem extends EntityTeamInfo {

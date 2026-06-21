@@ -52,6 +52,127 @@ type MatchEntitySyncResult = {
   teamIds: Set<string>;
 };
 
+type HeroLeaderboardDefinition = {
+  key: HeroLeaderboardMetricKey;
+  title: string;
+  description: string;
+  metricLabel: string;
+  unit: string;
+  precision: number;
+  value: (player: OpenDotaMatchPlayer) => number;
+};
+
+type HeroLeaderboardAccumulator = {
+  player: PlayerBrief;
+  teams: TeamBrief[];
+  matches: number;
+  totals: Record<HeroLeaderboardMetricKey, number>;
+};
+
+const HERO_LEADERBOARD_MIN_MATCHES = 5;
+
+const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
+  {
+    key: "kills",
+    title: "人头帝",
+    description: "场均击杀最高的选手",
+    metricLabel: "场均击杀",
+    unit: "杀",
+    precision: 1,
+    value: (player) => positiveNumber(player.kills),
+  },
+  {
+    key: "neutralKills",
+    title: "采蘑菇的小姑娘",
+    description: "场均击杀野怪最多的选手",
+    metricLabel: "场均野怪击杀",
+    unit: "野怪",
+    precision: 1,
+    value: (player) => positiveNumber(player.neutral_kills),
+  },
+  {
+    key: "heroHealing",
+    title: "奶妈王",
+    description: "场均治疗量最高的选手",
+    metricLabel: "场均治疗",
+    unit: "",
+    precision: 0,
+    value: (player) => positiveNumber(player.hero_healing),
+  },
+  {
+    key: "pings",
+    title: "压力狂",
+    description: "场均发 ping 次数最多的选手",
+    metricLabel: "场均 ping",
+    unit: "次",
+    precision: 1,
+    value: (player) => positiveNumber(player.pings),
+  },
+  {
+    key: "stuns",
+    title: "SM帝",
+    description: "场均控制时长最长的选手",
+    metricLabel: "场均控制",
+    unit: "秒",
+    precision: 1,
+    value: (player) => positiveNumber(player.stuns),
+  },
+  {
+    key: "deaths",
+    title: "鬼王宗宗主",
+    description: "场均阵亡最多的选手",
+    metricLabel: "场均阵亡",
+    unit: "死",
+    precision: 1,
+    value: (player) => positiveNumber(player.deaths),
+  },
+  {
+    key: "damageTaken",
+    title: "老吴",
+    description: "场均承受伤害最高的选手",
+    metricLabel: "场均承伤",
+    unit: "",
+    precision: 0,
+    value: (player) => damageTakenTotal(player.damage_taken),
+  },
+  {
+    key: "heroDamage",
+    title: "战争机器",
+    description: "场均英雄伤害最高的选手",
+    metricLabel: "场均伤害",
+    unit: "",
+    precision: 0,
+    value: (player) => positiveNumber(player.hero_damage),
+  },
+  {
+    key: "assists",
+    title: "助攻王",
+    description: "场均助攻最高的选手",
+    metricLabel: "场均助攻",
+    unit: "助",
+    precision: 1,
+    value: (player) => positiveNumber(player.assists),
+  },
+  {
+    key: "netWorth",
+    title: "世界首富",
+    description: "场均财产最高的选手",
+    metricLabel: "场均财产",
+    unit: "",
+    precision: 0,
+    value: heroLeaderboardWealth,
+  },
+  {
+    key: "towerDamage",
+    title: "拆迁队队长",
+    description: "场均建筑伤害最高的选手",
+    metricLabel: "场均建筑伤害",
+    unit: "",
+    precision: 0,
+    value: (player) => positiveNumber(player.tower_damage),
+  },
+];
+
 export type RepositoryInfo = {
   dataSource: "sqlite";
   databasePath: string;
@@ -168,6 +289,48 @@ export type PlayerStatsSummary = {
   avgTowerDamage: number | null;
   avgDamageTaken: number | null;
   topHeroes: HeroPickSummary[];
+};
+
+export type HeroLeaderboardMetricKey =
+  | "kills"
+  | "neutralKills"
+  | "heroHealing"
+  | "pings"
+  | "stuns"
+  | "deaths"
+  | "damageTaken"
+  | "heroDamage"
+  | "assists"
+  | "netWorth"
+  | "towerDamage";
+
+export type HeroLeaderboardCandidate = {
+  rank: number;
+  player: PlayerBrief;
+  teams: TeamBrief[];
+  matches: number;
+  average: number;
+  total: number;
+};
+
+export type HeroLeaderboardItem = {
+  key: HeroLeaderboardMetricKey;
+  title: string;
+  description: string;
+  metricLabel: string;
+  unit: string;
+  precision: number;
+  minMatches: number;
+  winner: HeroLeaderboardCandidate | null;
+  candidates: HeroLeaderboardCandidate[];
+};
+
+export type TournamentHeroLeaderboardsView = {
+  tournamentId: string;
+  tournamentName: string;
+  basis: "per_match";
+  minMatches: number;
+  leaderboards: HeroLeaderboardItem[];
 };
 
 export type ProfileMatchSummary = {
@@ -2025,6 +2188,68 @@ export class SqliteTournamentRepository {
         stats: this.getPlayerStatsSnapshot(target.tournamentId, player.id),
       }))
       .sort((left, right) => left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id));
+  }
+
+  listTournamentHeroLeaderboards(tournamentId: string): TournamentHeroLeaderboardsView | undefined {
+    const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
+
+    if (target === undefined) {
+      return undefined;
+    }
+
+    const eligiblePlayers = [...this.aggregateHeroLeaderboardStats(target).values()].filter(
+      (player) => player.matches >= HERO_LEADERBOARD_MIN_MATCHES,
+    );
+
+    return {
+      tournamentId: target.tournamentId,
+      tournamentName: target.tournamentName,
+      basis: "per_match",
+      minMatches: HERO_LEADERBOARD_MIN_MATCHES,
+      leaderboards: HERO_LEADERBOARD_DEFINITIONS.map((definition) => {
+        const candidates = eligiblePlayers
+          .map((player) => {
+            const total = player.totals[definition.key];
+            const average = total / player.matches;
+
+            return {
+              player,
+              total,
+              average,
+            };
+          })
+          .filter((candidate) => candidate.average > 0)
+          .sort(
+            (left, right) =>
+              right.average - left.average ||
+              right.total - left.total ||
+              right.player.matches - left.player.matches ||
+              left.player.player.displayName.localeCompare(right.player.player.displayName, "zh-CN") ||
+              left.player.player.id.localeCompare(right.player.player.id),
+          )
+          .slice(0, 5)
+          .map((candidate, index) => ({
+            rank: index + 1,
+            player: candidate.player.player,
+            teams: candidate.player.teams,
+            matches: candidate.player.matches,
+            average: roundTo(candidate.average, definition.precision),
+            total: roundTo(candidate.total, definition.precision),
+          }));
+
+        return {
+          key: definition.key,
+          title: definition.title,
+          description: definition.description,
+          metricLabel: definition.metricLabel,
+          unit: definition.unit,
+          precision: definition.precision,
+          minMatches: HERO_LEADERBOARD_MIN_MATCHES,
+          winner: candidates[0] ?? null,
+          candidates,
+        };
+      }),
+    };
   }
 
   getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined {
@@ -6925,6 +7150,44 @@ export class SqliteTournamentRepository {
     return [...accountIds];
   }
 
+  private aggregateHeroLeaderboardStats(target: LeagueSyncTarget): Map<number, HeroLeaderboardAccumulator> {
+    const players = new Map<number, HeroLeaderboardAccumulator>();
+
+    for (const match of this.matchRowsForLeague(target.league.opendotaLeagueId)) {
+      for (const rawPlayer of match.raw.players ?? []) {
+        const accountId = typeof rawPlayer.account_id === "number" && rawPlayer.account_id > 0 ? rawPlayer.account_id : null;
+
+        if (accountId === null) {
+          continue;
+        }
+
+        const existing = players.get(accountId);
+        const accumulator =
+          existing ??
+          (() => {
+            const player = this.getPlayerByAccountId(accountId) ?? fallbackPlayerFromOpenDota(rawPlayer, accountId);
+
+            return {
+              player,
+              teams: this.getPlayerTeams(player.id),
+              matches: 0,
+              totals: emptyHeroLeaderboardTotals(),
+            };
+          })();
+
+        accumulator.matches += 1;
+
+        for (const definition of HERO_LEADERBOARD_DEFINITIONS) {
+          accumulator.totals[definition.key] += definition.value(rawPlayer);
+        }
+
+        players.set(accountId, accumulator);
+      }
+    }
+
+    return players;
+  }
+
   private calculatePlayerStats(target: LeagueSyncTarget, playerId: string): PlayerStatsSummary {
     const matches = this.getPlayerRawMatches(target, playerId);
     const heroMap = new Map<number, HeroPickSummary>();
@@ -9073,6 +9336,42 @@ function playerAvatarUrl(player: OpenDotaMatchPlayer): string | null {
   };
 
   return dynamicPlayer.avatarfull?.trim() || dynamicPlayer.avatarmedium?.trim() || dynamicPlayer.avatar?.trim() || null;
+}
+
+function fallbackPlayerFromOpenDota(player: OpenDotaMatchPlayer, accountId: number): PlayerBrief {
+  const displayName = player.personaname?.trim() || player.name?.trim() || player.player_name?.trim() || `玩家 ${accountId}`;
+
+  return {
+    id: `player_account_${accountId}`,
+    accountId,
+    steamId64: steamId64FromAccountId(accountId),
+    displayName,
+    avatarUrl: playerAvatarUrl(player),
+    currentTeam: null,
+  };
+}
+
+function emptyHeroLeaderboardTotals(): Record<HeroLeaderboardMetricKey, number> {
+  return HERO_LEADERBOARD_DEFINITIONS.reduce(
+    (totals, definition) => {
+      totals[definition.key] = 0;
+      return totals;
+    },
+    {} as Record<HeroLeaderboardMetricKey, number>,
+  );
+}
+
+function positiveNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function heroLeaderboardWealth(player: OpenDotaMatchPlayer): number {
+  return positiveNumber(player.net_worth) || positiveNumber(player.total_gold) || positiveNumber(player.gold);
+}
+
+function roundTo(value: number, digits: number): number {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
 }
 
 function emptyPlayerStats(): PlayerStatsSummary {

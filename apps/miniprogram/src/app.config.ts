@@ -4,6 +4,7 @@ export default defineAppConfig({
     "pages/stage/index",
     "pages/schedule/index",
     "pages/records/index",
+    "pages/hero-leaderboard/index",
     "pages/players/index",
     "pages/player-detail/index",
     "pages/teams/index",

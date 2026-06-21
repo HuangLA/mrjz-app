@@ -299,7 +299,7 @@ button {
 
 .floating-route-nav .route-tabs {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 5px;
   overflow: visible;
 }
@@ -3937,6 +3937,152 @@ button {
 .player-stat-list {
   display: grid;
   gap: 8px;
+}
+
+.hero-leaderboard-panel {
+  overflow: hidden;
+}
+
+.hero-leaderboard-list {
+  display: grid;
+  gap: 8px;
+}
+
+.hero-leaderboard-card {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(240, 195, 106, .10), rgba(91, 176, 255, .055) 48%, rgba(116, 214, 108, .055)),
+    rgba(13, 19, 29, .86);
+}
+
+.hero-leaderboard-card.expanded {
+  border-color: rgba(240, 195, 106, .24);
+}
+
+.hero-leaderboard-main {
+  display: grid;
+  grid-template-columns: minmax(72px, .9fr) minmax(0, 1.2fr) minmax(64px, auto) 38px;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 9px;
+  text-align: left;
+}
+
+.hero-leaderboard-title,
+.hero-leaderboard-winner,
+.hero-leaderboard-value,
+.hero-leaderboard-name,
+.hero-leaderboard-row-value {
+  min-width: 0;
+}
+
+.hero-leaderboard-title span,
+.hero-leaderboard-winner b,
+.hero-leaderboard-row-value b {
+  display: block;
+  overflow: hidden;
+  color: #f3ead6;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-leaderboard-title small,
+.hero-leaderboard-winner small,
+.hero-leaderboard-value small,
+.hero-leaderboard-name small,
+.hero-leaderboard-row-value small {
+  display: block;
+  overflow: hidden;
+  color: #8794a8;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-leaderboard-winner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leaderboard-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(240, 195, 106, .24);
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, .06);
+}
+
+.leaderboard-avatar.placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #11100c;
+  font-weight: 900;
+  background: linear-gradient(180deg, #e2b65f, #b98132);
+}
+
+.hero-leaderboard-value {
+  text-align: right;
+}
+
+.hero-leaderboard-value b {
+  display: block;
+  color: #d9ffd5;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.hero-leaderboard-toggle {
+  justify-self: end;
+  color: #d5b16e;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.hero-leaderboard-empty {
+  color: #8e99ac;
+  font-size: 12px;
+}
+
+.hero-leaderboard-candidates {
+  display: grid;
+  gap: 5px;
+  padding: 0 9px 9px;
+}
+
+.hero-leaderboard-row {
+  display: grid;
+  grid-template-columns: 34px 34px minmax(0, 1fr) minmax(76px, auto);
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .035);
+  text-align: left;
+}
+
+.hero-leaderboard-rank {
+  color: #e2b65f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.hero-leaderboard-name b {
+  display: block;
+  overflow: hidden;
+  color: #edf4ff;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .player-stat-card {

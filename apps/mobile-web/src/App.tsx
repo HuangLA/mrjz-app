@@ -22,6 +22,8 @@ import {
   type AppRoute,
   type DraftStep,
   type EntityTeamInfo,
+  type HeroLeaderboardCandidate,
+  type HeroLeaderboardItem,
   type IconRef,
   type MatchAward,
   type MatchData,
@@ -64,6 +66,7 @@ const routeOptions: Array<{ key: AppRoute; label: string; kicker: string }> = [
   { key: "schedule", label: "赛程", kicker: "时间" },
   { key: "records", label: "比赛记录", kicker: "记录" },
   { key: "match", label: "比赛详情", kicker: "战报" },
+  { key: "leaderboard", label: "英雄榜", kicker: "称号" },
   { key: "players", label: "选手", kicker: "数据" },
   { key: "teams", label: "队伍", kicker: "战队" },
 ];
@@ -548,6 +551,8 @@ export function App() {
             onWardSecondChange={updateWardSecond}
           />
         );
+      case "leaderboard":
+        return <HeroLeaderboardsPage data={viewData} loading={loading} onNavigate={navigateTo} />;
       case "players":
         return (
           <PlayersPage
@@ -1655,6 +1660,140 @@ function MatchDetailPage({
         </div>
       </section>
     </>
+  );
+}
+
+function HeroLeaderboardsPage({
+  data,
+  loading,
+  onNavigate,
+}: {
+  data: MobileData;
+  loading: boolean;
+  onNavigate: (route: AppRoute, options?: NavigateOptions) => void;
+}) {
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
+  const leaderboards = data.heroLeaderboards.leaderboards;
+
+  function toggleBoard(key: string) {
+    setExpandedKeys((current) => {
+      const next = new Set(current);
+
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+
+      return next;
+    });
+  }
+
+  return (
+    <>
+      <DataNotice data={data} loading={loading} />
+      <TournamentScope data={data} onNavigate={onNavigate} />
+      <section className="section-panel hero-leaderboard-panel">
+        <div className="section-title compact">
+          <div>
+            <h2>英雄榜</h2>
+            <p>只统计参赛 {data.heroLeaderboards.minMatches} 场以上选手，全部按场均排名</p>
+          </div>
+          <span className="sync-pill">{leaderboards.length} 榜</span>
+        </div>
+        <div className="hero-leaderboard-list">
+          {leaderboards.length > 0 ? (
+            leaderboards.map((board) => (
+              <HeroLeaderboardCard
+                key={board.key}
+                board={board}
+                expanded={expandedKeys.has(board.key)}
+                onToggle={() => toggleBoard(board.key)}
+                onNavigate={onNavigate}
+              />
+            ))
+          ) : (
+            <EmptyState text="暂无满足 5 场门槛的英雄榜数据" />
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function HeroLeaderboardCard({
+  board,
+  expanded,
+  onToggle,
+  onNavigate,
+}: {
+  board: HeroLeaderboardItem;
+  expanded: boolean;
+  onToggle: () => void;
+  onNavigate: (route: AppRoute, options?: NavigateOptions) => void;
+}) {
+  const winner = board.winner;
+
+  return (
+    <article className={`hero-leaderboard-card ${expanded ? "expanded" : ""}`}>
+      <button className="hero-leaderboard-main" type="button" onClick={onToggle}>
+        <div className="hero-leaderboard-title">
+          <span>{board.title}</span>
+          <small>{board.description}</small>
+        </div>
+        {winner ? (
+          <div className="hero-leaderboard-winner">
+            <PlayerAvatar player={winner.player} />
+            <div>
+              <b>{winner.player.displayName}</b>
+              <small>{leaderboardTeamName(winner)}</small>
+            </div>
+          </div>
+        ) : (
+          <div className="hero-leaderboard-empty">暂无获得者</div>
+        )}
+        <div className="hero-leaderboard-value">
+          <b>{winner ? formatLeaderboardValue(winner.average, board) : "-"}</b>
+          <small>{board.metricLabel}</small>
+        </div>
+        <span className="hero-leaderboard-toggle">{expanded ? "收起" : "前五"}</span>
+      </button>
+      {expanded ? (
+        <div className="hero-leaderboard-candidates">
+          {board.candidates.length > 0 ? (
+            board.candidates.map((candidate) => (
+              <button
+                className="hero-leaderboard-row"
+                type="button"
+                key={`${board.key}-${candidate.player.id}`}
+                onClick={() => onNavigate("player", { profileId: candidate.player.id })}
+              >
+                <span className="hero-leaderboard-rank">#{candidate.rank}</span>
+                <PlayerAvatar player={candidate.player} />
+                <span className="hero-leaderboard-name">
+                  <b>{candidate.player.displayName}</b>
+                  <small>{leaderboardTeamName(candidate)} · {candidate.matches} 场</small>
+                </span>
+                <span className="hero-leaderboard-row-value">
+                  <b>{formatLeaderboardValue(candidate.average, board)}</b>
+                  <small>总计 {formatLeaderboardTotal(candidate.total, board)}</small>
+                </span>
+              </button>
+            ))
+          ) : (
+            <EmptyState text={`暂无满足 ${board.minMatches} 场门槛的数据`} />
+          )}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function PlayerAvatar({ player }: { player: HeroLeaderboardCandidate["player"] }) {
+  return player.avatarUrl ? (
+    <img className="leaderboard-avatar" src={player.avatarUrl} alt="" loading="lazy" />
+  ) : (
+    <span className="leaderboard-avatar placeholder">{player.displayName.slice(0, 1) || "选"}</span>
   );
 }
 
@@ -4278,10 +4417,17 @@ function emptyMobileData(): MobileData {
     },
     matchRecords: [],
     tournamentRecentRecords: {},
+    heroLeaderboards: {
+      tournamentId: "",
+      tournamentName: "MRJZ",
+      basis: "per_match",
+      minMatches: 5,
+      leaderboards: [],
+    },
     players: [],
-      teams: [],
-      featuredMatch: emptyMatchData(),
-      notice: null,
+    teams: [],
+    featuredMatch: emptyMatchData(),
+    notice: null,
   };
 }
 
@@ -4573,6 +4719,28 @@ function formatTrendValue(value: number): string {
   }
 
   return `${value > 0 ? "+" : ""}${compactNumber(value)}`;
+}
+
+function leaderboardTeamName(candidate: HeroLeaderboardCandidate): string {
+  const team = candidate.player.currentTeam ?? candidate.player.teams[0] ?? null;
+
+  return team?.shortName || team?.name || "自由人";
+}
+
+function formatLeaderboardValue(value: number, board: Pick<HeroLeaderboardItem, "precision" | "unit">): string {
+  const normalized = Math.abs(value) >= 1000 ? compactNumber(value) : trimFixed(value, board.precision);
+
+  return board.unit ? `${normalized}${board.unit}` : normalized;
+}
+
+function formatLeaderboardTotal(value: number, board: Pick<HeroLeaderboardItem, "precision" | "unit">): string {
+  const normalized = Math.abs(value) >= 1000 ? compactNumber(value) : trimFixed(value, Math.min(board.precision, 1));
+
+  return board.unit ? `${normalized}${board.unit}` : normalized;
+}
+
+function trimFixed(value: number, digits: number): string {
+  return value.toFixed(digits).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1");
 }
 
 function compactNumber(value: number): string {

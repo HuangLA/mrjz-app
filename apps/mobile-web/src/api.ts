@@ -5,6 +5,9 @@ import type {
   ComparisonMetric,
   DraftStep,
   HeroPickSummary,
+  HeroLeaderboardCandidate,
+  HeroLeaderboardItem,
+  HeroLeaderboardsView,
   IconRef,
   MatchRecord,
   MatchRecordHero,
@@ -59,6 +62,7 @@ export type MobileData = {
   officialSchedule: OfficialScheduleStatus;
   matchRecords: MatchRecord[];
   tournamentRecentRecords: Record<string, MatchRecord[]>;
+  heroLeaderboards: HeroLeaderboardsView;
   players: PlayerDirectoryItem[];
   teams: TeamDirectoryItem[];
   featuredMatch: MatchData;
@@ -109,6 +113,35 @@ type ApiPlayerDirectoryItem = {
   currentTeam?: ApiTeam | null;
   teams?: ApiTeam[];
   stats?: ApiPlayerStatsSummary;
+};
+
+type ApiHeroLeaderboardCandidate = {
+  rank?: number;
+  player?: ApiPlayerDirectoryItem;
+  teams?: ApiTeam[];
+  matches?: number;
+  average?: number;
+  total?: number;
+};
+
+type ApiHeroLeaderboardItem = {
+  key?: string;
+  title?: string;
+  description?: string;
+  metricLabel?: string;
+  unit?: string;
+  precision?: number;
+  minMatches?: number;
+  winner?: ApiHeroLeaderboardCandidate | null;
+  candidates?: ApiHeroLeaderboardCandidate[];
+};
+
+type ApiHeroLeaderboardsView = {
+  tournamentId?: string;
+  tournamentName?: string;
+  basis?: "per_match";
+  minMatches?: number;
+  leaderboards?: ApiHeroLeaderboardItem[];
 };
 
 type ApiTeamStatsSummary = {
@@ -644,6 +677,15 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     apiBaseUrl,
     `/tournaments/${selectedTournamentId}/matches?limit=80`,
   ).catch(() => []);
+  const heroLeaderboards = normalizeHeroLeaderboards(
+    await fetchApi<ApiHeroLeaderboardsView>(
+      apiBaseUrl,
+      `/tournaments/${encodeURIComponent(selectedTournamentId)}/hero-leaderboards`,
+    ).catch(() => null),
+    selectedTournamentId,
+    tournament.name,
+    apiBaseUrl,
+  );
   await constantsPromise;
   const normalizedRecords = matchRecords.map(normalizeMatchRecord);
   const tournamentRecentRecords = await loadTournamentRecentRecords(apiBaseUrl, tournamentList, selectedTournamentId, normalizedRecords);
@@ -664,6 +706,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     officialSchedule,
     matchRecords: normalizedRecords,
     tournamentRecentRecords,
+    heroLeaderboards,
     players: [],
     teams: [],
     featuredMatch: match,
@@ -756,6 +799,13 @@ function emptyMobileData(
     officialSchedule: emptyOfficialScheduleStatus(),
     matchRecords: [],
     tournamentRecentRecords: {},
+    heroLeaderboards: {
+      tournamentId: selectedTournamentId,
+      tournamentName: "暂无真实赛事",
+      basis: "per_match",
+      minMatches: 5,
+      leaderboards: [],
+    },
     players: [],
     teams: [],
     featuredMatch: emptyMatchData(),
@@ -1045,6 +1095,80 @@ function normalizePlayerDirectoryItem(player: ApiPlayerDirectoryItem, apiBaseUrl
     currentTeam: normalizeTeamBrief(player.currentTeam),
     teams: (player.teams ?? []).map(normalizeTeamBrief).filter(isDefined),
     stats: normalizeProfileStats(player.stats),
+  };
+}
+
+function normalizeHeroLeaderboards(
+  payload: ApiHeroLeaderboardsView | null,
+  tournamentId: string,
+  tournamentName: string,
+  apiBaseUrl?: string,
+): HeroLeaderboardsView {
+  const minMatches = payload?.minMatches ?? 5;
+
+  return {
+    tournamentId: payload?.tournamentId ?? tournamentId,
+    tournamentName: payload?.tournamentName ?? tournamentName,
+    basis: "per_match",
+    minMatches,
+    leaderboards: (payload?.leaderboards ?? [])
+      .map((item) => normalizeHeroLeaderboardItem(item, minMatches, apiBaseUrl))
+      .filter(isDefined),
+  };
+}
+
+function normalizeHeroLeaderboardItem(
+  item: ApiHeroLeaderboardItem,
+  minMatches: number,
+  apiBaseUrl?: string,
+): HeroLeaderboardItem | null {
+  const key = item.key?.trim();
+
+  if (!key) {
+    return null;
+  }
+
+  const candidates = (item.candidates ?? [])
+    .map((candidate) => normalizeHeroLeaderboardCandidate(candidate, apiBaseUrl))
+    .filter(isDefined);
+
+  return {
+    key,
+    title: item.title?.trim() || key,
+    description: item.description?.trim() || "场均数据最高",
+    metricLabel: item.metricLabel?.trim() || "场均",
+    unit: item.unit ?? "",
+    precision: item.precision ?? 1,
+    minMatches: item.minMatches ?? minMatches,
+    winner: item.winner ? normalizeHeroLeaderboardCandidate(item.winner, apiBaseUrl) : candidates[0] ?? null,
+    candidates,
+  };
+}
+
+function normalizeHeroLeaderboardCandidate(
+  candidate: ApiHeroLeaderboardCandidate,
+  apiBaseUrl?: string,
+): HeroLeaderboardCandidate | null {
+  if (candidate.player === undefined) {
+    return null;
+  }
+
+  const teams = (candidate.teams ?? []).map(normalizeTeamBrief).filter(isDefined);
+  const player = normalizePlayerDirectoryItem(
+    {
+      ...candidate.player,
+      teams: candidate.player.teams?.length ? candidate.player.teams : teams,
+      currentTeam: candidate.player.currentTeam ?? teams[0] ?? null,
+    },
+    apiBaseUrl,
+  );
+
+  return {
+    rank: candidate.rank ?? 0,
+    player,
+    matches: candidate.matches ?? 0,
+    average: candidate.average ?? 0,
+    total: candidate.total ?? 0,
   };
 }
 

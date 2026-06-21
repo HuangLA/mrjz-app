@@ -41,6 +41,7 @@ import {
   listAdminTags,
   listLeagueSyncTargets,
   listPlayerTags,
+  listTournamentHeroLeaderboards,
   listTournamentOpenDotaMatches,
   listTournamentPlayers,
   listTournamentTeams,
@@ -339,6 +340,16 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(players);
+  });
+
+  router.get("/api/tournaments/:id/hero-leaderboards", ({ params }) => {
+    const leaderboards = listTournamentHeroLeaderboards(params.id ?? "");
+
+    if (leaderboards === undefined) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(leaderboards);
   });
 
   router.get("/api/tournaments/:id/players/:playerId", ({ params }) => {

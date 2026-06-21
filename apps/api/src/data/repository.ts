@@ -24,6 +24,7 @@ import {
   type LikePlayerTagInput,
   type ListAdminTagPlayersInput,
   type ListAdminTagsInput,
+  type TournamentHeroLeaderboardsView,
   type OpenDotaMatchListItem,
   type LeagueOption,
   type OpenDotaMatchCache,
@@ -100,6 +101,7 @@ type Repository = {
   listTournamentOpenDotaMatches(tournamentId: string, limit?: number): OpenDotaMatchListItem[] | undefined;
   listTournamentTeams(tournamentId: string): TournamentTeamListItem[] | undefined;
   listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
+  listTournamentHeroLeaderboards(tournamentId: string): TournamentHeroLeaderboardsView | undefined;
   getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined;
   getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined;
   getAppUser(userId: string): AppUserView | undefined;
@@ -231,6 +233,10 @@ export function listTournamentTeams(tournamentId: string) {
 
 export function listTournamentPlayers(tournamentId: string) {
   return repository.listTournamentPlayers(tournamentId);
+}
+
+export function listTournamentHeroLeaderboards(tournamentId: string) {
+  return repository.listTournamentHeroLeaderboards(tournamentId);
 }
 
 export function getTournamentTeamDetail(tournamentId: string, teamId: string) {

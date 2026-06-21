@@ -6,13 +6,14 @@ import { SmartImage as Image } from "./SmartImage";
 import type { MatchRecord, PlayerListItem, SeriesSummary, TeamBrief, TeamListItem, TournamentOption } from "./types";
 import { formatDateTime, formatDecimal, formatInteger, formatPercent, formatScore, labelStatus, seriesTitle, teamName } from "./utils";
 
-export type MiniRouteKey = "home" | "stage" | "schedule" | "records" | "players" | "teams" | "mine";
+export type MiniRouteKey = "home" | "stage" | "schedule" | "records" | "leaderboard" | "players" | "teams" | "mine";
 
 const routeNavItems: Array<{ key: MiniRouteKey; label: string; url: string }> = [
   { key: "home", label: "首页", url: "/pages/index/index" },
   { key: "stage", label: "赛事阶段", url: "/pages/stage/index" },
   { key: "schedule", label: "赛程", url: "/pages/schedule/index" },
   { key: "records", label: "比赛记录", url: "/pages/records/index" },
+  { key: "leaderboard", label: "英雄榜", url: "/pages/hero-leaderboard/index" },
   { key: "players", label: "选手", url: "/pages/players/index" },
   { key: "teams", label: "队伍", url: "/pages/teams/index" },
   { key: "mine", label: "我的", url: "/pages/mine/index" },

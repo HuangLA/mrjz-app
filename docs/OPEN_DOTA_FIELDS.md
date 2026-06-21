@@ -183,6 +183,24 @@ score =
 
 `ward_observer` 和 `ward_dispenser` 不计入“辅”：前者为 0 金币，后者可能与真假眼购买重复计数。
 
+### 10.1 每届英雄榜字段
+
+英雄榜和单场趣味称号使用相同 OpenDota 字段，但统计口径不同：英雄榜按单届赛事聚合，全部称号按场均值排名，并且只统计该届参赛 5 场及以上的选手。展开态展示每项候选前五、场均值、总计和参赛场数。
+
+| 英雄榜称号 | 场均字段 | 备注 |
+| --- | --- | --- |
+| 人头帝 | `players[].kills` | 场均击杀 |
+| 采蘑菇的小姑娘 | `players[].neutral_kills` | 场均野怪击杀 |
+| 奶妈王 | `players[].hero_healing` | 场均治疗量 |
+| 压力狂 | `players[].pings` | 场均发 ping 次数 |
+| SM帝 | `players[].stuns` | 场均控制时长，单位秒 |
+| 鬼王宗宗主 | `players[].deaths` | 场均阵亡 |
+| 老吴 | `players[].damage_taken` | 字段为对象时先求和再按场均 |
+| 战争机器 | `players[].hero_damage` | 场均英雄伤害 |
+| 助攻王 | `players[].assists` | 场均助攻 |
+| 世界首富 | `players[].net_worth`，缺失时降级到 `total_gold` / `gold` | 场均财产 |
+| 拆迁队队长 | `players[].tower_damage` | 场均建筑伤害 |
+
 ## 11. 参考
 
 - OpenDota OpenAPI: `https://api.opendota.com/api`

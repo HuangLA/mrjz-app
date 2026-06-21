@@ -178,6 +178,35 @@ export type PlayerListItem = {
   stats: PlayerStatsSummary;
 };
 
+export type HeroLeaderboardCandidate = {
+  rank: number;
+  player: PlayerListItem;
+  teams: TeamBrief[];
+  matches: number;
+  average: number;
+  total: number;
+};
+
+export type HeroLeaderboardItem = {
+  key: string;
+  title: string;
+  description: string;
+  metricLabel: string;
+  unit: string;
+  precision: number;
+  minMatches: number;
+  winner: HeroLeaderboardCandidate | null;
+  candidates: HeroLeaderboardCandidate[];
+};
+
+export type HeroLeaderboardsView = {
+  tournamentId: string;
+  tournamentName: string;
+  basis: "per_match";
+  minMatches: number;
+  leaderboards: HeroLeaderboardItem[];
+};
+
 export type TeamListItem = TeamBrief & {
   tournamentId: string;
   seed: number | null;
