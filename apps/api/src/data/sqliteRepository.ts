@@ -75,7 +75,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "kills",
     title: "人头帝",
-    description: "场均击杀最高的选手",
+    description: "场均击杀最高",
     metricLabel: "场均击杀",
     unit: "杀",
     precision: 1,
@@ -84,7 +84,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "neutralKills",
     title: "采蘑菇的小姑娘",
-    description: "场均击杀野怪最多的选手",
+    description: "场均击杀野怪最多",
     metricLabel: "场均野怪击杀",
     unit: "野怪",
     precision: 1,
@@ -93,7 +93,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "heroHealing",
     title: "奶妈王",
-    description: "场均治疗量最高的选手",
+    description: "场均治疗量最高",
     metricLabel: "场均治疗",
     unit: "",
     precision: 0,
@@ -102,7 +102,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "pings",
     title: "压力狂",
-    description: "场均发 ping 次数最多的选手",
+    description: "场均发 ping 次数最多",
     metricLabel: "场均 ping",
     unit: "次",
     precision: 1,
@@ -111,7 +111,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "stuns",
     title: "SM帝",
-    description: "场均控制时长最长的选手",
+    description: "场均控制时长最长",
     metricLabel: "场均控制",
     unit: "秒",
     precision: 1,
@@ -120,7 +120,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "deaths",
     title: "鬼王宗宗主",
-    description: "场均阵亡最多的选手",
+    description: "场均阵亡最多",
     metricLabel: "场均阵亡",
     unit: "死",
     precision: 1,
@@ -129,7 +129,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "damageTaken",
     title: "老吴",
-    description: "场均承受伤害最高的选手",
+    description: "场均承受伤害最高",
     metricLabel: "场均承伤",
     unit: "",
     precision: 0,
@@ -138,7 +138,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "heroDamage",
     title: "战争机器",
-    description: "场均英雄伤害最高的选手",
+    description: "场均英雄伤害最高",
     metricLabel: "场均伤害",
     unit: "",
     precision: 0,
@@ -147,7 +147,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "assists",
     title: "助攻王",
-    description: "场均助攻最高的选手",
+    description: "场均助攻最高",
     metricLabel: "场均助攻",
     unit: "助",
     precision: 1,
@@ -156,7 +156,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "netWorth",
     title: "世界首富",
-    description: "场均财产最高的选手",
+    description: "场均财产最高",
     metricLabel: "场均财产",
     unit: "",
     precision: 0,
@@ -165,7 +165,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "towerDamage",
     title: "拆迁队队长",
-    description: "场均建筑伤害最高的选手",
+    description: "场均建筑伤害最高",
     metricLabel: "场均建筑伤害",
     unit: "",
     precision: 0,

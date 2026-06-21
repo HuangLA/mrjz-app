@@ -3950,24 +3950,31 @@ button {
 
 .hero-leaderboard-card {
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .08);
+  border: 1px solid rgba(216, 178, 104, .16);
   border-radius: 8px;
   background:
-    linear-gradient(135deg, rgba(240, 195, 106, .10), rgba(91, 176, 255, .055) 48%, rgba(116, 214, 108, .055)),
-    rgba(13, 19, 29, .86);
+    linear-gradient(180deg, rgba(24, 31, 43, .96), rgba(11, 16, 25, .94)),
+    rgba(13, 19, 29, .92);
 }
 
 .hero-leaderboard-card.expanded {
-  border-color: rgba(240, 195, 106, .24);
+  border-color: rgba(216, 178, 104, .34);
+  background:
+    linear-gradient(180deg, rgba(29, 37, 51, .98), rgba(12, 18, 28, .96)),
+    rgba(13, 19, 29, .94);
 }
 
 .hero-leaderboard-main {
+  appearance: none;
   display: grid;
   grid-template-columns: minmax(72px, .9fr) minmax(0, 1.2fr) minmax(64px, auto) 38px;
   gap: 8px;
   align-items: center;
   width: 100%;
   padding: 9px;
+  border: 0;
+  background: transparent;
+  color: #edf4ff;
   text-align: left;
 }
 
@@ -3979,12 +3986,20 @@ button {
   min-width: 0;
 }
 
-.hero-leaderboard-title span,
+.hero-leaderboard-title span {
+  display: block;
+  overflow: hidden;
+  color: #f0c36a;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hero-leaderboard-winner b,
 .hero-leaderboard-row-value b {
   display: block;
   overflow: hidden;
-  color: #f3ead6;
+  color: #edf4ff;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4013,10 +4028,10 @@ button {
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  border: 1px solid rgba(240, 195, 106, .24);
+  border: 1px solid rgba(216, 178, 104, .22);
   border-radius: 8px;
   object-fit: cover;
-  background: rgba(255, 255, 255, .06);
+  background: rgba(255, 255, 255, .05);
 }
 
 .leaderboard-avatar.placeholder {
@@ -4025,7 +4040,7 @@ button {
   justify-content: center;
   color: #11100c;
   font-weight: 900;
-  background: linear-gradient(180deg, #e2b65f, #b98132);
+  background: linear-gradient(180deg, #dfbd72, #a77933);
 }
 
 .hero-leaderboard-value {
@@ -4034,7 +4049,7 @@ button {
 
 .hero-leaderboard-value b {
   display: block;
-  color: #d9ffd5;
+  color: #f0c36a;
   font-size: 16px;
   font-weight: 900;
 }
@@ -4064,9 +4079,10 @@ button {
   align-items: center;
   width: 100%;
   padding: 7px;
-  border: 1px solid rgba(255, 255, 255, .06);
+  border: 1px solid rgba(216, 178, 104, .10);
   border-radius: 7px;
-  background: rgba(255, 255, 255, .035);
+  background: rgba(255, 255, 255, .026);
+  color: #edf4ff;
   text-align: left;
 }
 

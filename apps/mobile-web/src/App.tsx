@@ -3027,7 +3027,7 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
                 })
               : undefined
           }
-          aria-label="已审核通过的选手标签"
+          aria-label="已审核通过选手标签"
         >
           {burst !== null ? <span key={`${burst.tagId}:${burst.sequence}`} className="floating-tag-shockwave" aria-hidden="true" /> : null}
           {cheers.map((item) => (
