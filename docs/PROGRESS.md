@@ -121,6 +121,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - H5 选手页升级为数据榜：展示完整战队名、胜率、KDA、GPM/XPM、击杀助攻、经济、伤害、建筑伤害、承伤和常用英雄，并支持按偏好切换排序；排序按钮在窄屏下可换行完整显示，常用英雄精简为 3 个小地图同款方形英雄头像，选手主页同步补齐战队标识和完整统计格，所有页面顶部栏统一为仅保留返回按钮，主导航改为底部悬浮栏并随滚动方向隐藏 / 显示。
 - H5 首页调整为赛事入口页：只展示各届比赛入口和必要识别信息，不再显示底部浮动导航；用户先选定届数，再进入赛事阶段、赛程、比赛记录、选手和队伍等次级页面，次级页面提供当前赛事上下文条和切换入口，保证后续数据范围明确。
 - 首页鸣谢名单改为后台统一管理：API 新增公开 / Admin 鸣谢接口和 2MB 图片上传限制，默认赞助商保留 ROG / 玩家国度与 LiberNovo / 清闲人体工学椅；Web Admin 可维护头像、ID、显示状态和排序，H5 与小程序按赞助商 / 社区支持共用展示，社区支持者无数量上限且无数据时隐藏分组。
+- 鸣谢图片上传路径改为默认跟随 `MRJZ_DB_PATH` 所在数据目录（生产为 `/var/lib/mrjz-api/acknowledgements`），避免 systemd `ProtectSystem=full` 下写入 `/opt/mrjz-api/apps/api/var` 失败。
 - 小程序构建配置拆分 TypeScript 类型检查和 Taro 运行时解析：`tsconfig.json` 不再把 `react/jsx-runtime` 指向 `.d.ts`，避免微信开发者工具运行时报 `Cannot find module 'react/jsx-runtime'`；`tsconfig.typecheck.json` 仅在 typecheck 阶段锁定小程序本地 React 18 类型，避免根目录 React 19 类型和 Taro 组件类型混用。
 - Web Admin 支持提前创建战队和选手：战队可不填 OpenDota team_id，选手可录入 Dota account_id 并选择当前战队，队伍卡片内可直接添加已有选手；OpenDota 比赛绑定 / 导入时会按当前届次内规范化队名或简称复用预创建战队，并补全缺失的 OpenDota team_id。
 - Web Admin 阶段赛程新增赛制编排器：可基于当前届次已有队伍生成小组赛联赛、瑞士轮首轮或双败淘汰赛草稿；双败模式会展示胜者组、败者组和总决赛对阵图，并将自动生成的 series 以 `draft` 状态写入 API。

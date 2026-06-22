@@ -86,6 +86,7 @@ import {
 } from "../data/repository.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveDatabasePath } from "../db/client.js";
 import { resolvePlayerProfileBySteamId } from "../opendota/playerProfiles.js";
 import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
 import { readSteamAvatarCache } from "../opendota/steamAvatarCache.js";
@@ -97,7 +98,7 @@ const apiRouterDirectory = path.dirname(fileURLToPath(import.meta.url));
 const dotaAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/dota");
 const svgAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/svg");
 const sponsorAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/sponsors");
-const acknowledgementAssetRoot = path.resolve(apiRouterDirectory, "../../var/acknowledgements");
+const acknowledgementAssetRoot = resolveAcknowledgementAssetRoot();
 const allowedDotaAssetSections = new Set(["abilities", "constants", "heroes", "hero-icons", "items", "wards"]);
 const maxAcknowledgementImageBytes = 2 * 1024 * 1024;
 const assetContentTypes: Record<string, string> = {
@@ -121,6 +122,16 @@ const wechatLoginRateLimiter = createFixedWindowRateLimiter(
   readPositiveInteger(process.env.WECHAT_LOGIN_RATE_LIMIT_MAX, 60),
   readPositiveInteger(process.env.WECHAT_LOGIN_RATE_LIMIT_WINDOW_MS, 60 * 1000),
 );
+
+function resolveAcknowledgementAssetRoot(): string {
+  const configuredRoot = process.env.MRJZ_ACKNOWLEDGEMENT_ASSET_ROOT?.trim();
+
+  if (configuredRoot !== undefined && configuredRoot.length > 0) {
+    return path.isAbsolute(configuredRoot) ? configuredRoot : path.resolve(process.cwd(), configuredRoot);
+  }
+
+  return path.join(path.dirname(resolveDatabasePath()), "acknowledgements");
+}
 
 export type HealthStatus = {
   ok: true;
