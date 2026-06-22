@@ -693,18 +693,15 @@ function HomePage({
   loading: boolean;
   onSelectTournament: (tournamentId: string, targetRoute?: AppRoute) => void;
 }) {
-  const activeTournament =
-    data.tournamentOptions.find((option) => option.id === data.selectedTournamentId) ?? data.tournamentOptions[0] ?? null;
   const recordTotal = data.tournamentOptions.reduce((sum, option) => sum + option.matchCount, 0);
 
   return (
     <>
       <DataNotice data={data} loading={loading} />
       <HomeHero
-        selectedTournamentId={activeTournament?.id ?? null}
         tournamentCount={data.tournamentOptions.length}
         recordCount={recordTotal}
-        onSelect={onSelectTournament}
+        players={data.players}
       />
       <section className="section-panel tournament-gateway">
         <div className="tournament-entry-list">
@@ -728,57 +725,120 @@ function HomePage({
 }
 
 function HomeHero({
-  selectedTournamentId,
   tournamentCount,
   recordCount,
-  onSelect,
+  players,
 }: {
-  selectedTournamentId: string | null;
   tournamentCount: number;
   recordCount: number;
-  onSelect: (tournamentId: string, targetRoute?: AppRoute) => void;
+  players: PlayerDirectoryItem[];
 }) {
-  const navigate = (targetRoute: AppRoute) => {
-    if (selectedTournamentId !== null) {
-      onSelect(selectedTournamentId, targetRoute);
-    }
-  };
+  const individualSponsors = pickSponsorPlayers(players);
 
   return (
     <section className="home-hero">
       <div className="home-hero-content">
-        <div className="home-hero-kicker">
-          <span>MRJZ</span>
-          <i />
-          <span>DOTA 2</span>
-        </div>
         <div className="home-brand-core">
           <span className="home-brand-season">COMMUNITY LEAGUE</span>
           <strong>每日节奏杯</strong>
           <span className="home-brand-sub">DRAFT · FIGHT · RECORD</span>
         </div>
-        <div className="home-quick-actions">
-          {selectedTournamentId !== null ? (
-            <>
-              <button type="button" onClick={() => navigate("stage")}>
-                阶段
-              </button>
-              <button type="button" onClick={() => navigate("records")}>
-                记录
-              </button>
-              <button type="button" onClick={() => navigate("players")}>
-                选手
-              </button>
-            </>
-          ) : null}
+        <div className="home-hero-stats">
+          <HomeHeroStat label="届次" value={String(tournamentCount)} />
+          <HomeHeroStat label="比赛" value={String(recordCount)} />
+          <HomeHeroStat label="战场" value="DOTA2" />
+        </div>
+        <div className="home-sponsor-panel" aria-label="鸣谢名单">
+          <div className="home-sponsor-heading">
+            <span>鸣谢名单</span>
+            <small>SPONSORS</small>
+          </div>
+          <div className="home-major-sponsors">
+            {homeMajorSponsors.map((sponsor) => (
+              <div className="home-major-sponsor" key={sponsor.name}>
+                <img src={sponsor.logoUrl} alt={sponsor.name} loading="eager" />
+                <span>{sponsor.caption}</span>
+              </div>
+            ))}
+          </div>
+          <div className="home-individual-sponsors" aria-label="个人赞助">
+            {homeIndividualSponsorSlots.map((slot, index) => {
+              const player = individualSponsors[index];
+
+              return player ? (
+                <div className="home-individual-sponsor" key={player.id}>
+                  <SponsorPlayerAvatar player={player} />
+                  <span>{player.displayName}</span>
+                </div>
+              ) : (
+                <div className="home-individual-sponsor pending" key={slot}>
+                  <span className="home-individual-avatar fallback">{slot}</span>
+                  <span>待定</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
-      <div className="home-hero-stats">
-        <HomeHeroStat label="届次" value={String(tournamentCount)} />
-        <HomeHeroStat label="比赛" value={String(recordCount)} />
-        <HomeHeroStat label="战场" value="DOTA2" />
-      </div>
     </section>
+  );
+}
+
+const homeMajorSponsors = [
+  {
+    name: "ROG",
+    caption: "玩家国度",
+    logoUrl: "/static/sponsors/rog-landscape-red.png",
+  },
+  {
+    name: "清闲人体工学椅",
+    caption: "人体工学椅",
+    logoUrl: "/static/sponsors/libernovo-white.png",
+  },
+] as const;
+
+const homeIndividualSponsorSlots = ["A", "B", "C", "D", "E"] as const;
+
+function pickSponsorPlayers(players: PlayerDirectoryItem[], limit = homeIndividualSponsorSlots.length) {
+  return [...players]
+    .filter((player) => player.displayName.trim().length > 0)
+    .sort((left, right) => sponsorPlayerScore(left) - sponsorPlayerScore(right) || left.id.localeCompare(right.id))
+    .slice(0, limit);
+}
+
+function sponsorPlayerScore(player: PlayerDirectoryItem) {
+  const source = `${player.id}:${player.displayName}`;
+  let hash = 0;
+
+  for (const character of source) {
+    hash = (hash * 33 + character.charCodeAt(0)) % 100_003;
+  }
+
+  return hash;
+}
+
+function SponsorPlayerAvatar({ player }: { player: PlayerDirectoryItem }) {
+  const [failed, setFailed] = useState(false);
+  const initial = player.displayName.slice(0, 1).toUpperCase() || "?";
+
+  useEffect(() => {
+    setFailed(false);
+  }, [player.avatarUrl]);
+
+  if (!player.avatarUrl || failed) {
+    return <span className="home-individual-avatar fallback">{initial}</span>;
+  }
+
+  return (
+    <span className="home-individual-avatar">
+      <img
+        src={player.avatarUrl}
+        alt={player.displayName}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+      />
+    </span>
   );
 }
 

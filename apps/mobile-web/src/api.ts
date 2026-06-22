@@ -686,6 +686,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     tournament.name,
     apiBaseUrl,
   );
+  const players = await loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []);
   await constantsPromise;
   const normalizedRecords = matchRecords.map(normalizeMatchRecord);
   const tournamentRecentRecords = await loadTournamentRecentRecords(apiBaseUrl, tournamentList, selectedTournamentId, normalizedRecords);
@@ -707,7 +708,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     matchRecords: normalizedRecords,
     tournamentRecentRecords,
     heroLeaderboards,
-    players: [],
+    players,
     teams: [],
     featuredMatch: match,
     notice: null,
