@@ -59,6 +59,7 @@ type HeroLeaderboardDefinition = {
   metricLabel: string;
   unit: string;
   precision: number;
+  rankDirection: "asc" | "desc";
   value: (player: OpenDotaMatchPlayer) => number;
 };
 
@@ -79,6 +80,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均击杀",
     unit: "杀",
     precision: 1,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.kills),
   },
   {
@@ -88,6 +90,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均野怪击杀",
     unit: "只",
     precision: 1,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.neutral_kills),
   },
   {
@@ -97,6 +100,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均治疗",
     unit: "",
     precision: 0,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.hero_healing),
   },
   {
@@ -106,6 +110,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均 ping",
     unit: "次",
     precision: 1,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.pings),
   },
   {
@@ -115,6 +120,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均控制",
     unit: "秒",
     precision: 1,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.stuns),
   },
   {
@@ -124,6 +130,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均阵亡",
     unit: "死",
     precision: 1,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.deaths),
   },
   {
@@ -133,6 +140,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均承伤",
     unit: "",
     precision: 0,
+    rankDirection: "desc",
     value: (player) => damageTakenTotal(player.damage_taken),
   },
   {
@@ -142,6 +150,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均伤害",
     unit: "",
     precision: 0,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.hero_damage),
   },
   {
@@ -151,6 +160,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均助攻",
     unit: "助",
     precision: 1,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.assists),
   },
   {
@@ -160,6 +170,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均财产",
     unit: "",
     precision: 0,
+    rankDirection: "desc",
     value: heroLeaderboardWealth,
   },
   {
@@ -169,7 +180,28 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     metricLabel: "场均建筑伤害",
     unit: "",
     precision: 0,
+    rankDirection: "desc",
     value: (player) => positiveNumber(player.tower_damage),
+  },
+  {
+    key: "lowGpm",
+    title: "喝茶散步",
+    description: "场均 GPM 最低",
+    metricLabel: "场均 GPM",
+    unit: "",
+    precision: 0,
+    rankDirection: "asc",
+    value: (player) => positiveNumber(player.gold_per_min),
+  },
+  {
+    key: "lowHeroDamage",
+    title: "搓澡师傅",
+    description: "场均伤害最低",
+    metricLabel: "场均伤害",
+    unit: "",
+    precision: 0,
+    rankDirection: "asc",
+    value: (player) => positiveNumber(player.hero_damage),
   },
 ];
 
@@ -302,7 +334,9 @@ export type HeroLeaderboardMetricKey =
   | "heroDamage"
   | "assists"
   | "netWorth"
-  | "towerDamage";
+  | "towerDamage"
+  | "lowGpm"
+  | "lowHeroDamage";
 
 export type HeroLeaderboardCandidate = {
   rank: number;
@@ -2302,7 +2336,7 @@ export class SqliteTournamentRepository {
           .filter((candidate) => candidate.average > 0)
           .sort(
             (left, right) =>
-              right.average - left.average ||
+              compareHeroLeaderboardValue(left.average, right.average, definition.rankDirection) ||
               right.total - left.total ||
               right.player.matches - left.player.matches ||
               left.player.player.displayName.localeCompare(right.player.player.displayName, "zh-CN") ||
@@ -9662,6 +9696,10 @@ function positiveNumber(value: unknown): number {
 
 function heroLeaderboardWealth(player: OpenDotaMatchPlayer): number {
   return positiveNumber(player.net_worth) || positiveNumber(player.total_gold) || positiveNumber(player.gold);
+}
+
+function compareHeroLeaderboardValue(left: number, right: number, direction: "asc" | "desc"): number {
+  return direction === "asc" ? left - right : right - left;
 }
 
 function roundTo(value: number, digits: number): number {
