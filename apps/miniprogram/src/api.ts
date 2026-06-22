@@ -5,6 +5,7 @@ import type {
   ApiResult,
   AppUserMe,
   AppUserStats,
+  AcknowledgementItem,
   AuthSession,
   DotaAccountBinding,
   BracketNode,
@@ -173,6 +174,12 @@ export async function loadHeroLeaderboards(tournamentId: string): Promise<HeroLe
   });
 }
 
+export async function loadAcknowledgements(): Promise<AcknowledgementItem[]> {
+  const acknowledgements = await request<AcknowledgementItem[]>("/acknowledgements", { withAuth: false });
+
+  return acknowledgements.map(normalizeAcknowledgementItem);
+}
+
 export async function loadPlayerProfile(tournamentId: string, playerId: string): Promise<PlayerProfile> {
   return request<PlayerProfile>(`/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}`, {
     withAuth: false,
@@ -284,4 +291,36 @@ function formatRequestFailure(caught: unknown): string {
   }
 
   return message || "API 请求失败，请稍后重试";
+}
+
+function normalizeAcknowledgementItem(item: AcknowledgementItem): AcknowledgementItem {
+  return {
+    id: item.id,
+    category: item.category === "community" ? "community" : "sponsor",
+    displayName: item.displayName || "未命名",
+    imageUrl: normalizeApiImageUrl(item.imageUrl),
+    sortOrder: typeof item.sortOrder === "number" ? item.sortOrder : 0,
+  };
+}
+
+function normalizeApiImageUrl(imageUrl: string | null): string | null {
+  if (imageUrl === null || imageUrl.trim().length === 0) {
+    return null;
+  }
+
+  const trimmed = imageUrl.trim();
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("/")) {
+    return `${apiOrigin()}${trimmed}`;
+  }
+
+  return trimmed;
+}
+
+function apiOrigin(): string {
+  return getApiBaseUrl().replace(/\/api\/?$/i, "");
 }

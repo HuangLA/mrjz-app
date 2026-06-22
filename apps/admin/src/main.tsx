@@ -18,8 +18,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { getSeedSlotOrder } from "@mrjz/shared/bracket-seeding";
 import {
   Activity,
+  ArrowDown,
   ArrowLeftRight,
   ArrowRight,
+  ArrowUp,
   Brackets,
   CalendarClock,
   Check,
@@ -29,6 +31,7 @@ import {
   Dices,
   GitBranch,
   GripVertical,
+  ImagePlus,
   Link2,
   ListRestart,
   Loader2,
@@ -61,6 +64,9 @@ import {
   sendAdminRequest,
   type AdminAuthSession,
   type AdminTagPlayerItem,
+  type AcknowledgementCategory,
+  type AcknowledgementItem,
+  type AcknowledgementStatus,
   type BracketNode,
   type OfficialScheduleManagement,
   type OpenDotaMatchListItem,
@@ -82,7 +88,7 @@ import {
   type TournamentTeamListItem,
 } from "./api";
 
-type ViewKey = "tournament" | "teams" | "matches" | "tags" | "sync";
+type ViewKey = "tournament" | "teams" | "acknowledgements" | "matches" | "tags" | "sync";
 type AdminAuthStatus = "checking" | "authenticated" | "unauthenticated";
 type RequestMethod = "POST" | "PATCH" | "DELETE";
 type CompetitionMode = "single_elimination" | "double_elimination";
@@ -132,6 +138,7 @@ interface AdminData {
   teams: TournamentTeamListItem[];
   players: TournamentPlayerListItem[];
   matches: OpenDotaMatchListItem[];
+  acknowledgements: AcknowledgementItem[];
   tags: PlayerTagModerationItem[];
   tagPlayers: AdminTagPlayerItem[];
   rounds: StageRound[];
@@ -180,6 +187,16 @@ interface TeamDraftForm {
   opendotaTeamId: string;
 }
 
+interface AcknowledgementDraft {
+  category: AcknowledgementCategory;
+  displayName: string;
+  imageDataUrl: string | null;
+  imagePreviewUrl: string | null;
+  imageUrl: string | null;
+  sortOrder: string;
+  status: AcknowledgementStatus;
+}
+
 interface TournamentCreateForm {
   name: string;
   seasonName: string;
@@ -199,6 +216,7 @@ const initialData: AdminData = {
   teams: [],
   players: [],
   matches: [],
+  acknowledgements: [],
   tags: [],
   tagPlayers: [],
   rounds: [],
@@ -212,6 +230,7 @@ const initialData: AdminData = {
 const DEFAULT_GROUP_COUNT = 1;
 const MIN_GROUP_COUNT = 1;
 const MAX_GROUP_COUNT = 16;
+const MAX_ACKNOWLEDGEMENT_IMAGE_BYTES = 2 * 1024 * 1024;
 const GROUP_COUNT_PRESETS = [1, 2, 3, 4, 5, 6] as const;
 const SERIES_FOCUS_EVENT = "mrjz:focus-series-row";
 const BRACKET_NEXT_FOCUS_EVENT = "mrjz:focus-bracket-next";
@@ -285,6 +304,7 @@ const initialStageForm: StageFormState = {
 const navItems: Array<{ key: ViewKey; label: string; hint: string; icon: React.ComponentType<{ size?: number }> }> = [
   { key: "tournament", label: "赛事管理", hint: "名单、赛制、阶段、对阵", icon: GitBranch },
   { key: "teams", label: "战队与选手", hint: "队伍资料、成员池", icon: Users },
+  { key: "acknowledgements", label: "鸣谢名单", hint: "赞助商、社区支持", icon: Trophy },
   { key: "matches", label: "比赛结果库", hint: "OpenDota 与赛果", icon: ClipboardCheck },
   { key: "tags", label: "标签审核", hint: "待审、隐藏、恢复", icon: ShieldCheck },
   { key: "sync", label: "同步任务", hint: "发现、解析、重试", icon: RefreshCw },
@@ -446,11 +466,14 @@ function App() {
   async function load(preferredTournamentId = data.selectedTournamentId, preferredStageId = data.selectedStageId) {
     setData((current) => ({ ...current, loading: true, notice: "正在连接 API..." }));
     try {
-      const tournaments = await getJson<TournamentListItem[]>("/tournaments");
+      const [tournaments, acknowledgements] = await Promise.all([
+        getJson<TournamentListItem[]>("/tournaments"),
+        getJson<AcknowledgementItem[]>("/admin/acknowledgements").catch(() => []),
+      ]);
       const selectedTournamentId = tournaments.some((item) => item.id === preferredTournamentId) ? preferredTournamentId : tournaments[0]?.id ?? "";
       const syncTasks = await getJson<SyncTask[]>("/sync-tasks").catch(() => []);
       if (!selectedTournamentId) {
-        setData({ ...initialData, loading: false, source: "api", notice: "API 在线，但数据库暂无赛事。", tournaments, syncTasks });
+        setData({ ...initialData, loading: false, source: "api", notice: "API 在线，但数据库暂无赛事。", tournaments, acknowledgements, syncTasks });
         return;
       }
 
@@ -513,6 +536,7 @@ function App() {
         teams,
         players,
         matches,
+        acknowledgements,
         tags,
         tagPlayers,
         schedule,
@@ -1490,6 +1514,8 @@ function App() {
             />
           ) : activeView === "teams" ? (
             <TeamManagementView data={data} reload={() => load(data.selectedTournamentId, data.selectedStageId)} setNotice={setNotice} />
+          ) : activeView === "acknowledgements" ? (
+            <AcknowledgementManagementView data={data} reload={() => load(data.selectedTournamentId, data.selectedStageId)} setNotice={setNotice} />
           ) : activeView === "tags" ? (
             <TagModerationView data={data} reload={() => load(data.selectedTournamentId, data.selectedStageId)} setNotice={setNotice} />
           ) : <SupportView activeView={activeView} data={data} />}
@@ -7469,6 +7495,197 @@ function TeamManagementCard(props: {
   );
 }
 
+function AcknowledgementManagementView({
+  data,
+  reload,
+  setNotice,
+}: {
+  data: AdminData;
+  reload: () => Promise<void>;
+  setNotice: React.Dispatch<React.SetStateAction<{ tone: Tone; text: string } | null>>;
+}) {
+  const [createDraft, setCreateDraft] = useState<AcknowledgementDraft>(() => emptyAcknowledgementDraft());
+  const [editDrafts, setEditDrafts] = useState<Record<string, AcknowledgementDraft>>({});
+  const sponsors = sortedAcknowledgements(data.acknowledgements.filter((item) => item.category === "sponsor"));
+  const supporters = sortedAcknowledgements(data.acknowledgements.filter((item) => item.category === "community"));
+
+  useEffect(() => {
+    setEditDrafts(Object.fromEntries(data.acknowledgements.map((item) => [item.id, acknowledgementToDraft(item)])));
+  }, [data.acknowledgements]);
+
+  const runAcknowledgementAction = async (label: string, method: RequestMethod, path: string, payload?: Record<string, unknown>) => {
+    setNotice({ tone: "info", text: `${label}处理中...` });
+    const result = await sendAdminRequest(path, method, payload);
+    setNotice({ tone: result.ok ? "good" : "warn", text: `${label}：${result.message}` });
+    if (result.ok) await reload();
+    return result;
+  };
+
+  const chooseImage = async (
+    file: File | undefined,
+    patch: (next: Partial<AcknowledgementDraft>) => void,
+    input: HTMLInputElement,
+  ) => {
+    input.value = "";
+
+    if (file === undefined) {
+      return;
+    }
+
+    if (file.size > MAX_ACKNOWLEDGEMENT_IMAGE_BYTES) {
+      setNotice({ tone: "warn", text: "头像图片不能超过 2MB。" });
+      return;
+    }
+
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setNotice({ tone: "warn", text: "头像只支持 PNG、JPG 或 WebP。" });
+      return;
+    }
+
+    const dataUrl = await readFileAsDataUrl(file);
+    patch({ imageDataUrl: dataUrl, imagePreviewUrl: dataUrl, imageUrl: null });
+  };
+
+  const createAcknowledgementItem = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const displayName = createDraft.displayName.trim();
+
+    if (!displayName) {
+      setNotice({ tone: "warn", text: "请填写展示 ID / 名称。" });
+      return;
+    }
+
+    const payload = acknowledgementPayload(createDraft);
+    const result = await runAcknowledgementAction("新增鸣谢", "POST", "/admin/acknowledgements", payload);
+
+    if (result.ok) {
+      setCreateDraft(emptyAcknowledgementDraft(createDraft.category));
+    }
+  };
+
+  const saveAcknowledgementItem = async (item: AcknowledgementItem) => {
+    const draft = editDrafts[item.id] ?? acknowledgementToDraft(item);
+
+    if (!draft.displayName.trim()) {
+      setNotice({ tone: "warn", text: "展示 ID / 名称不能为空。" });
+      return;
+    }
+
+    await runAcknowledgementAction(
+      "保存鸣谢",
+      "PATCH",
+      `/admin/acknowledgements/${encodeURIComponent(item.id)}`,
+      acknowledgementPayload(draft, item),
+    );
+  };
+
+  const deleteAcknowledgementItem = async (item: AcknowledgementItem) => {
+    if (!window.confirm(`确认删除“${item.displayName}”？`)) return;
+    await runAcknowledgementAction("删除鸣谢", "DELETE", `/admin/acknowledgements/${encodeURIComponent(item.id)}`);
+  };
+
+  const moveAcknowledgementItem = async (item: AcknowledgementItem, direction: -1 | 1) => {
+    const items = sortedAcknowledgements(data.acknowledgements.filter((candidate) => candidate.category === item.category));
+    const index = items.findIndex((candidate) => candidate.id === item.id);
+    const target = items[index + direction];
+
+    if (index < 0 || target === undefined) {
+      return;
+    }
+
+    setNotice({ tone: "info", text: "正在调整鸣谢排序..." });
+    const first = await sendAdminRequest(`/admin/acknowledgements/${encodeURIComponent(item.id)}`, "PATCH", { sortOrder: target.sortOrder });
+    const second = first.ok
+      ? await sendAdminRequest(`/admin/acknowledgements/${encodeURIComponent(target.id)}`, "PATCH", { sortOrder: item.sortOrder })
+      : first;
+    const ok = first.ok && second.ok;
+    setNotice({ tone: ok ? "good" : "warn", text: ok ? "鸣谢排序已更新。" : second.message || first.message });
+    if (ok) await reload();
+  };
+
+  const renderRows = (items: AcknowledgementItem[], title: string, emptyText: string) => (
+    <section className="ack-list-section">
+      <div className="ack-section-title">
+        <span>{title}</span>
+        <strong>{items.length}</strong>
+      </div>
+      {items.length === 0 ? <EmptyPanel title={emptyText} text="新增后会自动同步到 H5 和小程序首页。" /> : (
+        <div className="ack-row-list">
+          {items.map((item, index) => {
+            const draft = editDrafts[item.id] ?? acknowledgementToDraft(item);
+            const previewUrl = draft.imagePreviewUrl ?? draft.imageUrl;
+
+            return (
+              <article className={draft.status === "hidden" ? "ack-row is-hidden" : "ack-row"} key={item.id}>
+                <div className="ack-row-preview">
+                  {previewUrl ? <img src={previewUrl} alt="" /> : <span>{draft.displayName.slice(0, 1).toUpperCase() || "?"}</span>}
+                </div>
+                <div className="ack-row-fields">
+                  <div className="split-inputs">
+                    <label>分类<select value={draft.category} onChange={(event) => setEditDrafts((current) => ({ ...current, [item.id]: { ...draft, category: event.target.value as AcknowledgementCategory } }))}><option value="sponsor">赞助商</option><option value="community">社区支持</option></select></label>
+                    <label>显示状态<select value={draft.status} onChange={(event) => setEditDrafts((current) => ({ ...current, [item.id]: { ...draft, status: event.target.value as AcknowledgementStatus } }))}><option value="visible">显示</option><option value="hidden">隐藏</option></select></label>
+                  </div>
+                  <div className="split-inputs">
+                    <label>ID / 名称<input value={draft.displayName} onChange={(event) => setEditDrafts((current) => ({ ...current, [item.id]: { ...draft, displayName: event.target.value } }))} /></label>
+                    <label>排序<input inputMode="numeric" value={draft.sortOrder} onChange={(event) => setEditDrafts((current) => ({ ...current, [item.id]: { ...draft, sortOrder: event.target.value } }))} /></label>
+                  </div>
+                  <div className="ack-image-tools">
+                    <label className="ack-file-button"><ImagePlus size={14} /> 替换头像<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void chooseImage(event.currentTarget.files?.[0], (patch) => setEditDrafts((current) => ({ ...current, [item.id]: { ...draft, ...patch } })), event.currentTarget)} /></label>
+                    <button type="button" className="secondary-button" onClick={() => setEditDrafts((current) => ({ ...current, [item.id]: { ...draft, imageDataUrl: null, imagePreviewUrl: null, imageUrl: null } }))}><X size={14} /> 清除图片</button>
+                  </div>
+                </div>
+                <div className="ack-row-actions">
+                  <button type="button" className="icon-button" onClick={() => void moveAcknowledgementItem(item, -1)} disabled={index === 0} title="上移" aria-label={`上移 ${item.displayName}`}><ArrowUp size={15} /></button>
+                  <button type="button" className="icon-button" onClick={() => void moveAcknowledgementItem(item, 1)} disabled={index === items.length - 1} title="下移" aria-label={`下移 ${item.displayName}`}><ArrowDown size={15} /></button>
+                  <button type="button" className="secondary-button" onClick={() => void saveAcknowledgementItem(item)}><Check size={14} /> 保存</button>
+                  <button type="button" className="danger-button" onClick={() => void deleteAcknowledgementItem(item)}><Trash2 size={14} /> 删除</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+
+  return (
+    <section className="ack-admin-workspace">
+      <div className="ack-admin-hero">
+        <div>
+          <span>鸣谢名单</span>
+          <h2>统一管理首页赞助商和社区支持</h2>
+          <p>这里维护的数据会同时供 H5 和小程序读取。社区支持者不设数量上限，没有数据时首页不展示该分组。</p>
+        </div>
+        <div className="ack-admin-metrics">
+          <div><strong>{sponsors.length}</strong><span>赞助商</span></div>
+          <div><strong>{supporters.length}</strong><span>社区支持</span></div>
+          <div><strong>2MB</strong><span>头像上限</span></div>
+        </div>
+      </div>
+      <div className="ack-admin-layout">
+        <form className="ack-create-panel" onSubmit={(event) => void createAcknowledgementItem(event)}>
+          <div className="panel-kicker"><Plus size={15} /> 新增鸣谢</div>
+          <div className="split-inputs">
+            <label>分类<select value={createDraft.category} onChange={(event) => setCreateDraft((current) => ({ ...current, category: event.target.value as AcknowledgementCategory }))}><option value="community">社区支持</option><option value="sponsor">赞助商</option></select></label>
+            <label>状态<select value={createDraft.status} onChange={(event) => setCreateDraft((current) => ({ ...current, status: event.target.value as AcknowledgementStatus }))}><option value="visible">显示</option><option value="hidden">隐藏</option></select></label>
+          </div>
+          <label>ID / 名称<input value={createDraft.displayName} onChange={(event) => setCreateDraft((current) => ({ ...current, displayName: event.target.value }))} placeholder="例如：清闲人体工学椅 / SWAG" /></label>
+          <label>排序<input inputMode="numeric" value={createDraft.sortOrder} onChange={(event) => setCreateDraft((current) => ({ ...current, sortOrder: event.target.value }))} placeholder="可留空，系统自动排在最后" /></label>
+          <div className="ack-create-preview">
+            {createDraft.imagePreviewUrl ? <img src={createDraft.imagePreviewUrl} alt="" /> : <span>{createDraft.displayName.slice(0, 1).toUpperCase() || "?"}</span>}
+            <label className="ack-file-button"><ImagePlus size={14} /> 上传头像<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void chooseImage(event.currentTarget.files?.[0], (patch) => setCreateDraft((current) => ({ ...current, ...patch })), event.currentTarget)} /></label>
+          </div>
+          <button className="primary-button full" type="submit"><Plus size={15} /> 新增到鸣谢名单</button>
+        </form>
+        <div className="ack-list-panel">
+          {renderRows(sponsors, "赞助商", "还没有赞助商")}
+          {renderRows(supporters, "社区支持", "还没有社区支持者")}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function TeamIdentity({ team, size = "normal" }: { team: TeamBrief; size?: "normal" | "large" }) {
   return (
     <div className={`team-identity team-identity-${size}`}>
@@ -8367,6 +8584,82 @@ function labelTagStatus(status: PlayerTagStatus): string {
     case "hidden":
       return "已隐藏";
   }
+}
+
+function emptyAcknowledgementDraft(category: AcknowledgementCategory = "community"): AcknowledgementDraft {
+  return {
+    category,
+    displayName: "",
+    imageDataUrl: null,
+    imagePreviewUrl: null,
+    imageUrl: null,
+    sortOrder: "",
+    status: "visible",
+  };
+}
+
+function acknowledgementToDraft(item: AcknowledgementItem): AcknowledgementDraft {
+  return {
+    category: item.category,
+    displayName: item.displayName,
+    imageDataUrl: null,
+    imagePreviewUrl: null,
+    imageUrl: resolveAdminAssetUrl(item.imageUrl),
+    sortOrder: String(item.sortOrder),
+    status: item.status,
+  };
+}
+
+function acknowledgementPayload(draft: AcknowledgementDraft, original?: AcknowledgementItem): Record<string, unknown> {
+  const sortOrder = numberFromDraft(draft.sortOrder);
+  const payload: Record<string, unknown> = {
+    category: draft.category,
+    displayName: draft.displayName.trim(),
+    status: draft.status,
+  };
+
+  if (sortOrder !== undefined) {
+    payload.sortOrder = sortOrder;
+  }
+
+  if (draft.imageDataUrl !== null) {
+    payload.imageDataUrl = draft.imageDataUrl;
+  } else if (original !== undefined && draft.imageUrl !== resolveAdminAssetUrl(original.imageUrl)) {
+    payload.imageUrl = draft.imageUrl;
+  }
+
+  return payload;
+}
+
+function sortedAcknowledgements(items: AcknowledgementItem[]): AcknowledgementItem[] {
+  return [...items].sort((left, right) => left.sortOrder - right.sortOrder || left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id));
+}
+
+function resolveAdminAssetUrl(imageUrl: string | null): string | null {
+  if (imageUrl === null || imageUrl.trim().length === 0) {
+    return null;
+  }
+
+  const trimmed = imageUrl.trim();
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("/")) {
+    return `${apiBaseUrl.replace(/\/api\/?$/i, "")}${trimmed}`;
+  }
+
+  return trimmed;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("文件读取失败")));
+    reader.readAsDataURL(file);
+  });
 }
 
 function scheduleStatusLabel(status: string | undefined | null): string {

@@ -109,6 +109,14 @@ export interface PlayerDirectoryItem {
   stats: ProfileStatsSummary;
 }
 
+export interface AcknowledgementItem {
+  id: string;
+  category: "sponsor" | "community";
+  displayName: string;
+  imageUrl: string | null;
+  sortOrder: number;
+}
+
 export interface HeroLeaderboardCandidate {
   rank: number;
   player: PlayerDirectoryItem;

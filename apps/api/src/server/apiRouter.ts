@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
   advanceBracketNode,
   addStageGroupTeam,
@@ -16,9 +17,11 @@ import {
   clearTournamentMatchRecords,
   clearTournamentScheduleRecords,
   confirmSwissRound,
+  createAcknowledgement,
   createAdminPlayerTag,
   createUserSession,
   deletePlayerTag,
+  deleteAcknowledgement,
   deleteSeries,
   deleteStageGroup,
   getMatchDetail,
@@ -39,6 +42,7 @@ import {
   likePlayerTag,
   listAdminTagPlayers,
   listAdminTags,
+  listAcknowledgements,
   listLeagueSyncTargets,
   listPlayerTags,
   listTournamentHeroLeaderboards,
@@ -67,6 +71,7 @@ import {
   unlikePlayerTag,
   upsertAppUser,
   updateTeam,
+  updateAcknowledgement,
   updateTournamentLifecycle,
   updatePlayerTagReview,
   updateSeries,
@@ -91,13 +96,22 @@ import { Router, type RouteGuardContext } from "./router.js";
 const apiRouterDirectory = path.dirname(fileURLToPath(import.meta.url));
 const dotaAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/dota");
 const svgAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/svg");
+const sponsorAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/sponsors");
+const acknowledgementAssetRoot = path.resolve(apiRouterDirectory, "../../var/acknowledgements");
 const allowedDotaAssetSections = new Set(["abilities", "constants", "heroes", "hero-icons", "items", "wards"]);
+const maxAcknowledgementImageBytes = 2 * 1024 * 1024;
 const assetContentTypes: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".svg": "image/svg+xml; charset=utf-8",
+  ".webp": "image/webp",
+};
+const acknowledgementImageExtensions: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
 };
 const adminLoginRateLimiter = createFixedWindowRateLimiter(
   readPositiveInteger(process.env.ADMIN_LOGIN_RATE_LIMIT_MAX, 20),
@@ -252,6 +266,34 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(admin);
   });
 
+  router.get("/api/admin/acknowledgements", () => ok(listAcknowledgements({ includeHidden: true })));
+
+  router.post("/api/admin/acknowledgements", async ({ request }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(createAcknowledgement(await bodyToCreateAcknowledgementInput(body)), 201);
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.patch("/api/admin/acknowledgements/:id", async ({ request, params }) => {
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateAcknowledgement(params.id ?? "", await bodyToUpdateAcknowledgementInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
+  router.delete("/api/admin/acknowledgements/:id", ({ params }) => {
+    try {
+      return ok(deleteAcknowledgement(params.id ?? ""));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.get("/api/assets/steam-avatars/:filename", async ({ params }) => {
     const accountId = Number((params.filename ?? "").replace(/\.jpg$/i, ""));
     const avatar = await readSteamAvatarCache(accountId);
@@ -269,6 +311,10 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.get("/api/assets/dota/:section/:filename", async ({ params }) => serveDotaAsset(params));
   router.get("/api/assets/dota/:section/:subdir/:filename", async ({ params }) => serveDotaAsset(params));
   router.get("/api/assets/svg/:filename", async ({ params }) => serveSvgAsset(params));
+  router.get("/api/assets/sponsors/:filename", async ({ params }) => serveSponsorAsset(params));
+  router.get("/api/assets/acknowledgements/:filename", async ({ params }) => serveAcknowledgementAsset(params));
+
+  router.get("/api/acknowledgements", () => ok(listAcknowledgements()));
 
   router.get("/api/tournaments", () => ok(listTournaments()));
 
@@ -935,6 +981,31 @@ async function serveSvgAsset(params: Record<string, string>) {
   return serveStaticAsset(path.join(svgAssetRoot, filename), svgAssetRoot, "SVG_ASSET_NOT_FOUND", "SVG asset not found");
 }
 
+async function serveSponsorAsset(params: Record<string, string>) {
+  const filename = params.filename ?? "";
+
+  if (!isSafeAssetSegment(filename)) {
+    return fail(404, "SPONSOR_ASSET_NOT_FOUND", "Sponsor asset not found");
+  }
+
+  return serveStaticAsset(path.join(sponsorAssetRoot, filename), sponsorAssetRoot, "SPONSOR_ASSET_NOT_FOUND", "Sponsor asset not found");
+}
+
+async function serveAcknowledgementAsset(params: Record<string, string>) {
+  const filename = params.filename ?? "";
+
+  if (!isSafeAssetSegment(filename)) {
+    return fail(404, "ACKNOWLEDGEMENT_ASSET_NOT_FOUND", "Acknowledgement asset not found");
+  }
+
+  return serveStaticAsset(
+    path.join(acknowledgementAssetRoot, filename),
+    acknowledgementAssetRoot,
+    "ACKNOWLEDGEMENT_ASSET_NOT_FOUND",
+    "Acknowledgement asset not found",
+  );
+}
+
 async function serveStaticAsset(filePath: string, root: string, code: string, message: string) {
   const normalizedPath = path.resolve(filePath);
 
@@ -1018,9 +1089,12 @@ function isAppUserRoute(context: RouteGuardContext): boolean {
 }
 
 const PUBLIC_GET_PATTERNS = new Set([
+  "/api/acknowledgements",
+  "/api/assets/acknowledgements/:filename",
   "/api/assets/dota/:section/:filename",
   "/api/assets/dota/:section/:subdir/:filename",
   "/api/assets/steam-avatars/:filename",
+  "/api/assets/sponsors/:filename",
   "/api/assets/svg/:filename",
   "/api/leagues",
   "/api/tournaments",
@@ -1478,6 +1552,99 @@ function bodyToAdminLoginInput(body: Record<string, unknown>) {
     username: stringField(body, "username"),
     password: stringField(body, "password"),
   } satisfies Parameters<typeof loginAdmin>[0];
+}
+
+async function bodyToCreateAcknowledgementInput(body: Record<string, unknown>) {
+  const imageUrl = await acknowledgementImageUrlFromBody(body);
+  const status = optionalStringField(body, "status");
+
+  if (status !== undefined && !["visible", "hidden"].includes(status)) {
+    throw new Error("status must be visible or hidden");
+  }
+
+  return withoutUndefined({
+    category: acknowledgementCategoryField(body, "category"),
+    displayName: stringField(body, "displayName"),
+    imageUrl,
+    sortOrder: optionalNumberField(body, "sortOrder"),
+    status,
+  }) as Parameters<typeof createAcknowledgement>[0];
+}
+
+async function bodyToUpdateAcknowledgementInput(body: Record<string, unknown>) {
+  const imageUrl = await acknowledgementImageUrlFromBody(body);
+  const status = optionalStringField(body, "status");
+
+  if (status !== undefined && !["visible", "hidden"].includes(status)) {
+    throw new Error("status must be visible or hidden");
+  }
+
+  return withoutUndefined({
+    category: optionalAcknowledgementCategoryField(body, "category"),
+    displayName: optionalStringField(body, "displayName"),
+    imageUrl,
+    sortOrder: optionalNumberField(body, "sortOrder"),
+    status,
+  }) as Parameters<typeof updateAcknowledgement>[1];
+}
+
+async function acknowledgementImageUrlFromBody(body: Record<string, unknown>): Promise<string | null | undefined> {
+  const imageDataUrl = optionalStringField(body, "imageDataUrl");
+
+  if (imageDataUrl !== undefined) {
+    return await storeAcknowledgementImage(imageDataUrl);
+  }
+
+  return optionalStringOrNullField(body, "imageUrl");
+}
+
+function acknowledgementCategoryField(body: Record<string, unknown>, fieldName: string) {
+  const category = stringField(body, fieldName);
+
+  if (category !== "sponsor" && category !== "community") {
+    throw new Error(`${fieldName} must be sponsor or community`);
+  }
+
+  return category;
+}
+
+function optionalAcknowledgementCategoryField(body: Record<string, unknown>, fieldName: string) {
+  if (!(fieldName in body)) {
+    return undefined;
+  }
+
+  return acknowledgementCategoryField(body, fieldName);
+}
+
+async function storeAcknowledgementImage(dataUrl: string): Promise<string> {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl.trim());
+
+  if (match === null) {
+    throw new Error("imageDataUrl must be a png, jpg, or webp data URL");
+  }
+
+  const mimeType = match[1] ?? "";
+  const extension = acknowledgementImageExtensions[mimeType];
+
+  if (extension === undefined) {
+    throw new Error("imageDataUrl must be a png, jpg, or webp data URL");
+  }
+
+  const bytes = Buffer.from((match[2] ?? "").replace(/\s/g, ""), "base64");
+
+  if (bytes.byteLength === 0) {
+    throw new Error("imageDataUrl is empty");
+  }
+
+  if (bytes.byteLength > maxAcknowledgementImageBytes) {
+    throw new Error("imageDataUrl must be 2MB or smaller");
+  }
+
+  await mkdir(acknowledgementAssetRoot, { recursive: true });
+  const filename = `${Date.now()}-${randomUUID()}${extension}`;
+  await writeFile(path.join(acknowledgementAssetRoot, filename), bytes);
+
+  return `/api/assets/acknowledgements/${filename}`;
 }
 
 function queryToListAdminTagsInput(url: URL) {

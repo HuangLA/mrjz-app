@@ -125,6 +125,7 @@ function applySchemaPatches(): void {
   ensureEntityTables();
   ensureAuthTables();
   ensureTagTables();
+  ensureAcknowledgementTables();
 }
 
 function ensureColumn(tableName: string, columnName: string, definition: string): void {
@@ -502,6 +503,53 @@ function ensureTagTables(): void {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_player_identity_text ON tags(target_id, normalized_text) WHERE target_type = 'player';
     CREATE INDEX IF NOT EXISTS idx_tag_audit_logs_tag ON tag_audit_logs(tag_id, created_at DESC);
   `);
+}
+
+function ensureAcknowledgementTables(): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS acknowledgements (
+      id TEXT PRIMARY KEY,
+      category TEXT NOT NULL CHECK (category IN ('sponsor', 'community')),
+      display_name TEXT NOT NULL,
+      image_url TEXT,
+      sort_order INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'visible' CHECK (status IN ('visible', 'hidden')),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    ) STRICT;
+
+    CREATE INDEX IF NOT EXISTS idx_acknowledgements_category_order ON acknowledgements(category, status, sort_order);
+  `);
+
+  if (rowCount("acknowledgements") > 0) {
+    database
+      .prepare(
+        `
+          UPDATE acknowledgements
+          SET
+            display_name = CASE
+              WHEN id = 'ack_sponsor_libernovo' AND display_name = '人体工学椅' THEN '清闲人体工学椅'
+              ELSE display_name
+            END,
+            image_url = CASE
+              WHEN id = 'ack_sponsor_rog' AND image_url = '/static/sponsors/rog-landscape-red.png' THEN '/api/assets/sponsors/rog-landscape-red.png'
+              WHEN id = 'ack_sponsor_libernovo' AND image_url = '/static/sponsors/libernovo-white.png' THEN '/api/assets/sponsors/libernovo-white.png'
+              ELSE image_url
+            END,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id IN ('ack_sponsor_rog', 'ack_sponsor_libernovo')
+        `,
+      )
+      .run();
+    return;
+  }
+
+  const insert = database.prepare(`
+    INSERT INTO acknowledgements (id, category, display_name, image_url, sort_order, status)
+    VALUES (?, ?, ?, ?, ?, 'visible')
+  `);
+  insert.run("ack_sponsor_rog", "sponsor", "玩家国度", "/api/assets/sponsors/rog-landscape-red.png", 10);
+  insert.run("ack_sponsor_libernovo", "sponsor", "清闲人体工学椅", "/api/assets/sponsors/libernovo-white.png", 20);
 }
 
 function seedRealTournamentShells(): void {

@@ -534,6 +534,36 @@ export type PlayerTagView = {
   updatedAt: string;
 };
 
+export type AcknowledgementCategory = "sponsor" | "community";
+export type AcknowledgementStatus = "visible" | "hidden";
+
+export type AcknowledgementView = {
+  id: string;
+  category: AcknowledgementCategory;
+  displayName: string;
+  imageUrl: string | null;
+  sortOrder: number;
+  status: AcknowledgementStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateAcknowledgementInput = {
+  category: AcknowledgementCategory;
+  displayName: string;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  status?: AcknowledgementStatus;
+};
+
+export type UpdateAcknowledgementInput = {
+  category?: AcknowledgementCategory;
+  displayName?: string;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  status?: AcknowledgementStatus;
+};
+
 export type ListAdminTagsInput = {
   tournamentId?: string;
   status?: PlayerTagStatus | "all";
@@ -878,6 +908,7 @@ export class SqliteTournamentRepository {
     this.ensureEntityTables();
     this.ensureAuthTables();
     this.ensureTagTables();
+    this.ensureAcknowledgementTables();
     this.ensureInitialAdminUser();
   }
 
@@ -1117,6 +1148,56 @@ export class SqliteTournamentRepository {
         `,
       )
       .run(adminId);
+  }
+
+  private ensureAcknowledgementTables(): void {
+    this.database.exec(`
+      CREATE TABLE IF NOT EXISTS acknowledgements (
+        id TEXT PRIMARY KEY,
+        category TEXT NOT NULL CHECK (category IN ('sponsor', 'community')),
+        display_name TEXT NOT NULL,
+        image_url TEXT,
+        sort_order INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'visible' CHECK (status IN ('visible', 'hidden')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      CREATE INDEX IF NOT EXISTS idx_acknowledgements_category_order ON acknowledgements(category, status, sort_order);
+    `);
+
+    const count = numberValue(this.database.prepare("SELECT COUNT(*) AS count FROM acknowledgements").get() ?? {}, "count");
+
+    this.database
+      .prepare(
+        `
+          UPDATE acknowledgements
+          SET
+            display_name = CASE
+              WHEN id = 'ack_sponsor_libernovo' AND display_name = '人体工学椅' THEN '清闲人体工学椅'
+              ELSE display_name
+            END,
+            image_url = CASE
+              WHEN id = 'ack_sponsor_rog' AND image_url = '/static/sponsors/rog-landscape-red.png' THEN '/api/assets/sponsors/rog-landscape-red.png'
+              WHEN id = 'ack_sponsor_libernovo' AND image_url = '/static/sponsors/libernovo-white.png' THEN '/api/assets/sponsors/libernovo-white.png'
+              ELSE image_url
+            END,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id IN ('ack_sponsor_rog', 'ack_sponsor_libernovo')
+        `,
+      )
+      .run();
+
+    if (count > 0) {
+      return;
+    }
+
+    const insert = this.database.prepare(`
+      INSERT INTO acknowledgements (id, category, display_name, image_url, sort_order, status)
+      VALUES (?, ?, ?, ?, ?, 'visible')
+    `);
+    insert.run("ack_sponsor_rog", "sponsor", "玩家国度", "/api/assets/sponsors/rog-landscape-red.png", 10);
+    insert.run("ack_sponsor_libernovo", "sponsor", "清闲人体工学椅", "/api/assets/sponsors/libernovo-white.png", 20);
   }
 
   private ensureTagTables(): void {
@@ -2660,6 +2741,104 @@ export class SqliteTournamentRepository {
       );
   }
 
+  listAcknowledgements(options: { includeHidden?: boolean } = {}): AcknowledgementView[] {
+    const rows = options.includeHidden === true
+      ? this.database.prepare("SELECT * FROM acknowledgements ORDER BY category ASC, sort_order ASC, created_at ASC").all()
+      : this.database
+          .prepare("SELECT * FROM acknowledgements WHERE status = 'visible' ORDER BY category ASC, sort_order ASC, created_at ASC")
+          .all();
+
+    return rows.map((row) => this.mapAcknowledgement(row));
+  }
+
+  createAcknowledgement(input: CreateAcknowledgementInput): AcknowledgementView {
+    const category = normalizeAcknowledgementCategory(input.category);
+    const status = normalizeAcknowledgementStatus(input.status ?? "visible");
+    const displayName = input.displayName.trim();
+
+    if (displayName.length === 0) {
+      throw new Error("displayName is required");
+    }
+
+    const sortOrder = input.sortOrder ?? this.nextAcknowledgementSortOrder(category);
+    const id = uniqueId("ack", `${category}-${displayName}-${Date.now()}`);
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO acknowledgements (id, category, display_name, image_url, sort_order, status)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(id, category, displayName, input.imageUrl?.trim() || null, sortOrder, status);
+
+    const created = this.getAcknowledgementById(id);
+
+    if (created === undefined) {
+      throw new Error("Failed to create acknowledgement");
+    }
+
+    return created;
+  }
+
+  updateAcknowledgement(id: string, input: UpdateAcknowledgementInput): AcknowledgementView {
+    const existing = this.getAcknowledgementById(id);
+
+    if (existing === undefined) {
+      throw new Error("Acknowledgement not found");
+    }
+
+    const category = input.category === undefined ? existing.category : normalizeAcknowledgementCategory(input.category);
+    const status = input.status === undefined ? existing.status : normalizeAcknowledgementStatus(input.status);
+    const displayName = input.displayName === undefined ? existing.displayName : input.displayName.trim();
+
+    if (displayName.length === 0) {
+      throw new Error("displayName is required");
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE acknowledgements
+          SET
+            category = ?,
+            display_name = ?,
+            image_url = CASE WHEN ? THEN ? ELSE image_url END,
+            sort_order = ?,
+            status = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(
+        category,
+        displayName,
+        input.imageUrl === undefined ? 0 : 1,
+        input.imageUrl?.trim() || null,
+        input.sortOrder ?? existing.sortOrder,
+        status,
+        id,
+      );
+
+    const updated = this.getAcknowledgementById(id);
+
+    if (updated === undefined) {
+      throw new Error("Acknowledgement not found");
+    }
+
+    return updated;
+  }
+
+  deleteAcknowledgement(id: string): { deleted: true; acknowledgementId: string } {
+    const result = this.database.prepare("DELETE FROM acknowledgements WHERE id = ?").run(id);
+
+    if (result.changes === 0) {
+      throw new Error("Acknowledgement not found");
+    }
+
+    return { deleted: true, acknowledgementId: id };
+  }
+
   listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined {
     const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
     const player = this.getPlayerById(playerId);
@@ -3403,6 +3582,25 @@ export class SqliteTournamentRepository {
         `,
       )
       .run(delta, tagId);
+  }
+
+  private getAcknowledgementById(id: string): AcknowledgementView | undefined {
+    const row = this.database.prepare("SELECT * FROM acknowledgements WHERE id = ?").get(id) as DbRow | undefined;
+
+    return row === undefined ? undefined : this.mapAcknowledgement(row);
+  }
+
+  private mapAcknowledgement(row: DbRow): AcknowledgementView {
+    return {
+      id: text(row, "id"),
+      category: normalizeAcknowledgementCategory(text(row, "category")),
+      displayName: text(row, "display_name"),
+      imageUrl: nullableText(row, "image_url"),
+      sortOrder: numberValue(row, "sort_order"),
+      status: normalizeAcknowledgementStatus(text(row, "status")),
+      createdAt: text(row, "created_at"),
+      updatedAt: text(row, "updated_at"),
+    };
   }
 
   private mapPlayerTag(row: DbRow): PlayerTagView {
@@ -7856,6 +8054,14 @@ export class SqliteTournamentRepository {
     return numberValue(row ?? {}, "next_sort_order");
   }
 
+  private nextAcknowledgementSortOrder(category: AcknowledgementCategory): number {
+    const row = this.database
+      .prepare("SELECT COALESCE(MAX(sort_order), 0) + 10 AS next_sort_order FROM acknowledgements WHERE category = ?")
+      .get(category);
+
+    return numberValue(row ?? {}, "next_sort_order");
+  }
+
   private nextRoundNumber(stageId: string): number {
     const row = this.database
       .prepare("SELECT COALESCE(MAX(round_number), 0) + 1 AS next_round_number FROM rounds WHERE stage_id = ?")
@@ -9043,6 +9249,22 @@ function text(row: DbRow, key: string): string {
   const value = row[key];
 
   return typeof value === "string" ? value : "";
+}
+
+function normalizeAcknowledgementCategory(value: string): AcknowledgementCategory {
+  if (value === "sponsor" || value === "community") {
+    return value;
+  }
+
+  throw new Error("category must be sponsor or community");
+}
+
+function normalizeAcknowledgementStatus(value: string): AcknowledgementStatus {
+  if (value === "visible" || value === "hidden") {
+    return value;
+  }
+
+  throw new Error("status must be visible or hidden");
 }
 
 function nullableText(row: DbRow, key: string): string | null {

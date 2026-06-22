@@ -178,6 +178,14 @@ export type PlayerListItem = {
   stats: PlayerStatsSummary;
 };
 
+export type AcknowledgementItem = {
+  id: string;
+  category: "sponsor" | "community";
+  displayName: string;
+  imageUrl: string | null;
+  sortOrder: number;
+};
+
 export type HeroLeaderboardCandidate = {
   rank: number;
   player: PlayerListItem;

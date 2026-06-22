@@ -19,6 +19,7 @@ import {
 } from "./api";
 import {
   type AghanimState,
+  type AcknowledgementItem,
   type AppRoute,
   type DraftStep,
   type EntityTeamInfo,
@@ -701,7 +702,7 @@ function HomePage({
       <HomeHero
         tournamentCount={data.tournamentOptions.length}
         recordCount={recordTotal}
-        players={data.players}
+        acknowledgements={data.acknowledgements}
       />
       <section className="section-panel tournament-gateway">
         <div className="tournament-entry-list">
@@ -727,13 +728,15 @@ function HomePage({
 function HomeHero({
   tournamentCount,
   recordCount,
-  players,
+  acknowledgements = [],
 }: {
   tournamentCount: number;
   recordCount: number;
-  players: PlayerDirectoryItem[];
+  acknowledgements?: AcknowledgementItem[];
 }) {
-  const individualSponsors = pickSponsorPlayers(players);
+  const sponsorAcknowledgements = acknowledgements.filter((item) => item.category === "sponsor");
+  const communityAcknowledgements = acknowledgements.filter((item) => item.category === "community");
+  const hasAcknowledgements = sponsorAcknowledgements.length > 0 || communityAcknowledgements.length > 0;
 
   return (
     <section className="home-hero">
@@ -748,103 +751,67 @@ function HomeHero({
           <HomeHeroStat label="比赛" value={String(recordCount)} />
           <HomeHeroStat label="战场" value="DOTA2" />
         </div>
-        <div className="home-sponsor-panel" aria-label="鸣谢名单">
-          <div className="home-sponsor-heading">
-            <span>鸣谢名单</span>
-          </div>
-          <div className="home-sponsor-section">
-            <div className="home-sponsor-section-title">
-              <span>赞助商</span>
-              <small>SPONSORS</small>
+        {hasAcknowledgements ? (
+          <div className="home-sponsor-panel" aria-label="鸣谢名单">
+            <div className="home-sponsor-heading">
+              <span>鸣谢名单</span>
             </div>
-            <div className="home-major-sponsors">
-              {homeMajorSponsors.map((sponsor) => (
-                <div className="home-major-sponsor" key={sponsor.name}>
-                  <img src={sponsor.logoUrl} alt={sponsor.name} loading="eager" />
-                  <span>{sponsor.caption}</span>
+            {sponsorAcknowledgements.length > 0 ? (
+              <div className="home-sponsor-section">
+                <div className="home-sponsor-section-title">
+                  <span>赞助商</span>
+                  <small>SPONSORS</small>
                 </div>
-              ))}
-            </div>
+                <div className="home-major-sponsors">
+                  {sponsorAcknowledgements.map((sponsor) => (
+                    <div className="home-major-sponsor" key={sponsor.id}>
+                      {sponsor.imageUrl !== null ? <img src={sponsor.imageUrl} alt={sponsor.displayName} loading="eager" /> : null}
+                      <span>{sponsor.displayName}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {communityAcknowledgements.length > 0 ? (
+              <div className="home-sponsor-section">
+                <div className="home-sponsor-section-title">
+                  <span>社区支持</span>
+                  <small>COMMUNITY</small>
+                </div>
+                <div className="home-community-supporters" aria-label="社区支持">
+                  {communityAcknowledgements.map((supporter) => (
+                    <div className="home-community-supporter" key={supporter.id}>
+                      <AcknowledgementAvatar item={supporter} />
+                      <span>{supporter.displayName}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
-          <div className="home-sponsor-section">
-            <div className="home-sponsor-section-title">
-              <span>社区支持</span>
-              <small>COMMUNITY</small>
-            </div>
-            <div className="home-community-supporters" aria-label="社区支持">
-              {homeIndividualSponsorSlots.map((slot, index) => {
-                const player = individualSponsors[index];
-
-                return player ? (
-                  <div className="home-community-supporter" key={player.id}>
-                    <SponsorPlayerAvatar player={player} />
-                    <span>{player.displayName}</span>
-                  </div>
-                ) : (
-                  <div className="home-community-supporter pending" key={slot}>
-                    <span className="home-community-avatar fallback">{slot}</span>
-                    <span>待定</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        ) : null}
       </div>
     </section>
   );
 }
 
-const homeMajorSponsors = [
-  {
-    name: "ROG",
-    caption: "玩家国度",
-    logoUrl: "/static/sponsors/rog-landscape-red.png",
-  },
-  {
-    name: "清闲人体工学椅",
-    caption: "人体工学椅",
-    logoUrl: "/static/sponsors/libernovo-white.png",
-  },
-] as const;
-
-const homeIndividualSponsorSlots = ["A", "B", "C", "D", "E"] as const;
-
-function pickSponsorPlayers(players: PlayerDirectoryItem[], limit = homeIndividualSponsorSlots.length) {
-  return [...players]
-    .filter((player) => player.displayName.trim().length > 0)
-    .sort((left, right) => sponsorPlayerScore(left) - sponsorPlayerScore(right) || left.id.localeCompare(right.id))
-    .slice(0, limit);
-}
-
-function sponsorPlayerScore(player: PlayerDirectoryItem) {
-  const source = `${player.id}:${player.displayName}`;
-  let hash = 0;
-
-  for (const character of source) {
-    hash = (hash * 33 + character.charCodeAt(0)) % 100_003;
-  }
-
-  return hash;
-}
-
-function SponsorPlayerAvatar({ player }: { player: PlayerDirectoryItem }) {
+function AcknowledgementAvatar({ item }: { item: AcknowledgementItem }) {
   const [failed, setFailed] = useState(false);
-  const initial = player.displayName.slice(0, 1).toUpperCase() || "?";
+  const initial = item.displayName.slice(0, 1).toUpperCase() || "?";
 
   useEffect(() => {
     setFailed(false);
-  }, [player.avatarUrl]);
+  }, [item.imageUrl]);
 
-  if (!player.avatarUrl || failed) {
+  if (!item.imageUrl || failed) {
     return <span className="home-community-avatar fallback">{initial}</span>;
   }
 
   return (
     <span className="home-community-avatar">
       <img
-        src={player.avatarUrl}
-        alt={player.displayName}
+        src={item.imageUrl}
+        alt={item.displayName}
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
@@ -4493,6 +4460,7 @@ function emptyMobileData(): MobileData {
     },
     matchRecords: [],
     tournamentRecentRecords: {},
+    acknowledgements: [],
     heroLeaderboards: {
       tournamentId: "",
       tournamentName: "MRJZ",

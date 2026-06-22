@@ -299,6 +299,20 @@ export interface SyncTask {
 
 export type PlayerTagStatus = "pending_review" | "approved" | "rejected" | "hidden";
 
+export type AcknowledgementCategory = "sponsor" | "community";
+export type AcknowledgementStatus = "visible" | "hidden";
+
+export interface AcknowledgementItem {
+  id: string;
+  category: AcknowledgementCategory;
+  displayName: string;
+  imageUrl: string | null;
+  sortOrder: number;
+  status: AcknowledgementStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PlayerTagModerationItem {
   id: string;
   tournamentId: string;

@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
 
-const MAX_BODY_BYTES = 1024 * 1024;
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 export async function readJsonBody<T extends Record<string, unknown>>(request: IncomingMessage): Promise<T> {
   const chunks: Buffer[] = [];

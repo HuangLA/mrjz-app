@@ -1,6 +1,7 @@
 import { formatDotaGameMode } from "@mrjz/shared/dota-game-mode";
 import type {
   AghanimState,
+  AcknowledgementItem,
   BracketPreviewNode,
   ComparisonMetric,
   DraftStep,
@@ -62,6 +63,7 @@ export type MobileData = {
   officialSchedule: OfficialScheduleStatus;
   matchRecords: MatchRecord[];
   tournamentRecentRecords: Record<string, MatchRecord[]>;
+  acknowledgements: AcknowledgementItem[];
   heroLeaderboards: HeroLeaderboardsView;
   players: PlayerDirectoryItem[];
   teams: TeamDirectoryItem[];
@@ -79,6 +81,14 @@ type ApiTeam = {
   logoUrl?: string | null;
   logo_url?: string | null;
   color?: string;
+};
+
+type ApiAcknowledgementItem = {
+  id?: string;
+  category?: string;
+  displayName?: string;
+  imageUrl?: string | null;
+  sortOrder?: number;
 };
 
 type ApiPlayerStatsSummary = {
@@ -686,7 +696,10 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     tournament.name,
     apiBaseUrl,
   );
-  const players = await loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []);
+  const [players, acknowledgements] = await Promise.all([
+    loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []),
+    loadAcknowledgements(apiBaseUrl).catch(() => []),
+  ]);
   await constantsPromise;
   const normalizedRecords = matchRecords.map(normalizeMatchRecord);
   const tournamentRecentRecords = await loadTournamentRecentRecords(apiBaseUrl, tournamentList, selectedTournamentId, normalizedRecords);
@@ -707,6 +720,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     officialSchedule,
     matchRecords: normalizedRecords,
     tournamentRecentRecords,
+    acknowledgements,
     heroLeaderboards,
     players,
     teams: [],
@@ -731,6 +745,12 @@ export async function loadTournamentTeams(apiBaseUrl: string, tournamentId: stri
   ]);
 
   return teams.map((team) => normalizeTeamDirectoryItem(team, apiBaseUrl));
+}
+
+export async function loadAcknowledgements(apiBaseUrl: string): Promise<AcknowledgementItem[]> {
+  const acknowledgements = await fetchApi<ApiAcknowledgementItem[]>(apiBaseUrl, "/acknowledgements");
+
+  return acknowledgements.map((item) => normalizeAcknowledgementItem(item, apiBaseUrl));
 }
 
 export async function loadMatchData(apiBaseUrl: string, matchId: string): Promise<MatchData> {
@@ -800,6 +820,7 @@ function emptyMobileData(
     officialSchedule: emptyOfficialScheduleStatus(),
     matchRecords: [],
     tournamentRecentRecords: {},
+    acknowledgements: [],
     heroLeaderboards: {
       tournamentId: selectedTournamentId,
       tournamentName: "暂无真实赛事",
@@ -1114,6 +1135,34 @@ function normalizePlayerDirectoryItem(player: ApiPlayerDirectoryItem, apiBaseUrl
     teams: (player.teams ?? []).map(normalizeTeamBrief).filter(isDefined),
     stats: normalizeProfileStats(player.stats),
   };
+}
+
+function normalizeAcknowledgementItem(item: ApiAcknowledgementItem, apiBaseUrl: string): AcknowledgementItem {
+  return {
+    id: item.id ?? "ack_unknown",
+    category: item.category === "community" ? "community" : "sponsor",
+    displayName: item.displayName ?? "未命名",
+    imageUrl: normalizeAcknowledgementImageUrl(item.imageUrl ?? null, apiBaseUrl),
+    sortOrder: typeof item.sortOrder === "number" ? item.sortOrder : 0,
+  };
+}
+
+function normalizeAcknowledgementImageUrl(imageUrl: string | null, apiBaseUrl: string): string | null {
+  if (imageUrl === null || imageUrl.trim().length === 0) {
+    return null;
+  }
+
+  const trimmed = imageUrl.trim();
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("/api/")) {
+    return apiUrl(apiBaseUrl, trimmed);
+  }
+
+  return trimmed;
 }
 
 function normalizeHeroLeaderboards(

@@ -1,18 +1,20 @@
-import { Button, Text, View } from "@tarojs/components";
+import { Button, Image, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import {
   ensureTournamentId,
+  loadAcknowledgements,
   loadTournamentMatches,
   loadTournaments,
   setSelectedTournamentId,
 } from "../../api";
 import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell } from "../../components";
-import type { MatchRecord, TournamentOption } from "../../types";
-import { formatDate, labelStatus, navigate, switchTab } from "../../utils";
+import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
+import { formatDate, labelStatus, switchTab } from "../../utils";
 
 type HomeCache = {
+  acknowledgements: AcknowledgementItem[];
   recentRecordsByTournament: Record<string, MatchRecord[]>;
   selectedTournamentId: string;
   tournaments: TournamentOption[];
@@ -21,6 +23,7 @@ type HomeCache = {
 export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [acknowledgements, setAcknowledgements] = useState<AcknowledgementItem[]>([]);
   const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
   const [selectedTournamentId, setSelectedId] = useState("");
   const [recentRecordsByTournament, setRecentRecordsByTournament] = useState<Record<string, MatchRecord[]>>({});
@@ -34,6 +37,7 @@ export default function HomePage() {
     const cached = nextTournamentId ? null : readPageCache<HomeCache>(cacheKey);
 
     if (cached) {
+      setAcknowledgements(cached.acknowledgements ?? []);
       setTournaments(cached.tournaments);
       setSelectedId(cached.selectedTournamentId);
       setRecentRecordsByTournament(cached.recentRecordsByTournament);
@@ -45,10 +49,14 @@ export default function HomePage() {
     setError("");
 
     try {
-      const allTournaments = await loadTournaments();
+      const [allTournaments, acknowledgementItems] = await Promise.all([
+        loadTournaments(),
+        loadAcknowledgements().catch(() => []),
+      ]);
       const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
 
       if (targetId.length === 0) {
+        setAcknowledgements(acknowledgementItems);
         setTournaments(allTournaments);
         setSelectedId("");
         setRecentRecordsByTournament({});
@@ -66,11 +74,13 @@ export default function HomePage() {
         }
       }
       const snapshot = {
+        acknowledgements: acknowledgementItems,
         recentRecordsByTournament: Object.fromEntries(recentEntries),
         selectedTournamentId: targetId,
         tournaments: allTournaments,
       };
 
+      setAcknowledgements(snapshot.acknowledgements);
       setTournaments(snapshot.tournaments);
       setSelectedId(snapshot.selectedTournamentId);
       setRecentRecordsByTournament(snapshot.recentRecordsByTournament);
@@ -96,35 +106,26 @@ export default function HomePage() {
     <PageShell loading={loading} error={error} routeKey="home">
       <View className="home-hero">
         <View className="home-hero-content">
-          <View className="home-hero-kicker">
-            <Text>MRJZ</Text>
-            <View />
-            <Text>DOTA 2</Text>
-          </View>
           <View className="home-brand-core">
             <Text className="home-brand-season">COMMUNITY LEAGUE</Text>
             <Text className="home-brand-name">每日节奏杯</Text>
             <Text className="home-brand-sub">DRAFT · FIGHT · RECORD</Text>
           </View>
-          <View className="home-quick-actions">
-            <Button onClick={() => navigate("/pages/stage/index")}>阶段</Button>
-            <Button onClick={() => switchTab("/pages/records/index")}>记录</Button>
-            <Button onClick={() => switchTab("/pages/players/index")}>选手</Button>
+          <View className="home-hero-stats">
+            <View>
+              <Text>届次</Text>
+              <Text>{String(tournaments.length)}</Text>
+            </View>
+            <View>
+              <Text>比赛</Text>
+              <Text>{String(recordCount)}</Text>
+            </View>
+            <View>
+              <Text>战场</Text>
+              <Text>DOTA2</Text>
+            </View>
           </View>
-        </View>
-        <View className="home-hero-stats">
-          <View>
-            <Text>届次</Text>
-            <Text>{String(tournaments.length)}</Text>
-          </View>
-          <View>
-            <Text>比赛</Text>
-            <Text>{String(recordCount)}</Text>
-          </View>
-          <View>
-            <Text>战场</Text>
-            <Text>DOTA2</Text>
-          </View>
+          <AcknowledgementsPanel items={acknowledgements} />
         </View>
       </View>
 
@@ -148,6 +149,59 @@ export default function HomePage() {
       </View>
 
     </PageShell>
+  );
+}
+
+function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }) {
+  const sponsors = items.filter((item) => item.category === "sponsor");
+  const supporters = items.filter((item) => item.category === "community");
+
+  if (sponsors.length === 0 && supporters.length === 0) {
+    return null;
+  }
+
+  return (
+    <View className="home-sponsor-panel">
+      <View className="home-sponsor-heading">
+        <Text>鸣谢名单</Text>
+      </View>
+      {sponsors.length > 0 ? (
+        <View className="home-sponsor-section">
+          <View className="home-sponsor-section-title">
+            <Text>赞助商</Text>
+            <Text>SPONSORS</Text>
+          </View>
+          <View className="home-major-sponsors">
+            {sponsors.map((sponsor) => (
+              <View className="home-major-sponsor" key={sponsor.id}>
+                {sponsor.imageUrl ? <Image src={sponsor.imageUrl} mode="aspectFit" /> : null}
+                <Text>{sponsor.displayName}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {supporters.length > 0 ? (
+        <View className="home-sponsor-section">
+          <View className="home-sponsor-section-title">
+            <Text>社区支持</Text>
+            <Text>COMMUNITY</Text>
+          </View>
+          <View className="home-community-supporters">
+            {supporters.map((supporter) => (
+              <View className="home-community-supporter" key={supporter.id}>
+                {supporter.imageUrl ? (
+                  <Image className="home-community-avatar" src={supporter.imageUrl} mode="aspectFill" />
+                ) : (
+                  <Text className="home-community-avatar fallback">{supporter.displayName.slice(0, 1).toUpperCase() || "?"}</Text>
+                )}
+                <Text>{supporter.displayName}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 

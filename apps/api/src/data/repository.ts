@@ -6,9 +6,11 @@ import {
   type AdminSessionView,
   type AdminTagPlayerItem,
   type AdminUserView,
+  type AcknowledgementView,
   type AppUserMeView,
   type AppUserStatsView,
   type BindDotaAccountInput,
+  type CreateAcknowledgementInput,
   type CreateRoundInput,
   type CreateSeriesInput,
   type CreateStageInput,
@@ -37,6 +39,7 @@ import {
   type TournamentPlayerListItem,
   type TournamentTeamDetail,
   type TournamentTeamListItem,
+  type UpdateAcknowledgementInput,
   type UpdateTournamentLifecycleInput,
   type UpdateGameResultInput,
   type AppUserView,
@@ -116,6 +119,10 @@ type Repository = {
   resolveAdminBySessionToken(token: string): AdminUserView | undefined;
   revokeAdminSession(token: string): { revoked: true };
   recordAdminAudit(input: AdminAuditLogInput): void;
+  listAcknowledgements(options?: { includeHidden?: boolean }): AcknowledgementView[];
+  createAcknowledgement(input: CreateAcknowledgementInput): AcknowledgementView;
+  updateAcknowledgement(id: string, input: UpdateAcknowledgementInput): AcknowledgementView;
+  deleteAcknowledgement(id: string): { deleted: true; acknowledgementId: string };
   listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined;
   submitPlayerTag(tournamentId: string, playerId: string, input: SubmitPlayerTagInput): PlayerTagView;
   likePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView;
@@ -293,6 +300,22 @@ export function revokeAdminSession(token: string) {
 
 export function recordAdminAudit(input: AdminAuditLogInput) {
   return repository.recordAdminAudit(input);
+}
+
+export function listAcknowledgements(options?: { includeHidden?: boolean }) {
+  return repository.listAcknowledgements(options);
+}
+
+export function createAcknowledgement(input: CreateAcknowledgementInput) {
+  return repository.createAcknowledgement(input);
+}
+
+export function updateAcknowledgement(id: string, input: UpdateAcknowledgementInput) {
+  return repository.updateAcknowledgement(id, input);
+}
+
+export function deleteAcknowledgement(id: string) {
+  return repository.deleteAcknowledgement(id);
 }
 
 export function listPlayerTags(tournamentId: string, playerId: string) {
