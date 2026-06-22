@@ -1791,14 +1791,16 @@ function HeroLeaderboardCard({
           ) : (
             <div className="hero-leaderboard-empty">暂无获得者</div>
           )}
-          <div className="hero-leaderboard-value">
-            <b>{winner ? formatLeaderboardValue(winner.average, board) : "-"}</b>
-            <small>{board.metricLabel}</small>
+          <div className="hero-leaderboard-action">
+            <div className="hero-leaderboard-value">
+              <b>{winner ? formatLeaderboardValue(winner.average, board) : "-"}</b>
+              <small>{board.metricLabel}</small>
+            </div>
+            <span className="hero-leaderboard-toggle">
+              <span>{expanded ? "收起" : "前五"}</span>
+              <span className={`hero-leaderboard-toggle-icon ${expanded ? "expanded" : ""}`} aria-hidden="true" />
+            </span>
           </div>
-          <span className="hero-leaderboard-toggle">
-            <span>{expanded ? "收起" : "前五"}</span>
-            <span className={`hero-leaderboard-toggle-icon ${expanded ? "expanded" : ""}`} aria-hidden="true" />
-          </span>
         </div>
       </button>
       {expanded ? (

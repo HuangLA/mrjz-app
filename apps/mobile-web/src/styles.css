@@ -4091,6 +4091,7 @@ button {
 .hero-leaderboard-title,
 .hero-leaderboard-main-row,
 .hero-leaderboard-winner,
+.hero-leaderboard-action,
 .hero-leaderboard-value,
 .hero-leaderboard-name,
 .hero-leaderboard-row-value {
@@ -4108,10 +4109,11 @@ button {
 }
 
 .hero-leaderboard-main-row {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 124px;
+  align-items: stretch;
   width: 100%;
-  gap: 7px;
+  gap: 8px;
 }
 
 .hero-leaderboard-winner b,
@@ -4150,7 +4152,6 @@ button {
 
 .hero-leaderboard-winner {
   display: flex;
-  flex: 1 1 auto;
   align-items: center;
   gap: 7px;
 }
@@ -4159,6 +4160,17 @@ button {
 .hero-leaderboard-main-row .hero-leaderboard-empty {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.hero-leaderboard-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border: 1px solid rgba(216, 178, 104, .10);
+  border-radius: 7px;
+  background: rgba(216, 178, 104, .035);
 }
 
 .leaderboard-avatar {
@@ -4181,27 +4193,31 @@ button {
 }
 
 .hero-leaderboard-value {
-  flex: 0 0 58px;
-  width: 58px;
-  text-align: right;
+  text-align: left;
 }
 
 .hero-leaderboard-value b {
   display: block;
+  overflow: visible;
   color: #f0c36a;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   line-height: 1.15;
+  text-overflow: clip;
   white-space: nowrap;
+}
+
+.hero-leaderboard-value small {
+  overflow: visible;
+  font-size: 9px;
+  text-overflow: clip;
 }
 
 .hero-leaderboard-toggle {
   display: inline-flex;
-  flex: 0 0 32px;
   align-items: center;
   gap: 4px;
-  justify-content: flex-end;
-  width: 32px;
+  justify-content: flex-start;
   color: #d5b16e;
   font-size: 9px;
   font-weight: 800;
@@ -4234,7 +4250,7 @@ button {
 
 .hero-leaderboard-row {
   display: grid;
-  grid-template-columns: 28px 32px minmax(0, 1fr) minmax(58px, 68px);
+  grid-template-columns: 26px 32px minmax(0, 1fr) 82px;
   gap: 6px;
   align-items: center;
   width: 100%;
