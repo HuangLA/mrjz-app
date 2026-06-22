@@ -4167,10 +4167,7 @@ button {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 5px;
-  padding: 5px 6px;
-  border: 1px solid rgba(216, 178, 104, .10);
-  border-radius: 7px;
-  background: rgba(216, 178, 104, .035);
+  padding: 0;
 }
 
 .leaderboard-avatar {
