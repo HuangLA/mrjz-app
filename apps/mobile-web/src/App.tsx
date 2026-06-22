@@ -751,32 +751,43 @@ function HomeHero({
         <div className="home-sponsor-panel" aria-label="鸣谢名单">
           <div className="home-sponsor-heading">
             <span>鸣谢名单</span>
-            <small>SPONSORS</small>
           </div>
-          <div className="home-major-sponsors">
-            {homeMajorSponsors.map((sponsor) => (
-              <div className="home-major-sponsor" key={sponsor.name}>
-                <img src={sponsor.logoUrl} alt={sponsor.name} loading="eager" />
-                <span>{sponsor.caption}</span>
-              </div>
-            ))}
+          <div className="home-sponsor-section">
+            <div className="home-sponsor-section-title">
+              <span>赞助商</span>
+              <small>SPONSORS</small>
+            </div>
+            <div className="home-major-sponsors">
+              {homeMajorSponsors.map((sponsor) => (
+                <div className="home-major-sponsor" key={sponsor.name}>
+                  <img src={sponsor.logoUrl} alt={sponsor.name} loading="eager" />
+                  <span>{sponsor.caption}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="home-individual-sponsors" aria-label="个人赞助">
-            {homeIndividualSponsorSlots.map((slot, index) => {
-              const player = individualSponsors[index];
+          <div className="home-sponsor-section">
+            <div className="home-sponsor-section-title">
+              <span>社区支持</span>
+              <small>COMMUNITY</small>
+            </div>
+            <div className="home-community-supporters" aria-label="社区支持">
+              {homeIndividualSponsorSlots.map((slot, index) => {
+                const player = individualSponsors[index];
 
-              return player ? (
-                <div className="home-individual-sponsor" key={player.id}>
-                  <SponsorPlayerAvatar player={player} />
-                  <span>{player.displayName}</span>
-                </div>
-              ) : (
-                <div className="home-individual-sponsor pending" key={slot}>
-                  <span className="home-individual-avatar fallback">{slot}</span>
-                  <span>待定</span>
-                </div>
-              );
-            })}
+                return player ? (
+                  <div className="home-community-supporter" key={player.id}>
+                    <SponsorPlayerAvatar player={player} />
+                    <span>{player.displayName}</span>
+                  </div>
+                ) : (
+                  <div className="home-community-supporter pending" key={slot}>
+                    <span className="home-community-avatar fallback">{slot}</span>
+                    <span>待定</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -826,11 +837,11 @@ function SponsorPlayerAvatar({ player }: { player: PlayerDirectoryItem }) {
   }, [player.avatarUrl]);
 
   if (!player.avatarUrl || failed) {
-    return <span className="home-individual-avatar fallback">{initial}</span>;
+    return <span className="home-community-avatar fallback">{initial}</span>;
   }
 
   return (
-    <span className="home-individual-avatar">
+    <span className="home-community-avatar">
       <img
         src={player.avatarUrl}
         alt={player.displayName}
