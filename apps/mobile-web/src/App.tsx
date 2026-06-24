@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   loadMatchData,
   loadMobileData,
@@ -61,6 +62,7 @@ type RecordTeamFilter = "全部" | string;
 
 type AppRouteSnapshot = { route: AppRoute; profileId: string | null };
 type NavigateOptions = { replace?: boolean; scroll?: boolean; profileId?: string | undefined };
+type MatchAwardPopover = { key: string; award: MatchAward; left: number; top: number };
 
 const routeOptions: Array<{ key: AppRoute; label: string; kicker: string }> = [
   { key: "home", label: "首页", kicker: "入口" },
@@ -83,6 +85,21 @@ const stageOptions: Array<{ key: StageKey; label: string }> = [
 
 const scheduleFilters: ScheduleStatusFilter[] = ["全部", "未开始", "待补录", "已完赛", "延期"];
 const allRecordTeamFilter: RecordTeamFilter = "全部";
+const awardPopoverWidth = 156;
+const awardPopoverEstimatedHeight = 72;
+const awardPopoverMargin = 10;
+
+function getAwardPopoverPosition(rect: DOMRect): { left: number; top: number } {
+  const maxLeft = Math.max(awardPopoverMargin, window.innerWidth - awardPopoverWidth - awardPopoverMargin);
+  const left = clampNumber(rect.left + rect.width / 2 - awardPopoverWidth / 2, awardPopoverMargin, maxLeft);
+  const belowTop = rect.bottom + 8;
+  const top =
+    belowTop + awardPopoverEstimatedHeight > window.innerHeight - awardPopoverMargin
+      ? Math.max(awardPopoverMargin, rect.top - awardPopoverEstimatedHeight - 8)
+      : belowTop;
+
+  return { left, top };
+}
 
 const playerSortOptions: Array<{ key: PlayerSortKey; label: string; defaultDirection: SortDirection }> = [
   { key: "totalMatches", label: "场次", defaultDirection: "desc" },
@@ -1642,6 +1659,55 @@ function MatchDetailPage({
   const mvp = match.players.find((player) => player.id === match.mvpPlayerId);
   const radiantPlayers = match.players.filter((player) => player.side === "radiant");
   const direPlayers = match.players.filter((player) => player.side === "dire");
+  const [awardPopover, setAwardPopover] = useState<MatchAwardPopover | null>(null);
+
+  const closeAwardPopover = useCallback(() => setAwardPopover(null), []);
+  const openAwardPopover = useCallback((award: MatchAward, target: HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    const { left, top } = getAwardPopoverPosition(rect);
+
+    setAwardPopover({
+      key: `${award.code}:${award.playerId}`,
+      award,
+      left,
+      top,
+    });
+  }, []);
+  const togglePlayerWithPopoverClose = useCallback(
+    (playerId: string) => {
+      closeAwardPopover();
+      onPlayerToggle(playerId);
+    },
+    [closeAwardPopover, onPlayerToggle],
+  );
+
+  useEffect(() => {
+    closeAwardPopover();
+  }, [closeAwardPopover, match.id]);
+
+  useEffect(() => {
+    if (!awardPopover) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeAwardPopover();
+      }
+    };
+
+    document.addEventListener("pointerdown", closeAwardPopover);
+    window.addEventListener("scroll", closeAwardPopover, true);
+    window.addEventListener("resize", closeAwardPopover);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeAwardPopover);
+      window.removeEventListener("scroll", closeAwardPopover, true);
+      window.removeEventListener("resize", closeAwardPopover);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [awardPopover, closeAwardPopover]);
 
   return (
     <>
@@ -1661,14 +1727,18 @@ function MatchDetailPage({
           players={radiantPlayers}
           match={match}
           expandedPlayers={expandedPlayers}
-          onPlayerToggle={onPlayerToggle}
+          activeAwardKey={awardPopover?.key ?? null}
+          onAwardOpen={openAwardPopover}
+          onPlayerToggle={togglePlayerWithPopoverClose}
         />
         <TeamPanel
           side="dire"
           players={direPlayers}
           match={match}
           expandedPlayers={expandedPlayers}
-          onPlayerToggle={onPlayerToggle}
+          activeAwardKey={awardPopover?.key ?? null}
+          onAwardOpen={openAwardPopover}
+          onPlayerToggle={togglePlayerWithPopoverClose}
         />
       </section>
 
@@ -1718,6 +1788,7 @@ function MatchDetailPage({
           )}
         </div>
       </section>
+      <MatchAwardFloatingPopover popover={awardPopover} />
     </>
   );
 }
@@ -3569,12 +3640,16 @@ function TeamPanel({
   players,
   match,
   expandedPlayers,
+  activeAwardKey,
+  onAwardOpen,
   onPlayerToggle,
 }: {
   side: TeamSide;
   players: PlayerStats[];
   match: MatchData;
   expandedPlayers: Set<string>;
+  activeAwardKey: string | null;
+  onAwardOpen: (award: MatchAward, target: HTMLElement) => void;
   onPlayerToggle: (playerId: string) => void;
 }) {
   const team = getTeam(match, side);
@@ -3600,6 +3675,8 @@ function TeamPanel({
             expanded={expandedPlayers.has(player.id)}
             isMvp={player.id === match.mvpPlayerId}
             awards={match.awards.filter((award) => award.playerId === player.id)}
+            activeAwardKey={activeAwardKey}
+            onAwardOpen={onAwardOpen}
             onToggle={onPlayerToggle}
           />
         ))}
@@ -3613,12 +3690,16 @@ function PlayerRow({
   expanded,
   isMvp,
   awards,
+  activeAwardKey,
+  onAwardOpen,
   onToggle,
 }: {
   player: PlayerStats;
   expanded: boolean;
   isMvp: boolean;
   awards: MatchAward[];
+  activeAwardKey: string | null;
+  onAwardOpen: (award: MatchAward, target: HTMLElement) => void;
   onToggle: (playerId: string) => void;
 }) {
   const abilitySteps = player.abilityOrder.filter((ability) => ability.kind === "ability");
@@ -3660,7 +3741,7 @@ function PlayerRow({
               <small>伤害 {player.damageShare}</small>
             </span>
           </div>
-          {awards.length > 0 ? <PlayerAwardBadges awards={awards} /> : null}
+          {awards.length > 0 ? <PlayerAwardBadges awards={awards} activeAwardKey={activeAwardKey} onAwardOpen={onAwardOpen} /> : null}
         </div>
         <div className="player-kda">
           <b>
@@ -3695,24 +3776,28 @@ function PlayerRow({
   );
 }
 
-function PlayerAwardBadges({ awards }: { awards: MatchAward[] }) {
-  const [hoveredAwardKey, setHoveredAwardKey] = useState<string | null>(null);
-  const [pinnedAwardKey, setPinnedAwardKey] = useState<string | null>(null);
-  const activeAwardKey = hoveredAwardKey ?? pinnedAwardKey;
-  const activeAward = awards.find((award) => `${award.code}:${award.playerId}` === activeAwardKey) ?? null;
-  const activeDescription = activeAward?.description.trim() || "暂无称号说明";
-
+function PlayerAwardBadges({
+  awards,
+  activeAwardKey,
+  onAwardOpen,
+}: {
+  awards: MatchAward[];
+  activeAwardKey: string | null;
+  onAwardOpen: (award: MatchAward, target: HTMLElement) => void;
+}) {
   return (
     <div
       className="player-awards"
       aria-label="本场称号"
       onClick={(event) => event.stopPropagation()}
-      onMouseLeave={() => setHoveredAwardKey(null)}
+      onPointerDown={(event) => event.stopPropagation()}
     >
       {awards.map((award) => {
         const awardKey = `${award.code}:${award.playerId}`;
         const description = award.description.trim() || "暂无称号说明";
         const isActive = activeAwardKey === awardKey;
+
+        const open = (target: HTMLElement) => onAwardOpen(award, target);
 
         return (
           <span
@@ -3722,18 +3807,17 @@ function PlayerAwardBadges({ awards }: { awards: MatchAward[] }) {
             role="button"
             tabIndex={0}
             aria-expanded={isActive}
-            onFocus={() => setHoveredAwardKey(awardKey)}
-            onBlur={() => setHoveredAwardKey(null)}
-            onMouseEnter={() => setHoveredAwardKey(awardKey)}
+            onFocus={(event) => open(event.currentTarget)}
+            onMouseEnter={(event) => open(event.currentTarget)}
             onClick={(event) => {
               event.stopPropagation();
-              setPinnedAwardKey((current) => (current === awardKey ? null : awardKey));
+              open(event.currentTarget);
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 event.stopPropagation();
-                setPinnedAwardKey((current) => (current === awardKey ? null : awardKey));
+                open(event.currentTarget);
               }
             }}
           >
@@ -3741,14 +3825,32 @@ function PlayerAwardBadges({ awards }: { awards: MatchAward[] }) {
           </span>
         );
       })}
-      {activeAward ? (
-        <div className="player-award-tooltip" role="tooltip">
-          <b>{activeAward.title}</b>
-          <small>{activeDescription}</small>
-          {activeAward.valueText ? <small>{activeAward.valueText}</small> : null}
-        </div>
-      ) : null}
     </div>
+  );
+}
+
+function MatchAwardFloatingPopover({ popover }: { popover: MatchAwardPopover | null }) {
+  if (!popover || typeof document === "undefined") {
+    return null;
+  }
+
+  const description = popover.award.description.trim() || "暂无称号说明";
+
+  return createPortal(
+    <div
+      className="player-award-tooltip"
+      role="tooltip"
+      style={cssVars({
+        "--award-popover-left": `${popover.left}px`,
+        "--award-popover-top": `${popover.top}px`,
+      })}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <b>{popover.award.title}</b>
+      <small>{description}</small>
+      {popover.award.valueText ? <small>{popover.award.valueText}</small> : null}
+    </div>,
+    document.body,
   );
 }
 

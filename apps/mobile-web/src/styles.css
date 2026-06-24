@@ -2575,12 +2575,14 @@ button {
 }
 
 .player-award-tooltip {
-  flex: 1 0 100%;
+  position: fixed;
+  z-index: 10000;
+  top: var(--award-popover-top);
+  left: var(--award-popover-left);
   display: grid;
-  width: 100%;
-  max-width: 100%;
+  width: 156px;
+  max-width: calc(100vw - 20px);
   gap: 3px;
-  margin-top: 2px;
   padding: 7px 8px;
   border: 1px solid rgba(240, 195, 106, .28);
   border-radius: 7px;
@@ -2588,6 +2590,7 @@ button {
   box-shadow: 0 12px 28px rgba(0, 0, 0, .35);
   overflow: visible;
   pointer-events: auto;
+  transform: translateY(0);
   white-space: normal;
 }
 

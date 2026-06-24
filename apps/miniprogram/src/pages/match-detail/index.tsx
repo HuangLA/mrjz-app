@@ -1,6 +1,6 @@
 import { ScrollView, Slider, Text, View } from "@tarojs/components";
 import { formatDotaGameMode } from "@mrjz/shared/dota-game-mode";
-import { useDidShow, useRouter } from "@tarojs/taro";
+import { getSystemInfoSync, useDidShow, usePageScroll, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadMatch } from "../../api";
 import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
@@ -10,6 +10,26 @@ import { SmartImage as Image } from "../../SmartImage";
 import type { ChatLine, DraftStep, IconRef, MatchAward, MatchDetail, MatchDetailPlayer, TalentTreeNode, TeamSide, WardEvent } from "../../types";
 import { formatDateTime, formatInteger } from "../../utils";
 
+type MatchAwardPopover = {
+  key: string;
+  award: MatchAward;
+  style: {
+    left: string;
+    top: string;
+    width: string;
+  };
+};
+
+type TapPointEvent = {
+  detail?: { x?: number; y?: number };
+  changedTouches?: Array<{ clientX?: number; clientY?: number; pageX?: number; pageY?: number }>;
+  touches?: Array<{ clientX?: number; clientY?: number; pageX?: number; pageY?: number }>;
+};
+
+const awardPopoverWidth = 148;
+const awardPopoverEstimatedHeight = 68;
+const awardPopoverMargin = 10;
+
 export default function MatchDetailPage() {
   const router = useRouter();
   const matchId = String(router.params.matchId ?? "");
@@ -18,10 +38,40 @@ export default function MatchDetailPage() {
   const [detail, setDetail] = useState<MatchDetail | null>(null);
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => new Set());
   const [wardSecond, setWardSecond] = useState(0);
+  const [awardPopover, setAwardPopover] = useState<MatchAwardPopover | null>(null);
 
   useDidShow(() => {
     void refresh();
   });
+
+  usePageScroll(() => {
+    closeAwardPopover();
+  });
+
+  function closeAwardPopover() {
+    setAwardPopover(null);
+  }
+
+  function openAwardPopover(award: MatchAward, event: TapPointEvent) {
+    const point = tapPointFromEvent(event);
+    const viewport = getMiniViewportSize();
+    const left = clamp(point.x - awardPopoverWidth / 2, awardPopoverMargin, Math.max(awardPopoverMargin, viewport.width - awardPopoverWidth - awardPopoverMargin));
+    const belowTop = point.y + 12;
+    const top =
+      belowTop + awardPopoverEstimatedHeight > viewport.height - awardPopoverMargin
+        ? Math.max(awardPopoverMargin, point.y - awardPopoverEstimatedHeight - 12)
+        : belowTop;
+
+    setAwardPopover({
+      key: `${award.code}:${award.playerSlot}`,
+      award,
+      style: {
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${awardPopoverWidth}px`,
+      },
+    });
+  }
 
   async function refresh() {
     if (!matchId) {
@@ -58,6 +108,7 @@ export default function MatchDetailPage() {
   }
 
   function toggleExpandedPlayer(playerKey: string) {
+    closeAwardPopover();
     setExpandedPlayers((current) => {
       const next = new Set(current);
 
@@ -74,7 +125,7 @@ export default function MatchDetailPage() {
   return (
     <PageShell loading={loading} error={error} routeKey="records">
       {detail ? (
-        <View className="match-detail-page">
+        <View className="match-detail-page" onClick={closeAwardPopover} onTouchMove={closeAwardPopover}>
           <MatchSummary detail={detail} />
           <MvpCard detail={detail} />
           <MatchQuickStats detail={detail} />
@@ -93,6 +144,8 @@ export default function MatchDetailPage() {
               players={detail.players.radiant}
               side="radiant"
               teamName={detail.score.radiantTeamName}
+              activeAwardKey={awardPopover?.key ?? ""}
+              onAwardOpen={openAwardPopover}
               onPlayerToggle={toggleExpandedPlayer}
             />
             <TeamPanel
@@ -103,6 +156,8 @@ export default function MatchDetailPage() {
               players={detail.players.dire}
               side="dire"
               teamName={detail.score.direTeamName}
+              activeAwardKey={awardPopover?.key ?? ""}
+              onAwardOpen={openAwardPopover}
               onPlayerToggle={toggleExpandedPlayer}
             />
           </View>
@@ -111,6 +166,7 @@ export default function MatchDetailPage() {
           <VisionSection durationText={detail.match.durationText} selectedSecond={wardSecond} wards={detail.vision.wards} onChange={setWardSecond} />
           <TrendSection detail={detail} />
           <ChatSection chat={detail.chat} />
+          <MatchAwardFloatingPopover popover={awardPopover} />
         </View>
       ) : null}
     </PageShell>
@@ -243,6 +299,8 @@ function TeamPanel(props: {
   mvpPlayerName: string | null;
   awards: MatchAward[];
   expandedPlayers: Set<string>;
+  activeAwardKey: string;
+  onAwardOpen: (award: MatchAward, event: TapPointEvent) => void;
   onPlayerToggle: (playerKey: string) => void;
 }) {
   const kills = props.players.reduce((sum, player) => sum + player.kills, 0);
@@ -267,6 +325,8 @@ function TeamPanel(props: {
               key={player.playerSlot}
               awards={props.awards.filter((award) => award.playerSlot === player.playerSlot)}
               player={player}
+              activeAwardKey={props.activeAwardKey}
+              onAwardOpen={props.onAwardOpen}
               onToggle={props.onPlayerToggle}
             />
           );
@@ -276,7 +336,15 @@ function TeamPanel(props: {
   );
 }
 
-function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; isMvp: boolean; awards: MatchAward[]; onToggle: (playerKey: string) => void }) {
+function PlayerDetailRow(props: {
+  player: MatchDetailPlayer;
+  expanded: boolean;
+  isMvp: boolean;
+  awards: MatchAward[];
+  activeAwardKey: string;
+  onAwardOpen: (award: MatchAward, event: TapPointEvent) => void;
+  onToggle: (playerKey: string) => void;
+}) {
   const { player } = props;
   const abilitySteps = player.abilityOrder.filter((ability) => ability.kind === "ability");
   const playerKey = playerRowKey(player);
@@ -302,7 +370,7 @@ function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; 
               <Text>伤害 {formatPercent(player.heroDamageShare)}</Text>
             </View>
           </View>
-          {props.awards.length > 0 ? <PlayerAwardBadges awards={props.awards} /> : null}
+          {props.awards.length > 0 ? <PlayerAwardBadges awards={props.awards} activeAwardKey={props.activeAwardKey} onAwardOpen={props.onAwardOpen} /> : null}
         </View>
         <PlayerLoadout player={player} />
         <View className="player-kda">
@@ -336,16 +404,12 @@ function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; 
   );
 }
 
-function PlayerAwardBadges(props: { awards: MatchAward[] }) {
-  const [activeAwardKey, setActiveAwardKey] = useState("");
-  const activeAward = props.awards.find((award) => `${award.code}:${award.playerSlot}` === activeAwardKey) ?? null;
-  const activeDescription = activeAward?.description.trim() || "暂无称号说明";
-
+function PlayerAwardBadges(props: { awards: MatchAward[]; activeAwardKey: string; onAwardOpen: (award: MatchAward, event: TapPointEvent) => void }) {
   return (
     <View className="player-awards" onClick={(event) => event.stopPropagation()}>
       {props.awards.map((award) => {
         const awardKey = `${award.code}:${award.playerSlot}`;
-        const isActive = activeAwardKey === awardKey;
+        const isActive = props.activeAwardKey === awardKey;
 
         return (
           <View
@@ -353,20 +417,29 @@ function PlayerAwardBadges(props: { awards: MatchAward[] }) {
             key={awardKey}
             onClick={(event) => {
               event.stopPropagation();
-              setActiveAwardKey((current) => (current === awardKey ? "" : awardKey));
+              props.onAwardOpen(award, event);
             }}
           >
             <Text>{award.title}</Text>
           </View>
         );
       })}
-      {activeAward ? (
-        <View className="player-award-tooltip">
-          <Text className="player-award-tooltip-title">{activeAward.title}</Text>
-          <Text className="player-award-tooltip-copy">{activeDescription}</Text>
-          {activeAward.valueText ? <Text className="player-award-tooltip-copy">{activeAward.valueText}</Text> : null}
-        </View>
-      ) : null}
+    </View>
+  );
+}
+
+function MatchAwardFloatingPopover(props: { popover: MatchAwardPopover | null }) {
+  if (!props.popover) {
+    return null;
+  }
+
+  const description = props.popover.award.description.trim() || "暂无称号说明";
+
+  return (
+    <View className="match-award-floating-tooltip" style={props.popover.style} onClick={(event) => event.stopPropagation()}>
+      <Text className="player-award-tooltip-title">{props.popover.award.title}</Text>
+      <Text className="player-award-tooltip-copy">{description}</Text>
+      {props.popover.award.valueText ? <Text className="player-award-tooltip-copy">{props.popover.award.valueText}</Text> : null}
     </View>
   );
 }
@@ -1004,6 +1077,28 @@ function formatSigned(value: number): string {
     return `夜魇 +${compact}`;
   }
   return "0";
+}
+
+function tapPointFromEvent(event: TapPointEvent): { x: number; y: number } {
+  const touch = event.changedTouches?.[0] ?? event.touches?.[0];
+
+  return {
+    x: touch?.clientX ?? touch?.pageX ?? event.detail?.x ?? 24,
+    y: touch?.clientY ?? touch?.pageY ?? event.detail?.y ?? 120,
+  };
+}
+
+function getMiniViewportSize(): { width: number; height: number } {
+  try {
+    const info = getSystemInfoSync();
+
+    return {
+      width: info.windowWidth ?? 375,
+      height: info.windowHeight ?? 667,
+    };
+  } catch {
+    return { width: 375, height: 667 };
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {
