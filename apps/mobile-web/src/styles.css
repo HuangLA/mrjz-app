@@ -720,14 +720,14 @@ button {
 .home-community-supporters {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 10px;
+  column-gap: 8px;
   row-gap: 7px;
   align-items: flex-start;
 }
 
 .home-community-supporter {
   display: grid;
-  flex: 0 0 54px;
+  flex: 0 0 calc((100% - 40px) / 6);
   min-width: 0;
   justify-items: center;
   gap: 3px;
@@ -2521,6 +2521,7 @@ button {
 }
 
 .player-awards {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   column-gap: 4px;
@@ -2528,10 +2529,10 @@ button {
   width: 100%;
   margin-top: 5px;
   overflow: visible;
-  pointer-events: none;
 }
 
-.player-awards span {
+.player-award-title {
+  position: relative;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -2545,8 +2546,58 @@ button {
   font-weight: 950;
   line-height: 1.1;
   box-shadow: 0 0 8px color-mix(in srgb, var(--award-color, #f4d58a) 16%, transparent);
+  cursor: help;
+  outline: none;
   text-shadow: 0 0 7px color-mix(in srgb, var(--award-color, #f4d58a) 28%, transparent);
   white-space: nowrap;
+}
+
+.player-award-title:hover,
+.player-award-title:focus-visible,
+.player-award-title.active {
+  border-color: color-mix(in srgb, var(--award-color, #f4d58a) 82%, transparent);
+  background: color-mix(in srgb, var(--award-color, #f4d58a) 23%, rgba(7, 12, 20, .92));
+}
+
+.player-award-tooltip {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 7px);
+  left: 0;
+  display: grid;
+  width: max-content;
+  max-width: min(220px, 72vw);
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid rgba(240, 195, 106, .28);
+  border-radius: 7px;
+  background: rgba(7, 12, 20, .96);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .35);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity .16s ease, transform .16s ease;
+  white-space: normal;
+}
+
+.player-award-tooltip b {
+  color: #f0c36a;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.player-award-tooltip small {
+  color: #d7e2f0;
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.player-award-title:hover .player-award-tooltip,
+.player-award-title:focus-visible .player-award-tooltip,
+.player-award-title.active .player-award-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .award-lie_flat { --award-color: #8ce26d; }

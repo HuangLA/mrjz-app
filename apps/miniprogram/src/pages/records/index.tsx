@@ -1,6 +1,6 @@
 import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ensureTournamentId, getSelectedTournamentId, loadTournamentMatches, loadTournaments, setSelectedTournamentId } from "../../api";
 import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { FilterRow, MatchRecordCard, PageShell, TournamentScope } from "../../components";
@@ -13,12 +13,15 @@ type RecordsCache = {
   tournaments: TournamentOption[];
 };
 
+const allRecordTeamFilter = "全部";
+
 export default function RecordsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
   const [selectedTournamentId, setSelectedId] = useState("");
   const [records, setRecords] = useState<MatchRecord[]>([]);
+  const [teamFilter, setTeamFilter] = useState(allRecordTeamFilter);
 
   useDidShow(() => {
     void refresh();
@@ -67,6 +70,16 @@ export default function RecordsPage() {
     }
   }
 
+  const teamFilters = useMemo(() => buildRecordTeamFilters(records), [records]);
+  const activeTeamFilter = teamFilters.includes(teamFilter) ? teamFilter : allRecordTeamFilter;
+  const visibleRecords = useMemo(
+    () =>
+      activeTeamFilter === allRecordTeamFilter
+        ? records
+        : records.filter((record) => matchRecordHasTeam(record, activeTeamFilter)),
+    [activeTeamFilter, records],
+  );
+
   return (
     <PageShell loading={loading} error={error} routeKey="records">
       <TournamentScope tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
@@ -75,12 +88,15 @@ export default function RecordsPage() {
           <View>
             <Text className="section-heading">比赛记录</Text>
           </View>
-          <Text className="sync-pill">{records.length} 场</Text>
+          <Text className="sync-pill">
+            {visibleRecords.length}
+            {visibleRecords.length === records.length ? "" : `/${records.length}`} 场
+          </Text>
         </View>
-        <FilterRow labels={["全部", "已解析", "BP", "眼位", "聊天"]} />
+        <FilterRow labels={teamFilters} value={activeTeamFilter} onChange={setTeamFilter} />
       </View>
       <View className="records-list">
-        {records.map((record, index) => (
+        {visibleRecords.map((record, index) => (
           <MatchRecordCard
             index={index}
             key={record.matchId}
@@ -89,7 +105,39 @@ export default function RecordsPage() {
           />
         ))}
       </View>
-      {records.length === 0 ? <View className="content-panel"><Text className="muted">暂无</Text></View> : null}
+      {visibleRecords.length === 0 ? (
+        <View className="content-panel">
+          <Text className="muted">{records.length === 0 ? "暂无" : "暂无该队伍比赛记录"}</Text>
+        </View>
+      ) : null}
     </PageShell>
   );
+}
+
+function buildRecordTeamFilters(records: MatchRecord[]): string[] {
+  const names = new Set<string>();
+
+  records.forEach((record) => {
+    [record.radiantTeamName, record.direTeamName].forEach((name) => {
+      const normalized = cleanRecordTeamName(name);
+
+      if (normalized) {
+        names.add(normalized);
+      }
+    });
+  });
+
+  return [allRecordTeamFilter, ...[...names].sort((left, right) => left.localeCompare(right, "zh-CN"))];
+}
+
+function matchRecordHasTeam(record: MatchRecord, teamName: string): boolean {
+  const normalized = cleanRecordTeamName(teamName);
+
+  return [record.radiantTeamName, record.direTeamName].some((name) => cleanRecordTeamName(name) === normalized);
+}
+
+function cleanRecordTeamName(name: string): string {
+  const normalized = name.trim();
+
+  return normalized === "天辉" || normalized === "夜魇" ? "" : normalized;
 }

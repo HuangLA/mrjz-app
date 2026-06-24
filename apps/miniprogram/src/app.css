@@ -507,14 +507,14 @@ button[disabled] {
 .home-community-supporters {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 10px;
+  column-gap: 8px;
   row-gap: 7px;
   align-items: flex-start;
 }
 
 .home-community-supporter {
   display: grid;
-  flex: 0 0 54px;
+  flex: 0 0 calc((100% - 40px) / 6);
   min-width: 0;
   justify-items: center;
   gap: 3px;
@@ -4084,6 +4084,7 @@ button[disabled] {
 }
 
 .match-player-card.player-row .player-awards {
+  position: relative;
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -4095,6 +4096,7 @@ button[disabled] {
 }
 
 .match-player-card.player-row .player-award-title {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -4109,6 +4111,43 @@ button[disabled] {
   line-height: 1.1;
   text-shadow: 0 0 8px rgba(240, 195, 106, 0.3);
   white-space: nowrap;
+}
+
+.match-player-card.player-row .player-award-title.active {
+  border-color: rgba(240, 195, 106, 0.72);
+  background: rgba(240, 195, 106, 0.18);
+}
+
+.match-player-card.player-row .player-award-tooltip {
+  position: absolute;
+  z-index: 30;
+  bottom: 22px;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  width: 186px;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid rgba(240, 195, 106, 0.28);
+  border-radius: 7px;
+  background: rgba(7, 12, 20, 0.96);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  white-space: normal;
+}
+
+.match-player-card.player-row .player-award-tooltip-title {
+  color: #f0c36a;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.match-player-card.player-row .player-award-tooltip-copy {
+  color: #d7e2f0;
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .match-player-card.player-row .award-lie_flat { color: #8ce26d; border-color: rgba(140, 226, 109, 0.48); background: rgba(140, 226, 109, 0.1); }

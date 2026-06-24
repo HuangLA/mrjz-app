@@ -315,8 +315,8 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 每届英雄榜首版不新增持久化表，由后端读取本届 `opendota_matches.raw_json` 动态聚合并可后续缓存。统一规则：
 
 - 聚合范围为单个 `tournament` 对应 league_id 的比赛。
-- 所有称号按场均值排序，候选人必须在该届至少参赛 5 场。
-- 返回每项称号获得者和候选前五，同时返回场均、总计和参赛场数。
+- 除 `PlayBoy` 按本届不同英雄数排序外，其余称号按场均值排序，候选人必须在该届至少参赛 5 场。
+- 返回每项称号获得者和候选前五，同时返回场均值或聚合值、总计和参赛场数。
 - H5 和小程序不得自行重算英雄榜，只消费 `/api/tournaments/:id/hero-leaderboards`。
 
 ### 5.5 同步任务
@@ -419,7 +419,7 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 | GET | `/api/players/:id` | 选手详情，限定联赛数据 |
 | GET | `/api/tournaments/:id/players/:playerId` | 当前入口届次选手详情，包含跨届参赛历史 |
 | GET | `/api/tournaments/:id/players/:playerId/tags` | 获取已审核通过的选手标签云 |
-| GET | `/api/tournaments/:id/hero-leaderboards` | 获取当前届次英雄榜，按场均聚合且只统计 5 场以上选手 |
+| GET | `/api/tournaments/:id/hero-leaderboards` | 获取当前届次英雄榜，按称号口径聚合且只统计 5 场以上选手 |
 | POST | `/api/miniprogram/tournaments/:id/players/:playerId/tags` | 小程序登录用户提交选手标签，默认待审核 |
 | POST | `/api/miniprogram/tags/:tagId/like` | 小程序登录用户点赞已通过标签 |
 | DELETE | `/api/miniprogram/tags/:tagId/like` | 小程序登录用户取消点赞 |

@@ -57,6 +57,7 @@ type PlayerSortKey =
 
 type SortDirection = "asc" | "desc";
 type ScheduleStatusFilter = "全部" | ScheduleItem["status"];
+type RecordTeamFilter = "全部" | string;
 
 type AppRouteSnapshot = { route: AppRoute; profileId: string | null };
 type NavigateOptions = { replace?: boolean; scroll?: boolean; profileId?: string | undefined };
@@ -81,6 +82,7 @@ const stageOptions: Array<{ key: StageKey; label: string }> = [
 ];
 
 const scheduleFilters: ScheduleStatusFilter[] = ["全部", "未开始", "待补录", "已完赛", "延期"];
+const allRecordTeamFilter: RecordTeamFilter = "全部";
 
 const playerSortOptions: Array<{ key: PlayerSortKey; label: string; defaultDirection: SortDirection }> = [
   { key: "totalMatches", label: "场次", defaultDirection: "desc" },
@@ -1575,6 +1577,22 @@ function RecordsPage({
   onNavigate: (route: AppRoute, options?: NavigateOptions) => void;
   onOpenMatch: (matchId: string) => void;
 }) {
+  const [teamFilter, setTeamFilter] = useState<RecordTeamFilter>(allRecordTeamFilter);
+  const teamFilters = useMemo(() => buildRecordTeamFilters(data.matchRecords), [data.matchRecords]);
+  const visibleRecords = useMemo(
+    () =>
+      teamFilter === allRecordTeamFilter
+        ? data.matchRecords
+        : data.matchRecords.filter((record) => matchRecordHasTeam(record, teamFilter)),
+    [data.matchRecords, teamFilter],
+  );
+
+  useEffect(() => {
+    if (!teamFilters.includes(teamFilter)) {
+      setTeamFilter(allRecordTeamFilter);
+    }
+  }, [teamFilter, teamFilters]);
+
   return (
     <>
       <DataNotice data={data} loading={loading} />
@@ -1584,17 +1602,20 @@ function RecordsPage({
           <div>
             <h2>比赛记录</h2>
           </div>
-          <span className="sync-pill">{data.matchRecords.length} 场</span>
+          <span className="sync-pill">
+            {visibleRecords.length}
+            {visibleRecords.length === data.matchRecords.length ? "" : `/${data.matchRecords.length}`} 场
+          </span>
         </div>
-        <FilterRow labels={["全部", "已解析", "BP", "眼位", "聊天"]} />
+        <FilterRow labels={teamFilters} value={teamFilter} onChange={setTeamFilter} />
       </section>
       <section className="records-list">
-        {data.matchRecords.length > 0 ? (
-          data.matchRecords.map((record, index) => (
+        {visibleRecords.length > 0 ? (
+          visibleRecords.map((record, index) => (
             <MatchRecordCard key={record.matchId} record={record} index={index} onOpenMatch={onOpenMatch} />
           ))
         ) : (
-          <EmptyState text="暂无" />
+          <EmptyState text={data.matchRecords.length === 0 ? "暂无" : "暂无该队伍比赛记录"} />
         )}
       </section>
     </>
@@ -1735,7 +1756,7 @@ function HeroLeaderboardsPage({
         <div className="section-title compact">
           <div>
             <h2>英雄榜</h2>
-            <p>只统计参赛 {data.heroLeaderboards.minMatches} 场以上选手，全部按场均排名</p>
+            <p>只统计参赛 {data.heroLeaderboards.minMatches} 场以上选手，按称号口径排名</p>
           </div>
           <span className="sync-pill">{leaderboards.length} 榜</span>
         </div>
@@ -2157,16 +2178,24 @@ function DataNotice({ loading }: { data: MobileData; loading: boolean }) {
 
 function FilterRow(
   props:
-    | { labels: string[] }
+    | { labels: string[]; value?: string; onChange?: (value: string) => void }
     | { value: ScheduleStatusFilter; options: ScheduleStatusFilter[]; onChange: (value: ScheduleStatusFilter) => void },
 ) {
   if ("labels" in props) {
+    const activeValue = props.value ?? props.labels[0];
+
     return (
       <div className="filter-row">
-        {props.labels.map((label, index) => (
-          <span className={`filter ${index === 0 ? "active" : ""}`} key={label}>
+        {props.labels.map((label) => (
+          <button
+            aria-pressed={label === activeValue}
+            className={`filter ${label === activeValue ? "active" : ""}`}
+            key={label}
+            type="button"
+            onClick={() => props.onChange?.(label)}
+          >
             {label}
-          </span>
+          </button>
         ))}
       </div>
     );
@@ -2187,6 +2216,34 @@ function FilterRow(
       ))}
     </div>
   );
+}
+
+function buildRecordTeamFilters(records: MatchRecord[]): RecordTeamFilter[] {
+  const names = new Set<string>();
+
+  records.forEach((record) => {
+    [record.radiantTeamName, record.direTeamName].forEach((name) => {
+      const normalized = cleanRecordTeamName(name);
+
+      if (normalized) {
+        names.add(normalized);
+      }
+    });
+  });
+
+  return [allRecordTeamFilter, ...[...names].sort((left, right) => left.localeCompare(right, "zh-CN"))];
+}
+
+function matchRecordHasTeam(record: MatchRecord, teamName: string): boolean {
+  const normalized = cleanRecordTeamName(teamName);
+
+  return [record.radiantTeamName, record.direTeamName].some((name) => cleanRecordTeamName(name) === normalized);
+}
+
+function cleanRecordTeamName(name: string): string {
+  const normalized = name.trim();
+
+  return normalized === "天辉" || normalized === "夜魇" ? "" : normalized;
 }
 
 function officialStageOptions(data: MobileData): typeof stageOptions {
@@ -3639,13 +3696,43 @@ function PlayerRow({
 }
 
 function PlayerAwardBadges({ awards }: { awards: MatchAward[] }) {
+  const [activeAwardKey, setActiveAwardKey] = useState<string | null>(null);
+
   return (
-    <div className="player-awards" aria-label="本场称号">
-      {awards.map((award) => (
-        <span className={`player-award-title award-${award.code}`} key={award.code} title={`${award.title}：${award.description}`}>
-          {award.title}
-        </span>
-      ))}
+    <div className="player-awards" aria-label="本场称号" onClick={(event) => event.stopPropagation()}>
+      {awards.map((award) => {
+        const awardKey = `${award.code}:${award.playerId}`;
+        const description = award.description.trim() || "暂无称号说明";
+        const isActive = activeAwardKey === awardKey;
+
+        return (
+          <span
+            aria-label={`${award.title}：${description}`}
+            className={`player-award-title award-${award.code} ${isActive ? "active" : ""}`}
+            key={awardKey}
+            role="button"
+            tabIndex={0}
+            onClick={(event) => {
+              event.stopPropagation();
+              setActiveAwardKey((current) => (current === awardKey ? null : awardKey));
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                setActiveAwardKey((current) => (current === awardKey ? null : awardKey));
+              }
+            }}
+          >
+            {award.title}
+            <span className="player-award-tooltip" role="tooltip">
+              <b>{award.title}</b>
+              <small>{description}</small>
+              {award.valueText ? <small>{award.valueText}</small> : null}
+            </span>
+          </span>
+        );
+      })}
     </div>
   );
 }

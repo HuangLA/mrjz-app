@@ -60,7 +60,8 @@ type HeroLeaderboardDefinition = {
   unit: string;
   precision: number;
   rankDirection: "asc" | "desc";
-  value: (player: OpenDotaMatchPlayer) => number;
+  rankBasis?: "average" | "total";
+  value?: (player: OpenDotaMatchPlayer) => number;
 };
 
 type HeroLeaderboardAccumulator = {
@@ -68,6 +69,7 @@ type HeroLeaderboardAccumulator = {
   teams: TeamBrief[];
   matches: number;
   totals: Record<HeroLeaderboardMetricKey, number>;
+  heroIds: Set<number>;
 };
 
 const HERO_LEADERBOARD_MIN_MATCHES = 5;
@@ -195,13 +197,33 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   },
   {
     key: "lowHeroDamage",
-    title: "搓澡师傅",
+    title: "技师",
     description: "场均伤害最低",
     metricLabel: "场均伤害",
     unit: "",
     precision: 0,
     rankDirection: "asc",
     value: (player) => positiveNumber(player.hero_damage),
+  },
+  {
+    key: "streetMassage",
+    title: "逛街按摩",
+    description: "场均 GPM 最低",
+    metricLabel: "场均 GPM",
+    unit: "",
+    precision: 0,
+    rankDirection: "asc",
+    value: (player) => positiveNumber(player.gold_per_min),
+  },
+  {
+    key: "uniqueHeroes",
+    title: "PlayBoy",
+    description: "使用不同英雄最多",
+    metricLabel: "不同英雄",
+    unit: "个",
+    precision: 0,
+    rankDirection: "desc",
+    rankBasis: "total",
   },
 ];
 
@@ -336,7 +358,9 @@ export type HeroLeaderboardMetricKey =
   | "netWorth"
   | "towerDamage"
   | "lowGpm"
-  | "lowHeroDamage";
+  | "lowHeroDamage"
+  | "streetMassage"
+  | "uniqueHeroes";
 
 export type HeroLeaderboardCandidate = {
   rank: number;
@@ -2324,8 +2348,8 @@ export class SqliteTournamentRepository {
       leaderboards: HERO_LEADERBOARD_DEFINITIONS.map((definition) => {
         const candidates = eligiblePlayers
           .map((player) => {
-            const total = player.totals[definition.key];
-            const average = total / player.matches;
+            const total = definition.key === "uniqueHeroes" ? player.heroIds.size : player.totals[definition.key];
+            const average = definition.rankBasis === "total" ? total : total / player.matches;
 
             return {
               player,
@@ -7477,13 +7501,18 @@ export class SqliteTournamentRepository {
               teams: this.getPlayerTeamsForTournament(target.tournamentId, tournamentPlayer.id),
               matches: 0,
               totals: emptyHeroLeaderboardTotals(),
+              heroIds: new Set<number>(),
             };
           })();
 
         accumulator.matches += 1;
 
+        if (typeof rawPlayer.hero_id === "number" && rawPlayer.hero_id > 0) {
+          accumulator.heroIds.add(rawPlayer.hero_id);
+        }
+
         for (const definition of HERO_LEADERBOARD_DEFINITIONS) {
-          accumulator.totals[definition.key] += definition.value(rawPlayer);
+          accumulator.totals[definition.key] += definition.value?.(rawPlayer) ?? 0;
         }
 
         players.set(accountId, accumulator);

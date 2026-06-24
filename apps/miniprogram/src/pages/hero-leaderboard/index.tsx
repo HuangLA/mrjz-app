@@ -89,7 +89,7 @@ export default function HeroLeaderboardPage() {
         <View className="section-title compact">
           <View>
             <Text className="section-heading">英雄榜</Text>
-            <Text className="section-subtitle">只统计 {leaderboards.minMatches} 场以上选手 · 按场均排名</Text>
+            <Text className="section-subtitle">只统计 {leaderboards.minMatches} 场以上选手 · 按称号口径排名</Text>
           </View>
           <Text className="sync-pill">{leaderboards.leaderboards.length} 榜</Text>
         </View>
