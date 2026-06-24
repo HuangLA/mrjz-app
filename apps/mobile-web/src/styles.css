@@ -2552,6 +2552,21 @@ button {
   white-space: nowrap;
 }
 
+.player-awards .player-award-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0;
+  overflow: visible;
+  color: var(--award-color, #f4d58a);
+  font-size: 8.5px;
+  font-weight: 950;
+  line-height: 1.1;
+  text-overflow: clip;
+  text-shadow: 0 0 7px color-mix(in srgb, var(--award-color, #f4d58a) 28%, transparent);
+  white-space: nowrap;
+}
+
 .player-award-title:hover,
 .player-award-title:focus-visible,
 .player-award-title.active {
@@ -2560,23 +2575,19 @@ button {
 }
 
 .player-award-tooltip {
-  position: absolute;
-  z-index: 30;
-  bottom: calc(100% + 7px);
-  left: 0;
+  flex: 1 0 100%;
   display: grid;
-  width: max-content;
-  max-width: min(220px, 72vw);
+  width: 100%;
+  max-width: 100%;
   gap: 3px;
+  margin-top: 2px;
   padding: 7px 8px;
   border: 1px solid rgba(240, 195, 106, .28);
   border-radius: 7px;
   background: rgba(7, 12, 20, .96);
   box-shadow: 0 12px 28px rgba(0, 0, 0, .35);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(3px);
-  transition: opacity .16s ease, transform .16s ease;
+  overflow: visible;
+  pointer-events: auto;
   white-space: normal;
 }
 
@@ -2591,13 +2602,6 @@ button {
   font-size: 9px;
   font-weight: 650;
   line-height: 1.35;
-}
-
-.player-award-title:hover .player-award-tooltip,
-.player-award-title:focus-visible .player-award-tooltip,
-.player-award-title.active .player-award-tooltip {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 .award-lie_flat { --award-color: #8ce26d; }

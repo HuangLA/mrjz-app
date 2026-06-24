@@ -3696,10 +3696,19 @@ function PlayerRow({
 }
 
 function PlayerAwardBadges({ awards }: { awards: MatchAward[] }) {
-  const [activeAwardKey, setActiveAwardKey] = useState<string | null>(null);
+  const [hoveredAwardKey, setHoveredAwardKey] = useState<string | null>(null);
+  const [pinnedAwardKey, setPinnedAwardKey] = useState<string | null>(null);
+  const activeAwardKey = hoveredAwardKey ?? pinnedAwardKey;
+  const activeAward = awards.find((award) => `${award.code}:${award.playerId}` === activeAwardKey) ?? null;
+  const activeDescription = activeAward?.description.trim() || "暂无称号说明";
 
   return (
-    <div className="player-awards" aria-label="本场称号" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="player-awards"
+      aria-label="本场称号"
+      onClick={(event) => event.stopPropagation()}
+      onMouseLeave={() => setHoveredAwardKey(null)}
+    >
       {awards.map((award) => {
         const awardKey = `${award.code}:${award.playerId}`;
         const description = award.description.trim() || "暂无称号说明";
@@ -3712,27 +3721,33 @@ function PlayerAwardBadges({ awards }: { awards: MatchAward[] }) {
             key={awardKey}
             role="button"
             tabIndex={0}
+            aria-expanded={isActive}
+            onFocus={() => setHoveredAwardKey(awardKey)}
+            onBlur={() => setHoveredAwardKey(null)}
+            onMouseEnter={() => setHoveredAwardKey(awardKey)}
             onClick={(event) => {
               event.stopPropagation();
-              setActiveAwardKey((current) => (current === awardKey ? null : awardKey));
+              setPinnedAwardKey((current) => (current === awardKey ? null : awardKey));
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 event.stopPropagation();
-                setActiveAwardKey((current) => (current === awardKey ? null : awardKey));
+                setPinnedAwardKey((current) => (current === awardKey ? null : awardKey));
               }
             }}
           >
             {award.title}
-            <span className="player-award-tooltip" role="tooltip">
-              <b>{award.title}</b>
-              <small>{description}</small>
-              {award.valueText ? <small>{award.valueText}</small> : null}
-            </span>
           </span>
         );
       })}
+      {activeAward ? (
+        <div className="player-award-tooltip" role="tooltip">
+          <b>{activeAward.title}</b>
+          <small>{activeDescription}</small>
+          {activeAward.valueText ? <small>{activeAward.valueText}</small> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

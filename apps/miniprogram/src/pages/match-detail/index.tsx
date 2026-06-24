@@ -338,12 +338,13 @@ function PlayerDetailRow(props: { player: MatchDetailPlayer; expanded: boolean; 
 
 function PlayerAwardBadges(props: { awards: MatchAward[] }) {
   const [activeAwardKey, setActiveAwardKey] = useState("");
+  const activeAward = props.awards.find((award) => `${award.code}:${award.playerSlot}` === activeAwardKey) ?? null;
+  const activeDescription = activeAward?.description.trim() || "暂无称号说明";
 
   return (
     <View className="player-awards" onClick={(event) => event.stopPropagation()}>
       {props.awards.map((award) => {
         const awardKey = `${award.code}:${award.playerSlot}`;
-        const description = award.description.trim() || "暂无称号说明";
         const isActive = activeAwardKey === awardKey;
 
         return (
@@ -356,16 +357,16 @@ function PlayerAwardBadges(props: { awards: MatchAward[] }) {
             }}
           >
             <Text>{award.title}</Text>
-            {isActive ? (
-              <View className="player-award-tooltip">
-                <Text className="player-award-tooltip-title">{award.title}</Text>
-                <Text className="player-award-tooltip-copy">{description}</Text>
-                {award.valueText ? <Text className="player-award-tooltip-copy">{award.valueText}</Text> : null}
-              </View>
-            ) : null}
           </View>
         );
       })}
+      {activeAward ? (
+        <View className="player-award-tooltip">
+          <Text className="player-award-tooltip-title">{activeAward.title}</Text>
+          <Text className="player-award-tooltip-copy">{activeDescription}</Text>
+          {activeAward.valueText ? <Text className="player-award-tooltip-copy">{activeAward.valueText}</Text> : null}
+        </View>
+      ) : null}
     </View>
   );
 }
