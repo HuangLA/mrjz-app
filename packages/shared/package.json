@@ -15,6 +15,11 @@
       "import": "./src/dota-game-mode.js",
       "default": "./src/dota-game-mode.js"
     },
+    "./dota-map": {
+      "types": "./src/dota-map.d.ts",
+      "import": "./src/dota-map.js",
+      "default": "./src/dota-map.js"
+    },
     "./match-awards": {
       "types": "./src/match-awards.d.ts",
       "import": "./src/match-awards.js",

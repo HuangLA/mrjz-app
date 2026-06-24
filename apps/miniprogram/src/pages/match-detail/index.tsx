@@ -1,5 +1,6 @@
 import { ScrollView, Slider, Text, View } from "@tarojs/components";
 import { formatDotaGameMode } from "@mrjz/shared/dota-game-mode";
+import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
 import { getSystemInfoSync, useDidShow, usePageScroll, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadMatch } from "../../api";
@@ -588,8 +589,9 @@ function VisionSection(props: { durationText: string; selectedSecond: number; wa
 }
 
 function WardDot(props: { selectedSecond: number; ward: WardEvent }) {
-  const left = clamp(((props.ward.x ?? 128) / 255) * 100, 4, 96);
-  const top = clamp(100 - ((props.ward.y ?? 128) / 255) * 100, 4, 96);
+  const position = mapDotaMapCoordinatesToPercent(props.ward.x, props.ward.y);
+  const left = clamp(position.left, 4, 96);
+  const top = clamp(position.top, 4, 96);
   const icon = props.ward.type === "岗哨守卫" ? "sentry" : "observer";
   const isActive = isWardVisibleAt(props.ward, props.selectedSecond);
 

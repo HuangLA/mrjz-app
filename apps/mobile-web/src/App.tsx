@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
 import { createPortal } from "react-dom";
 import {
   loadMatchData,
@@ -4279,10 +4280,9 @@ function WardMapDot({
   event: MatchData["wardTimeline"][number];
   selectedSecond: number;
 }) {
-  const x = event.x ?? 128;
-  const y = event.y ?? 128;
-  const left = clampNumber((x / 255) * 100, 4, 96);
-  const top = clampNumber(100 - (y / 255) * 100, 4, 96);
+  const position = mapDotaMapCoordinatesToPercent(event.x, event.y);
+  const left = clampNumber(position.left, 4, 96);
+  const top = clampNumber(position.top, 4, 96);
   const isActive = isWardVisibleAt(event, selectedSecond);
   const icon = event.type === "岗哨守卫" ? "sentry" : "observer";
   const displayType = wardDisplayType(event);
