@@ -28,6 +28,7 @@ import type {
   TrendChartsViewModel,
   WardTimelineEventViewModel,
 } from "../../view-models/matchDetail.js";
+import { getMatchAwardRuleDescription } from "@mrjz/shared/match-awards";
 
 const AGHANIMS_SCEPTER_ITEM_ID = 108;
 const AGHANIMS_SHARD_ITEM_ID = 609;
@@ -559,7 +560,7 @@ function pickMatchAwards(
     awards,
     "lie_flat",
     "躺",
-    "胜方阵营综合评分最低",
+    getMatchAwardRuleDescription("lie_flat"),
     pickLowest(winnerPlayers, (player) => player.ratingScore),
     (value) => `评分 ${formatDecimal(value)}`,
   );
@@ -567,7 +568,7 @@ function pickMatchAwards(
     awards,
     "breaker",
     "破",
-    "全场击杀最多",
+    getMatchAwardRuleDescription("breaker"),
     pickHighest(players, (player) => player.kills),
     (value) => `${formatInteger(value)} 杀`,
   );
@@ -575,7 +576,7 @@ function pickMatchAwards(
     awards,
     "herbalist",
     "采灵芝",
-    "击杀野怪最多",
+    getMatchAwardRuleDescription("herbalist"),
     pickHighest(players, (player) => numberOrNull(rawBySlot.get(player.playerSlot)?.neutral_kills), { minValue: 1 }),
     (value) => `${formatInteger(value)} 野怪`,
   );
@@ -583,7 +584,7 @@ function pickMatchAwards(
     awards,
     "healer",
     "奶",
-    "治疗量最高",
+    getMatchAwardRuleDescription("healer"),
     pickHighest(players, (player) => player.heroHealing, { minValue: 1 }),
     (value) => formatCompactNumber(value),
   );
@@ -591,7 +592,7 @@ function pickMatchAwards(
     awards,
     "pianist",
     "钢琴手",
-    "APM 最高",
+    getMatchAwardRuleDescription("pianist"),
     pickHighest(players, (player) => numberOrNull(rawBySlot.get(player.playerSlot)?.actions_per_min), { minValue: 1 }),
     (value) => `${formatInteger(value)} APM`,
   );
@@ -599,7 +600,7 @@ function pickMatchAwards(
     awards,
     "binder",
     "捆绑王",
-    "眩晕时间最长",
+    getMatchAwardRuleDescription("binder"),
     pickHighest(players, (player) => numberOrNull(rawBySlot.get(player.playerSlot)?.stuns), { minValue: 0.1 }),
     (value) => `${formatDecimal(value)} 秒`,
   );
@@ -607,7 +608,7 @@ function pickMatchAwards(
     awards,
     "pressure",
     "压力怪",
-    "发信号次数最多",
+    getMatchAwardRuleDescription("pressure"),
     pickHighest(players, (player) => numberOrNull(rawBySlot.get(player.playerSlot)?.pings), { minValue: 1 }),
     (value) => `${formatInteger(value)} 次`,
   );
@@ -615,7 +616,7 @@ function pickMatchAwards(
     awards,
     "stiff",
     "僵",
-    "败方阵营综合评分最低",
+    getMatchAwardRuleDescription("stiff"),
     pickLowest(loserPlayers, (player) => player.ratingScore),
     (value) => `评分 ${formatDecimal(value)}`,
   );
@@ -623,7 +624,7 @@ function pickMatchAwards(
     awards,
     "ghost",
     "鬼",
-    "全场死亡数最高",
+    getMatchAwardRuleDescription("ghost"),
     pickHighest(players, (player) => player.deaths),
     (value) => `${formatInteger(value)} 死`,
   );
@@ -631,7 +632,7 @@ function pickMatchAwards(
     awards,
     "tough",
     "硬",
-    "承受伤害总和最高",
+    getMatchAwardRuleDescription("tough"),
     pickHighest(players, (player) => player.damageTaken, { minValue: 1 }),
     (value) => formatCompactNumber(value),
   );
@@ -639,7 +640,7 @@ function pickMatchAwards(
     awards,
     "violence",
     "力中暴力",
-    "英雄伤害最高",
+    getMatchAwardRuleDescription("violence"),
     pickHighest(players, (player) => player.heroDamage, { minValue: 1 }),
     (value) => formatCompactNumber(value),
   );
@@ -647,7 +648,7 @@ function pickMatchAwards(
     awards,
     "assist",
     "助",
-    "助攻最高",
+    getMatchAwardRuleDescription("assist"),
     pickHighest(players, (player) => player.assists),
     (value) => `${formatInteger(value)} 助`,
   );
@@ -655,7 +656,7 @@ function pickMatchAwards(
     awards,
     "support",
     "辅",
-    "真眼、雾、粉和真视宝石购买次数最多",
+    getMatchAwardRuleDescription("support"),
     pickHighest(players, (player) => supportPurchaseCount(rawBySlot.get(player.playerSlot)), { minValue: 1 }),
     (value) => `${formatInteger(value)} 次`,
   );
@@ -663,7 +664,7 @@ function pickMatchAwards(
     awards,
     "talker",
     "话痨",
-    "聊天区文字记录条数最多",
+    getMatchAwardRuleDescription("talker"),
     pickHighest(players, (player) => chatCounts.get(player.playerSlot) ?? 0, { minValue: 1 }),
     (value) => `${formatInteger(value)} 条`,
   );
@@ -671,7 +672,7 @@ function pickMatchAwards(
     awards,
     "rich",
     "富",
-    "全场经济最高",
+    getMatchAwardRuleDescription("rich"),
     pickHighest(players, (player) => richestValue(player, rawBySlot.get(player.playerSlot)), { minValue: 1 }),
     (value) => formatCompactNumber(value),
   );
@@ -679,7 +680,7 @@ function pickMatchAwards(
     awards,
     "cty",
     "CTY",
-    "10 分钟经济最高",
+    getMatchAwardRuleDescription("cty"),
     pickHighest(players, (player) => tenMinuteGold(rawBySlot.get(player.playerSlot)), { minValue: 1 }),
     (value) => formatCompactNumber(value),
   );
@@ -687,7 +688,7 @@ function pickMatchAwards(
     awards,
     "demolition",
     "拆",
-    "对建筑伤害最高",
+    getMatchAwardRuleDescription("demolition"),
     pickHighest(players, (player) => player.towerDamage, { minValue: 1 }),
     (value) => formatCompactNumber(value),
   );
@@ -695,7 +696,7 @@ function pickMatchAwards(
     awards,
     "soul",
     "魂",
-    "败方阵营综合评分最高",
+    getMatchAwardRuleDescription("soul"),
     pickHighest(loserPlayers, (player) => player.ratingScore),
     (value) => `评分 ${formatDecimal(value)}`,
   );

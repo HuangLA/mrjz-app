@@ -3952,7 +3952,7 @@ button[disabled] {
   display: block;
   padding: 0;
   margin-bottom: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-left: 2px solid rgba(116, 214, 108, 0.82);
   border-radius: 7px;

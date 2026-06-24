@@ -2,6 +2,7 @@ import abilityIdsJson from "./assets/dota/constants/ability_ids.json";
 import heroAbilitiesJson from "./assets/dota/constants/hero_abilities.json";
 import heroesJson from "./assets/dota/constants/heroes.json";
 import itemIdsJson from "./assets/dota/constants/item_ids.json";
+import { getMatchAwardRuleDescription } from "@mrjz/shared/match-awards";
 import { getDotaAssetBaseUrl, getSvgAssetBaseUrl } from "./runtimeConfig";
 import type {
   AghanimState,
@@ -488,7 +489,7 @@ function normalizeMatchAward(award: ApiMatchAward): MatchAward | null {
   return {
     code: award.code,
     title: award.title,
-    description: award.description ?? "",
+    description: award.description?.trim() || getMatchAwardRuleDescription(award.code),
     playerSlot: award.playerSlot,
     playerName: award.playerName ?? "未知选手",
     side: award.side,

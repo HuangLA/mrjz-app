@@ -1,4 +1,5 @@
 import { formatDotaGameMode } from "@mrjz/shared/dota-game-mode";
+import { getMatchAwardRuleDescription } from "@mrjz/shared/match-awards";
 import type {
   AghanimState,
   AcknowledgementItem,
@@ -1700,7 +1701,7 @@ function normalizeMatchAward(award: ApiMatchAward): MatchAward | null {
   return {
     code: award.code,
     title: award.title,
-    description: award.description ?? "",
+    description: award.description?.trim() || getMatchAwardRuleDescription(award.code),
     playerId: String(award.playerSlot),
     playerName: award.playerName ?? "未知选手",
     side: award.side,
