@@ -2579,11 +2579,12 @@ button {
   z-index: 10000;
   top: var(--award-popover-top);
   left: var(--award-popover-left);
-  display: grid;
+  display: inline-flex;
+  align-items: center;
   width: 156px;
   max-width: calc(100vw - 20px);
-  gap: 3px;
-  padding: 7px 8px;
+  gap: 6px;
+  padding: 6px 8px;
   border: 1px solid rgba(240, 195, 106, .28);
   border-radius: 7px;
   background: rgba(7, 12, 20, .96);
@@ -2591,17 +2592,22 @@ button {
   overflow: visible;
   pointer-events: auto;
   transform: translateY(0);
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .player-award-tooltip b {
+  flex: 0 0 auto;
   color: #f0c36a;
   font-size: 10px;
   line-height: 1.2;
 }
 
 .player-award-tooltip small {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: #d7e2f0;
+  text-overflow: ellipsis;
   font-size: 9px;
   font-weight: 650;
   line-height: 1.35;

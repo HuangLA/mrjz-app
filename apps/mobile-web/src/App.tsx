@@ -86,7 +86,7 @@ const stageOptions: Array<{ key: StageKey; label: string }> = [
 const scheduleFilters: ScheduleStatusFilter[] = ["全部", "未开始", "待补录", "已完赛", "延期"];
 const allRecordTeamFilter: RecordTeamFilter = "全部";
 const awardPopoverWidth = 156;
-const awardPopoverEstimatedHeight = 72;
+const awardPopoverEstimatedHeight = 36;
 const awardPopoverMargin = 10;
 
 function getAwardPopoverPosition(rect: DOMRect): { left: number; top: number } {
@@ -3848,7 +3848,6 @@ function MatchAwardFloatingPopover({ popover }: { popover: MatchAwardPopover | n
     >
       <b>{popover.award.title}</b>
       <small>{description}</small>
-      {popover.award.valueText ? <small>{popover.award.valueText}</small> : null}
     </div>,
     document.body,
   );

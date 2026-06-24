@@ -27,7 +27,7 @@ type TapPointEvent = {
 };
 
 const awardPopoverWidth = 148;
-const awardPopoverEstimatedHeight = 68;
+const awardPopoverEstimatedHeight = 36;
 const awardPopoverMargin = 10;
 
 export default function MatchDetailPage() {
@@ -439,7 +439,6 @@ function MatchAwardFloatingPopover(props: { popover: MatchAwardPopover | null })
     <View className="match-award-floating-tooltip" style={props.popover.style} onClick={(event) => event.stopPropagation()}>
       <Text className="player-award-tooltip-title">{props.popover.award.title}</Text>
       <Text className="player-award-tooltip-copy">{description}</Text>
-      {props.popover.award.valueText ? <Text className="player-award-tooltip-copy">{props.popover.award.valueText}</Text> : null}
     </View>
   );
 }

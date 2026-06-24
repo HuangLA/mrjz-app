@@ -4122,17 +4122,19 @@ button[disabled] {
   position: fixed;
   z-index: 9999;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 7px 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
   border: 1px solid rgba(240, 195, 106, 0.28);
   border-radius: 7px;
   background: rgba(7, 12, 20, 0.96);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .match-award-floating-tooltip .player-award-tooltip-title {
+  flex-shrink: 0;
   color: #f0c36a;
   font-size: 10px;
   font-weight: 900;
@@ -4140,7 +4142,10 @@ button[disabled] {
 }
 
 .match-award-floating-tooltip .player-award-tooltip-copy {
+  min-width: 0;
+  overflow: hidden;
   color: #d7e2f0;
+  text-overflow: ellipsis;
   font-size: 9px;
   font-weight: 650;
   line-height: 1.35;
