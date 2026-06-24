@@ -109,7 +109,7 @@ OpenDota 的 match detail 在解析完成后会包含更多高级字段。未解
 - `obs_log` 和 `sen_log` 显示放置时间点。
 - `obs_left_log` 和 `sen_left_log` 后续可用于显示消失、被反或过期。
 - 统一装配为 `WardTimelineEvent[]`，按 `time` 排序。
-- 如果包含 `x`、`y`，前端用共享 `mapDotaMapCoordinatesToPercent` 映射到小地图。当前 `400x400` 小地图素材直接按 OpenDota `0..255` 小地图坐标空间线性映射，不再套用 world bounds 二次校准。
+- 如果包含 `x`、`y`，前端用共享 `mapDotaMapCoordinatesToPercent` 映射到小地图。OpenDota 眼位坐标需要先按 Dota world bounds 归一化，再映射到小地图百分比；当前 `400x400` 小地图素材整张图都是有效地图框，不再额外扣除图片内边界或内容 padding。
 
 ## 8. 全局聊天记录
 
