@@ -208,12 +208,12 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "streetMassage",
     title: "逛街按摩",
-    description: "场均 GPM 最低",
-    metricLabel: "场均 GPM",
+    description: "场均 XPM 最低",
+    metricLabel: "场均 XPM",
     unit: "",
     precision: 0,
     rankDirection: "asc",
-    value: (player) => positiveNumber(player.gold_per_min),
+    value: (player) => positiveNumber(player.xp_per_min),
   },
   {
     key: "uniqueHeroes",

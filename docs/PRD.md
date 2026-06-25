@@ -200,7 +200,7 @@
 | 拆迁队队长 | `players[].tower_damage` | 场均建筑伤害 |
 | 喝茶散步 | `players[].gold_per_min` | 场均 GPM 最低，按低值优先排名 |
 | 技师 | `players[].hero_damage` | 场均英雄伤害最低，按低值优先排名 |
-| 逛街按摩 | `players[].gold_per_min` | 场均 GPM 最低，按低值优先排名 |
+| 逛街按摩 | `players[].xp_per_min` | 场均 XPM 最低，按低值优先排名 |
 | PlayBoy | `players[].hero_id` 去重数 | 本届使用不同英雄最多 |
 
 入口：
