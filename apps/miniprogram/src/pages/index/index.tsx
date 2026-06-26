@@ -2,7 +2,8 @@ import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import {
-  ensureTournamentId,
+  chooseTournamentId,
+  getSelectedTournamentId,
   loadAcknowledgements,
   loadTournamentMatches,
   loadTournaments,
@@ -22,15 +23,26 @@ type HomeCache = {
 };
 
 export default function HomePage() {
+  const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() => readPageCache<HomeCache>(pageCacheKey("home")));
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [acknowledgements, setAcknowledgements] = useState<AcknowledgementItem[]>(() => initialCache?.acknowledgements ?? []);
-  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
-  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
-  const [recentRecordsByTournament, setRecentRecordsByTournament] = useState<Record<string, MatchRecord[]>>(
-    () => initialCache?.recentRecordsByTournament ?? {},
+  const [acknowledgements, setAcknowledgements] = useState<AcknowledgementItem[]>(
+    () => initialCache?.acknowledgements ?? [],
   );
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(
+    () => initialCache?.tournaments ?? [],
+  );
+  const [selectedTournamentId, setSelectedId] = useState(() =>
+    chooseTournamentId(
+      initialCache?.tournaments ?? [],
+      initialStoredTournamentId,
+      initialCache?.selectedTournamentId,
+    ),
+  );
+  const [recentRecordsByTournament, setRecentRecordsByTournament] = useState<
+    Record<string, MatchRecord[]>
+  >(() => initialCache?.recentRecordsByTournament ?? {});
 
   useDidShow(() => {
     void refresh();
@@ -38,14 +50,26 @@ export default function HomePage() {
 
   async function refresh(nextTournamentId?: string) {
     const cacheKey = pageCacheKey("home");
+    const storedTournamentId = getSelectedTournamentId();
     const cached = nextTournamentId ? null : readPageCache<HomeCache>(cacheKey);
 
     if (cached) {
+      const cachedSelectedTournamentId = chooseTournamentId(
+        cached.tournaments,
+        nextTournamentId,
+        storedTournamentId,
+        cached.selectedTournamentId,
+      );
+
       setAcknowledgements(cached.acknowledgements ?? []);
       setTournaments(cached.tournaments);
-      setSelectedId(cached.selectedTournamentId);
+      setSelectedId(cachedSelectedTournamentId);
       setRecentRecordsByTournament(cached.recentRecordsByTournament);
       setLoading(false);
+
+      if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
+        setSelectedTournamentId(cachedSelectedTournamentId);
+      }
     } else {
       setLoading(true);
     }
@@ -61,7 +85,11 @@ export default function HomePage() {
         loadTournaments(),
         loadAcknowledgements().catch(() => []),
       ]);
-      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
+      const targetId = chooseTournamentId(
+        allTournaments,
+        nextTournamentId,
+        getSelectedTournamentId(),
+      );
 
       if (targetId.length === 0) {
         setAcknowledgements(acknowledgementItems);
@@ -76,7 +104,10 @@ export default function HomePage() {
 
       for (const tournament of allTournaments) {
         try {
-          recentEntries.push([tournament.id, await loadTournamentMatches(tournament.id, 3)] as const);
+          recentEntries.push([
+            tournament.id,
+            await loadTournamentMatches(tournament.id, 3),
+          ] as const);
         } catch {
           recentEntries.push([tournament.id, []] as const);
         }
@@ -108,7 +139,10 @@ export default function HomePage() {
     switchTab("/pages/stage/index");
   }
 
-  const recordCount = Object.values(recentRecordsByTournament).reduce((sum, tournamentRecords) => sum + tournamentRecords.length, 0);
+  const recordCount = Object.values(recentRecordsByTournament).reduce(
+    (sum, tournamentRecords) => sum + tournamentRecords.length,
+    0,
+  );
 
   return (
     <PageShell loading={loading} error={error} routeKey="home">
@@ -139,8 +173,14 @@ export default function HomePage() {
 
       <View className="tournament-entry-list">
         {tournaments.map((tournament) => (
-          <View className={`tournament-entry ${tournament.id === selectedTournamentId ? "active" : ""}`} key={tournament.id}>
-            <Button className="tournament-entry-main" onClick={() => enterTournament(tournament.id)}>
+          <View
+            className={`tournament-entry ${tournament.id === selectedTournamentId ? "active" : ""}`}
+            key={tournament.id}
+          >
+            <Button
+              className="tournament-entry-main"
+              onClick={() => enterTournament(tournament.id)}
+            >
               <View>
                 <Text className="tournament-entry-title">{tournament.name}</Text>
                 <Text className="tournament-entry-meta">
@@ -155,7 +195,6 @@ export default function HomePage() {
           </View>
         ))}
       </View>
-
     </PageShell>
   );
 }
@@ -163,7 +202,8 @@ export default function HomePage() {
 function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }) {
   const sponsors = items.filter((item) => item.category === "sponsor");
   const supporters = items.filter((item) => item.category === "community");
-  const sponsorGridClassName = sponsors.length >= 3 ? "home-major-sponsors is-compact" : "home-major-sponsors";
+  const sponsorGridClassName =
+    sponsors.length >= 3 ? "home-major-sponsors is-compact" : "home-major-sponsors";
 
   if (sponsors.length === 0 && supporters.length === 0) {
     return null;
@@ -201,7 +241,11 @@ function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }
               <View className="home-community-supporter" key={supporter.id}>
                 {supporter.imageUrl ? (
                   <View className="home-community-avatar">
-                    <Image className="home-community-avatar-image" src={supporter.imageUrl} mode="aspectFill" />
+                    <Image
+                      className="home-community-avatar-image"
+                      src={supporter.imageUrl}
+                      mode="aspectFill"
+                    />
                   </View>
                 ) : (
                   <View className="home-community-avatar fallback">
@@ -223,6 +267,9 @@ function formatLatestRecord(record?: MatchRecord): string {
     return "--";
   }
 
-  const score = record.radiantScore === null || record.direScore === null ? "暂无赛果" : `${record.radiantScore}:${record.direScore}`;
+  const score =
+    record.radiantScore === null || record.direScore === null
+      ? "暂无赛果"
+      : `${record.radiantScore}:${record.direScore}`;
   return `${record.radiantTeamName} ${score} ${record.direTeamName}`;
 }

@@ -1,7 +1,13 @@
 import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
-import { ensureTournamentId, getSelectedTournamentId, loadTournamentPlayers, loadTournaments, setSelectedTournamentId } from "../../api";
+import {
+  chooseTournamentId,
+  getSelectedTournamentId,
+  loadTournamentPlayers,
+  loadTournaments,
+  setSelectedTournamentId,
+} from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerDirectoryCard, TournamentScope } from "../../components";
 import type { PlayerListItem, TournamentOption } from "../../types";
@@ -20,7 +26,11 @@ type PlayerSortKey =
   | "avgDamageTaken";
 type SortDirection = "asc" | "desc";
 
-const playerSortOptions: Array<{ key: PlayerSortKey; label: string; defaultDirection: SortDirection }> = [
+const playerSortOptions: Array<{
+  key: PlayerSortKey;
+  label: string;
+  defaultDirection: SortDirection;
+}> = [
   { key: "totalMatches", label: "场次", defaultDirection: "desc" },
   { key: "winRate", label: "胜率", defaultDirection: "desc" },
   { key: "kda", label: "KDA", defaultDirection: "desc" },
@@ -40,13 +50,24 @@ type PlayersCache = {
 };
 
 export default function PlayersPage() {
-  const [initialCache] = useState(() => readPageCache<PlayersCache>(pageCacheKey("players", getSelectedTournamentId() || "auto")));
+  const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
+  const [initialCache] = useState(() =>
+    readPageCache<PlayersCache>(pageCacheKey("players", initialStoredTournamentId || "auto")),
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
   const [sortKey, setSortKey] = useState<PlayerSortKey>("totalMatches");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
-  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(
+    () => initialCache?.tournaments ?? [],
+  );
+  const [selectedTournamentId, setSelectedId] = useState(() =>
+    chooseTournamentId(
+      initialCache?.tournaments ?? [],
+      initialStoredTournamentId,
+      initialCache?.selectedTournamentId,
+    ),
+  );
   const [players, setPlayers] = useState<PlayerListItem[]>(() => initialCache?.players ?? []);
 
   useDidShow(() => {
@@ -54,14 +75,26 @@ export default function PlayersPage() {
   });
 
   async function refresh(nextTournamentId?: string) {
-    const cacheKey = pageCacheKey("players", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
+    const storedTournamentId = getSelectedTournamentId();
+    const requestedTournamentId = nextTournamentId ?? storedTournamentId;
+    const cacheKey = pageCacheKey("players", requestedTournamentId || "auto");
     const cached = readPageCache<PlayersCache>(cacheKey);
 
     if (cached) {
+      const cachedSelectedTournamentId = chooseTournamentId(
+        cached.tournaments,
+        requestedTournamentId,
+        cached.selectedTournamentId,
+      );
+
       setTournaments(cached.tournaments);
-      setSelectedId(cached.selectedTournamentId);
+      setSelectedId(cachedSelectedTournamentId);
       setPlayers(cached.players);
       setLoading(false);
+
+      if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
+        setSelectedTournamentId(cachedSelectedTournamentId);
+      }
     } else {
       setLoading(true);
     }
@@ -74,7 +107,11 @@ export default function PlayersPage() {
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
+      const targetId = chooseTournamentId(
+        allTournaments,
+        nextTournamentId,
+        getSelectedTournamentId(),
+      );
       const nextPlayers = targetId ? await loadTournamentPlayers(targetId) : [];
 
       if (targetId) {
@@ -100,7 +137,10 @@ export default function PlayersPage() {
     }
   }
 
-  const visiblePlayers = useMemo(() => sortTournamentPlayers(players, sortKey, sortDirection), [players, sortDirection, sortKey]);
+  const visiblePlayers = useMemo(
+    () => sortTournamentPlayers(players, sortKey, sortDirection),
+    [players, sortDirection, sortKey],
+  );
 
   function handleSort(nextKey: PlayerSortKey) {
     if (nextKey === sortKey) {
@@ -109,14 +149,19 @@ export default function PlayersPage() {
     }
 
     setSortKey(nextKey);
-    setSortDirection(playerSortOptions.find((option) => option.key === nextKey)?.defaultDirection ?? "desc");
+    setSortDirection(
+      playerSortOptions.find((option) => option.key === nextKey)?.defaultDirection ?? "desc",
+    );
   }
 
-  const activeSort = playerSortOptions.find((option) => option.key === sortKey) ?? playerSortOptions[0]!;
+  const activeSort =
+    playerSortOptions.find((option) => option.key === sortKey) ?? playerSortOptions[0]!;
 
   return (
     <PageShell loading={loading} error={error} routeKey="players">
-      <TournamentScope tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
+      <TournamentScope
+        tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)}
+      />
       <View className="section-panel player-board-panel">
         <View className="section-title compact">
           <View>
@@ -126,7 +171,9 @@ export default function PlayersPage() {
         </View>
         <View className="player-sort-meta">
           <Text>排序</Text>
-          <Text>{activeSort.label} {sortDirection === "desc" ? "↓" : "↑"}</Text>
+          <Text>
+            {activeSort.label} {sortDirection === "desc" ? "↓" : "↑"}
+          </Text>
         </View>
         <View className="player-sort-bar">
           {playerSortOptions.map((option) => {
@@ -134,7 +181,11 @@ export default function PlayersPage() {
             const shownDirection = active ? sortDirection : option.defaultDirection;
 
             return (
-              <Button className={active ? "active" : ""} key={option.key} onClick={() => handleSort(option.key)}>
+              <Button
+                className={active ? "active" : ""}
+                key={option.key}
+                onClick={() => handleSort(option.key)}
+              >
                 {option.label}
                 <Text>{shownDirection === "desc" ? "↓" : "↑"}</Text>
               </Button>
@@ -146,23 +197,41 @@ export default function PlayersPage() {
             <PlayerDirectoryCard
               key={player.id}
               player={player}
-              onOpen={(playerId) => navigate(`/pages/player-detail/index?tournamentId=${selectedTournamentId}&playerId=${playerId}`)}
+              onOpen={(playerId) =>
+                navigate(
+                  `/pages/player-detail/index?tournamentId=${selectedTournamentId}&playerId=${playerId}`,
+                )
+              }
             />
           ))}
         </View>
-        {visiblePlayers.length === 0 ? <View className="content-panel"><Text className="muted">暂无</Text></View> : null}
+        {visiblePlayers.length === 0 ? (
+          <View className="content-panel">
+            <Text className="muted">暂无</Text>
+          </View>
+        ) : null}
       </View>
     </PageShell>
   );
 }
 
-function sortTournamentPlayers(players: PlayerListItem[], sortKey: PlayerSortKey, direction: SortDirection): PlayerListItem[] {
+function sortTournamentPlayers(
+  players: PlayerListItem[],
+  sortKey: PlayerSortKey,
+  direction: SortDirection,
+): PlayerListItem[] {
   return players.slice().sort((left, right) => comparePlayers(left, right, sortKey, direction));
 }
 
-function comparePlayers(left: PlayerListItem, right: PlayerListItem, key: PlayerSortKey, direction: SortDirection): number {
+function comparePlayers(
+  left: PlayerListItem,
+  right: PlayerListItem,
+  key: PlayerSortKey,
+  direction: SortDirection,
+): number {
   if (key === "displayName") {
-    const result = left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+    const result =
+      left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
     return direction === "asc" ? result : -result;
   }
 
@@ -170,7 +239,9 @@ function comparePlayers(left: PlayerListItem, right: PlayerListItem, key: Player
   const rightValue = playerSortValue(right, key);
 
   if (leftValue === null && rightValue === null) {
-    return left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+    return (
+      left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id)
+    );
   }
 
   if (leftValue === null) {
@@ -184,7 +255,11 @@ function comparePlayers(left: PlayerListItem, right: PlayerListItem, key: Player
   const result = leftValue === rightValue ? 0 : leftValue > rightValue ? 1 : -1;
   const normalized = direction === "asc" ? result : -result;
 
-  return normalized || left.displayName.localeCompare(right.displayName, "zh-CN") || left.id.localeCompare(right.id);
+  return (
+    normalized ||
+    left.displayName.localeCompare(right.displayName, "zh-CN") ||
+    left.id.localeCompare(right.id)
+  );
 }
 
 function playerSortValue(player: PlayerListItem, key: PlayerSortKey): number | null {

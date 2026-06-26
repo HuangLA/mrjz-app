@@ -1,10 +1,21 @@
 import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
-import { ensureTournamentId, getSelectedTournamentId, loadHeroLeaderboards, loadTournaments, setSelectedTournamentId } from "../../api";
+import {
+  chooseTournamentId,
+  getSelectedTournamentId,
+  loadHeroLeaderboards,
+  loadTournaments,
+  setSelectedTournamentId,
+} from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, SteamAvatar, TournamentScope } from "../../components";
-import type { HeroLeaderboardCandidate, HeroLeaderboardItem, HeroLeaderboardsView, TournamentOption } from "../../types";
+import type {
+  HeroLeaderboardCandidate,
+  HeroLeaderboardItem,
+  HeroLeaderboardsView,
+  TournamentOption,
+} from "../../types";
 import { formatDecimal, formatInteger, navigate } from "../../utils";
 
 type HeroLeaderboardCache = {
@@ -14,27 +25,54 @@ type HeroLeaderboardCache = {
 };
 
 export default function HeroLeaderboardPage() {
-  const [initialCache] = useState(() => readPageCache<HeroLeaderboardCache>(pageCacheKey("hero-leaderboard", getSelectedTournamentId() || "auto")));
+  const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
+  const [initialCache] = useState(() =>
+    readPageCache<HeroLeaderboardCache>(
+      pageCacheKey("hero-leaderboard", initialStoredTournamentId || "auto"),
+    ),
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
-  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
-  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
-  const [leaderboards, setLeaderboards] = useState<HeroLeaderboardsView>(() => initialCache?.leaderboards ?? emptyHeroLeaderboards());
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(
+    () => initialCache?.tournaments ?? [],
+  );
+  const [selectedTournamentId, setSelectedId] = useState(() =>
+    chooseTournamentId(
+      initialCache?.tournaments ?? [],
+      initialStoredTournamentId,
+      initialCache?.selectedTournamentId,
+    ),
+  );
+  const [leaderboards, setLeaderboards] = useState<HeroLeaderboardsView>(
+    () => initialCache?.leaderboards ?? emptyHeroLeaderboards(),
+  );
 
   useDidShow(() => {
     void refresh();
   });
 
   async function refresh(nextTournamentId?: string) {
-    const cacheKey = pageCacheKey("hero-leaderboard", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
+    const storedTournamentId = getSelectedTournamentId();
+    const requestedTournamentId = nextTournamentId ?? storedTournamentId;
+    const cacheKey = pageCacheKey("hero-leaderboard", requestedTournamentId || "auto");
     const cached = readPageCache<HeroLeaderboardCache>(cacheKey);
 
     if (cached) {
+      const cachedSelectedTournamentId = chooseTournamentId(
+        cached.tournaments,
+        requestedTournamentId,
+        cached.selectedTournamentId,
+      );
+
       setTournaments(cached.tournaments);
-      setSelectedId(cached.selectedTournamentId);
+      setSelectedId(cachedSelectedTournamentId);
       setLeaderboards(cached.leaderboards);
       setLoading(false);
+
+      if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
+        setSelectedTournamentId(cachedSelectedTournamentId);
+      }
     } else {
       setLoading(true);
     }
@@ -47,8 +85,14 @@ export default function HeroLeaderboardPage() {
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
-      const nextLeaderboards = targetId ? await loadHeroLeaderboards(targetId) : emptyHeroLeaderboards();
+      const targetId = chooseTournamentId(
+        allTournaments,
+        nextTournamentId,
+        getSelectedTournamentId(),
+      );
+      const nextLeaderboards = targetId
+        ? await loadHeroLeaderboards(targetId)
+        : emptyHeroLeaderboards();
 
       if (targetId) {
         setSelectedTournamentId(targetId);
@@ -89,12 +133,16 @@ export default function HeroLeaderboardPage() {
 
   return (
     <PageShell loading={loading} error={error} routeKey="leaderboard">
-      <TournamentScope tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
+      <TournamentScope
+        tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)}
+      />
       <View className="section-panel hero-leaderboard-panel">
         <View className="section-title compact">
           <View>
             <Text className="section-heading">英雄榜</Text>
-            <Text className="section-subtitle">只统计 {leaderboards.minMatches} 场以上选手 · 按称号口径排名</Text>
+            <Text className="section-subtitle">
+              只统计 {leaderboards.minMatches} 场以上选手 · 按称号口径排名
+            </Text>
           </View>
           <Text className="sync-pill">{leaderboards.leaderboards.length} 榜</Text>
         </View>
@@ -104,7 +152,11 @@ export default function HeroLeaderboardPage() {
               board={board}
               expanded={expandedKeys.has(board.key)}
               key={board.key}
-              onOpenPlayer={(playerId) => navigate(`/pages/player-detail/index?tournamentId=${selectedTournamentId}&playerId=${playerId}`)}
+              onOpenPlayer={(playerId) =>
+                navigate(
+                  `/pages/player-detail/index?tournamentId=${selectedTournamentId}&playerId=${playerId}`,
+                )
+              }
               onToggle={() => toggleBoard(board.key)}
             />
           ))}
@@ -155,7 +207,9 @@ function HeroLeaderboardCard(props: {
             </View>
             <View className="hero-leaderboard-toggle">
               <Text>{props.expanded ? "收起" : "前五"}</Text>
-              <Text className={`hero-leaderboard-toggle-icon ${props.expanded ? "expanded" : ""}`} />
+              <Text
+                className={`hero-leaderboard-toggle-icon ${props.expanded ? "expanded" : ""}`}
+              />
             </View>
           </View>
         </View>
@@ -172,7 +226,9 @@ function HeroLeaderboardCard(props: {
               <SteamAvatar player={candidate.player} size="small" />
               <View className="hero-leaderboard-name">
                 <Text className="hero-leaderboard-player-name">{candidate.player.displayName}</Text>
-                <Text className="hero-leaderboard-team-name">{leaderboardTeamName(candidate)} · {formatInteger(candidate.matches)} 场</Text>
+                <Text className="hero-leaderboard-team-name">
+                  {leaderboardTeamName(candidate)} · {formatInteger(candidate.matches)} 场
+                </Text>
               </View>
               <View className="hero-leaderboard-row-value">
                 <Text>{formatLeaderboardValue(candidate.average, props.board)}</Text>
@@ -192,19 +248,32 @@ function HeroLeaderboardCard(props: {
 }
 
 function leaderboardTeamName(candidate: HeroLeaderboardCandidate): string {
-  const team = candidate.player.currentTeam ?? candidate.player.teams[0] ?? candidate.teams[0] ?? null;
+  const team =
+    candidate.player.currentTeam ?? candidate.player.teams[0] ?? candidate.teams[0] ?? null;
 
   return team?.name || team?.shortName || "自由人";
 }
 
-function formatLeaderboardValue(value: number, board: Pick<HeroLeaderboardItem, "precision" | "unit">): string {
-  const normalized = Math.abs(value) >= 1000 ? compactNumber(value) : formatDecimal(value, board.precision).replace(/\.0$/, "");
+function formatLeaderboardValue(
+  value: number,
+  board: Pick<HeroLeaderboardItem, "precision" | "unit">,
+): string {
+  const normalized =
+    Math.abs(value) >= 1000
+      ? compactNumber(value)
+      : formatDecimal(value, board.precision).replace(/\.0$/, "");
 
   return board.unit ? `${normalized}${board.unit}` : normalized;
 }
 
-function formatLeaderboardTotal(value: number, board: Pick<HeroLeaderboardItem, "precision" | "unit">): string {
-  const normalized = Math.abs(value) >= 1000 ? compactNumber(value) : formatDecimal(value, Math.min(board.precision, 1)).replace(/\.0$/, "");
+function formatLeaderboardTotal(
+  value: number,
+  board: Pick<HeroLeaderboardItem, "precision" | "unit">,
+): string {
+  const normalized =
+    Math.abs(value) >= 1000
+      ? compactNumber(value)
+      : formatDecimal(value, Math.min(board.precision, 1)).replace(/\.0$/, "");
 
   return board.unit ? `${normalized}${board.unit}` : normalized;
 }

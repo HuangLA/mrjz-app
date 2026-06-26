@@ -1,7 +1,13 @@
 import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
-import { ensureTournamentId, getSelectedTournamentId, loadTournamentMatches, loadTournaments, setSelectedTournamentId } from "../../api";
+import {
+  chooseTournamentId,
+  getSelectedTournamentId,
+  loadTournamentMatches,
+  loadTournaments,
+  setSelectedTournamentId,
+} from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { FilterRow, MatchRecordCard, PageShell, TournamentScope } from "../../components";
 import type { MatchRecord, TournamentOption } from "../../types";
@@ -16,11 +22,22 @@ type RecordsCache = {
 const allRecordTeamFilter = "全部";
 
 export default function RecordsPage() {
-  const [initialCache] = useState(() => readPageCache<RecordsCache>(pageCacheKey("records", getSelectedTournamentId() || "auto")));
+  const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
+  const [initialCache] = useState(() =>
+    readPageCache<RecordsCache>(pageCacheKey("records", initialStoredTournamentId || "auto")),
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
-  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(
+    () => initialCache?.tournaments ?? [],
+  );
+  const [selectedTournamentId, setSelectedId] = useState(() =>
+    chooseTournamentId(
+      initialCache?.tournaments ?? [],
+      initialStoredTournamentId,
+      initialCache?.selectedTournamentId,
+    ),
+  );
   const [records, setRecords] = useState<MatchRecord[]>(() => initialCache?.records ?? []);
   const [teamFilter, setTeamFilter] = useState(allRecordTeamFilter);
 
@@ -29,14 +46,26 @@ export default function RecordsPage() {
   });
 
   async function refresh(nextTournamentId?: string) {
-    const cacheKey = pageCacheKey("records", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
+    const storedTournamentId = getSelectedTournamentId();
+    const requestedTournamentId = nextTournamentId ?? storedTournamentId;
+    const cacheKey = pageCacheKey("records", requestedTournamentId || "auto");
     const cached = readPageCache<RecordsCache>(cacheKey);
 
     if (cached) {
+      const cachedSelectedTournamentId = chooseTournamentId(
+        cached.tournaments,
+        requestedTournamentId,
+        cached.selectedTournamentId,
+      );
+
       setTournaments(cached.tournaments);
-      setSelectedId(cached.selectedTournamentId);
+      setSelectedId(cachedSelectedTournamentId);
       setRecords(cached.records);
       setLoading(false);
+
+      if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
+        setSelectedTournamentId(cachedSelectedTournamentId);
+      }
     } else {
       setLoading(true);
     }
@@ -49,7 +78,11 @@ export default function RecordsPage() {
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
+      const targetId = chooseTournamentId(
+        allTournaments,
+        nextTournamentId,
+        getSelectedTournamentId(),
+      );
       const nextRecords = targetId ? await loadTournamentMatches(targetId, 100) : [];
 
       if (targetId) {
@@ -87,7 +120,9 @@ export default function RecordsPage() {
 
   return (
     <PageShell loading={loading} error={error} routeKey="records">
-      <TournamentScope tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
+      <TournamentScope
+        tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)}
+      />
       <View className="section-panel">
         <View className="section-title compact">
           <View>
@@ -132,13 +167,18 @@ function buildRecordTeamFilters(records: MatchRecord[]): string[] {
     });
   });
 
-  return [allRecordTeamFilter, ...[...names].sort((left, right) => left.localeCompare(right, "zh-CN"))];
+  return [
+    allRecordTeamFilter,
+    ...[...names].sort((left, right) => left.localeCompare(right, "zh-CN")),
+  ];
 }
 
 function matchRecordHasTeam(record: MatchRecord, teamName: string): boolean {
   const normalized = cleanRecordTeamName(teamName);
 
-  return [record.radiantTeamName, record.direTeamName].some((name) => cleanRecordTeamName(name) === normalized);
+  return [record.radiantTeamName, record.direTeamName].some(
+    (name) => cleanRecordTeamName(name) === normalized,
+  );
 }
 
 function cleanRecordTeamName(name: string): string {

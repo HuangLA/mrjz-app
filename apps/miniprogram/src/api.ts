@@ -1,5 +1,10 @@
 import Taro from "@tarojs/taro";
-import { normalizeMatchDetail, normalizeMatchRecord, type ApiMatchDetail, type ApiMatchRecord } from "./dota";
+import {
+  normalizeMatchDetail,
+  normalizeMatchRecord,
+  type ApiMatchDetail,
+  type ApiMatchRecord,
+} from "./dota";
 import { getApiBaseUrl } from "./runtimeConfig";
 import type {
   ApiResult,
@@ -51,9 +56,24 @@ export function setSelectedTournamentId(tournamentId: string): void {
   Taro.setStorageSync(SELECTED_TOURNAMENT_STORAGE_KEY, tournamentId);
 }
 
+export function chooseTournamentId(
+  tournaments: TournamentOption[],
+  ...candidates: Array<string | null | undefined>
+): string {
+  for (const candidate of candidates) {
+    const tournamentId = typeof candidate === "string" ? candidate.trim() : "";
+
+    if (tournamentId && tournaments.some((tournament) => tournament.id === tournamentId)) {
+      return tournamentId;
+    }
+  }
+
+  return tournaments[0]?.id ?? "";
+}
+
 export function getLocalLikedTagIds(userId: string): Set<string> {
   const value = Taro.getStorageSync<Record<string, string[]> | "">(LOCAL_LIKED_TAGS_STORAGE_KEY);
-  const ids = typeof value === "object" && value !== null ? value[userId] ?? [] : [];
+  const ids = typeof value === "object" && value !== null ? (value[userId] ?? []) : [];
 
   return new Set(ids);
 }
@@ -105,7 +125,9 @@ function formatWechatLoginCodeError(caught: unknown): string {
     return `微信登录凭证获取失败：${String((caught as { errMsg?: unknown }).errMsg ?? "请稍后重试")}`;
   }
 
-  return caught instanceof Error ? `微信登录凭证获取失败：${caught.message}` : "微信登录凭证获取失败，请稍后重试";
+  return caught instanceof Error
+    ? `微信登录凭证获取失败：${caught.message}`
+    : "微信登录凭证获取失败，请稍后重试";
 }
 
 export async function loadMe(): Promise<AppUserMe> {
@@ -122,7 +144,11 @@ export async function logout(): Promise<void> {
   clearStoredAuthSession();
 }
 
-export async function bindDotaAccount(input: { accountId?: number | null; steamId64?: string | null; steamId?: string | null }): Promise<DotaAccountBinding> {
+export async function bindDotaAccount(input: {
+  accountId?: number | null;
+  steamId64?: string | null;
+  steamId?: string | null;
+}): Promise<DotaAccountBinding> {
   return request<DotaAccountBinding>("/me/player-binding", {
     method: "POST",
     data: input,
@@ -140,64 +166,97 @@ export async function loadTournaments(): Promise<TournamentOption[]> {
 }
 
 export async function loadTournament(tournamentId: string): Promise<TournamentDetail> {
-  return request<TournamentDetail>(`/tournaments/${encodeURIComponent(tournamentId)}`, { withAuth: false });
+  return request<TournamentDetail>(`/tournaments/${encodeURIComponent(tournamentId)}`, {
+    withAuth: false,
+  });
 }
 
 export async function loadOfficialSchedule(tournamentId: string): Promise<OfficialScheduleStatus> {
-  return request<OfficialScheduleStatus>(`/tournaments/${encodeURIComponent(tournamentId)}/official-schedule`, {
-    withAuth: false,
-  });
+  return request<OfficialScheduleStatus>(
+    `/tournaments/${encodeURIComponent(tournamentId)}/official-schedule`,
+    {
+      withAuth: false,
+    },
+  );
 }
 
 export async function loadStageRounds(stageId: string): Promise<StageRound[]> {
-  return request<StageRound[]>(`/stages/${encodeURIComponent(stageId)}/rounds`, { withAuth: false });
+  return request<StageRound[]>(`/stages/${encodeURIComponent(stageId)}/rounds`, {
+    withAuth: false,
+  });
 }
 
 export async function loadStageStandings(stageId: string): Promise<StandingRow[]> {
-  return request<StandingRow[]>(`/stages/${encodeURIComponent(stageId)}/standings`, { withAuth: false });
+  return request<StandingRow[]>(`/stages/${encodeURIComponent(stageId)}/standings`, {
+    withAuth: false,
+  });
 }
 
 export async function loadStageBracket(stageId: string): Promise<BracketNode[]> {
-  return request<BracketNode[]>(`/stages/${encodeURIComponent(stageId)}/bracket`, { withAuth: false });
-}
-
-export async function loadTournamentMatches(tournamentId: string, limit = 80): Promise<MatchRecord[]> {
-  const records = await request<ApiMatchRecord[]>(`/tournaments/${encodeURIComponent(tournamentId)}/matches?limit=${limit}`, {
+  return request<BracketNode[]>(`/stages/${encodeURIComponent(stageId)}/bracket`, {
     withAuth: false,
   });
+}
+
+export async function loadTournamentMatches(
+  tournamentId: string,
+  limit = 80,
+): Promise<MatchRecord[]> {
+  const records = await request<ApiMatchRecord[]>(
+    `/tournaments/${encodeURIComponent(tournamentId)}/matches?limit=${limit}`,
+    {
+      withAuth: false,
+    },
+  );
 
   return records.map(normalizeMatchRecord);
 }
 
 export async function loadMatch(matchId: number | string): Promise<MatchDetail> {
-  const detail = await request<ApiMatchDetail>(`/matches/${encodeURIComponent(String(matchId))}`, { withAuth: false });
+  const detail = await request<ApiMatchDetail>(`/matches/${encodeURIComponent(String(matchId))}`, {
+    withAuth: false,
+  });
   return normalizeMatchDetail(detail);
 }
 
 export async function loadTournamentPlayers(tournamentId: string): Promise<PlayerListItem[]> {
-  const players = await request<PlayerListItem[]>(`/tournaments/${encodeURIComponent(tournamentId)}/players`, { withAuth: false });
+  const players = await request<PlayerListItem[]>(
+    `/tournaments/${encodeURIComponent(tournamentId)}/players`,
+    { withAuth: false },
+  );
 
   return players.map(normalizePlayerListItem);
 }
 
 export async function loadHeroLeaderboards(tournamentId: string): Promise<HeroLeaderboardsView> {
-  const leaderboards = await request<HeroLeaderboardsView>(`/tournaments/${encodeURIComponent(tournamentId)}/hero-leaderboards`, {
-    withAuth: false,
-  });
+  const leaderboards = await request<HeroLeaderboardsView>(
+    `/tournaments/${encodeURIComponent(tournamentId)}/hero-leaderboards`,
+    {
+      withAuth: false,
+    },
+  );
 
   return normalizeHeroLeaderboards(leaderboards);
 }
 
 export async function loadAcknowledgements(): Promise<AcknowledgementItem[]> {
-  const acknowledgements = await request<AcknowledgementItem[]>("/acknowledgements", { withAuth: false });
+  const acknowledgements = await request<AcknowledgementItem[]>("/acknowledgements", {
+    withAuth: false,
+  });
 
   return acknowledgements.map(normalizeAcknowledgementItem);
 }
 
-export async function loadPlayerProfile(tournamentId: string, playerId: string): Promise<PlayerProfile> {
-  const profile = await request<PlayerProfile>(`/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}`, {
-    withAuth: false,
-  });
+export async function loadPlayerProfile(
+  tournamentId: string,
+  playerId: string,
+): Promise<PlayerProfile> {
+  const profile = await request<PlayerProfile>(
+    `/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}`,
+    {
+      withAuth: false,
+    },
+  );
 
   return normalizePlayerProfile(profile);
 }
@@ -209,31 +268,48 @@ export async function loadPlayerTags(tournamentId: string, playerId: string): Pr
   );
 }
 
-export async function submitPlayerTag(tournamentId: string, playerId: string, text: string): Promise<PlayerTag> {
-  return request<PlayerTag>(`/miniprogram/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}/tags`, {
-    method: "POST",
-    data: { text },
-  });
+export async function submitPlayerTag(
+  tournamentId: string,
+  playerId: string,
+  text: string,
+): Promise<PlayerTag> {
+  return request<PlayerTag>(
+    `/miniprogram/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}/tags`,
+    {
+      method: "POST",
+      data: { text },
+    },
+  );
 }
 
 export async function likePlayerTag(tagId: string): Promise<PlayerTag> {
-  return request<PlayerTag>(`/miniprogram/tags/${encodeURIComponent(tagId)}/like`, { method: "POST" });
+  return request<PlayerTag>(`/miniprogram/tags/${encodeURIComponent(tagId)}/like`, {
+    method: "POST",
+  });
 }
 
 export async function unlikePlayerTag(tagId: string): Promise<PlayerTag> {
-  return request<PlayerTag>(`/miniprogram/tags/${encodeURIComponent(tagId)}/like`, { method: "DELETE" });
+  return request<PlayerTag>(`/miniprogram/tags/${encodeURIComponent(tagId)}/like`, {
+    method: "DELETE",
+  });
 }
 
 export async function loadTournamentTeams(tournamentId: string): Promise<TeamListItem[]> {
-  const teams = await request<TeamListItem[]>(`/tournaments/${encodeURIComponent(tournamentId)}/teams`, { withAuth: false });
+  const teams = await request<TeamListItem[]>(
+    `/tournaments/${encodeURIComponent(tournamentId)}/teams`,
+    { withAuth: false },
+  );
 
   return teams.map(normalizeTeamListItem);
 }
 
 export async function loadTeamProfile(tournamentId: string, teamId: string): Promise<TeamProfile> {
-  const profile = await request<TeamProfile>(`/tournaments/${encodeURIComponent(tournamentId)}/teams/${encodeURIComponent(teamId)}`, {
-    withAuth: false,
-  });
+  const profile = await request<TeamProfile>(
+    `/tournaments/${encodeURIComponent(tournamentId)}/teams/${encodeURIComponent(teamId)}`,
+    {
+      withAuth: false,
+    },
+  );
 
   return normalizeTeamProfile(profile);
 }
@@ -241,9 +317,7 @@ export async function loadTeamProfile(tournamentId: string, teamId: string): Pro
 export async function ensureTournamentId(tournaments?: TournamentOption[]): Promise<string> {
   const stored = getSelectedTournamentId();
   const availableTournaments = tournaments ?? (await loadTournaments());
-  const tournamentId = availableTournaments.some((tournament) => tournament.id === stored)
-    ? stored
-    : availableTournaments[0]?.id ?? "";
+  const tournamentId = chooseTournamentId(availableTournaments, stored);
 
   if (tournamentId.length > 0 && tournamentId !== stored) {
     setSelectedTournamentId(tournamentId);
@@ -365,8 +439,18 @@ function formatRequestFailure(caught: unknown): string {
   return message || "API 请求失败，请稍后重试";
 }
 
-function logRequestFailure(input: { url: string; method: RequestMethod }, durationMs: number, caught: unknown): void {
-  console.warn("[MRJZ request] failed", input.method, input.url, `${durationMs}ms`, requestFailureMessage(caught));
+function logRequestFailure(
+  input: { url: string; method: RequestMethod },
+  durationMs: number,
+  caught: unknown,
+): void {
+  console.warn(
+    "[MRJZ request] failed",
+    input.method,
+    input.url,
+    `${durationMs}ms`,
+    requestFailureMessage(caught),
+  );
 }
 
 function normalizeAppUserStats(stats: AppUserStats): AppUserStats {
@@ -421,7 +505,9 @@ function normalizeHeroLeaderboards(view: HeroLeaderboardsView): HeroLeaderboards
   };
 }
 
-function normalizeHeroLeaderboardCandidate(candidate: HeroLeaderboardCandidate): HeroLeaderboardCandidate {
+function normalizeHeroLeaderboardCandidate(
+  candidate: HeroLeaderboardCandidate,
+): HeroLeaderboardCandidate {
   return {
     ...candidate,
     player: normalizePlayerListItem(candidate.player),
@@ -445,7 +531,10 @@ function normalizeAcknowledgementItem(item: AcknowledgementItem): Acknowledgemen
   };
 }
 
-function normalizeSteamAvatarUrl(player: { accountId?: number | null; avatarUrl?: string | null }): string | null {
+function normalizeSteamAvatarUrl(player: {
+  accountId?: number | null;
+  avatarUrl?: string | null;
+}): string | null {
   const avatarUrl = normalizeApiImageUrl(player.avatarUrl ?? null);
 
   if (!avatarUrl) {

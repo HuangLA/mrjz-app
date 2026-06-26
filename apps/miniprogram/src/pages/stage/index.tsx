@@ -2,7 +2,7 @@ import { Button, ScrollView, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useEffect, useState } from "react";
 import {
-  ensureTournamentId,
+  chooseTournamentId,
   getSelectedTournamentId,
   loadStageBracket,
   loadStageRounds,
@@ -13,7 +13,13 @@ import {
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, SeriesCard, TournamentScope } from "../../components";
-import type { BracketNode, StageRound, StandingRow, TournamentDetail, TournamentOption } from "../../types";
+import type {
+  BracketNode,
+  StageRound,
+  StandingRow,
+  TournamentDetail,
+  TournamentOption,
+} from "../../types";
 import { isOfficialScheduleStage, labelStageType, labelStatus, teamName } from "../../utils";
 
 const ungroupedStandingKey = "__all__";
@@ -29,12 +35,23 @@ type StageCache = {
 };
 
 export default function StagePage() {
-  const [initialCache] = useState(() => readPageCache<StageCache>(pageCacheKey("stage", getSelectedTournamentId() || "auto")));
+  const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
+  const [initialCache] = useState(() =>
+    readPageCache<StageCache>(pageCacheKey("stage", initialStoredTournamentId || "auto")),
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [stageLoading, setStageLoading] = useState(false);
   const [error, setError] = useState("");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
-  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(
+    () => initialCache?.tournaments ?? [],
+  );
+  const [selectedTournamentId, setSelectedId] = useState(() =>
+    chooseTournamentId(
+      initialCache?.tournaments ?? [],
+      initialStoredTournamentId,
+      initialCache?.selectedTournamentId,
+    ),
+  );
   const [detail, setDetail] = useState<TournamentDetail | null>(() => initialCache?.detail ?? null);
   const [selectedStageId, setSelectedStageId] = useState(() => initialCache?.selectedStageId ?? "");
   const [rounds, setRounds] = useState<StageRound[]>(() => initialCache?.rounds ?? []);
@@ -48,7 +65,8 @@ export default function StagePage() {
 
   useEffect(() => {
     const groups = groupStandingRows(standings);
-    const nextKey = groups.find((group) => group.key === activeStandingGroupKey)?.key ?? groups[0]?.key ?? "";
+    const nextKey =
+      groups.find((group) => group.key === activeStandingGroupKey)?.key ?? groups[0]?.key ?? "";
 
     if (activeStandingGroupKey !== nextKey) {
       setActiveStandingGroupKey(nextKey);
@@ -56,18 +74,30 @@ export default function StagePage() {
   }, [activeStandingGroupKey, standings]);
 
   async function refresh(nextTournamentId?: string) {
-    const cacheKey = pageCacheKey("stage", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
+    const storedTournamentId = getSelectedTournamentId();
+    const requestedTournamentId = nextTournamentId ?? storedTournamentId;
+    const cacheKey = pageCacheKey("stage", requestedTournamentId || "auto");
     const cached = readPageCache<StageCache>(cacheKey);
 
     if (cached) {
+      const cachedSelectedTournamentId = chooseTournamentId(
+        cached.tournaments,
+        requestedTournamentId,
+        cached.selectedTournamentId,
+      );
+
       setTournaments(cached.tournaments);
-      setSelectedId(cached.selectedTournamentId);
+      setSelectedId(cachedSelectedTournamentId);
       setDetail(cached.detail);
       setSelectedStageId(cached.selectedStageId);
       setRounds(cached.rounds);
       setStandings(cached.standings);
       setBracket(cached.bracket);
       setLoading(false);
+
+      if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
+        setSelectedTournamentId(cachedSelectedTournamentId);
+      }
     } else {
       setLoading(true);
     }
@@ -80,10 +110,17 @@ export default function StagePage() {
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
+      const targetId = chooseTournamentId(
+        allTournaments,
+        nextTournamentId,
+        getSelectedTournamentId(),
+      );
       const nextDetail = targetId ? await loadTournament(targetId) : null;
       const officialStages = nextDetail?.stages?.filter(isOfficialScheduleStage) ?? [];
-      const nextStageId = officialStages.find((stage) => stage.id === nextDetail?.currentStage?.id)?.id ?? officialStages[0]?.id ?? "";
+      const nextStageId =
+        officialStages.find((stage) => stage.id === nextDetail?.currentStage?.id)?.id ??
+        officialStages[0]?.id ??
+        "";
 
       if (targetId) {
         setSelectedTournamentId(targetId);
@@ -135,16 +172,22 @@ export default function StagePage() {
     setStageLoading(true);
 
     try {
-      const cacheKey = pageCacheKey("stage", context?.selectedTournamentId || selectedTournamentId || "auto");
+      const cacheKey = pageCacheKey(
+        "stage",
+        context?.selectedTournamentId || selectedTournamentId || "auto",
+      );
       const cached = readPageCache<StageCache>(cacheKey);
       const [roundsResult, standingsResult, bracketResult] = await Promise.allSettled([
         loadStageRounds(stageId),
         loadStageStandings(stageId),
         loadStageBracket(stageId),
       ]);
-      const nextRounds = roundsResult.status === "fulfilled" ? roundsResult.value : cached?.rounds ?? [];
-      const nextStandings = standingsResult.status === "fulfilled" ? standingsResult.value : cached?.standings ?? [];
-      const nextBracket = bracketResult.status === "fulfilled" ? bracketResult.value : cached?.bracket ?? [];
+      const nextRounds =
+        roundsResult.status === "fulfilled" ? roundsResult.value : (cached?.rounds ?? []);
+      const nextStandings =
+        standingsResult.status === "fulfilled" ? standingsResult.value : (cached?.standings ?? []);
+      const nextBracket =
+        bracketResult.status === "fulfilled" ? bracketResult.value : (cached?.bracket ?? []);
 
       setRounds(nextRounds);
       setStandings(nextStandings);
@@ -166,11 +209,18 @@ export default function StagePage() {
   const officialStages = detail?.stages?.filter(isOfficialScheduleStage) ?? [];
   const selectedStage = officialStages.find((stage) => stage.id === selectedStageId) ?? null;
   const standingGroups = groupStandingRows(standings);
-  const activeStandingGroup = standingGroups.find((group) => group.key === activeStandingGroupKey) ?? standingGroups[0] ?? null;
+  const activeStandingGroup =
+    standingGroups.find((group) => group.key === activeStandingGroupKey) ??
+    standingGroups[0] ??
+    null;
 
   return (
     <PageShell loading={loading} error={error} routeKey="stage">
-      <TournamentScope tournament={detail ?? tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
+      <TournamentScope
+        tournament={
+          detail ?? tournaments.find((tournament) => tournament.id === selectedTournamentId)
+        }
+      />
 
       {selectedStage ? (
         <>
@@ -193,12 +243,18 @@ export default function StagePage() {
             </View>
             <View className="stage-head">
               <View>
-                <Text className="section-heading">{selectedStage.name} · {rounds[0]?.name ?? labelStatus(selectedStage.status)}</Text>
+                <Text className="section-heading">
+                  {selectedStage.name} · {rounds[0]?.name ?? labelStatus(selectedStage.status)}
+                </Text>
               </View>
             </View>
           </View>
 
-          {stageLoading ? <View className="content-panel"><Text className="muted">阶段数据读取中。</Text></View> : null}
+          {stageLoading ? (
+            <View className="content-panel">
+              <Text className="muted">阶段数据读取中。</Text>
+            </View>
+          ) : null}
 
           {selectedStage.type !== "knockout" ? (
             <View className="section-panel">
@@ -222,9 +278,18 @@ export default function StagePage() {
                 </View>
               ) : null}
               <View className="standing-list">
-                {activeStandingGroup && activeStandingGroup.rows.length > 0 ? activeStandingGroup.rows.map((row) => (
-                  <StandingRowItem key={`${row.groupName ?? "all"}-${row.teamId}-${row.rank}`} row={row} />
-                )) : <View className="content-panel"><Text className="muted">暂无</Text></View>}
+                {activeStandingGroup && activeStandingGroup.rows.length > 0 ? (
+                  activeStandingGroup.rows.map((row) => (
+                    <StandingRowItem
+                      key={`${row.groupName ?? "all"}-${row.teamId}-${row.rank}`}
+                      row={row}
+                    />
+                  ))
+                ) : (
+                  <View className="content-panel">
+                    <Text className="muted">暂无</Text>
+                  </View>
+                )}
               </View>
             </View>
           ) : null}
@@ -237,9 +302,19 @@ export default function StagePage() {
               <Text className="status-tag blue">{rounds[0]?.name ?? "暂无"}</Text>
             </View>
             <View className="schedule-list">
-              {rounds.flatMap((round) => round.series).length > 0 ? rounds.flatMap((round) => (
-                round.series.map((series) => <SeriesCard key={series.id} series={{ ...series, roundName: round.name }} />)
-              )).slice(0, 6) : <View className="content-panel"><Text className="muted">暂无</Text></View>}
+              {rounds.flatMap((round) => round.series).length > 0 ? (
+                rounds
+                  .flatMap((round) =>
+                    round.series.map((series) => (
+                      <SeriesCard key={series.id} series={{ ...series, roundName: round.name }} />
+                    )),
+                  )
+                  .slice(0, 6)
+              ) : (
+                <View className="content-panel">
+                  <Text className="muted">暂无</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -250,12 +325,20 @@ export default function StagePage() {
                   <Text className="section-heading">淘汰赛对阵图</Text>
                 </View>
               </View>
-              {bracket.length > 0 ? <BracketPreview nodes={bracket} /> : <View className="content-panel"><Text className="muted">暂无</Text></View>}
+              {bracket.length > 0 ? (
+                <BracketPreview nodes={bracket} />
+              ) : (
+                <View className="content-panel">
+                  <Text className="muted">暂无</Text>
+                </View>
+              )}
             </View>
           ) : null}
         </>
       ) : (
-        <View className="content-panel"><Text className="muted">后台还没有创建官方阶段。</Text></View>
+        <View className="content-panel">
+          <Text className="muted">后台还没有创建官方阶段。</Text>
+        </View>
       )}
     </PageShell>
   );
@@ -264,23 +347,54 @@ export default function StagePage() {
 function BracketPreview(props: { nodes: BracketNode[] }) {
   const groups = groupBracketNodes(props.nodes);
   const nodeLookup = new Map(props.nodes.map((node) => [node.id, node]));
-  const isUnifiedDoubleElimination = groups.some((group) => group.key === "winner" || group.key === "loser" || group.key === "grand_final");
-  const unifiedLayout = isUnifiedDoubleElimination ? buildUnifiedMiniBracketLayout(groups, props.nodes) : null;
-  const extraGroups = groups.filter((group) => group.key !== "winner" && group.key !== "loser" && group.key !== "grand_final");
+  const isUnifiedDoubleElimination = groups.some(
+    (group) => group.key === "winner" || group.key === "loser" || group.key === "grand_final",
+  );
+  const unifiedLayout = isUnifiedDoubleElimination
+    ? buildUnifiedMiniBracketLayout(groups, props.nodes)
+    : null;
+  const extraGroups = groups.filter(
+    (group) => group.key !== "winner" && group.key !== "loser" && group.key !== "grand_final",
+  );
 
   return (
     <ScrollView className="bracket-mini-board" scrollX>
-      <View className={`bracket-scroll-content ${unifiedLayout ? "is-unified" : ""}`} {...(unifiedLayout ? { style: { width: `${unifiedLayout.width}px` } } : {})}>
+      <View
+        className={`bracket-scroll-content ${unifiedLayout ? "is-unified" : ""}`}
+        {...(unifiedLayout ? { style: { width: `${unifiedLayout.width}px` } } : {})}
+      >
         {unifiedLayout ? (
-          <View className="bracket-unified-map is-combined" style={{ width: `${unifiedLayout.width}px`, gridTemplateColumns: `repeat(${unifiedLayout.columnCount}, ${MINI_BRACKET_COLUMN_WIDTH}px)` }}>
+          <View
+            className="bracket-unified-map is-combined"
+            style={{
+              width: `${unifiedLayout.width}px`,
+              gridTemplateColumns: `repeat(${unifiedLayout.columnCount}, ${MINI_BRACKET_COLUMN_WIDTH}px)`,
+            }}
+          >
             <Text className="bracket-unified-lane-label is-winner">胜者组</Text>
             <Text className="bracket-unified-lane-label is-loser">败者组</Text>
-            {unifiedLayout.columns.map((column) => <BracketUnifiedColumn key={column.key} column={column} nodeLookup={nodeLookup} />)}
-            {extraGroups.map((group) => <BracketGroupLane key={group.key} group={group} nodeLookup={nodeLookup} width={bracketTrackWidth(group.columns.length)} />)}
+            {unifiedLayout.columns.map((column) => (
+              <BracketUnifiedColumn key={column.key} column={column} nodeLookup={nodeLookup} />
+            ))}
+            {extraGroups.map((group) => (
+              <BracketGroupLane
+                key={group.key}
+                group={group}
+                nodeLookup={nodeLookup}
+                width={bracketTrackWidth(group.columns.length)}
+              />
+            ))}
           </View>
-        ) : groups.map((group) => (
-          <BracketGroupLane key={group.key} group={group} nodeLookup={nodeLookup} width={bracketTrackWidth(group.columns.length)} />
-        ))}
+        ) : (
+          groups.map((group) => (
+            <BracketGroupLane
+              key={group.key}
+              group={group}
+              nodeLookup={nodeLookup}
+              width={bracketTrackWidth(group.columns.length)}
+            />
+          ))
+        )}
       </View>
     </ScrollView>
   );
@@ -301,14 +415,20 @@ type UnifiedMiniBracketColumn = {
   nodes: BracketNode[];
 };
 
-function BracketUnifiedColumn(props: { column: UnifiedMiniBracketColumn; nodeLookup: Map<string, BracketNode> }) {
+function BracketUnifiedColumn(props: {
+  column: UnifiedMiniBracketColumn;
+  nodeLookup: Map<string, BracketNode>;
+}) {
   const { column } = props;
   const isGrandFinal = column.groupKey === "grand_final";
 
   return (
     <View
       className={`bracket-column bracket-unified-column is-${column.groupKey}`}
-      style={{ gridColumn: `${column.displayColumn + 1}`, gridRow: isGrandFinal ? "1" : column.groupKey === "winner" ? "1" : "2" }}
+      style={{
+        gridColumn: `${column.displayColumn + 1}`,
+        gridRow: isGrandFinal ? "1" : column.groupKey === "winner" ? "1" : "2",
+      }}
     >
       <Text className="bracket-round-title">{column.roundName}</Text>
       <View className="bracket-column-body">
@@ -320,11 +440,19 @@ function BracketUnifiedColumn(props: { column: UnifiedMiniBracketColumn; nodeLoo
   );
 }
 
-function BracketGroupLane(props: { group: BracketGroupLayout; nodeLookup: Map<string, BracketNode>; width: number; extraClassName?: string }) {
+function BracketGroupLane(props: {
+  group: BracketGroupLayout;
+  nodeLookup: Map<string, BracketNode>;
+  width: number;
+  extraClassName?: string;
+}) {
   const { group } = props;
 
   return (
-    <View className={`bracket-group-lane ${props.extraClassName ?? ""}`.trim()} style={{ width: `${props.width}px` }}>
+    <View
+      className={`bracket-group-lane ${props.extraClassName ?? ""}`.trim()}
+      style={{ width: `${props.width}px` }}
+    >
       <View className="bracket-group-title">
         <Text>{group.label}</Text>
         <Text>{group.nodeCount} 场</Text>
@@ -349,9 +477,25 @@ function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, Bra
   const { node } = props;
   const radiantWinner = Boolean(node.winnerTeamId && node.radiantTeam?.id === node.winnerTeamId);
   const direWinner = Boolean(node.winnerTeamId && node.direTeam?.id === node.winnerTeamId);
-  const winnerName = radiantWinner ? teamName(node.radiantTeam) : direWinner ? teamName(node.direTeam) : "";
-  const winnerTarget = formatBracketTarget(props.nodeLookup, node.nextNodeId ?? null, node.nextSlot ?? null, "冠军");
-  const loserTarget = node.loserNextNodeId ? formatBracketTarget(props.nodeLookup, node.loserNextNodeId, node.loserNextSlot ?? null, "淘汰") : "淘汰";
+  const winnerName = radiantWinner
+    ? teamName(node.radiantTeam)
+    : direWinner
+      ? teamName(node.direTeam)
+      : "";
+  const winnerTarget = formatBracketTarget(
+    props.nodeLookup,
+    node.nextNodeId ?? null,
+    node.nextSlot ?? null,
+    "冠军",
+  );
+  const loserTarget = node.loserNextNodeId
+    ? formatBracketTarget(
+        props.nodeLookup,
+        node.loserNextNodeId,
+        node.loserNextSlot ?? null,
+        "淘汰",
+      )
+    : "淘汰";
 
   return (
     <View className={`bracket-node ${node.status === "completed" ? "is-completed" : ""}`}>
@@ -389,7 +533,10 @@ function groupBracketNodes(nodes: BracketNode[]): BracketGroupLayout[] {
   }
 
   return [...groups.entries()]
-    .sort(([left], [right]) => bracketGroupSortValue(left) - bracketGroupSortValue(right) || left.localeCompare(right))
+    .sort(
+      ([left], [right]) =>
+        bracketGroupSortValue(left) - bracketGroupSortValue(right) || left.localeCompare(right),
+    )
     .map(([key, rounds]) => ({
       key,
       label: bracketGroupLabel(key),
@@ -401,7 +548,10 @@ function groupBracketNodes(nodes: BracketNode[]): BracketGroupLayout[] {
           roundNumber: roundNodes[0]?.roundNumber ?? 0,
           nodes: roundNodes.slice().sort((left, right) => left.position - right.position),
         }))
-        .sort((left, right) => left.roundNumber - right.roundNumber || left.roundName.localeCompare(right.roundName)),
+        .sort(
+          (left, right) =>
+            left.roundNumber - right.roundNumber || left.roundName.localeCompare(right.roundName),
+        ),
     }));
 }
 
@@ -414,10 +564,16 @@ function buildUnifiedMiniBracketLayout(groups: BracketGroupLayout[], nodes: Brac
     return null;
   }
 
-  const firstLoserColumnNodeIds = new Set(loserGroup.columns[0]?.nodes.map((node) => node.id) ?? []);
+  const firstLoserColumnNodeIds = new Set(
+    loserGroup.columns[0]?.nodes.map((node) => node.id) ?? [],
+  );
   const firstLoserRoundReceivesWinnerDrop = nodes.some((node) => {
     const loserNextNodeId = node.loserNextNodeId ?? null;
-    return node.bracketGroup === "winner" && loserNextNodeId !== null && firstLoserColumnNodeIds.has(loserNextNodeId);
+    return (
+      node.bracketGroup === "winner" &&
+      loserNextNodeId !== null &&
+      firstLoserColumnNodeIds.has(loserNextNodeId)
+    );
   });
   const loserOpeningColumnOffset = firstLoserRoundReceivesWinnerDrop ? 1 : 0;
   const winnerColumns = winnerGroup.columns.map((column, index) => ({
@@ -438,8 +594,16 @@ function buildUnifiedMiniBracketLayout(groups: BracketGroupLayout[], nodes: Brac
     groupKey: "grand_final",
     displayColumn: grandFinalDisplayColumn + index,
   }));
-  const columns: UnifiedMiniBracketColumn[] = [...winnerColumns, ...loserColumns, ...grandFinalColumns]
-    .sort((left, right) => left.displayColumn - right.displayColumn || bracketGroupSortValue(left.groupKey) - bracketGroupSortValue(right.groupKey) || left.roundName.localeCompare(right.roundName));
+  const columns: UnifiedMiniBracketColumn[] = [
+    ...winnerColumns,
+    ...loserColumns,
+    ...grandFinalColumns,
+  ].sort(
+    (left, right) =>
+      left.displayColumn - right.displayColumn ||
+      bracketGroupSortValue(left.groupKey) - bracketGroupSortValue(right.groupKey) ||
+      left.roundName.localeCompare(right.roundName),
+  );
   const columnCount = Math.max(...columns.map((column) => column.displayColumn)) + 1;
 
   return {
@@ -469,17 +633,29 @@ const MINI_BRACKET_COLUMN_WIDTH = 150;
 const MINI_BRACKET_COLUMN_GAP = 14;
 
 function bracketTrackWidth(columnCount: number): number {
-  return Math.max(1, columnCount) * MINI_BRACKET_COLUMN_WIDTH + Math.max(0, columnCount - 1) * MINI_BRACKET_COLUMN_GAP;
+  return (
+    Math.max(1, columnCount) * MINI_BRACKET_COLUMN_WIDTH +
+    Math.max(0, columnCount - 1) * MINI_BRACKET_COLUMN_GAP
+  );
 }
 
-function formatBracketTarget(nodes: Map<string, BracketNode>, nodeId: string | null, slot: "radiant" | "dire" | null, fallback: string): string {
+function formatBracketTarget(
+  nodes: Map<string, BracketNode>,
+  nodeId: string | null,
+  slot: "radiant" | "dire" | null,
+  fallback: string,
+): string {
   if (!nodeId) return fallback;
   const node = nodes.get(nodeId);
   const slotLabel = slot === "radiant" ? "上位" : slot === "dire" ? "下位" : "待定槽";
-  return node ? `${bracketGroupLabel(node.bracketGroup)} #${node.position} ${slotLabel}` : `下一节点 ${slotLabel}`;
+  return node
+    ? `${bracketGroupLabel(node.bracketGroup)} #${node.position} ${slotLabel}`
+    : `下一节点 ${slotLabel}`;
 }
 
-function groupStandingRows(rows: StandingRow[]): Array<{ key: string; label: string; rows: StandingRow[] }> {
+function groupStandingRows(
+  rows: StandingRow[],
+): Array<{ key: string; label: string; rows: StandingRow[] }> {
   const groups = new Map<string, { key: string; label: string; rows: StandingRow[] }>();
 
   for (const row of rows) {
@@ -503,7 +679,9 @@ function StandingRowItem(props: { row: StandingRow }) {
     <View className="standing-row">
       <Text className="rank">{row.rank}</Text>
       <Text>{teamName(row.team)}</Text>
-      <Text>{row.seriesWins}-{row.seriesDraws}-{row.seriesLosses}</Text>
+      <Text>
+        {row.seriesWins}-{row.seriesDraws}-{row.seriesLosses}
+      </Text>
       <Text>{row.points} 分</Text>
     </View>
   );

@@ -1,7 +1,13 @@
 import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
-import { ensureTournamentId, getSelectedTournamentId, loadTournamentTeams, loadTournaments, setSelectedTournamentId } from "../../api";
+import {
+  chooseTournamentId,
+  getSelectedTournamentId,
+  loadTournamentTeams,
+  loadTournaments,
+  setSelectedTournamentId,
+} from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, TeamDirectoryCard, TournamentScope } from "../../components";
 import type { TeamListItem, TournamentOption } from "../../types";
@@ -14,11 +20,22 @@ type TeamsCache = {
 };
 
 export default function TeamsPage() {
-  const [initialCache] = useState(() => readPageCache<TeamsCache>(pageCacheKey("teams", getSelectedTournamentId() || "auto")));
+  const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
+  const [initialCache] = useState(() =>
+    readPageCache<TeamsCache>(pageCacheKey("teams", initialStoredTournamentId || "auto")),
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
-  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(
+    () => initialCache?.tournaments ?? [],
+  );
+  const [selectedTournamentId, setSelectedId] = useState(() =>
+    chooseTournamentId(
+      initialCache?.tournaments ?? [],
+      initialStoredTournamentId,
+      initialCache?.selectedTournamentId,
+    ),
+  );
   const [teams, setTeams] = useState<TeamListItem[]>(() => initialCache?.teams ?? []);
 
   useDidShow(() => {
@@ -26,14 +43,26 @@ export default function TeamsPage() {
   });
 
   async function refresh(nextTournamentId?: string) {
-    const cacheKey = pageCacheKey("teams", nextTournamentId ?? (getSelectedTournamentId() || "auto"));
+    const storedTournamentId = getSelectedTournamentId();
+    const requestedTournamentId = nextTournamentId ?? storedTournamentId;
+    const cacheKey = pageCacheKey("teams", requestedTournamentId || "auto");
     const cached = readPageCache<TeamsCache>(cacheKey);
 
     if (cached) {
+      const cachedSelectedTournamentId = chooseTournamentId(
+        cached.tournaments,
+        requestedTournamentId,
+        cached.selectedTournamentId,
+      );
+
       setTournaments(cached.tournaments);
-      setSelectedId(cached.selectedTournamentId);
+      setSelectedId(cachedSelectedTournamentId);
       setTeams(cached.teams);
       setLoading(false);
+
+      if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
+        setSelectedTournamentId(cachedSelectedTournamentId);
+      }
     } else {
       setLoading(true);
     }
@@ -46,7 +75,11 @@ export default function TeamsPage() {
 
     try {
       const allTournaments = await loadTournaments();
-      const targetId = nextTournamentId || (await ensureTournamentId(allTournaments)) || "";
+      const targetId = chooseTournamentId(
+        allTournaments,
+        nextTournamentId,
+        getSelectedTournamentId(),
+      );
       const nextTeams = targetId ? await loadTournamentTeams(targetId) : [];
 
       if (targetId) {
@@ -73,12 +106,20 @@ export default function TeamsPage() {
   }
 
   const visibleTeams = useMemo(() => {
-    return teams.slice().sort((left, right) => right.stats.seriesPlayed - left.stats.seriesPlayed || left.name.localeCompare(right.name, "zh-CN"));
+    return teams
+      .slice()
+      .sort(
+        (left, right) =>
+          right.stats.seriesPlayed - left.stats.seriesPlayed ||
+          left.name.localeCompare(right.name, "zh-CN"),
+      );
   }, [teams]);
 
   return (
     <PageShell loading={loading} error={error} routeKey="teams">
-      <TournamentScope tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)} />
+      <TournamentScope
+        tournament={tournaments.find((tournament) => tournament.id === selectedTournamentId)}
+      />
       <View className="section-panel">
         <View className="section-title compact">
           <View>
@@ -91,11 +132,19 @@ export default function TeamsPage() {
             <TeamDirectoryCard
               key={team.id}
               team={team}
-              onOpen={(teamId) => navigate(`/pages/team-detail/index?tournamentId=${selectedTournamentId}&teamId=${teamId}`)}
+              onOpen={(teamId) =>
+                navigate(
+                  `/pages/team-detail/index?tournamentId=${selectedTournamentId}&teamId=${teamId}`,
+                )
+              }
             />
           ))}
         </View>
-        {visibleTeams.length === 0 ? <View className="content-panel"><Text className="muted">暂无</Text></View> : null}
+        {visibleTeams.length === 0 ? (
+          <View className="content-panel">
+            <Text className="muted">暂无</Text>
+          </View>
+        ) : null}
       </View>
     </PageShell>
   );
