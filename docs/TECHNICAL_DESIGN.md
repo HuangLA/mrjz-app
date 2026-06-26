@@ -617,8 +617,8 @@ api.example.com/api/*   -> Node.js API
 
 - H5 读取 `PUBLIC_API_BASE_URL` 或 `VITE_PUBLIC_API_BASE_URL` 作为构建期 API 地址；开发时可用 `npm run dev:mobile-web:local` 或设置 `MRJZ_REMOTE_API_BASE_URL` 后运行 `npm run dev:mobile-web:remote`。
 - H5 支持运行期临时覆盖：访问 `?apiBaseUrl=https://api.example.com/api` 会写入浏览器 localStorage，`?apiBaseUrl=local` 切回本地，`?apiBaseUrl=reset` 清除覆盖。
-- 小程序读取 `MRJZ_MINIPROGRAM_API_BASE_URL` 作为构建期默认 API 地址，也兼容 `PUBLIC_API_BASE_URL` / `VITE_PUBLIC_API_BASE_URL`；开发者工具预览可用 `dev:miniprogram:local` 或设置 `MRJZ_REMOTE_API_BASE_URL` 后运行 `dev:miniprogram:remote`。
-- 小程序不支持运行期手动切换 API 地址；提审、体验版和正式版必须通过构建期变量注入已配置微信 request 合法域名的 HTTPS API。
+- 小程序读取 `MRJZ_MINIPROGRAM_API_BASE_URL` 作为构建期默认 API 地址，也兼容 `PUBLIC_API_BASE_URL` / `VITE_PUBLIC_API_BASE_URL`；默认 `dev:miniprogram` / workspace `build` 指向线上 `https://api.dota2mrjz.icu/api`，本地调试显式使用 `dev:miniprogram:local` / `build:miniprogram:local`。
+- 小程序不支持运行期手动切换 API 地址；提审、体验版和正式版必须通过构建期变量注入已配置微信 request 合法域名的 HTTPS API。默认 Dota 图片跟随 API 域名加载时，还需要把同一域名加入微信 downloadFile 合法域名。
 - 小程序默认不打包全量 Dota 图片素材，构建时只复制本地 `src/assets/svg`；英雄、物品、技能和地图等 Dota 图片默认跟随当前 API 地址读取 `/api/assets/dota`，也可用 `MRJZ_MINIPROGRAM_DOTA_ASSET_BASE_URL` 指向独立静态域名。若需要全量本地素材调试，可运行 `dev:miniprogram:local-assets` 或 `build:miniprogram:local-assets`。
 - 小程序公开页采用 stale-while-revalidate 数据缓存：页面进入时先按当前 API 地址读取本地页面快照并立即渲染，再在后台静默请求最新接口；接口成功后更新 UI 和缓存，接口失败时保留旧缓存内容，不用错误页覆盖已有数据。
 
