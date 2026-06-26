@@ -1,5 +1,5 @@
 import { Button, Input, Text, View } from "@tarojs/components";
-import Taro, { useDidShow } from "@tarojs/taro";
+import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import {
   bindDotaAccount,
@@ -10,7 +10,6 @@ import {
   loginWithWeChat,
   logout,
   setSelectedTournamentId,
-  updateMyProfile,
 } from "../../api";
 import { PageShell, SectionTitle } from "../../components";
 import type { AppUserMe, AppUserStats, AuthSession } from "../../types";
@@ -23,7 +22,6 @@ export default function MinePage() {
   const [bindingInput, setBindingInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [bindingSaving, setBindingSaving] = useState(false);
-  const [profileSaving, setProfileSaving] = useState(false);
   const [error, setError] = useState("");
 
   useDidShow(() => {
@@ -55,19 +53,11 @@ export default function MinePage() {
 
   async function handleLogin() {
     setError("");
-
-    const confirmed = await confirmWechatLogin();
-
-    if (!confirmed) {
-      return;
-    }
-
-    const nickname = await getWechatProfileNickname();
-
     setLoading(true);
 
     try {
-      const nextSession = await loginWithWeChat(nickname ? { nickname } : {});
+      const nickname = await getWechatProfileNickname();
+      const nextSession = await loginWithWeChat({ nickname });
       setSession(nextSession);
       await refreshMine();
       showToast("登录成功", "success");
@@ -77,19 +67,6 @@ export default function MinePage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function confirmWechatLogin(): Promise<boolean> {
-    const result = await Taro.showModal({
-      title: "微信登录说明",
-      content:
-        "MRJZ 会通过微信登录凭证识别你的账号，并请求微信昵称用于站内展示；不获取手机号，头像暂不保存。",
-      confirmText: "继续登录",
-      cancelText: "取消",
-      confirmColor: "#d8ad55",
-    });
-
-    return result.confirm === true;
   }
 
   async function handleLogout() {
@@ -102,30 +79,6 @@ export default function MinePage() {
     setMe(null);
     setMyStats(null);
     showToast("已退出");
-  }
-
-  async function handleSyncWechatNickname() {
-    setProfileSaving(true);
-    setError("");
-
-    try {
-      const nickname = await getWechatProfileNickname();
-
-      if (!nickname) {
-        showToast("未获取到微信昵称", "error");
-        return;
-      }
-
-      const updated = await updateMyProfile({ nickname });
-      setSession((current) => (current ? { ...current, user: updated } : current));
-      setMe((current) => (current ? { ...current, nickname: updated.nickname } : current));
-      showToast("昵称已同步", "success");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "昵称同步失败");
-      showToast("昵称同步失败", "error");
-    } finally {
-      setProfileSaving(false);
-    }
   }
 
   async function handleBindAccount() {
@@ -206,13 +159,6 @@ export default function MinePage() {
               onClick={() => void refreshMine()}
             >
               刷新状态
-            </Button>
-            <Button
-              className="secondary-button"
-              loading={profileSaving}
-              onClick={() => void handleSyncWechatNickname()}
-            >
-              同步微信昵称
             </Button>
             <Button className="quick-button" onClick={() => void handleLogout()}>
               退出

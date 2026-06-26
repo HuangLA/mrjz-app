@@ -184,16 +184,22 @@ sequenceDiagram
   participant WX as 微信服务端
   participant DB as 数据库
 
-  MP->>MP: wx.login 获取 code
-  MP->>API: POST /api/auth/wechat-login { code }
-  API->>WX: code2Session
-  WX-->>API: openid, session_key, unionid
-  API->>DB: upsert app_user + create user_session
-  API-->>MP: opaque session token, expiresAt, user
-  MP->>API: Authorization: Bearer userToken
+  MP->>MP: 用户点击微信登录按钮
+  MP->>WX: wx.getUserProfile 授权获取 userInfo.nickName
+  alt 用户允许且昵称有效
+    MP->>MP: wx.login 获取 code
+    MP->>API: POST /api/auth/wechat-login { code, nickname }
+    API->>WX: code2Session
+    WX-->>API: openid, session_key, unionid
+    API->>DB: upsert app_user + create user_session
+    API-->>MP: opaque session token, expiresAt, user
+    MP->>API: Authorization: Bearer userToken
+  else 用户拒绝或微信未返回有效昵称
+    MP->>MP: 取消登录，不创建 session
+  end
 ```
 
-小程序登录只代表平台普通用户，不要求该用户已经参赛。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。提审、体验版和生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`，并严格使用微信 `code2Session`；小程序端不提供本地开发用户、运行期 API 地址切换或假 code 兜底。
+小程序登录只代表平台普通用户，不要求该用户已经参赛。登录动作必须由用户点击触发：前端先通过微信用户信息授权取得有效昵称，再调用 `wx.login` 获取 code 并交给后端 `code2Session` 换取微信身份；用户拒绝授权、微信未返回昵称或返回默认占位昵称时不创建 MRJZ session。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。提审、体验版和生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`，并严格使用微信 `code2Session`；小程序端不提供本地开发用户、运行期 API 地址切换或假 code 兜底。
 
 ### 4.2 Web Admin 登录
 
@@ -382,14 +388,13 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 ### 6.1 认证
 
-| 方法  | 路径                     | 说明                                            |
-| ----- | ------------------------ | ----------------------------------------------- |
-| POST  | `/api/auth/wechat-login` | 微信 code 登录                                  |
-| POST  | `/api/auth/logout`       | 退出登录                                        |
-| GET   | `/api/me`                | 当前用户和账号绑定                              |
-| PATCH | `/api/me/profile`        | 更新当前用户展示昵称                            |
-| POST  | `/api/me/player-binding` | 绑定 Dota account_id 或 SteamID64，可无比赛记录 |
-| GET   | `/api/me/stats`          | 我的本联赛数据                                  |
+| 方法 | 路径                     | 说明                                            |
+| ---- | ------------------------ | ----------------------------------------------- |
+| POST | `/api/auth/wechat-login` | 微信 code + 授权昵称登录                        |
+| POST | `/api/auth/logout`       | 退出登录                                        |
+| GET  | `/api/me`                | 当前用户和账号绑定                              |
+| POST | `/api/me/player-binding` | 绑定 Dota account_id 或 SteamID64，可无比赛记录 |
+| GET  | `/api/me/stats`          | 我的本联赛数据                                  |
 
 ### 6.2 Web Admin 认证
 
@@ -721,4 +726,6 @@ Web Admin：
 - OpenDota OpenAPI：[https://api.opendota.com/api](https://api.opendota.com/api)
 - OpenDota 文档入口：[https://docs.opendota.com/](https://docs.opendota.com/)
 - 微信小程序登录：[小程序登录](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/login.html)
+- 微信用户信息授权：[wx.getUserProfile](https://developers.weixin.qq.com/miniprogram/dev/api/open-api/user-info/wx.getUserProfile.html)
+- 微信头像昵称填写：[头像昵称填写](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/userProfile.html)
 - 微信 code2Session：[auth.code2Session](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-login/code2Session.html)

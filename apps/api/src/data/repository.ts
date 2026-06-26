@@ -43,7 +43,6 @@ import {
   type UpdateTournamentLifecycleInput,
   type UpdateGameResultInput,
   type AppUserView,
-  type UpdateAppUserProfileInput,
   type UpsertAppUserInput,
   type UserSessionView,
   type UpsertOpenDotaMatchInput,
@@ -116,7 +115,6 @@ type Repository = {
   ): TournamentPlayerDetail | undefined;
   getAppUser(userId: string): AppUserView | undefined;
   upsertAppUser(input: UpsertAppUserInput): AppUserView;
-  updateAppUserProfile(userId: string, input: UpdateAppUserProfileInput): AppUserView;
   createUserSession(userId: string): UserSessionView;
   resolveAppUserBySessionToken(token: string): AppUserView | undefined;
   revokeUserSession(token: string): { revoked: true };
@@ -296,10 +294,6 @@ export function getAppUser(userId: string) {
 
 export function upsertAppUser(input: UpsertAppUserInput) {
   return repository.upsertAppUser(input);
-}
-
-export function updateAppUserProfile(userId: string, input: UpdateAppUserProfileInput) {
-  return repository.updateAppUserProfile(userId, input);
 }
 
 export function createUserSession(userId: string) {

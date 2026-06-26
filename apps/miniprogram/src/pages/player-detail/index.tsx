@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   getLocalLikedTagIds,
   getStoredAuthSession,
+  getWechatProfileNickname,
   likePlayerTag,
   loadPlayerProfile,
   loadPlayerTags,
@@ -15,7 +16,14 @@ import {
   unlikePlayerTag,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { MatchRecordCard, PageShell, PlayerTeamMark, SectionTitle, SteamAvatar, TournamentScope } from "../../components";
+import {
+  MatchRecordCard,
+  PageShell,
+  PlayerTeamMark,
+  SectionTitle,
+  SteamAvatar,
+  TournamentScope,
+} from "../../components";
 import { heroIcon, heroLabel, heroPortrait } from "../../dota";
 import { SmartImage as Image } from "../../SmartImage";
 import type {
@@ -28,7 +36,14 @@ import type {
   ProfileMatchSummary,
   TournamentOption,
 } from "../../types";
-import { formatDate, formatDecimal, formatInteger, formatPercent, navigate, showToast } from "../../utils";
+import {
+  formatDate,
+  formatDecimal,
+  formatInteger,
+  formatPercent,
+  navigate,
+  showToast,
+} from "../../utils";
 
 type ProfileHeroLineupItem = Partial<MatchRecordHero> & {
   heroId?: number;
@@ -47,13 +62,19 @@ export default function PlayerDetailPage() {
   const tournamentId = String(router.params.tournamentId ?? "");
   const playerId = String(router.params.playerId ?? "");
   const fromTeamId = String(router.params.fromTeamId ?? "");
-  const [initialCache] = useState(() => (tournamentId && playerId ? readPageCache<PlayerDetailCache>(pageCacheKey("player-detail", tournamentId, playerId)) : null));
+  const [initialCache] = useState(() =>
+    tournamentId && playerId
+      ? readPageCache<PlayerDetailCache>(pageCacheKey("player-detail", tournamentId, playerId))
+      : null,
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [profile, setProfile] = useState<PlayerProfile | null>(() => initialCache?.profile ?? null);
   const [tags, setTags] = useState<PlayerTag[]>(() => initialCache?.tags ?? []);
-  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(
+    () => initialCache?.tournaments ?? [],
+  );
   const [draftTag, setDraftTag] = useState("");
   const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string>>(
     () => new Set(initialCache?.profile ? [initialCache.profile.tournamentId] : []),
@@ -122,7 +143,8 @@ export default function PlayerDetailPage() {
     }
 
     try {
-      const nextSession = await loginWithWeChat();
+      const nickname = await getWechatProfileNickname();
+      const nextSession = await loginWithWeChat({ nickname });
       setSession(nextSession);
       setLikedTagIds(getLocalLikedTagIds(nextSession.user.id));
       showToast("已登录", "success");
@@ -208,7 +230,11 @@ export default function PlayerDetailPage() {
     });
   }
 
-  function writePlayerDetailCache(nextProfile: PlayerProfile | null, nextTags: PlayerTag[], nextTournaments: TournamentOption[]): void {
+  function writePlayerDetailCache(
+    nextProfile: PlayerProfile | null,
+    nextTags: PlayerTag[],
+    nextTournaments: TournamentOption[],
+  ): void {
     if (!nextProfile) {
       return;
     }
@@ -222,16 +248,27 @@ export default function PlayerDetailPage() {
 
   return (
     <PageShell
-      backUrl={fromTeamId ? `/pages/team-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&teamId=${encodeURIComponent(fromTeamId)}` : undefined}
+      backUrl={
+        fromTeamId
+          ? `/pages/team-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&teamId=${encodeURIComponent(fromTeamId)}`
+          : undefined
+      }
       loading={loading}
       error={error}
       routeKey="players"
     >
       {profile ? (
         <>
-          <TournamentScope tournament={tournaments.find((tournament) => tournament.id === tournamentId)} />
+          <TournamentScope
+            tournament={tournaments.find((tournament) => tournament.id === tournamentId)}
+          />
 
-          <View className="profile-hero player-profile" style={profileAccentStyle(profile.currentTeam?.color ?? profile.teams[0]?.color ?? "#5eead4")}>
+          <View
+            className="profile-hero player-profile"
+            style={profileAccentStyle(
+              profile.currentTeam?.color ?? profile.teams[0]?.color ?? "#5eead4",
+            )}
+          >
             <View className="profile-hero-main">
               <SteamAvatar player={profile} size="large" />
               <View>
@@ -239,13 +276,17 @@ export default function PlayerDetailPage() {
                   <Text className="brand-title">{profile.displayName}</Text>
                   <PlayerTeamMark team={profile.currentTeam ?? profile.teams[0] ?? null} />
                 </View>
-                <Text className="brand-subtitle">{profile.currentTeam?.name ?? "暂未归队"} · Account {profile.accountId ?? "-"}</Text>
+                <Text className="brand-subtitle">
+                  {profile.currentTeam?.name ?? "暂未归队"} · Account {profile.accountId ?? "-"}
+                </Text>
               </View>
             </View>
             <View className="profile-winrate">
               <Text>本届胜率</Text>
               <Text>{formatPercent(profile.stats.winRate)}</Text>
-              <Text>{profile.stats.wins}W / {profile.stats.losses}L</Text>
+              <Text>
+                {profile.stats.wins}W / {profile.stats.losses}L
+              </Text>
             </View>
           </View>
 
@@ -283,7 +324,10 @@ export default function PlayerDetailPage() {
               { label: "场次", value: formatInteger(profile.stats.totalMatches) },
               { label: "胜率", value: formatPercent(profile.stats.winRate) },
               { label: "KDA", value: formatDecimal(profile.stats.kda, 2) },
-              { label: "场均K/D/A", value: `${formatDecimal(profile.stats.avgKills)}/${formatDecimal(profile.stats.avgDeaths)}/${formatDecimal(profile.stats.avgAssists)}` },
+              {
+                label: "场均K/D/A",
+                value: `${formatDecimal(profile.stats.avgKills)}/${formatDecimal(profile.stats.avgDeaths)}/${formatDecimal(profile.stats.avgAssists)}`,
+              },
               { label: "GPM", value: formatDecimal(profile.stats.avgGpm, 0) },
               { label: "XPM", value: formatDecimal(profile.stats.avgXpm, 0) },
               { label: "场均经济", value: formatCompact(profile.stats.avgNetWorth) },
@@ -297,10 +341,24 @@ export default function PlayerDetailPage() {
 
           <SectionTitle kicker="应援标签" title="给选手贴标签" />
           <View className="tag-editor">
-            <Text className="muted">{session ? `当前登录：${session.user.nickname}` : "登录微信小程序后可提交标签和真实点赞。"}</Text>
+            <Text className="muted">
+              {session
+                ? `当前登录：${session.user.nickname}`
+                : "登录微信小程序后可提交标签和真实点赞。"}
+            </Text>
             <View className="tag-input-row">
-              <Input className="tag-input" value={draftTag} maxlength={16} placeholder="输入 2-16 字短标签" onInput={(event) => setDraftTag(String(event.detail.value))} />
-              <Button className="primary-button" loading={saving} onClick={session ? handleSubmitTag : () => void ensureLogin()}>
+              <Input
+                className="tag-input"
+                value={draftTag}
+                maxlength={16}
+                placeholder="输入 2-16 字短标签"
+                onInput={(event) => setDraftTag(String(event.detail.value))}
+              />
+              <Button
+                className="primary-button"
+                loading={saving}
+                onClick={session ? handleSubmitTag : () => void ensureLogin()}
+              >
                 {session ? "提交" : "登录"}
               </Button>
             </View>
@@ -345,7 +403,9 @@ function SignatureHeroes(props: { heroes: PlayerProfile["stats"]["topHeroes"] })
               <Image mode="aspectFill" src={heroPortrait(hero.heroId)} />
               <View>
                 <Text>{heroLabel(hero.heroId)}</Text>
-                <Text>{hero.picks} 场 · {hero.wins} 胜 · {formatHeroWinRate(hero.wins, hero.picks)}</Text>
+                <Text>
+                  {hero.picks} 场 · {hero.wins} 胜 · {formatHeroWinRate(hero.wins, hero.picks)}
+                </Text>
               </View>
             </View>
           ))
@@ -376,7 +436,9 @@ function PlayerTournamentHistory(props: {
       matches: props.profile.matches,
     } satisfies PlayerTournamentHistoryEntry);
   const previousEntries = props.profile.tournamentHistory.filter((entry) => !entry.isCurrent);
-  const totalMatches = props.profile.tournamentHistory.reduce((sum, entry) => sum + entry.matches.length, 0) || props.profile.matches.length;
+  const totalMatches =
+    props.profile.tournamentHistory.reduce((sum, entry) => sum + entry.matches.length, 0) ||
+    props.profile.matches.length;
 
   return (
     <View className="section-panel player-history-panel">
@@ -406,8 +468,14 @@ function PlayerTournamentHistory(props: {
             const isOpen = props.expandedHistoryIds.has(entry.tournamentId);
 
             return (
-              <View className={`season-details ${isOpen ? "is-open" : ""}`} key={entry.tournamentId}>
-                <Button className="season-toggle" onClick={() => props.onToggleHistory(entry.tournamentId)}>
+              <View
+                className={`season-details ${isOpen ? "is-open" : ""}`}
+                key={entry.tournamentId}
+              >
+                <Button
+                  className="season-toggle"
+                  onClick={() => props.onToggleHistory(entry.tournamentId)}
+                >
                   <SeasonRecordHeader entry={entry} />
                   <Text className="season-toggle-label">{isOpen ? "收起" : "展开"}</Text>
                 </Button>
@@ -444,7 +512,11 @@ function SeasonRecordHeader(props: { entry: PlayerTournamentHistoryEntry; label?
   );
 }
 
-function ProfileMatchCards(props: { matches: ProfileMatchSummary[]; tournamentId: string; tournamentName: string }) {
+function ProfileMatchCards(props: {
+  matches: ProfileMatchSummary[];
+  tournamentId: string;
+  tournamentName: string;
+}) {
   return (
     <View className="profile-record-list">
       {props.matches.length > 0 ? (
@@ -465,7 +537,11 @@ function ProfileMatchCards(props: { matches: ProfileMatchSummary[]; tournamentId
   );
 }
 
-function profileMatchToRecord(match: ProfileMatchSummary, tournamentId: string, tournamentName: string): MatchRecord {
+function profileMatchToRecord(
+  match: ProfileMatchSummary,
+  tournamentId: string,
+  tournamentName: string,
+): MatchRecord {
   const heroLineups = profileMatchHeroLineups(match);
   const playerCount = match.playerCount ?? heroLineups.radiant.length + heroLineups.dire.length;
 
@@ -490,13 +566,20 @@ function profileMatchToRecord(match: ProfileMatchSummary, tournamentId: string, 
   };
 }
 
-function profileMatchHeroLineups(match: ProfileMatchSummary): NonNullable<MatchRecord["heroLineups"]> {
+function profileMatchHeroLineups(
+  match: ProfileMatchSummary,
+): NonNullable<MatchRecord["heroLineups"]> {
   const heroLineups = {
     radiant: normalizeProfileHeroLineup(match.heroLineups?.radiant),
     dire: normalizeProfileHeroLineup(match.heroLineups?.dire),
   };
 
-  if (heroLineups.radiant.length > 0 || heroLineups.dire.length > 0 || match.heroId === null || match.side === null) {
+  if (
+    heroLineups.radiant.length > 0 ||
+    heroLineups.dire.length > 0 ||
+    match.heroId === null ||
+    match.side === null
+  ) {
     return heroLineups;
   }
 
@@ -515,7 +598,9 @@ function profileMatchHeroLineups(match: ProfileMatchSummary): NonNullable<MatchR
   };
 }
 
-function normalizeProfileHeroLineup(lineup: ProfileHeroLineupItem[] | undefined): MatchRecordHero[] {
+function normalizeProfileHeroLineup(
+  lineup: ProfileHeroLineupItem[] | undefined,
+): MatchRecordHero[] {
   return (lineup ?? [])
     .map((hero) => {
       if (typeof hero.heroId !== "number" || hero.heroId <= 0) {
@@ -579,9 +664,13 @@ function profileAccentStyle(accent: string): CSSProperties {
 
 function hexToRgba(hex: string, alpha: number): string {
   const normalized = hex.trim().replace(/^#/, "");
-  const full = normalized.length === 3
-    ? normalized.split("").map((char) => `${char}${char}`).join("")
-    : normalized;
+  const full =
+    normalized.length === 3
+      ? normalized
+          .split("")
+          .map((char) => `${char}${char}`)
+          .join("")
+      : normalized;
 
   if (!/^[\da-fA-F]{6}$/.test(full)) {
     return `rgba(94, 234, 212, ${alpha})`;
@@ -595,8 +684,13 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 function mergeTag(tags: PlayerTag[], updated: PlayerTag): PlayerTag[] {
-  const next = tags.some((tag) => tag.id === updated.id) ? tags.map((tag) => (tag.id === updated.id ? updated : tag)) : [updated, ...tags];
+  const next = tags.some((tag) => tag.id === updated.id)
+    ? tags.map((tag) => (tag.id === updated.id ? updated : tag))
+    : [updated, ...tags];
   return next
     .filter((tag) => tag.status === "approved")
-    .sort((left, right) => right.likeCount - left.likeCount || left.createdAt.localeCompare(right.createdAt));
+    .sort(
+      (left, right) =>
+        right.likeCount - left.likeCount || left.createdAt.localeCompare(right.createdAt),
+    );
 }

@@ -611,10 +611,6 @@ export type AppUserView = {
 export type UpsertAppUserInput = {
   openId: string;
   unionId?: string | null;
-  nickname?: string;
-};
-
-export type UpdateAppUserProfileInput = {
   nickname: string;
 };
 
@@ -2658,7 +2654,7 @@ export class SqliteTournamentRepository {
   upsertAppUser(input: UpsertAppUserInput): AppUserView {
     const openId = requiredString(input.openId, "openId");
     const unionId = cleanOptionalText(input.unionId) ?? null;
-    const nickname = cleanOptionalNickname(input.nickname) ?? "微信用户";
+    const nickname = requiredNickname(input.nickname);
     const existing = this.database
       .prepare("SELECT * FROM app_users WHERE open_id = ?")
       .get(openId) as DbRow | undefined;
@@ -2704,34 +2700,6 @@ export class SqliteTournamentRepository {
     }
 
     return this.mapAppUser(created as DbRow);
-  }
-
-  updateAppUserProfile(userId: string, input: UpdateAppUserProfileInput): AppUserView {
-    const id = requiredString(userId, "userId");
-    const nickname = requiredNickname(input.nickname);
-    const result = this.database
-      .prepare(
-        `
-          UPDATE app_users
-          SET
-            nickname = ?,
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id = ?
-        `,
-      )
-      .run(nickname, id);
-
-    if (result.changes === 0) {
-      throw new Error("app user not found");
-    }
-
-    const updated = this.database.prepare("SELECT * FROM app_users WHERE id = ?").get(id);
-
-    if (updated === undefined) {
-      throw new Error("updated app user could not be loaded");
-    }
-
-    return this.mapAppUser(updated as DbRow);
   }
 
   createUserSession(userId: string): UserSessionView {
@@ -10238,6 +10206,10 @@ function requiredNickname(value: string | undefined): string {
 
   if (nickname === undefined) {
     throw new Error("nickname is required");
+  }
+
+  if (nickname === "微信用户") {
+    throw new Error("nickname authorization is required");
   }
 
   return nickname;

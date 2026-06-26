@@ -72,7 +72,6 @@ import {
   upsertAppUser,
   updateTeam,
   updateAcknowledgement,
-  updateAppUserProfile,
   updateTournamentLifecycle,
   updatePlayerTagReview,
   updateSeries,
@@ -219,21 +218,6 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(me);
-  });
-
-  router.patch("/api/me/profile", async ({ request }) => {
-    const user = appUserFromRequest(request);
-
-    if (user === null) {
-      return fail(401, "UNAUTHORIZED", "Login is required");
-    }
-
-    try {
-      const body = await readJsonBody(request);
-      return ok(updateAppUserProfile(user.id, bodyToUpdateAppUserProfileInput(body)));
-    } catch (error) {
-      return validationError(error);
-    }
   });
 
   router.post("/api/me/player-binding", async ({ request }) => {
@@ -1201,7 +1185,6 @@ function isAppUserRoute(context: RouteGuardContext): boolean {
     context.pattern === "/api/auth/wechat-login" ||
     context.pattern === "/api/auth/logout" ||
     context.pattern === "/api/me" ||
-    context.pattern === "/api/me/profile" ||
     context.pattern === "/api/me/player-binding" ||
     context.pattern === "/api/me/stats" ||
     context.pattern.startsWith("/api/miniprogram/")
@@ -1703,12 +1686,6 @@ function bodyToBindDotaAccountInput(body: Record<string, unknown>) {
   }) as Parameters<typeof bindAppUserDotaAccount>[1];
 }
 
-function bodyToUpdateAppUserProfileInput(body: Record<string, unknown>) {
-  return {
-    nickname: stringField(body, "nickname"),
-  } satisfies Parameters<typeof updateAppUserProfile>[1];
-}
-
 function bodyToAdminLoginInput(body: Record<string, unknown>) {
   return {
     username: stringField(body, "username"),
@@ -1913,7 +1890,7 @@ type ResolvedWechatLogin = {
 
 async function resolveWechatLogin(body: Record<string, unknown>): Promise<ResolvedWechatLogin> {
   const code = stringField(body, "code");
-  const nickname = optionalStringField(body, "nickname") ?? "微信用户";
+  const nickname = wechatNicknameField(body);
   const appId = process.env.WECHAT_APP_ID?.trim();
   const appSecret = process.env.WECHAT_APP_SECRET?.trim();
   const hasWechatCredentials =
@@ -1937,7 +1914,7 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
 
   return {
     openId: `dev:${devUserId}`,
-    nickname: nickname === "微信用户" ? `开发用户 ${devUserId}` : nickname,
+    nickname,
     provider: "development",
   };
 }
@@ -2004,6 +1981,16 @@ function stringField(body: Record<string, unknown>, fieldName: string): string {
   }
 
   return value.trim();
+}
+
+function wechatNicknameField(body: Record<string, unknown>): string {
+  const nickname = Array.from(stringField(body, "nickname")).slice(0, 64).join("");
+
+  if (nickname === "微信用户") {
+    throw new Error("WeChat nickname authorization is required");
+  }
+
+  return nickname;
 }
 
 function optionalStringField(body: Record<string, unknown>, fieldName: string): string | undefined {
