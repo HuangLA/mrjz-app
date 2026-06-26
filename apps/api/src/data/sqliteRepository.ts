@@ -173,7 +173,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   },
   {
     key: "netWorth",
-    title: "世界首富",
+    title: "马斯克",
     description: "场均财产最高",
     metricLabel: "场均财产",
     unit: "",

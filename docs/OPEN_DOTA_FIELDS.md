@@ -198,7 +198,7 @@ score =
 | 老吴 | `players[].damage_taken` | 字段为对象时先求和再按场均 |
 | 战争机器 | `players[].hero_damage` | 场均英雄伤害 |
 | 助攻王 | `players[].assists` | 场均助攻 |
-| 世界首富 | `players[].net_worth`，缺失时降级到 `total_gold` / `gold` | 场均财产 |
+| 马斯克 | `players[].net_worth`，缺失时降级到 `total_gold` / `gold` | 场均财产 |
 | 拆迁队队长 | `players[].tower_damage` | 场均建筑伤害 |
 | 喝茶散步 | `players[].gold_per_min` | 场均 GPM 最低，按低值优先排名 |
 | 技师 | `players[].hero_damage` | 场均英雄伤害最低，按低值优先排名 |
