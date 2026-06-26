@@ -2,7 +2,7 @@ import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import { ensureTournamentId, getSelectedTournamentId, loadHeroLeaderboards, loadTournaments, setSelectedTournamentId } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, SteamAvatar, TournamentScope } from "../../components";
 import type { HeroLeaderboardCandidate, HeroLeaderboardItem, HeroLeaderboardsView, TournamentOption } from "../../types";
 import { formatDecimal, formatInteger, navigate } from "../../utils";
@@ -39,6 +39,10 @@ export default function HeroLeaderboardPage() {
     }
 
     setError("");
+
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
 
     try {
       const allTournaments = await loadTournaments();

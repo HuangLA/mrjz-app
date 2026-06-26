@@ -8,7 +8,7 @@ import {
   loadTournaments,
   setSelectedTournamentId,
 } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell } from "../../components";
 import { SmartImage as Image } from "../../SmartImage";
 import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
@@ -48,6 +48,10 @@ export default function HomePage() {
     }
 
     setError("");
+
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
 
     try {
       const [allTournaments, acknowledgementItems] = await Promise.all([

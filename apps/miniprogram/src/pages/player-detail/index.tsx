@@ -14,7 +14,7 @@ import {
   submitPlayerTag,
   unlikePlayerTag,
 } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { MatchRecordCard, PageShell, PlayerTeamMark, SectionTitle, SteamAvatar, TournamentScope } from "../../components";
 import { heroIcon, heroLabel, heroPortrait } from "../../dota";
 import { SmartImage as Image } from "../../SmartImage";
@@ -88,6 +88,10 @@ export default function PlayerDetailPage() {
 
     setError("");
 
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
+
     try {
       const [nextProfile, nextTags, nextTournaments] = await Promise.all([
         loadPlayerProfile(tournamentId, playerId),
@@ -97,11 +101,7 @@ export default function PlayerDetailPage() {
       setProfile(nextProfile);
       setTags(nextTags);
       setTournaments(nextTournaments);
-      writePageCache(cacheKey, {
-        profile: nextProfile,
-        tags: nextTags,
-        tournaments: nextTournaments,
-      });
+      writePlayerDetailCache(nextProfile, nextTags, nextTournaments);
     } catch (caught) {
       if (!cached) {
         setError(caught instanceof Error ? caught.message : "选手主页读取失败");
@@ -146,7 +146,12 @@ export default function PlayerDetailPage() {
       const created = await submitPlayerTag(tournamentId, playerId, text);
       setDraftTag("");
       if (created.status === "approved") {
-        setTags((current) => mergeTag(current, created));
+        setTags((current) => {
+          const nextTags = mergeTag(current, created);
+
+          writePlayerDetailCache(profile, nextTags, tournaments);
+          return nextTags;
+        });
       }
       showToast(created.status === "approved" ? "标签已发布" : "标签已提交审核", "success");
     } catch (caught) {
@@ -172,7 +177,12 @@ export default function PlayerDetailPage() {
       }
       setLocalLikedTagIds(activeSession.user.id, nextLiked);
       setLikedTagIds(nextLiked);
-      setTags((current) => mergeTag(current, updated));
+      setTags((current) => {
+        const nextTags = mergeTag(current, updated);
+
+        writePlayerDetailCache(profile, nextTags, tournaments);
+        return nextTags;
+      });
       showToast(isLiked ? "已取消点赞" : "点赞 +1", "success");
     } catch (caught) {
       showToast(caught instanceof Error ? caught.message : "操作失败", "error");
@@ -192,6 +202,18 @@ export default function PlayerDetailPage() {
       }
 
       return next;
+    });
+  }
+
+  function writePlayerDetailCache(nextProfile: PlayerProfile | null, nextTags: PlayerTag[], nextTournaments: TournamentOption[]): void {
+    if (!nextProfile) {
+      return;
+    }
+
+    writePageCache(pageCacheKey("player-detail", tournamentId, playerId), {
+      profile: nextProfile,
+      tags: nextTags,
+      tournaments: nextTournaments,
     });
   }
 

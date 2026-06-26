@@ -2,7 +2,7 @@ import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
 import { ensureTournamentId, getSelectedTournamentId, loadTournamentPlayers, loadTournaments, setSelectedTournamentId } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerDirectoryCard, TournamentScope } from "../../components";
 import type { PlayerListItem, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
@@ -66,6 +66,10 @@ export default function PlayersPage() {
     }
 
     setError("");
+
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
 
     try {
       const allTournaments = await loadTournaments();

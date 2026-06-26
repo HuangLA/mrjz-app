@@ -8,6 +8,7 @@ type CacheEnvelope<T> = {
 };
 
 const PAGE_CACHE_PREFIX = "mrjz.pageCache.v1";
+const DEFAULT_PAGE_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 
 export function pageCacheKey(scope: string, ...parts: Array<string | number | null | undefined>): string {
   const apiBase = sanitizeKeyPart(getApiBaseUrl());
@@ -23,6 +24,22 @@ export function readPageCache<T>(key: string): T | null {
     return typeof stored === "object" && stored !== null && stored.version === 1 ? stored.value : null;
   } catch {
     return null;
+  }
+}
+
+export function isPageCacheFresh(key: string, maxAgeMs = DEFAULT_PAGE_CACHE_MAX_AGE_MS): boolean {
+  try {
+    const stored = Taro.getStorageSync<CacheEnvelope<unknown> | "">(key);
+
+    return (
+      typeof stored === "object" &&
+      stored !== null &&
+      stored.version === 1 &&
+      Number.isFinite(stored.savedAt) &&
+      Date.now() - stored.savedAt < maxAgeMs
+    );
+  } catch {
+    return false;
   }
 }
 

@@ -2,7 +2,7 @@ import { Text, View } from "@tarojs/components";
 import { useDidShow, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadTeamProfile } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerHeroStrip, SectionTitle, StatGrid, SteamAvatar } from "../../components";
 import type { TeamProfile } from "../../types";
 import { formatDate, formatInteger, formatPercent, navigate } from "../../utils";
@@ -37,6 +37,10 @@ export default function TeamDetailPage() {
     }
 
     setError("");
+
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
 
     try {
       const nextProfile = await loadTeamProfile(tournamentId, teamId);

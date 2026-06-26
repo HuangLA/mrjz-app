@@ -2,7 +2,7 @@ import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
 import { ensureTournamentId, getSelectedTournamentId, loadOfficialSchedule, loadStageRounds, loadTournament, loadTournaments, setSelectedTournamentId } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { FilterRow, PageShell, SeriesCard, TournamentScope, seriesScheduleStatusText } from "../../components";
 import type { OfficialScheduleStatus, StageRound, TournamentDetail, TournamentOption } from "../../types";
 import { isOfficialScheduleStage, labelStageType, navigate } from "../../utils";
@@ -51,6 +51,10 @@ export default function SchedulePage() {
     }
 
     setError("");
+
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
 
     try {
       const allTournaments = await loadTournaments();

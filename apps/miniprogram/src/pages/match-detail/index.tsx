@@ -4,7 +4,7 @@ import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
 import Taro, { useDidShow, usePageScroll, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadMatch } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { aghanimIcon, dotaAssetUrl } from "../../dota";
 import { PageShell, SectionTitle } from "../../components";
 import { SmartImage as Image } from "../../SmartImage";
@@ -93,6 +93,10 @@ export default function MatchDetailPage() {
     }
 
     setError("");
+
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
 
     try {
       const nextDetail = await loadMatch(matchId);

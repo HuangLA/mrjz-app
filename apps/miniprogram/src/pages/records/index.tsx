@@ -2,7 +2,7 @@ import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useMemo, useState } from "react";
 import { ensureTournamentId, getSelectedTournamentId, loadTournamentMatches, loadTournaments, setSelectedTournamentId } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { FilterRow, MatchRecordCard, PageShell, TournamentScope } from "../../components";
 import type { MatchRecord, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
@@ -41,6 +41,10 @@ export default function RecordsPage() {
     }
 
     setError("");
+
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
 
     try {
       const allTournaments = await loadTournaments();

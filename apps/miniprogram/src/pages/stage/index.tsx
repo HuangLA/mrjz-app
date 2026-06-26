@@ -11,7 +11,7 @@ import {
   loadTournaments,
   setSelectedTournamentId,
 } from "../../api";
-import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
+import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, SeriesCard, TournamentScope } from "../../components";
 import type { BracketNode, StageRound, StandingRow, TournamentDetail, TournamentOption } from "../../types";
 import { isOfficialScheduleStage, labelStageType, labelStatus, teamName } from "../../utils";
@@ -46,12 +46,6 @@ export default function StagePage() {
   });
 
   useEffect(() => {
-    if (selectedStageId) {
-      void refreshStage(selectedStageId);
-    }
-  }, [selectedStageId]);
-
-  useEffect(() => {
     const groups = groupStandingRows(standings);
     const nextKey = groups.find((group) => group.key === activeStandingGroupKey)?.key ?? groups[0]?.key ?? "";
 
@@ -78,6 +72,10 @@ export default function StagePage() {
     }
 
     setError("");
+
+    if (cached && isPageCacheFresh(cacheKey)) {
+      return;
+    }
 
     try {
       const allTournaments = await loadTournaments();
@@ -118,6 +116,11 @@ export default function StagePage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function selectStage(stageId: string): void {
+    setSelectedStageId(stageId);
+    void refreshStage(stageId);
   }
 
   async function refreshStage(
@@ -181,7 +184,7 @@ export default function StagePage() {
                 <Button
                   key={stage.id}
                   className={stage.id === selectedStageId ? "active" : ""}
-                  onClick={() => setSelectedStageId(stage.id)}
+                  onClick={() => selectStage(stage.id)}
                 >
                   {labelStageType(stage.type)}
                 </Button>
