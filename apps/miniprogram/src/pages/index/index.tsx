@@ -155,6 +155,7 @@ export default function HomePage() {
 function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }) {
   const sponsors = items.filter((item) => item.category === "sponsor");
   const supporters = items.filter((item) => item.category === "community");
+  const sponsorGridClassName = sponsors.length >= 3 ? "home-major-sponsors is-compact" : "home-major-sponsors";
 
   if (sponsors.length === 0 && supporters.length === 0) {
     return null;
@@ -171,7 +172,7 @@ function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }
             <Text>赞助商</Text>
             <Text>SPONSORS</Text>
           </View>
-          <View className="home-major-sponsors">
+          <View className={sponsorGridClassName}>
             {sponsors.map((sponsor) => (
               <View className="home-major-sponsor" key={sponsor.id}>
                 {sponsor.imageUrl ? <Image src={sponsor.imageUrl} mode="aspectFit" /> : null}

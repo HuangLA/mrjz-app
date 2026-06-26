@@ -521,33 +521,38 @@ function ensureAcknowledgementTables(): void {
     CREATE INDEX IF NOT EXISTS idx_acknowledgements_category_order ON acknowledgements(category, status, sort_order);
   `);
 
-  if (rowCount("acknowledgements") > 0) {
-    database
-      .prepare(
-        `
-          UPDATE acknowledgements
-          SET
-            display_name = CASE
-              WHEN id = 'ack_sponsor_libernovo' AND display_name = '人体工学椅' THEN '清闲人体工学椅'
-              ELSE display_name
-            END,
-            image_url = CASE
-              WHEN id = 'ack_sponsor_rog' AND image_url = '/static/sponsors/rog-landscape-red.png' THEN '/api/assets/sponsors/rog-landscape-red.png'
-              WHEN id = 'ack_sponsor_libernovo' AND image_url = '/static/sponsors/libernovo-white.png' THEN '/api/assets/sponsors/libernovo-white.png'
-              ELSE image_url
-            END,
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id IN ('ack_sponsor_rog', 'ack_sponsor_libernovo')
-        `,
-      )
-      .run();
+  const acknowledgementCount = rowCount("acknowledgements");
+
+  database
+    .prepare(
+      `
+        UPDATE acknowledgements
+        SET
+          display_name = CASE
+            WHEN id = 'ack_sponsor_libernovo' AND display_name = '人体工学椅' THEN '清闲人体工学椅'
+            ELSE display_name
+          END,
+          image_url = CASE
+            WHEN id = 'ack_sponsor_rog' AND image_url = '/static/sponsors/rog-landscape-red.png' THEN '/api/assets/sponsors/rog-landscape-red.png'
+            WHEN id = 'ack_sponsor_libernovo' AND image_url = '/static/sponsors/libernovo-white.png' THEN '/api/assets/sponsors/libernovo-white.png'
+            ELSE image_url
+          END,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id IN ('ack_sponsor_rog', 'ack_sponsor_libernovo')
+      `,
+    )
+    .run();
+
+  const insert = database.prepare(`
+    INSERT OR IGNORE INTO acknowledgements (id, category, display_name, image_url, sort_order, status)
+    VALUES (?, ?, ?, ?, ?, 'visible')
+  `);
+  insert.run("ack_sponsor_razer", "sponsor", "雷蛇", "/api/assets/sponsors/razer-wordmark.svg", 30);
+
+  if (acknowledgementCount > 0) {
     return;
   }
 
-  const insert = database.prepare(`
-    INSERT INTO acknowledgements (id, category, display_name, image_url, sort_order, status)
-    VALUES (?, ?, ?, ?, ?, 'visible')
-  `);
   insert.run("ack_sponsor_rog", "sponsor", "玩家国度", "/api/assets/sponsors/rog-landscape-red.png", 10);
   insert.run("ack_sponsor_libernovo", "sponsor", "清闲人体工学椅", "/api/assets/sponsors/libernovo-white.png", 20);
 }

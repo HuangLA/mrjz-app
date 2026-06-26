@@ -757,6 +757,8 @@ function HomeHero({
   const sponsorAcknowledgements = acknowledgements.filter((item) => item.category === "sponsor");
   const communityAcknowledgements = acknowledgements.filter((item) => item.category === "community");
   const hasAcknowledgements = sponsorAcknowledgements.length > 0 || communityAcknowledgements.length > 0;
+  const sponsorGridClassName =
+    sponsorAcknowledgements.length >= 3 ? "home-major-sponsors is-compact" : "home-major-sponsors";
 
   return (
     <section className="home-hero">
@@ -782,7 +784,7 @@ function HomeHero({
                   <span>赞助商</span>
                   <small>SPONSORS</small>
                 </div>
-                <div className="home-major-sponsors">
+                <div className={sponsorGridClassName}>
                   {sponsorAcknowledgements.map((sponsor) => (
                     <div className="home-major-sponsor" key={sponsor.id}>
                       {sponsor.imageUrl !== null ? <img src={sponsor.imageUrl} alt={sponsor.displayName} loading="eager" /> : null}

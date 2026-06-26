@@ -464,23 +464,14 @@ button[disabled] {
   color: rgba(159, 176, 198, 0.86);
   font-size: 7px;
   font-weight: 850;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
 }
 
 .home-major-sponsors {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.home-major-sponsor {
-  display: grid;
-  min-width: 0;
-  min-height: 57px;
-  align-content: center;
-  justify-items: center;
-  gap: 4px;
-  padding: 7px;
+  gap: 0;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 7px;
   background:
@@ -488,10 +479,41 @@ button[disabled] {
     rgba(12, 17, 25, 0.74);
 }
 
+.home-major-sponsors.is-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.home-major-sponsor {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 60px;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  padding: 8px 6px 7px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.home-major-sponsor:first-child {
+  border-left: 0;
+}
+
+.home-major-sponsors.is-compact .home-major-sponsor {
+  min-height: 62px;
+  padding-right: 5px;
+  padding-left: 5px;
+}
+
 .home-major-sponsor image {
   width: 100%;
-  max-width: 142px;
-  height: 31px;
+  max-width: 132px;
+  height: 29px;
+}
+
+.home-major-sponsors.is-compact .home-major-sponsor image {
+  max-width: 104px;
+  height: 27px;
 }
 
 .home-major-sponsor text {

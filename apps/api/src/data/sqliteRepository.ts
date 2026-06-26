@@ -1363,14 +1363,17 @@ export class SqliteTournamentRepository {
       )
       .run();
 
+    const insert = this.database.prepare(`
+      INSERT OR IGNORE INTO acknowledgements (id, category, display_name, image_url, sort_order, status)
+      VALUES (?, ?, ?, ?, ?, 'visible')
+    `);
+
+    insert.run("ack_sponsor_razer", "sponsor", "雷蛇", "/api/assets/sponsors/razer-wordmark.svg", 30);
+
     if (count > 0) {
       return;
     }
 
-    const insert = this.database.prepare(`
-      INSERT INTO acknowledgements (id, category, display_name, image_url, sort_order, status)
-      VALUES (?, ?, ?, ?, ?, 'visible')
-    `);
     insert.run("ack_sponsor_rog", "sponsor", "玩家国度", "/api/assets/sponsors/rog-landscape-red.png", 10);
     insert.run("ack_sponsor_libernovo", "sponsor", "清闲人体工学椅", "/api/assets/sponsors/libernovo-white.png", 20);
   }
