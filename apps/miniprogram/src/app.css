@@ -3179,9 +3179,9 @@ button[disabled] {
 .hero-leaderboard-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   width: 100%;
-  padding: 8px;
+  padding: 9px;
   color: #edf4ff;
   text-align: left;
 }
@@ -3192,8 +3192,10 @@ button[disabled] {
 }
 
 .hero-leaderboard-title,
+.hero-leaderboard-main-row,
 .hero-leaderboard-winner,
 .hero-leaderboard-identity,
+.hero-leaderboard-action,
 .hero-leaderboard-value,
 .hero-leaderboard-name,
 .hero-leaderboard-row-value {
@@ -3208,10 +3210,18 @@ button[disabled] {
   display: block;
   overflow: hidden;
   color: #f0c36a;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hero-leaderboard-main-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
 }
 
 .hero-leaderboard-player-name,
@@ -3232,7 +3242,7 @@ button[disabled] {
   display: block;
   overflow: hidden;
   color: #8794a8;
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3256,7 +3266,7 @@ button[disabled] {
   display: flex;
   align-items: center;
   width: 100%;
-  gap: 6px;
+  gap: 7px;
 }
 
 .hero-leaderboard-identity {
@@ -3269,62 +3279,63 @@ button[disabled] {
 .hero-leaderboard-row .steam-avatar,
 .hero-leaderboard-winner .profile-avatar-fallback,
 .hero-leaderboard-row .profile-avatar-fallback {
-  width: 28px !important;
-  height: 28px !important;
-  flex: 0 0 28px;
-  border-radius: 7px;
+  width: 34px !important;
+  height: 34px !important;
+  flex: 0 0 34px;
+  border-radius: 8px;
 }
 
-.hero-leaderboard-actions {
-  display: flex;
-  box-sizing: border-box;
-  width: 100%;
-  align-items: flex-end;
-  justify-content: flex-start;
-  gap: 8px;
-  padding-left: 34px;
+.hero-leaderboard-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
 }
 
 .hero-leaderboard-value {
-  flex: 0 1 auto;
-  width: auto;
   text-align: left;
 }
 
 .hero-leaderboard-value text:first-child {
   display: block;
+  overflow: visible;
   color: #f0c36a;
   font-size: 12px;
   font-weight: 900;
   line-height: 1.15;
+  text-overflow: clip;
   white-space: nowrap;
+}
+
+.hero-leaderboard-value text:last-child {
+  overflow: visible;
+  font-size: 9px;
+  text-overflow: clip;
 }
 
 .hero-leaderboard-toggle {
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-start;
-  gap: 3px;
-  width: auto;
+  gap: 4px;
   color: #d5b16e;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
-  text-align: left;
+  white-space: nowrap;
 }
 
 .hero-leaderboard-toggle text:first-child {
   color: #d5b16e;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .hero-leaderboard-toggle-icon {
-  width: 6px;
-  height: 6px;
-  border-right: 1px solid #d5b16e;
-  border-bottom: 1px solid #d5b16e;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid #d5b16e;
+  border-bottom: 1.5px solid #d5b16e;
   transform: translateY(-1px) rotate(45deg);
 }
 

@@ -131,25 +131,27 @@ function HeroLeaderboardCard(props: {
             <Text>{props.board.description}</Text>
           </View>
         </View>
-        {winner ? (
-          <View className="hero-leaderboard-winner">
-            <SteamAvatar player={winner.player} size="small" />
-            <View className="hero-leaderboard-identity">
-              <Text className="hero-leaderboard-player-name">{winner.player.displayName}</Text>
-              <Text className="hero-leaderboard-team-name">{leaderboardTeamName(winner)}</Text>
+        <View className="hero-leaderboard-main-row">
+          {winner ? (
+            <View className="hero-leaderboard-winner">
+              <SteamAvatar player={winner.player} size="small" />
+              <View className="hero-leaderboard-identity">
+                <Text className="hero-leaderboard-player-name">{winner.player.displayName}</Text>
+                <Text className="hero-leaderboard-team-name">{leaderboardTeamName(winner)}</Text>
+              </View>
             </View>
-          </View>
-        ) : (
-          <Text className="hero-leaderboard-empty">暂无获得者</Text>
-        )}
-        <View className="hero-leaderboard-actions">
-          <View className="hero-leaderboard-value">
-            <Text>{winner ? formatLeaderboardValue(winner.average, props.board) : "-"}</Text>
-            <Text>{props.board.metricLabel}</Text>
-          </View>
-          <View className="hero-leaderboard-toggle">
-            <Text>{props.expanded ? "收起" : "前五"}</Text>
-            <Text className={`hero-leaderboard-toggle-icon ${props.expanded ? "expanded" : ""}`} />
+          ) : (
+            <Text className="hero-leaderboard-empty">暂无获得者</Text>
+          )}
+          <View className="hero-leaderboard-action">
+            <View className="hero-leaderboard-value">
+              <Text>{winner ? formatLeaderboardValue(winner.average, props.board) : "-"}</Text>
+              <Text>{props.board.metricLabel}</Text>
+            </View>
+            <View className="hero-leaderboard-toggle">
+              <Text>{props.expanded ? "收起" : "前五"}</Text>
+              <Text className={`hero-leaderboard-toggle-icon ${props.expanded ? "expanded" : ""}`} />
+            </View>
           </View>
         </View>
       </Button>

@@ -27,7 +27,8 @@ import type {
 const AUTH_SESSION_STORAGE_KEY = "mrjz.authSession";
 const SELECTED_TOURNAMENT_STORAGE_KEY = "mrjz.selectedTournamentId";
 const LOCAL_LIKED_TAGS_STORAGE_KEY = "mrjz.localLikedTags";
-const REQUEST_TIMEOUT_MS = 12000;
+const REQUEST_TIMEOUT_MS = 25000;
+const REQUEST_RETRY_DELAY_MS = 500;
 
 type RequestMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -240,25 +241,41 @@ async function request<T>(
   const shouldAttachAuth = options.withAuth !== false && session !== null;
   const apiBaseUrl = getApiBaseUrl();
   const url = `${apiBaseUrl}${path}`;
+  const method = options.method ?? "GET";
+  const header = {
+    "content-type": "application/json",
+    ...(shouldAttachAuth
+      ? {
+          authorization: `Bearer ${session.token}`,
+        }
+      : {}),
+  };
   let response: Taro.request.SuccessCallbackResult<ApiResult<T>>;
 
   try {
-    response = await Taro.request<ApiResult<T>>({
+    response = await sendRequest<T>({
       url,
-      method: options.method ?? "GET",
+      method,
       data: options.data,
-      timeout: REQUEST_TIMEOUT_MS,
-      header: {
-        "content-type": "application/json",
-        ...(shouldAttachAuth
-          ? {
-              authorization: `Bearer ${session.token}`,
-            }
-          : {}),
-      },
+      header,
     });
   } catch (caught) {
-    throw new Error(formatRequestFailure(caught));
+    if (method !== "GET" || !isTimeoutFailure(caught)) {
+      throw new Error(formatRequestFailure(caught));
+    }
+
+    await delay(REQUEST_RETRY_DELAY_MS);
+
+    try {
+      response = await sendRequest<T>({
+        url,
+        method,
+        data: options.data,
+        header,
+      });
+    } catch (retryCaught) {
+      throw new Error(formatRequestFailure(retryCaught));
+    }
   }
 
   const result = response.data;
@@ -274,12 +291,41 @@ async function request<T>(
   throw new Error(result?.error?.message ?? `API request failed: ${response.statusCode}`);
 }
 
-function formatRequestFailure(caught: unknown): string {
-  const message = typeof caught === "object" && caught !== null && "errMsg" in caught
+async function sendRequest<T>(input: {
+  url: string;
+  method: RequestMethod;
+  data?: unknown;
+  header: Record<string, string>;
+}): Promise<Taro.request.SuccessCallbackResult<ApiResult<T>>> {
+  return Taro.request<ApiResult<T>>({
+    url: input.url,
+    method: input.method,
+    data: input.data,
+    timeout: REQUEST_TIMEOUT_MS,
+    header: input.header,
+  });
+}
+
+function isTimeoutFailure(caught: unknown): boolean {
+  return requestFailureMessage(caught).toLowerCase().includes("timeout");
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function requestFailureMessage(caught: unknown): string {
+  return typeof caught === "object" && caught !== null && "errMsg" in caught
     ? String((caught as { errMsg?: unknown }).errMsg ?? "")
     : caught instanceof Error
       ? caught.message
       : String(caught);
+}
+
+function formatRequestFailure(caught: unknown): string {
+  const message = requestFailureMessage(caught);
   const lowerMessage = message.toLowerCase();
 
   if (lowerMessage.includes("timeout")) {
