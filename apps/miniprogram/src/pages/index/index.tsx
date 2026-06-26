@@ -1,4 +1,4 @@
-import { Button, Image, Text, View } from "@tarojs/components";
+import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
 import {
@@ -10,6 +10,7 @@ import {
 } from "../../api";
 import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell } from "../../components";
+import { SmartImage as Image } from "../../SmartImage";
 import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
 import { formatDate, labelStatus, switchTab } from "../../utils";
 

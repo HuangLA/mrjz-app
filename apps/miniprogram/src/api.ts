@@ -9,6 +9,7 @@ import type {
   AuthSession,
   DotaAccountBinding,
   BracketNode,
+  HeroLeaderboardCandidate,
   HeroLeaderboardsView,
   MatchDetail,
   MatchRecord,
@@ -93,6 +94,7 @@ async function getWechatLoginCode(): Promise<string> {
     }
   } catch (caught) {
     loginError = caught;
+    console.warn("[MRJZ login] wx.login failed", requestFailureMessage(caught));
   }
 
   throw new Error(formatWechatLoginCodeError(loginError));
@@ -107,7 +109,12 @@ function formatWechatLoginCodeError(caught: unknown): string {
 }
 
 export async function loadMe(): Promise<AppUserMe> {
-  return request<AppUserMe>("/me");
+  const me = await request<AppUserMe>("/me");
+
+  return {
+    ...me,
+    bindings: me.bindings.map(normalizeDotaAccountBinding),
+  };
 }
 
 export async function logout(): Promise<void> {
@@ -123,7 +130,9 @@ export async function bindDotaAccount(input: { accountId?: number | null; steamI
 }
 
 export async function loadMyStats(): Promise<AppUserStats> {
-  return request<AppUserStats>("/me/stats");
+  const stats = await request<AppUserStats>("/me/stats");
+
+  return normalizeAppUserStats(stats);
 }
 
 export async function loadTournaments(): Promise<TournamentOption[]> {
@@ -166,13 +175,17 @@ export async function loadMatch(matchId: number | string): Promise<MatchDetail> 
 }
 
 export async function loadTournamentPlayers(tournamentId: string): Promise<PlayerListItem[]> {
-  return request<PlayerListItem[]>(`/tournaments/${encodeURIComponent(tournamentId)}/players`, { withAuth: false });
+  const players = await request<PlayerListItem[]>(`/tournaments/${encodeURIComponent(tournamentId)}/players`, { withAuth: false });
+
+  return players.map(normalizePlayerListItem);
 }
 
 export async function loadHeroLeaderboards(tournamentId: string): Promise<HeroLeaderboardsView> {
-  return request<HeroLeaderboardsView>(`/tournaments/${encodeURIComponent(tournamentId)}/hero-leaderboards`, {
+  const leaderboards = await request<HeroLeaderboardsView>(`/tournaments/${encodeURIComponent(tournamentId)}/hero-leaderboards`, {
     withAuth: false,
   });
+
+  return normalizeHeroLeaderboards(leaderboards);
 }
 
 export async function loadAcknowledgements(): Promise<AcknowledgementItem[]> {
@@ -182,9 +195,11 @@ export async function loadAcknowledgements(): Promise<AcknowledgementItem[]> {
 }
 
 export async function loadPlayerProfile(tournamentId: string, playerId: string): Promise<PlayerProfile> {
-  return request<PlayerProfile>(`/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}`, {
+  const profile = await request<PlayerProfile>(`/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}`, {
     withAuth: false,
   });
+
+  return normalizePlayerProfile(profile);
 }
 
 export async function loadPlayerTags(tournamentId: string, playerId: string): Promise<PlayerTag[]> {
@@ -210,13 +225,17 @@ export async function unlikePlayerTag(tagId: string): Promise<PlayerTag> {
 }
 
 export async function loadTournamentTeams(tournamentId: string): Promise<TeamListItem[]> {
-  return request<TeamListItem[]>(`/tournaments/${encodeURIComponent(tournamentId)}/teams`, { withAuth: false });
+  const teams = await request<TeamListItem[]>(`/tournaments/${encodeURIComponent(tournamentId)}/teams`, { withAuth: false });
+
+  return teams.map(normalizeTeamListItem);
 }
 
 export async function loadTeamProfile(tournamentId: string, teamId: string): Promise<TeamProfile> {
-  return request<TeamProfile>(`/tournaments/${encodeURIComponent(tournamentId)}/teams/${encodeURIComponent(teamId)}`, {
+  const profile = await request<TeamProfile>(`/tournaments/${encodeURIComponent(tournamentId)}/teams/${encodeURIComponent(teamId)}`, {
     withAuth: false,
   });
+
+  return normalizeTeamProfile(profile);
 }
 
 export async function ensureTournamentId(tournaments?: TournamentOption[]): Promise<string> {
@@ -297,13 +316,20 @@ async function sendRequest<T>(input: {
   data?: unknown;
   header: Record<string, string>;
 }): Promise<Taro.request.SuccessCallbackResult<ApiResult<T>>> {
-  return Taro.request<ApiResult<T>>({
-    url: input.url,
-    method: input.method,
-    data: input.data,
-    timeout: REQUEST_TIMEOUT_MS,
-    header: input.header,
-  });
+  const startedAt = Date.now();
+
+  try {
+    return await Taro.request<ApiResult<T>>({
+      url: input.url,
+      method: input.method,
+      data: input.data,
+      timeout: REQUEST_TIMEOUT_MS,
+      header: input.header,
+    });
+  } catch (caught) {
+    logRequestFailure(input, Date.now() - startedAt, caught);
+    throw caught;
+  }
 }
 
 function isTimeoutFailure(caught: unknown): boolean {
@@ -339,6 +365,76 @@ function formatRequestFailure(caught: unknown): string {
   return message || "API 请求失败，请稍后重试";
 }
 
+function logRequestFailure(input: { url: string; method: RequestMethod }, durationMs: number, caught: unknown): void {
+  console.warn("[MRJZ request] failed", input.method, input.url, `${durationMs}ms`, requestFailureMessage(caught));
+}
+
+function normalizeAppUserStats(stats: AppUserStats): AppUserStats {
+  return {
+    ...stats,
+    binding: stats.binding ? normalizeDotaAccountBinding(stats.binding) : null,
+    player: stats.player ? normalizePlayerListItem(stats.player) : null,
+  };
+}
+
+function normalizeDotaAccountBinding(binding: DotaAccountBinding): DotaAccountBinding {
+  return {
+    ...binding,
+    avatarUrl: normalizeSteamAvatarUrl({
+      accountId: binding.accountId,
+      avatarUrl: binding.avatarUrl,
+    }),
+  };
+}
+
+function normalizePlayerProfile(profile: PlayerProfile): PlayerProfile {
+  return {
+    ...profile,
+    avatarUrl: normalizeSteamAvatarUrl(profile),
+  };
+}
+
+function normalizeTeamProfile(profile: TeamProfile): TeamProfile {
+  return {
+    ...profile,
+    logoUrl: normalizeApiImageUrl(profile.logoUrl ?? null),
+    members: profile.members.map(normalizePlayerListItem),
+  };
+}
+
+function normalizeTeamListItem(team: TeamListItem): TeamListItem {
+  return {
+    ...team,
+    logoUrl: normalizeApiImageUrl(team.logoUrl ?? null),
+    members: team.members.map(normalizePlayerListItem),
+  };
+}
+
+function normalizeHeroLeaderboards(view: HeroLeaderboardsView): HeroLeaderboardsView {
+  return {
+    ...view,
+    leaderboards: view.leaderboards.map((board) => ({
+      ...board,
+      winner: board.winner ? normalizeHeroLeaderboardCandidate(board.winner) : null,
+      candidates: board.candidates.map(normalizeHeroLeaderboardCandidate),
+    })),
+  };
+}
+
+function normalizeHeroLeaderboardCandidate(candidate: HeroLeaderboardCandidate): HeroLeaderboardCandidate {
+  return {
+    ...candidate,
+    player: normalizePlayerListItem(candidate.player),
+  };
+}
+
+function normalizePlayerListItem(player: PlayerListItem): PlayerListItem {
+  return {
+    ...player,
+    avatarUrl: normalizeSteamAvatarUrl(player),
+  };
+}
+
 function normalizeAcknowledgementItem(item: AcknowledgementItem): AcknowledgementItem {
   return {
     id: item.id,
@@ -347,6 +443,28 @@ function normalizeAcknowledgementItem(item: AcknowledgementItem): Acknowledgemen
     imageUrl: normalizeApiImageUrl(item.imageUrl),
     sortOrder: typeof item.sortOrder === "number" ? item.sortOrder : 0,
   };
+}
+
+function normalizeSteamAvatarUrl(player: { accountId?: number | null; avatarUrl?: string | null }): string | null {
+  const avatarUrl = normalizeApiImageUrl(player.avatarUrl ?? null);
+
+  if (!avatarUrl) {
+    return null;
+  }
+
+  if (Number.isSafeInteger(player.accountId) && isSteamAvatarUrl(avatarUrl)) {
+    return `${apiOrigin()}/api/assets/steam-avatars/${player.accountId}.jpg`;
+  }
+
+  return avatarUrl;
+}
+
+function isSteamAvatarUrl(avatarUrl: string): boolean {
+  try {
+    return new URL(avatarUrl).hostname.toLowerCase() === "avatars.steamstatic.com";
+  } catch {
+    return false;
+  }
 }
 
 function normalizeApiImageUrl(imageUrl: string | null): string | null {
