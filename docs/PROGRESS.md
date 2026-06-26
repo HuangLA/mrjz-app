@@ -106,6 +106,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序远端 API 请求 timeout 继续加固：公开 GET 请求超时从 12 秒提高到 25 秒，并对 timeout 自动间隔 500ms 重试一次；POST / PATCH / DELETE 不重试，避免登录、标签和点赞重复写入。
 - 小程序 timeout 定位到外域 Steam 头像加载风险：远端 API JSON 接口本机实测均在 500ms 内返回，剩余微信控制台 timeout 更可能来自 `avatars.steamstatic.com` 图片下载；小程序端现将选手头像统一改写为后端缓存代理 `/api/assets/steam-avatars/{accountId}.jpg`，并为微信登录、API 请求和图片加载失败增加 `[MRJZ login]` / `[MRJZ request]` / `[MRJZ image]` 诊断日志。
 - 小程序赛程页未发布空态对齐赛事阶段页：撤回或未发布官方赛程时改用同款 `content-panel` + `muted` 说明，不再额外展示标题栏和状态胶囊。
+- 小程序构建启用微信组件按需注入：`app.config.ts` 增加 `lazyCodeLoading: "requiredComponents"`，构建后的 `dist/app.json` 已生成对应字段，用于通过微信开发者工具 / 上传质量检查。
 - 小程序“我的”页微信登录入口收口为真实微信 code 登录：前端只上送 `wx.login` code，后端在配置 `WECHAT_APP_ID` / `WECHAT_APP_SECRET` 时调用微信 `jscode2session` 换取用户身份并签发 MRJZ opaque session；生产环境缺少微信配置时不再静默回退为开发用户。
 - 小程序本地 HTTP 登录联调入口已在正式发布清理中移除；“我的”页不再暴露开发用户 ID，前端不再发送本地假 code 或开发用户标识。
 - 小程序正式发布登录收紧：remote / production 构建隐藏“我的”页开发设置，前端不再发送开发用户 ID 或本地假 code；后端只在未配置微信密钥且显式允许开发登录时走本地用户，已配置微信密钥时严格以 `code2Session` 成败为准。
@@ -620,7 +621,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit | 内容 |
 | --- | --- |
-| `pending` | Align mini program unpublished schedule state |
+| `pending` | Enable mini program component lazy loading |
+| `d640283` | Align mini program unpublished schedule state |
 | `f56299d` | Proxy mini program Steam avatars through API |
 | `136fe83` | Move MVP badge away from hero avatar |
 | `7a1a84f` | Refine player award badge layout |
