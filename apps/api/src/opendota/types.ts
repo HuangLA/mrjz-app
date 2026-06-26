@@ -48,6 +48,15 @@ export type OpenDotaChatMessage = {
   slot?: number;
 };
 
+export type OpenDotaObjective = {
+  time?: number;
+  type?: string;
+  team?: number;
+  player_slot?: number;
+  slot?: number;
+  key?: string | number;
+};
+
 export type OpenDotaMatchPlayer = {
   account_id?: number;
   player_slot: number;
@@ -79,7 +88,6 @@ export type OpenDotaMatchPlayer = {
   purchase?: Record<string, number>;
   purchase_log?: OpenDotaPurchaseLogEntry[];
   multi_kills?: Record<string, number>;
-  killed?: Record<string, number>;
   item_0?: number;
   item_1?: number;
   item_2?: number;
@@ -125,6 +133,7 @@ export type OpenDotaMatchDetail = {
   players?: OpenDotaMatchPlayer[];
   picks_bans?: OpenDotaDraftAction[];
   chat?: OpenDotaChatMessage[];
+  objectives?: OpenDotaObjective[];
 };
 
 export type OpenDotaLeagueMatch = {

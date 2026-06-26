@@ -62,7 +62,7 @@ type HeroLeaderboardDefinition = {
   precision: number;
   rankDirection: "asc" | "desc";
   rankBasis?: "average" | "total";
-  value?: (player: OpenDotaMatchPlayer) => number;
+  value?: (player: OpenDotaMatchPlayer, match: OpenDotaMatchDetail) => number;
 };
 
 type HeroLeaderboardAccumulator = {
@@ -7632,7 +7632,7 @@ export class SqliteTournamentRepository {
         }
 
         for (const definition of HERO_LEADERBOARD_DEFINITIONS) {
-          accumulator.totals[definition.key] += definition.value?.(rawPlayer) ?? 0;
+          accumulator.totals[definition.key] += definition.value?.(rawPlayer, match.raw) ?? 0;
         }
 
         players.set(accountId, accumulator);
@@ -9876,8 +9876,15 @@ function rampageCount(player: OpenDotaMatchPlayer): number {
   return positiveNumber(player.multi_kills?.["5"]);
 }
 
-function painCubeKillCount(player: OpenDotaMatchPlayer): number {
-  return positiveNumber(player.killed?.npc_dota_miniboss);
+function painCubeKillCount(player: OpenDotaMatchPlayer, match: OpenDotaMatchDetail): number {
+  return (match.objectives ?? []).reduce((total, objective) => {
+    if (objective.type !== "CHAT_MESSAGE_MINIBOSS_KILL") {
+      return total;
+    }
+
+    const playerSlot = typeof objective.player_slot === "number" ? objective.player_slot : objective.slot;
+    return playerSlot === player.player_slot ? total + 1 : total;
+  }, 0);
 }
 
 function compareHeroLeaderboardValue(left: number, right: number, direction: "asc" | "desc"): number {
