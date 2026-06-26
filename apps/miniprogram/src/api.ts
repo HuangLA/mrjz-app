@@ -8,6 +8,7 @@ import {
 import { getApiBaseUrl } from "./runtimeConfig";
 import type {
   ApiResult,
+  AppUser,
   AppUserMe,
   AppUserStats,
   AcknowledgementItem,
@@ -85,11 +86,11 @@ export function setLocalLikedTagIds(userId: string, tagIds: Set<string>): void {
   Taro.setStorageSync(LOCAL_LIKED_TAGS_STORAGE_KEY, next);
 }
 
-export async function loginWithWeChat(): Promise<AuthSession> {
+export async function loginWithWeChat(options: { nickname?: string } = {}): Promise<AuthSession> {
   const code = await getWechatLoginCode();
   const data = {
     code,
-    nickname: "微信用户",
+    nickname: cleanDisplayNickname(options.nickname) ?? "微信用户",
   };
 
   const session = await request<AuthSession>("/auth/wechat-login", {
@@ -100,6 +101,20 @@ export async function loginWithWeChat(): Promise<AuthSession> {
 
   Taro.setStorageSync(AUTH_SESSION_STORAGE_KEY, session);
   return session;
+}
+
+export async function getWechatProfileNickname(): Promise<string | undefined> {
+  try {
+    const profile = await Taro.getUserProfile({
+      desc: "用于展示 MRJZ 昵称",
+      lang: "zh_CN",
+    });
+
+    return cleanDisplayNickname(profile.userInfo?.nickName);
+  } catch (caught) {
+    console.warn("[MRJZ login] wx.getUserProfile failed", requestFailureMessage(caught));
+    return undefined;
+  }
 }
 
 async function getWechatLoginCode(): Promise<string> {
@@ -137,6 +152,29 @@ export async function loadMe(): Promise<AppUserMe> {
     ...me,
     bindings: me.bindings.map(normalizeDotaAccountBinding),
   };
+}
+
+export async function updateMyProfile(input: { nickname: string }): Promise<AppUser> {
+  const nickname = cleanDisplayNickname(input.nickname);
+
+  if (!nickname) {
+    throw new Error("微信昵称获取失败，请稍后重试");
+  }
+
+  const user = await request<AppUser>("/me/profile", {
+    method: "PATCH",
+    data: { nickname },
+  });
+  const session = getStoredAuthSession();
+
+  if (session) {
+    Taro.setStorageSync(AUTH_SESSION_STORAGE_KEY, {
+      ...session,
+      user,
+    } satisfies AuthSession);
+  }
+
+  return user;
 }
 
 export async function logout(): Promise<void> {
@@ -414,6 +452,12 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function cleanDisplayNickname(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+
+  return trimmed ? Array.from(trimmed).slice(0, 64).join("") : undefined;
 }
 
 function requestFailureMessage(caught: unknown): string {

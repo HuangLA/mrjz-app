@@ -2,7 +2,13 @@ page {
   min-height: 100%;
   background: #07090c;
   color: #f4f1e8;
-  font-family: "Avenir Next", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    "Avenir Next",
+    "PingFang SC",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   font-size: 12px;
 }
 
@@ -46,7 +52,12 @@ button[disabled] {
   min-height: 100vh;
   padding-bottom: 94px;
   background:
-    linear-gradient(140deg, rgba(9, 13, 19, 0.98), rgba(18, 23, 32, 0.98) 48%, rgba(35, 17, 20, 0.96)),
+    linear-gradient(
+      140deg,
+      rgba(9, 13, 19, 0.98),
+      rgba(18, 23, 32, 0.98) 48%,
+      rgba(35, 17, 20, 0.96)
+    ),
     #101722;
 }
 
@@ -103,7 +114,13 @@ button[disabled] {
   content: "";
   background:
     linear-gradient(180deg, rgba(7, 9, 12, 0.22), rgba(7, 9, 12, 0.56) 46%, rgba(7, 9, 12, 0.34)),
-    linear-gradient(90deg, rgba(7, 9, 12, 0.76), transparent 18%, transparent 82%, rgba(7, 9, 12, 0.76));
+    linear-gradient(
+      90deg,
+      rgba(7, 9, 12, 0.76),
+      transparent 18%,
+      transparent 82%,
+      rgba(7, 9, 12, 0.76)
+    );
 }
 
 .app-bar {
@@ -183,6 +200,19 @@ button[disabled] {
   padding-bottom: 86px;
 }
 
+.loading-strip {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  border: 1px solid rgba(216, 173, 85, 0.2);
+  border-radius: 8px;
+  color: #d8ad55;
+  font-size: 12px;
+  background: rgba(216, 173, 85, 0.08);
+}
+
 .floating-route-nav {
   position: fixed;
   left: 8px;
@@ -237,8 +267,12 @@ button[disabled] {
   overflow: hidden;
   border: 1px solid rgba(213, 166, 79, 0.22);
   border-radius: 8px;
-  background:
-    linear-gradient(145deg, rgba(8, 11, 15, 0.64), rgba(16, 21, 31, 0.46) 46%, rgba(42, 18, 20, 0.46));
+  background: linear-gradient(
+    145deg,
+    rgba(8, 11, 15, 0.64),
+    rgba(16, 21, 31, 0.46) 46%,
+    rgba(42, 18, 20, 0.46)
+  );
   box-shadow:
     0 22px 46px rgba(0, 0, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.09);
@@ -427,8 +461,7 @@ button[disabled] {
   border: 1px solid rgba(213, 166, 79, 0.18);
   border-radius: 8px;
   background:
-    linear-gradient(120deg, rgba(213, 166, 79, 0.1), transparent 38%),
-    rgba(7, 10, 15, 0.58);
+    linear-gradient(120deg, rgba(213, 166, 79, 0.1), transparent 38%), rgba(7, 10, 15, 0.58);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -670,8 +703,7 @@ button[disabled] {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06), transparent 58%),
-    rgba(16, 21, 30, 0.72);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06), transparent 58%), rgba(16, 21, 30, 0.72);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
 }
 
@@ -679,8 +711,7 @@ button[disabled] {
   border-color: rgba(213, 166, 79, 0.42);
   background:
     linear-gradient(90deg, rgba(213, 166, 79, 0.16), transparent 58%),
-    linear-gradient(270deg, rgba(118, 217, 109, 0.1), transparent 50%),
-    rgba(20, 25, 34, 0.84);
+    linear-gradient(270deg, rgba(118, 217, 109, 0.1), transparent 50%), rgba(20, 25, 34, 0.84);
 }
 
 .tournament-entry::before {
@@ -785,8 +816,7 @@ button[disabled] {
   overflow: hidden;
   background:
     linear-gradient(135deg, rgba(116, 214, 108, 0.12), rgba(20, 27, 39, 0.88) 46%),
-    linear-gradient(45deg, rgba(239, 100, 103, 0.12), transparent 48%),
-    rgba(16, 21, 29, 0.78);
+    linear-gradient(45deg, rgba(239, 100, 103, 0.12), transparent 48%), rgba(16, 21, 29, 0.78);
 }
 
 .state-panel {
@@ -1083,8 +1113,7 @@ button[disabled] {
   border-color: rgba(255, 255, 255, 0.07);
   background:
     linear-gradient(135deg, rgba(116, 214, 108, 0.07), transparent 34%),
-    linear-gradient(225deg, rgba(239, 100, 103, 0.08), transparent 36%),
-    rgba(20, 27, 39, 0.88);
+    linear-gradient(225deg, rgba(239, 100, 103, 0.08), transparent 36%), rgba(20, 27, 39, 0.88);
 }
 
 .record-title,
@@ -1138,8 +1167,7 @@ button[disabled] {
   border-radius: 8px;
   background:
     linear-gradient(90deg, rgba(116, 214, 108, 0.12), transparent 42%),
-    linear-gradient(270deg, rgba(239, 100, 103, 0.13), transparent 42%),
-    rgba(6, 10, 17, 0.24);
+    linear-gradient(270deg, rgba(239, 100, 103, 0.13), transparent 42%), rgba(6, 10, 17, 0.24);
 }
 
 .record-lineup::after {
@@ -1509,7 +1537,11 @@ button[disabled] {
   inset: 0;
   content: "";
   pointer-events: none;
-  background: repeating-linear-gradient(135deg, transparent 0 8px, rgba(255, 255, 255, 0.025) 9px 10px);
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 8px,
+    rgba(255, 255, 255, 0.025) 9px 10px
+  );
 }
 
 .battle-summary .summary-meta,
@@ -1683,7 +1715,12 @@ button[disabled] {
   background:
     radial-gradient(circle at 88% 40%, rgba(101, 181, 255, 0.28), transparent 115px),
     radial-gradient(circle at 14% 0%, rgba(240, 195, 106, 0.2), transparent 147.5px),
-    linear-gradient(135deg, rgba(47, 39, 28, 0.94), rgba(16, 22, 33, 0.96) 52%, rgba(18, 29, 48, 0.92));
+    linear-gradient(
+      135deg,
+      rgba(47, 39, 28, 0.94),
+      rgba(16, 22, 33, 0.96) 52%,
+      rgba(18, 29, 48, 0.92)
+    );
 }
 
 .mvp-card-mini::before {
@@ -1714,7 +1751,12 @@ button[disabled] {
   background:
     radial-gradient(circle at 88% 40%, rgba(255, 120, 132, 0.26), transparent 115px),
     radial-gradient(circle at 14% 0%, rgba(240, 195, 106, 0.18), transparent 147.5px),
-    linear-gradient(135deg, rgba(45, 27, 28, 0.96), rgba(17, 21, 31, 0.96) 52%, rgba(42, 19, 28, 0.92));
+    linear-gradient(
+      135deg,
+      rgba(45, 27, 28, 0.96),
+      rgba(17, 21, 31, 0.96) 52%,
+      rgba(42, 19, 28, 0.92)
+    );
 }
 
 .mvp-card-mini .mvp-card-copy,
@@ -1826,7 +1868,12 @@ button[disabled] {
   padding: 6.25px 10px;
   border-color: rgba(240, 195, 106, 0.26);
   background:
-    linear-gradient(90deg, rgba(116, 214, 108, 0.18), rgba(240, 195, 106, 0.1) 48%, rgba(239, 100, 103, 0.2)),
+    linear-gradient(
+      90deg,
+      rgba(116, 214, 108, 0.18),
+      rgba(240, 195, 106, 0.1) 48%,
+      rgba(239, 100, 103, 0.2)
+    ),
     rgba(20, 27, 39, 0.92);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -1958,8 +2005,7 @@ button[disabled] {
   border-radius: 8px;
   background:
     linear-gradient(135deg, rgba(116, 214, 108, 0.06), transparent 36%),
-    linear-gradient(225deg, rgba(239, 100, 103, 0.07), transparent 38%),
-    rgba(14, 19, 28, 0.86);
+    linear-gradient(225deg, rgba(239, 100, 103, 0.07), transparent 38%), rgba(14, 19, 28, 0.86);
 }
 
 .match-player-main {
@@ -2239,7 +2285,12 @@ button[disabled] {
   bottom: 9px;
   left: 50%;
   width: 1px;
-  background: linear-gradient(180deg, rgba(239, 100, 103, 0.68), rgba(240, 195, 106, 0.55), rgba(116, 214, 108, 0.72));
+  background: linear-gradient(
+    180deg,
+    rgba(239, 100, 103, 0.68),
+    rgba(240, 195, 106, 0.55),
+    rgba(116, 214, 108, 0.72)
+  );
   content: "";
   transform: translateX(-50%);
 }
@@ -3022,8 +3073,7 @@ button[disabled] {
   border-radius: 8px;
   background:
     linear-gradient(135deg, rgba(116, 214, 108, 0.07), transparent 34%),
-    linear-gradient(225deg, rgba(239, 100, 103, 0.08), transparent 36%),
-    rgba(20, 27, 39, 0.88);
+    linear-gradient(225deg, rgba(239, 100, 103, 0.08), transparent 36%), rgba(20, 27, 39, 0.88);
   box-shadow:
     0 10px 24px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -3165,15 +3215,13 @@ button[disabled] {
   border: 1px solid rgba(216, 178, 104, 0.16);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(24, 31, 43, 0.96), rgba(11, 16, 25, 0.94)),
-    rgba(13, 19, 29, 0.92);
+    linear-gradient(180deg, rgba(24, 31, 43, 0.96), rgba(11, 16, 25, 0.94)), rgba(13, 19, 29, 0.92);
 }
 
 .hero-leaderboard-card.expanded {
   border-color: rgba(216, 178, 104, 0.34);
   background:
-    linear-gradient(180deg, rgba(29, 37, 51, 0.98), rgba(12, 18, 28, 0.96)),
-    rgba(13, 19, 29, 0.94);
+    linear-gradient(180deg, rgba(29, 37, 51, 0.98), rgba(12, 18, 28, 0.96)), rgba(13, 19, 29, 0.94);
 }
 
 .hero-leaderboard-main {
@@ -4044,7 +4092,12 @@ button[disabled] {
   border-left-color: #f0c36a;
   background:
     radial-gradient(circle at 16% 35%, rgba(240, 195, 106, 0.24), transparent 54px),
-    linear-gradient(90deg, rgba(240, 195, 106, 0.18), rgba(101, 181, 255, 0.08) 48%, rgba(239, 100, 103, 0.14)),
+    linear-gradient(
+      90deg,
+      rgba(240, 195, 106, 0.18),
+      rgba(101, 181, 255, 0.08) 48%,
+      rgba(239, 100, 103, 0.14)
+    ),
     rgba(14, 18, 28, 0.94);
   box-shadow:
     inset 0 0 0 1px rgba(240, 195, 106, 0.18),
@@ -4210,24 +4263,66 @@ button[disabled] {
   white-space: normal;
 }
 
-.match-player-card.player-row .award-lie_flat { color: #8ce26d; border-color: rgba(140, 226, 109, 0.48); background: rgba(140, 226, 109, 0.1); }
-.match-player-card.player-row .award-breaker { color: #ff7a7a; border-color: rgba(255, 122, 122, 0.48); background: rgba(255, 122, 122, 0.1); }
-.match-player-card.player-row .award-herbalist { color: #62d05d; border-color: rgba(98, 208, 93, 0.48); background: rgba(98, 208, 93, 0.1); }
-.match-player-card.player-row .award-healer { color: #65d8ff; }
-.match-player-card.player-row .award-pianist { color: #92c7ff; }
-.match-player-card.player-row .award-binder { color: #c9a6ff; }
-.match-player-card.player-row .award-pressure { color: #ffb86b; }
-.match-player-card.player-row .award-stiff { color: #8aa4d6; }
-.match-player-card.player-row .award-ghost { color: #8fb3ff; }
-.match-player-card.player-row .award-tough { color: #5bb7ff; }
-.match-player-card.player-row .award-violence { color: #ff6f91; }
-.match-player-card.player-row .award-assist { color: #74e0c0; }
-.match-player-card.player-row .award-support { color: #f4d58a; }
-.match-player-card.player-row .award-talker { color: #f0a6ff; }
-.match-player-card.player-row .award-rich { color: #ffe27a; }
-.match-player-card.player-row .award-cty { color: #ffc15a; }
-.match-player-card.player-row .award-demolition { color: #ff9f6e; }
-.match-player-card.player-row .award-soul { color: #d8b4fe; }
+.match-player-card.player-row .award-lie_flat {
+  color: #8ce26d;
+  border-color: rgba(140, 226, 109, 0.48);
+  background: rgba(140, 226, 109, 0.1);
+}
+.match-player-card.player-row .award-breaker {
+  color: #ff7a7a;
+  border-color: rgba(255, 122, 122, 0.48);
+  background: rgba(255, 122, 122, 0.1);
+}
+.match-player-card.player-row .award-herbalist {
+  color: #62d05d;
+  border-color: rgba(98, 208, 93, 0.48);
+  background: rgba(98, 208, 93, 0.1);
+}
+.match-player-card.player-row .award-healer {
+  color: #65d8ff;
+}
+.match-player-card.player-row .award-pianist {
+  color: #92c7ff;
+}
+.match-player-card.player-row .award-binder {
+  color: #c9a6ff;
+}
+.match-player-card.player-row .award-pressure {
+  color: #ffb86b;
+}
+.match-player-card.player-row .award-stiff {
+  color: #8aa4d6;
+}
+.match-player-card.player-row .award-ghost {
+  color: #8fb3ff;
+}
+.match-player-card.player-row .award-tough {
+  color: #5bb7ff;
+}
+.match-player-card.player-row .award-violence {
+  color: #ff6f91;
+}
+.match-player-card.player-row .award-assist {
+  color: #74e0c0;
+}
+.match-player-card.player-row .award-support {
+  color: #f4d58a;
+}
+.match-player-card.player-row .award-talker {
+  color: #f0a6ff;
+}
+.match-player-card.player-row .award-rich {
+  color: #ffe27a;
+}
+.match-player-card.player-row .award-cty {
+  color: #ffc15a;
+}
+.match-player-card.player-row .award-demolition {
+  color: #ff9f6e;
+}
+.match-player-card.player-row .award-soul {
+  color: #d8b4fe;
+}
 
 .match-player-card.player-row .hero-avatar-shell {
   position: relative;

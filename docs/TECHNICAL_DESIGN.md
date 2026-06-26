@@ -123,15 +123,15 @@ flowchart TD
 
 OpenDota 当前 OpenAPI 版本查询为 `31.1.0`。关键端点：
 
-| 场景 | OpenDota 端点 | 说明 |
-| --- | --- | --- |
-| 获取比赛详情 | `GET /matches/{match_id}` | 核心详情数据 |
-| 请求解析比赛 | `POST /request/{match_id}` | 解析请求计入更高 rate cost |
-| 查询解析任务 | `GET /request/{jobId}` | 查看解析状态 |
-| 联赛比赛 ID | `GET /leagues/{league_id}/matchIds` | 包含业余联赛，优先使用 |
-| 联赛比赛数据 | `GET /leagues/{league_id}/matches` | OpenAPI 标注不含业余联赛，谨慎使用 |
-| 英雄常量 | `GET /constants/{resource}` | heroes、items、abilities 等 |
-| 英雄统计 | `GET /heroStats` | 可做补充，不作为 MVP 核心 |
+| 场景         | OpenDota 端点                       | 说明                               |
+| ------------ | ----------------------------------- | ---------------------------------- |
+| 获取比赛详情 | `GET /matches/{match_id}`           | 核心详情数据                       |
+| 请求解析比赛 | `POST /request/{match_id}`          | 解析请求计入更高 rate cost         |
+| 查询解析任务 | `GET /request/{jobId}`              | 查看解析状态                       |
+| 联赛比赛 ID  | `GET /leagues/{league_id}/matchIds` | 包含业余联赛，优先使用             |
+| 联赛比赛数据 | `GET /leagues/{league_id}/matches`  | OpenAPI 标注不含业余联赛，谨慎使用 |
+| 英雄常量     | `GET /constants/{resource}`         | heroes、items、abilities 等        |
+| 英雄统计     | `GET /heroStats`                    | 可做补充，不作为 MVP 核心          |
 
 ### 3.1 自动同步策略
 
@@ -155,16 +155,16 @@ OpenDota 当前 OpenAPI 版本查询为 `31.1.0`。关键端点：
 
 ### 3.3 自动化任务
 
-| 任务 | 触发方式 | 说明 |
-| --- | --- | --- |
-| `league-discovery` | 定时 + 手动 | 根据 league_id 拉取 match_id 列表，发现新比赛 |
-| `match-sync` | 队列 + 手动 | 拉取单场比赛详情并写入结构化数据 |
-| `parse-request` | 队列 + 手动 | 对未解析比赛请求 OpenDota 解析 |
-| `parse-polling` | 定时 | 刷新解析中的比赛，补全高级数据 |
-| `schedule-linker` | 同步后触发 + 手动 | 尝试把 OpenDota match 与 Web Admin 赛程关联 |
-| `standings-recalc` | 赛果确认后触发 + 手动 | 重算小组赛和瑞士轮积分榜 |
-| `bracket-advance` | 淘汰赛赛果确认后触发 + 手动 | 推进淘汰赛胜者到下一节点 |
-| `sync-health-check` | 定时 | 发现长期失败或卡住的同步任务并告警 |
+| 任务                | 触发方式                    | 说明                                          |
+| ------------------- | --------------------------- | --------------------------------------------- |
+| `league-discovery`  | 定时 + 手动                 | 根据 league_id 拉取 match_id 列表，发现新比赛 |
+| `match-sync`        | 队列 + 手动                 | 拉取单场比赛详情并写入结构化数据              |
+| `parse-request`     | 队列 + 手动                 | 对未解析比赛请求 OpenDota 解析                |
+| `parse-polling`     | 定时                        | 刷新解析中的比赛，补全高级数据                |
+| `schedule-linker`   | 同步后触发 + 手动           | 尝试把 OpenDota match 与 Web Admin 赛程关联   |
+| `standings-recalc`  | 赛果确认后触发 + 手动       | 重算小组赛和瑞士轮积分榜                      |
+| `bracket-advance`   | 淘汰赛赛果确认后触发 + 手动 | 推进淘汰赛胜者到下一节点                      |
+| `sync-health-check` | 定时                        | 发现长期失败或卡住的同步任务并告警            |
 
 自动关联策略：
 
@@ -243,37 +243,37 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 ### 5.1 用户与权限
 
-| 表 | 关键字段 |
-| --- | --- |
-| `app_users` | id, open_id, union_id, nickname, role, created_at, updated_at |
-| `user_sessions` | id, user_id, token_hash, expires_at, revoked_at, last_seen_at |
+| 表                   | 关键字段                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `app_users`          | id, open_id, union_id, nickname, role, created_at, updated_at                            |
+| `user_sessions`      | id, user_id, token_hash, expires_at, revoked_at, last_seen_at                            |
 | `user_dota_accounts` | id, user_id, player_id, dota_account_id, steam_id64, binding_status, verification_status |
-| `players` | id, account_id, steam_id64, display_name, current_team_id, avatar_url |
-| `admin_users` | id, username, password_hash, display_name, status, created_at, updated_at |
-| `admin_sessions` | id, admin_user_id, token_hash, expires_at, revoked_at, last_seen_at |
-| `admin_roles` | admin_user_id, role, scope_type, scope_id |
-| `admin_audit_logs` | actor_admin_id, action, resource_type, resource_id, detail_json, created_at |
+| `players`            | id, account_id, steam_id64, display_name, current_team_id, avatar_url                    |
+| `admin_users`        | id, username, password_hash, display_name, status, created_at, updated_at                |
+| `admin_sessions`     | id, admin_user_id, token_hash, expires_at, revoked_at, last_seen_at                      |
+| `admin_roles`        | admin_user_id, role, scope_type, scope_id                                                |
+| `admin_audit_logs`   | actor_admin_id, action, resource_type, resource_id, detail_json, created_at              |
 
 `players.account_id` 是 Dota 玩家身份的归并主键。用户绑定一个尚未参赛的账号时，后端会创建空 player 档案；未来 OpenDota 同步命中同一个 `account_id` 时复用该 player，并补齐昵称、SteamID64、队伍和比赛统计。
 
 ### 5.2 赛事域
 
-| 表 | 关键字段 |
-| --- | --- |
-| `seasons` | id, name, edition_number, start_date, end_date, is_active |
-| `leagues` | id, season_id, opendota_league_id, name, status |
-| `tournaments` | id, season_id, league_id, name, slug, status, current_stage_id, visibility, starts_at, ends_at |
-| `tournament_stages` | id, tournament_id, type, name, sort_order, status, config_json, starts_at, ends_at, published_at |
-| `stage_teams` | id, stage_id, team_id, seed, source_stage_id, source_rank, status |
-| `stage_groups` | id, stage_id, name, sort_order, advance_count |
-| `stage_group_teams` | id, group_id, stage_team_id, seed |
-| `stage_rounds` | id, stage_id, group_id, round_number, name, status, pairing_status, published_at |
-| `stage_standings` | id, stage_id, group_id, team_id, rank, points, series_wins, series_draws, series_losses, game_wins, game_losses, opponent_score, head_to_head_score, manual_rank, tiebreaker_json |
-| `bracket_nodes` | id, stage_id, round_number, position, series_id, next_node_id, next_slot, team_a_id, team_b_id, winner_team_id, status |
-| `teams` | id, season_id, name, short_name, logo_url, color |
-| `team_members` | team_id, player_id, role, joined_at, left_at |
-| `players` | id, dota_account_id, steam_id64, display_name, avatar_url |
-| `tournament_players` | tournament_id, player_id, current_team_id, source, first_seen_match_id, last_seen_match_id |
+| 表                   | 关键字段                                                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `seasons`            | id, name, edition_number, start_date, end_date, is_active                                                                                                                         |
+| `leagues`            | id, season_id, opendota_league_id, name, status                                                                                                                                   |
+| `tournaments`        | id, season_id, league_id, name, slug, status, current_stage_id, visibility, starts_at, ends_at                                                                                    |
+| `tournament_stages`  | id, tournament_id, type, name, sort_order, status, config_json, starts_at, ends_at, published_at                                                                                  |
+| `stage_teams`        | id, stage_id, team_id, seed, source_stage_id, source_rank, status                                                                                                                 |
+| `stage_groups`       | id, stage_id, name, sort_order, advance_count                                                                                                                                     |
+| `stage_group_teams`  | id, group_id, stage_team_id, seed                                                                                                                                                 |
+| `stage_rounds`       | id, stage_id, group_id, round_number, name, status, pairing_status, published_at                                                                                                  |
+| `stage_standings`    | id, stage_id, group_id, team_id, rank, points, series_wins, series_draws, series_losses, game_wins, game_losses, opponent_score, head_to_head_score, manual_rank, tiebreaker_json |
+| `bracket_nodes`      | id, stage_id, round_number, position, series_id, next_node_id, next_slot, team_a_id, team_b_id, winner_team_id, status                                                            |
+| `teams`              | id, season_id, name, short_name, logo_url, color                                                                                                                                  |
+| `team_members`       | team_id, player_id, role, joined_at, left_at                                                                                                                                      |
+| `players`            | id, dota_account_id, steam_id64, display_name, avatar_url                                                                                                                         |
+| `tournament_players` | tournament_id, player_id, current_team_id, source, first_seen_match_id, last_seen_match_id                                                                                        |
 
 说明：
 
@@ -285,11 +285,11 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 ### 5.3 赛程和赛果
 
-| 表 | 关键字段 |
-| --- | --- |
-| `series` | id, season_id, league_id, tournament_id, stage_id, round_id, group_id, bracket_node_id, radiant_team_id, dire_team_id, bo_type, scheduled_at, status, publish_status |
-| `series_games` | id, series_id, game_index, match_id, radiant_score, dire_score, winner_team_id, manual_result_status |
-| `schedule_notes` | series_id, note, visible_to_public, created_by |
+| 表               | 关键字段                                                                                                                                                             |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `series`         | id, season_id, league_id, tournament_id, stage_id, round_id, group_id, bracket_node_id, radiant_team_id, dire_team_id, bo_type, scheduled_at, status, publish_status |
+| `series_games`   | id, series_id, game_index, match_id, radiant_score, dire_score, winner_team_id, manual_result_status                                                                 |
+| `schedule_notes` | series_id, note, visible_to_public, created_by                                                                                                                       |
 
 说明：
 
@@ -301,16 +301,16 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 ### 5.4 比赛数据
 
-| 表 | 关键字段 |
-| --- | --- |
-| `matches` | match_id, league_id, series_game_id, start_time, duration, radiant_win, radiant_score, dire_score, game_mode, parse_status, raw_match_json |
-| `match_players` | match_id, player_id, dota_account_id, hero_id, team, level, kills, deaths, assists, gpm, xpm, net_worth, last_hits, denies, hero_damage, tower_damage, hero_healing, damage_taken |
-| `match_player_items` | match_id, player_id, slot_type, slot_index, item_id |
-| `match_player_abilities` | match_id, player_id, ability_id, level, time |
-| `match_drafts` | match_id, order, team, action, hero_id, player_id |
-| `match_time_series` | match_id, player_id, metric, values_json |
-| `match_objectives` | match_id, time, type, team, player_slot, key, raw_json |
-| `match_chat` | match_id, time, team, player_id, message |
+| 表                       | 关键字段                                                                                                                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `matches`                | match_id, league_id, series_game_id, start_time, duration, radiant_win, radiant_score, dire_score, game_mode, parse_status, raw_match_json                                        |
+| `match_players`          | match_id, player_id, dota_account_id, hero_id, team, level, kills, deaths, assists, gpm, xpm, net_worth, last_hits, denies, hero_damage, tower_damage, hero_healing, damage_taken |
+| `match_player_items`     | match_id, player_id, slot_type, slot_index, item_id                                                                                                                               |
+| `match_player_abilities` | match_id, player_id, ability_id, level, time                                                                                                                                      |
+| `match_drafts`           | match_id, order, team, action, hero_id, player_id                                                                                                                                 |
+| `match_time_series`      | match_id, player_id, metric, values_json                                                                                                                                          |
+| `match_objectives`       | match_id, time, type, team, player_slot, key, raw_json                                                                                                                            |
+| `match_chat`             | match_id, time, team, player_id, message                                                                                                                                          |
 
 每届英雄榜首版不新增持久化表，由后端读取本届 `opendota_matches.raw_json` 动态聚合并可后续缓存。统一规则：
 
@@ -321,20 +321,20 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 ### 5.5 同步任务
 
-| 表 | 关键字段 |
-| --- | --- |
-| `sync_jobs` | id, type, scope, status, progress_current, progress_total, error_message, retry_count, next_run_at, started_at, finished_at |
-| `opendota_requests` | id, endpoint, params_json, status_code, cost, error_message, requested_at |
-| `league_sync_configs` | id, season_id, league_id, enabled, interval_minutes, auto_request_parse, last_discovered_at, created_by |
+| 表                    | 关键字段                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `sync_jobs`           | id, type, scope, status, progress_current, progress_total, error_message, retry_count, next_run_at, started_at, finished_at |
+| `opendota_requests`   | id, endpoint, params_json, status_code, cost, error_message, requested_at                                                   |
+| `league_sync_configs` | id, season_id, league_id, enabled, interval_minutes, auto_request_parse, last_discovered_at, created_by                     |
 
 ### 5.6 社区互动标签
 
-| 表 | 关键字段 |
-| --- | --- |
-| `tags` | id, tournament_id, target_type, target_id, normalized_text, display_text, created_by, like_count, status, review_reason, reviewed_by, reviewed_at, created_at, updated_at |
-| `tag_likes` | tag_id, user_id, created_at |
-| `tag_reports` | id, tag_id, reporter_user_id, reason, status, created_at, updated_at |
-| `tag_audit_logs` | id, tag_id, actor, action, from_status, to_status, reason, created_at |
+| 表               | 关键字段                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`           | id, tournament_id, target_type, target_id, normalized_text, display_text, created_by, like_count, status, review_reason, reviewed_by, reviewed_at, created_at, updated_at |
+| `tag_likes`      | tag_id, user_id, created_at                                                                                                                                               |
+| `tag_reports`    | id, tag_id, reporter_user_id, reason, status, created_at, updated_at                                                                                                      |
+| `tag_audit_logs` | id, tag_id, actor, action, from_status, to_status, reason, created_at                                                                                                     |
 
 设计规则：
 
@@ -382,49 +382,50 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 ### 6.1 认证
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/api/auth/wechat-login` | 微信 code 登录 |
-| POST | `/api/auth/logout` | 退出登录 |
-| GET | `/api/me` | 当前用户和账号绑定 |
-| POST | `/api/me/player-binding` | 绑定 Dota account_id 或 SteamID64，可无比赛记录 |
-| GET | `/api/me/stats` | 我的本联赛数据 |
+| 方法  | 路径                     | 说明                                            |
+| ----- | ------------------------ | ----------------------------------------------- |
+| POST  | `/api/auth/wechat-login` | 微信 code 登录                                  |
+| POST  | `/api/auth/logout`       | 退出登录                                        |
+| GET   | `/api/me`                | 当前用户和账号绑定                              |
+| PATCH | `/api/me/profile`        | 更新当前用户展示昵称                            |
+| POST  | `/api/me/player-binding` | 绑定 Dota account_id 或 SteamID64，可无比赛记录 |
+| GET   | `/api/me/stats`          | 我的本联赛数据                                  |
 
 ### 6.2 Web Admin 认证
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/api/admin/auth/login` | 管理员账号密码登录 |
-| POST | `/api/admin/auth/logout` | 管理员退出 |
-| GET | `/api/admin/auth/me` | 当前管理员资料和权限 |
-| PATCH | `/api/admin/auth/password` | 修改管理员密码 |
+| 方法  | 路径                       | 说明                 |
+| ----- | -------------------------- | -------------------- |
+| POST  | `/api/admin/auth/login`    | 管理员账号密码登录   |
+| POST  | `/api/admin/auth/logout`   | 管理员退出           |
+| GET   | `/api/admin/auth/me`       | 当前管理员资料和权限 |
+| PATCH | `/api/admin/auth/password` | 修改管理员密码       |
 
 ### 6.3 公开赛事
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/seasons` | 赛季列表 |
-| GET | `/api/leagues` | 联赛列表 |
-| GET | `/api/tournaments` | 赛事列表 |
-| GET | `/api/tournaments/:id` | 赛事总览，包含当前阶段摘要 |
-| GET | `/api/tournaments/:id/stages` | 赛事阶段列表 |
-| GET | `/api/stages/:id/standings` | 小组赛或瑞士轮积分榜 |
-| GET | `/api/stages/:id/rounds` | 阶段轮次和对阵 |
-| GET | `/api/stages/:id/bracket` | 淘汰赛 bracket |
-| GET | `/api/schedules` | 赛程列表 |
-| GET | `/api/schedules/:id` | 赛程详情 |
-| GET | `/api/matches` | 比赛记录列表 |
-| GET | `/api/matches/:matchId` | 比赛详情 |
-| GET | `/api/players` | 选手列表 |
-| GET | `/api/players/:id` | 选手详情，限定联赛数据 |
-| GET | `/api/tournaments/:id/players/:playerId` | 当前入口届次选手详情，包含跨届参赛历史 |
-| GET | `/api/tournaments/:id/players/:playerId/tags` | 获取已审核通过的选手标签云 |
-| GET | `/api/tournaments/:id/hero-leaderboards` | 获取当前届次英雄榜，按称号口径聚合且只统计 5 场以上选手 |
-| POST | `/api/miniprogram/tournaments/:id/players/:playerId/tags` | 小程序登录用户提交选手标签，默认待审核 |
-| POST | `/api/miniprogram/tags/:tagId/like` | 小程序登录用户点赞已通过标签 |
-| DELETE | `/api/miniprogram/tags/:tagId/like` | 小程序登录用户取消点赞 |
-| GET | `/api/teams` | 队伍列表 |
-| GET | `/api/teams/:id` | 队伍详情 |
+| 方法   | 路径                                                      | 说明                                                    |
+| ------ | --------------------------------------------------------- | ------------------------------------------------------- |
+| GET    | `/api/seasons`                                            | 赛季列表                                                |
+| GET    | `/api/leagues`                                            | 联赛列表                                                |
+| GET    | `/api/tournaments`                                        | 赛事列表                                                |
+| GET    | `/api/tournaments/:id`                                    | 赛事总览，包含当前阶段摘要                              |
+| GET    | `/api/tournaments/:id/stages`                             | 赛事阶段列表                                            |
+| GET    | `/api/stages/:id/standings`                               | 小组赛或瑞士轮积分榜                                    |
+| GET    | `/api/stages/:id/rounds`                                  | 阶段轮次和对阵                                          |
+| GET    | `/api/stages/:id/bracket`                                 | 淘汰赛 bracket                                          |
+| GET    | `/api/schedules`                                          | 赛程列表                                                |
+| GET    | `/api/schedules/:id`                                      | 赛程详情                                                |
+| GET    | `/api/matches`                                            | 比赛记录列表                                            |
+| GET    | `/api/matches/:matchId`                                   | 比赛详情                                                |
+| GET    | `/api/players`                                            | 选手列表                                                |
+| GET    | `/api/players/:id`                                        | 选手详情，限定联赛数据                                  |
+| GET    | `/api/tournaments/:id/players/:playerId`                  | 当前入口届次选手详情，包含跨届参赛历史                  |
+| GET    | `/api/tournaments/:id/players/:playerId/tags`             | 获取已审核通过的选手标签云                              |
+| GET    | `/api/tournaments/:id/hero-leaderboards`                  | 获取当前届次英雄榜，按称号口径聚合且只统计 5 场以上选手 |
+| POST   | `/api/miniprogram/tournaments/:id/players/:playerId/tags` | 小程序登录用户提交选手标签，默认待审核                  |
+| POST   | `/api/miniprogram/tags/:tagId/like`                       | 小程序登录用户点赞已通过标签                            |
+| DELETE | `/api/miniprogram/tags/:tagId/like`                       | 小程序登录用户取消点赞                                  |
+| GET    | `/api/teams`                                              | 队伍列表                                                |
+| GET    | `/api/teams/:id`                                          | 队伍详情                                                |
 
 ### 6.4 互动标签接口规则
 
@@ -463,48 +464,48 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 ### 6.5 管理端 API
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/api/admin/seasons` | 创建赛季 |
-| PATCH | `/api/admin/seasons/:id` | 修改赛季 |
-| POST | `/api/admin/tournaments` | 创建赛事 |
-| PATCH | `/api/admin/tournaments/:id` | 修改赛事 |
-| POST | `/api/admin/tournaments/:id/stages` | 创建赛事阶段 |
-| PATCH | `/api/admin/stages/:id` | 修改阶段规则、状态和可见性 |
-| POST | `/api/admin/stages/:id/teams` | 配置阶段参赛队 |
-| POST | `/api/admin/stages/:id/generate-series` | 生成小组赛赛程草稿 |
-| POST | `/api/stages/:id/swiss-pairings` | 生成或重生成瑞士轮指定轮次配对草稿 |
-| POST | `/api/rounds/:id/confirm-swiss` | 确认瑞士轮配对并发布该轮 |
-| POST | `/api/rounds/:id/retract-swiss` | 撤回该轮及后续瑞士轮配对 |
-| POST | `/api/tournaments/:id/knockout-bracket` | 生成单败或双败淘汰赛 bracket 草稿 |
-| PATCH | `/api/bracket-nodes/:id/slot` | 拖拽修正 bracket 节点队伍槽位 |
-| POST | `/api/bracket-nodes/:id/winner` | 管理员确认 bracket 节点胜者并推进 |
-| POST | `/api/admin/stages/:id/publish` | 发布阶段和草稿对阵 |
-| POST | `/api/admin/stages/:id/recalculate-standings` | 重算阶段积分榜 |
-| PATCH | `/api/admin/stage-standings/:id` | 手动修正排名或晋级标记 |
-| PATCH | `/api/admin/bracket-nodes/:id` | 手动修正 bracket 节点或晋级结果 |
-| POST | `/api/admin/teams` | 创建队伍 |
-| PATCH | `/api/admin/teams/:id` | 修改队伍 |
-| POST | `/api/admin/players` | 创建选手 |
-| PATCH | `/api/admin/players/:id` | 修改选手 |
-| POST | `/api/admin/schedules` | 创建赛程 |
-| PATCH | `/api/admin/schedules/:id` | 修改赛程 |
-| POST | `/api/admin/series-games/:id/result` | 录入单局结果 |
-| POST | `/api/admin/matches/:matchId/sync` | 同步单场比赛 |
-| POST | `/api/admin/leagues/:leagueId/sync` | 同步联赛比赛 |
-| POST | `/api/admin/matches/:matchId/request-parse` | 请求 OpenDota 解析 |
-| GET | `/api/admin/league-sync-configs` | 联赛自动同步配置列表 |
-| POST | `/api/admin/league-sync-configs` | 创建联赛自动同步配置 |
-| PATCH | `/api/admin/league-sync-configs/:id` | 修改同步频率、启停、自动解析策略 |
-| POST | `/api/admin/sync-jobs/:id/retry` | 重试失败同步任务 |
-| GET | `/api/admin/tags` | 标签列表与审核筛选 |
-| GET | `/api/admin/tag-players` | 全部选手或按届次筛选的跨届标签工作台数据 |
-| POST | `/api/admin/tournaments/:id/players/:playerId/tags` | 管理员为选手新增测试 / 纠偏标签 |
-| PATCH | `/api/admin/tags/:tagId` | 隐藏、恢复或修改标签状态 |
-| POST | `/api/admin/tags/:tagId/likes/adjust` | 管理员为测试或运营纠偏增减标签点赞数 |
-| DELETE | `/api/admin/tags/:tagId` | 管理员删除测试或误建标签 |
-| GET | `/api/admin/sync-jobs` | 同步任务列表 |
-| GET | `/api/admin/audit-logs` | 审计日志 |
+| 方法   | 路径                                                | 说明                                     |
+| ------ | --------------------------------------------------- | ---------------------------------------- |
+| POST   | `/api/admin/seasons`                                | 创建赛季                                 |
+| PATCH  | `/api/admin/seasons/:id`                            | 修改赛季                                 |
+| POST   | `/api/admin/tournaments`                            | 创建赛事                                 |
+| PATCH  | `/api/admin/tournaments/:id`                        | 修改赛事                                 |
+| POST   | `/api/admin/tournaments/:id/stages`                 | 创建赛事阶段                             |
+| PATCH  | `/api/admin/stages/:id`                             | 修改阶段规则、状态和可见性               |
+| POST   | `/api/admin/stages/:id/teams`                       | 配置阶段参赛队                           |
+| POST   | `/api/admin/stages/:id/generate-series`             | 生成小组赛赛程草稿                       |
+| POST   | `/api/stages/:id/swiss-pairings`                    | 生成或重生成瑞士轮指定轮次配对草稿       |
+| POST   | `/api/rounds/:id/confirm-swiss`                     | 确认瑞士轮配对并发布该轮                 |
+| POST   | `/api/rounds/:id/retract-swiss`                     | 撤回该轮及后续瑞士轮配对                 |
+| POST   | `/api/tournaments/:id/knockout-bracket`             | 生成单败或双败淘汰赛 bracket 草稿        |
+| PATCH  | `/api/bracket-nodes/:id/slot`                       | 拖拽修正 bracket 节点队伍槽位            |
+| POST   | `/api/bracket-nodes/:id/winner`                     | 管理员确认 bracket 节点胜者并推进        |
+| POST   | `/api/admin/stages/:id/publish`                     | 发布阶段和草稿对阵                       |
+| POST   | `/api/admin/stages/:id/recalculate-standings`       | 重算阶段积分榜                           |
+| PATCH  | `/api/admin/stage-standings/:id`                    | 手动修正排名或晋级标记                   |
+| PATCH  | `/api/admin/bracket-nodes/:id`                      | 手动修正 bracket 节点或晋级结果          |
+| POST   | `/api/admin/teams`                                  | 创建队伍                                 |
+| PATCH  | `/api/admin/teams/:id`                              | 修改队伍                                 |
+| POST   | `/api/admin/players`                                | 创建选手                                 |
+| PATCH  | `/api/admin/players/:id`                            | 修改选手                                 |
+| POST   | `/api/admin/schedules`                              | 创建赛程                                 |
+| PATCH  | `/api/admin/schedules/:id`                          | 修改赛程                                 |
+| POST   | `/api/admin/series-games/:id/result`                | 录入单局结果                             |
+| POST   | `/api/admin/matches/:matchId/sync`                  | 同步单场比赛                             |
+| POST   | `/api/admin/leagues/:leagueId/sync`                 | 同步联赛比赛                             |
+| POST   | `/api/admin/matches/:matchId/request-parse`         | 请求 OpenDota 解析                       |
+| GET    | `/api/admin/league-sync-configs`                    | 联赛自动同步配置列表                     |
+| POST   | `/api/admin/league-sync-configs`                    | 创建联赛自动同步配置                     |
+| PATCH  | `/api/admin/league-sync-configs/:id`                | 修改同步频率、启停、自动解析策略         |
+| POST   | `/api/admin/sync-jobs/:id/retry`                    | 重试失败同步任务                         |
+| GET    | `/api/admin/tags`                                   | 标签列表与审核筛选                       |
+| GET    | `/api/admin/tag-players`                            | 全部选手或按届次筛选的跨届标签工作台数据 |
+| POST   | `/api/admin/tournaments/:id/players/:playerId/tags` | 管理员为选手新增测试 / 纠偏标签          |
+| PATCH  | `/api/admin/tags/:tagId`                            | 隐藏、恢复或修改标签状态                 |
+| POST   | `/api/admin/tags/:tagId/likes/adjust`               | 管理员为测试或运营纠偏增减标签点赞数     |
+| DELETE | `/api/admin/tags/:tagId`                            | 管理员删除测试或误建标签                 |
+| GET    | `/api/admin/sync-jobs`                              | 同步任务列表                             |
+| GET    | `/api/admin/audit-logs`                             | 审计日志                                 |
 
 ### 6.6 比赛管理服务
 
@@ -705,14 +706,14 @@ Web Admin：
 
 ## 11. 技术风险
 
-| 风险 | 影响 | 应对 |
-| --- | --- | --- |
-| OpenDota 解析不稳定 | 高级复盘缺字段 | 保留基础详情和待解析状态 |
-| 业余联赛接口差异 | 联赛比赛拉取不全 | 使用 `/matchIds`，支持手动补录 match_id |
-| 微信审核与域名配置 | 小程序上线延迟 | 同步发布 H5 兜底入口，提前准备 HTTPS 域名和隐私说明 |
-| 账号冒领 | 个人数据错误 | 绑定审核和管理员白名单 |
-| Web Admin 暴露在公网 | 数据被误改或攻击 | 强密码、限流、审计日志、HTTPS、后续二次验证 |
-| 比赛详情页过长 | 加载慢 | 分段渲染，图表懒加载，缓存聚合结果 |
+| 风险                 | 影响             | 应对                                                |
+| -------------------- | ---------------- | --------------------------------------------------- |
+| OpenDota 解析不稳定  | 高级复盘缺字段   | 保留基础详情和待解析状态                            |
+| 业余联赛接口差异     | 联赛比赛拉取不全 | 使用 `/matchIds`，支持手动补录 match_id             |
+| 微信审核与域名配置   | 小程序上线延迟   | 同步发布 H5 兜底入口，提前准备 HTTPS 域名和隐私说明 |
+| 账号冒领             | 个人数据错误     | 绑定审核和管理员白名单                              |
+| Web Admin 暴露在公网 | 数据被误改或攻击 | 强密码、限流、审计日志、HTTPS、后续二次验证         |
+| 比赛详情页过长       | 加载慢           | 分段渲染，图表懒加载，缓存聚合结果                  |
 
 ## 12. 参考来源
 

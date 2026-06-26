@@ -43,6 +43,7 @@ import {
   type UpdateTournamentLifecycleInput,
   type UpdateGameResultInput,
   type AppUserView,
+  type UpdateAppUserProfileInput,
   type UpsertAppUserInput,
   type UserSessionView,
   type UpsertOpenDotaMatchInput,
@@ -101,14 +102,21 @@ type Repository = {
   listSyncTasks(): SyncTaskView[];
   listRunningLeagueSyncTargets(): RunningLeagueSyncTarget[];
   listLeagueSyncTargets(statuses?: Array<LeagueSyncTarget["status"]>): LeagueSyncTarget[];
-  listTournamentOpenDotaMatches(tournamentId: string, limit?: number): OpenDotaMatchListItem[] | undefined;
+  listTournamentOpenDotaMatches(
+    tournamentId: string,
+    limit?: number,
+  ): OpenDotaMatchListItem[] | undefined;
   listTournamentTeams(tournamentId: string): TournamentTeamListItem[] | undefined;
   listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
   listTournamentHeroLeaderboards(tournamentId: string): TournamentHeroLeaderboardsView | undefined;
   getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined;
-  getTournamentPlayerDetail(tournamentId: string, playerId: string): TournamentPlayerDetail | undefined;
+  getTournamentPlayerDetail(
+    tournamentId: string,
+    playerId: string,
+  ): TournamentPlayerDetail | undefined;
   getAppUser(userId: string): AppUserView | undefined;
   upsertAppUser(input: UpsertAppUserInput): AppUserView;
+  updateAppUserProfile(userId: string, input: UpdateAppUserProfileInput): AppUserView;
   createUserSession(userId: string): UserSessionView;
   resolveAppUserBySessionToken(token: string): AppUserView | undefined;
   revokeUserSession(token: string): { revoked: true };
@@ -124,19 +132,33 @@ type Repository = {
   updateAcknowledgement(id: string, input: UpdateAcknowledgementInput): AcknowledgementView;
   deleteAcknowledgement(id: string): { deleted: true; acknowledgementId: string };
   listPlayerTags(tournamentId: string, playerId: string): PlayerTagView[] | undefined;
-  submitPlayerTag(tournamentId: string, playerId: string, input: SubmitPlayerTagInput): PlayerTagView;
+  submitPlayerTag(
+    tournamentId: string,
+    playerId: string,
+    input: SubmitPlayerTagInput,
+  ): PlayerTagView;
   likePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView;
   unlikePlayerTag(tagId: string, input: LikePlayerTagInput): PlayerTagView;
   adjustPlayerTagLikes(tagId: string, input: AdjustPlayerTagLikesInput): PlayerTagView;
   listAdminTagPlayers(input?: ListAdminTagPlayersInput): AdminTagPlayerItem[];
-  createAdminPlayerTag(tournamentId: string, playerId: string, input: AdminCreatePlayerTagInput): PlayerTagView;
+  createAdminPlayerTag(
+    tournamentId: string,
+    playerId: string,
+    input: AdminCreatePlayerTagInput,
+  ): PlayerTagView;
   listAdminTags(input?: ListAdminTagsInput): PlayerTagView[];
   updatePlayerTagReview(tagId: string, input: ReviewPlayerTagInput): PlayerTagView;
   deletePlayerTag(tagId: string, input?: DeletePlayerTagInput): { deleted: true; tagId: string };
   getOfficialScheduleManagement(tournamentId: string): OfficialScheduleManagement | undefined;
   getOfficialSchedulePublicStatus(tournamentId: string): OfficialSchedulePublicStatus | undefined;
-  updateOfficialScheduleConfig(tournamentId: string, input: UpdateOfficialScheduleConfigInput): OfficialScheduleManagement;
-  lockOfficialScheduleRoster(tournamentId: string, input: LockOfficialScheduleRosterInput): OfficialScheduleManagement;
+  updateOfficialScheduleConfig(
+    tournamentId: string,
+    input: UpdateOfficialScheduleConfigInput,
+  ): OfficialScheduleManagement;
+  lockOfficialScheduleRoster(
+    tournamentId: string,
+    input: LockOfficialScheduleRosterInput,
+  ): OfficialScheduleManagement;
   unlockOfficialScheduleRoster(tournamentId: string, actor?: string): OfficialScheduleManagement;
   publishOfficialSchedule(tournamentId: string, actor?: string): OfficialScheduleManagement;
   withdrawOfficialSchedule(tournamentId: string, actor?: string): OfficialScheduleManagement;
@@ -145,7 +167,10 @@ type Repository = {
   updatePlayerSteamProfiles(profiles: SteamPlayerProfileInput[]): number;
   getOpenDotaMatchCache(matchId: number): OpenDotaMatchCache | undefined;
   upsertOpenDotaMatch(input: UpsertOpenDotaMatchInput): OpenDotaMatchCache;
-  updateTournamentLifecycle(tournamentId: string, input: UpdateTournamentLifecycleInput): TournamentDetail;
+  updateTournamentLifecycle(
+    tournamentId: string,
+    input: UpdateTournamentLifecycleInput,
+  ): TournamentDetail;
   createTeam(input: CreateTeamInput): unknown;
   updateTeam(teamId: string, input: UpdateTeamInput): unknown;
   createPlayer(input: CreatePlayerInput): unknown;
@@ -164,7 +189,10 @@ type Repository = {
   retractSwissRound(roundId: string, input: ConfirmSwissRoundInput): StageRound[];
   addStageGroupTeam(input: AddStageGroupTeamInput): StageGroup;
   removeStageGroupTeam(groupId: string, teamId: string): StageGroup;
-  createKnockoutBracket(tournamentId: string, input: CreateKnockoutBracketInput): KnockoutBracketResult;
+  createKnockoutBracket(
+    tournamentId: string,
+    input: CreateKnockoutBracketInput,
+  ): KnockoutBracketResult;
   advanceBracketNode(nodeId: string, input: AdvanceBracketNodeInput): BracketNode[];
   retractBracketNode(nodeId: string, input?: RetractBracketNodeInput): BracketNode[];
   setBracketNodeSlot(nodeId: string, input: SetBracketNodeSlotInput): BracketNode[];
@@ -175,8 +203,16 @@ type Repository = {
   deleteSeries(seriesId: string): { deleted: true; seriesId: string };
   clearTournamentMatchRecords(tournamentId: string): ClearTournamentMatchRecordsResult;
   clearTournamentScheduleRecords(tournamentId: string): ClearTournamentScheduleRecordsResult;
-  updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput): unknown;
-  linkOpenDotaMatchToSeries(tournamentId: string, matchId: number, input: LinkOpenDotaMatchInput): unknown;
+  updateSeriesGameResult(
+    seriesId: string,
+    gameIndex: number,
+    input: UpdateGameResultInput,
+  ): unknown;
+  linkOpenDotaMatchToSeries(
+    tournamentId: string,
+    matchId: number,
+    input: LinkOpenDotaMatchInput,
+  ): unknown;
   createSyncTask(input: CreateSyncTaskInput): SyncTaskView;
 };
 
@@ -262,6 +298,10 @@ export function upsertAppUser(input: UpsertAppUserInput) {
   return repository.upsertAppUser(input);
 }
 
+export function updateAppUserProfile(userId: string, input: UpdateAppUserProfileInput) {
+  return repository.updateAppUserProfile(userId, input);
+}
+
 export function createUserSession(userId: string) {
   return repository.createUserSession(userId);
 }
@@ -322,7 +362,11 @@ export function listPlayerTags(tournamentId: string, playerId: string) {
   return repository.listPlayerTags(tournamentId, playerId);
 }
 
-export function submitPlayerTag(tournamentId: string, playerId: string, input: SubmitPlayerTagInput) {
+export function submitPlayerTag(
+  tournamentId: string,
+  playerId: string,
+  input: SubmitPlayerTagInput,
+) {
   return repository.submitPlayerTag(tournamentId, playerId, input);
 }
 
@@ -342,7 +386,11 @@ export function listAdminTagPlayers(input?: ListAdminTagPlayersInput) {
   return repository.listAdminTagPlayers(input);
 }
 
-export function createAdminPlayerTag(tournamentId: string, playerId: string, input: AdminCreatePlayerTagInput) {
+export function createAdminPlayerTag(
+  tournamentId: string,
+  playerId: string,
+  input: AdminCreatePlayerTagInput,
+) {
   return repository.createAdminPlayerTag(tournamentId, playerId, input);
 }
 
@@ -366,11 +414,17 @@ export function getOfficialSchedulePublicStatus(tournamentId: string) {
   return repository.getOfficialSchedulePublicStatus(tournamentId);
 }
 
-export function updateOfficialScheduleConfig(tournamentId: string, input: UpdateOfficialScheduleConfigInput) {
+export function updateOfficialScheduleConfig(
+  tournamentId: string,
+  input: UpdateOfficialScheduleConfigInput,
+) {
   return repository.updateOfficialScheduleConfig(tournamentId, input);
 }
 
-export function lockOfficialScheduleRoster(tournamentId: string, input: LockOfficialScheduleRosterInput) {
+export function lockOfficialScheduleRoster(
+  tournamentId: string,
+  input: LockOfficialScheduleRosterInput,
+) {
   return repository.lockOfficialScheduleRoster(tournamentId, input);
 }
 
@@ -406,7 +460,10 @@ export function upsertOpenDotaMatch(input: UpsertOpenDotaMatchInput) {
   return repository.upsertOpenDotaMatch(input);
 }
 
-export function updateTournamentLifecycle(tournamentId: string, input: UpdateTournamentLifecycleInput) {
+export function updateTournamentLifecycle(
+  tournamentId: string,
+  input: UpdateTournamentLifecycleInput,
+) {
   return repository.updateTournamentLifecycle(tournamentId, input);
 }
 
@@ -526,11 +583,19 @@ export function clearTournamentScheduleRecords(tournamentId: string) {
   return repository.clearTournamentScheduleRecords(tournamentId);
 }
 
-export function updateSeriesGameResult(seriesId: string, gameIndex: number, input: UpdateGameResultInput) {
+export function updateSeriesGameResult(
+  seriesId: string,
+  gameIndex: number,
+  input: UpdateGameResultInput,
+) {
   return repository.updateSeriesGameResult(seriesId, gameIndex, input);
 }
 
-export function linkOpenDotaMatchToSeries(tournamentId: string, matchId: number, input: LinkOpenDotaMatchInput) {
+export function linkOpenDotaMatchToSeries(
+  tournamentId: string,
+  matchId: number,
+  input: LinkOpenDotaMatchInput,
+) {
   return repository.linkOpenDotaMatchToSeries(tournamentId, matchId, input);
 }
 

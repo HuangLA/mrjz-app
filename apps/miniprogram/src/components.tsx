@@ -3,10 +3,34 @@ import Taro from "@tarojs/taro";
 import type { CSSProperties, ReactNode } from "react";
 import { dotaAssetUrl, heroIcon } from "./dota";
 import { SmartImage as Image } from "./SmartImage";
-import type { MatchRecord, PlayerListItem, SeriesSummary, TeamBrief, TeamListItem, TournamentOption } from "./types";
-import { formatDateTime, formatDecimal, formatInteger, formatPercent, formatScore, labelStatus, seriesTitle, teamName } from "./utils";
+import type {
+  MatchRecord,
+  PlayerListItem,
+  SeriesSummary,
+  TeamBrief,
+  TeamListItem,
+  TournamentOption,
+} from "./types";
+import {
+  formatDateTime,
+  formatDecimal,
+  formatInteger,
+  formatPercent,
+  formatScore,
+  labelStatus,
+  seriesTitle,
+  teamName,
+} from "./utils";
 
-export type MiniRouteKey = "home" | "stage" | "schedule" | "records" | "leaderboard" | "players" | "teams" | "mine";
+export type MiniRouteKey =
+  | "home"
+  | "stage"
+  | "schedule"
+  | "records"
+  | "leaderboard"
+  | "players"
+  | "teams"
+  | "mine";
 
 const routeNavItems: Array<{ key: MiniRouteKey; label: string; url: string }> = [
   { key: "home", label: "首页", url: "/pages/index/index" },
@@ -66,7 +90,13 @@ const DEFAULT_MINI_NAV_METRICS: MiniNavMetrics = {
   sideInset: 10,
 };
 
-export function PageShell(props: { children: ReactNode; loading?: boolean; error?: string; routeKey?: MiniRouteKey; backUrl?: string | undefined }) {
+export function PageShell(props: {
+  children: ReactNode;
+  loading?: boolean;
+  error?: string;
+  routeKey?: MiniRouteKey;
+  backUrl?: string | undefined;
+}) {
   const routeKey = props.routeKey ?? "stage";
   const isHome = routeKey === "home";
 
@@ -75,9 +105,16 @@ export function PageShell(props: { children: ReactNode; loading?: boolean; error
       {isHome ? <HomeBackgroundMarquee /> : null}
       <AppBar backUrl={props.backUrl} isHome={isHome} />
       <View className="view">
-        {props.loading ? <StatePanel title="读取中" text="正在同步赛事数据" /> : null}
-        {!props.loading && props.error ? <StatePanel title="暂时不可用" text={props.error} tone="danger" /> : null}
-        {!props.loading && !props.error ? props.children : null}
+        {props.loading ? (
+          <View className="loading-strip">
+            <Text>正在同步赛事数据</Text>
+          </View>
+        ) : null}
+        {props.error ? (
+          <StatePanel title="暂时不可用" text={props.error} tone="danger" />
+        ) : (
+          props.children
+        )}
       </View>
       <FloatingRouteNav routeKey={routeKey} />
     </View>
@@ -107,9 +144,15 @@ function AppBar(props: { backUrl?: string | undefined; isHome: boolean }) {
     <View className={`app-bar ${props.isHome ? "home-bar" : ""}`} style={appBarStyle}>
       <View className="title-line top-only" style={navRowStyle}>
         {props.isHome ? (
-          <Text className="brand-mark" style={navControlStyle}>MRJZ</Text>
+          <Text className="brand-mark" style={navControlStyle}>
+            MRJZ
+          </Text>
         ) : (
-          <Button className="icon-button" style={navButtonStyle} onClick={() => goBack(props.backUrl)}>
+          <Button
+            className="icon-button"
+            style={navButtonStyle}
+            onClick={() => goBack(props.backUrl)}
+          >
             ‹
           </Button>
         )}
@@ -153,7 +196,11 @@ function HomeHeroRail(props: { side: "radiant" | "dire" }) {
       <View className="home-hero-track">
         {heroes.map((hero, index) => (
           <View className="home-hero-card" key={`${props.side}-${hero}-${index}`}>
-            <Image className="home-hero-image" mode="aspectFill" src={dotaAssetUrl(`heroes/${hero}.png`)} />
+            <Image
+              className="home-hero-image"
+              mode="aspectFill"
+              src={dotaAssetUrl(`heroes/${hero}.png`)}
+            />
           </View>
         ))}
       </View>
@@ -228,7 +275,12 @@ export function StatePanel(props: { title: string; text: string; tone?: "default
   );
 }
 
-export function SectionTitle(props: { kicker?: string; title: string; actionText?: string; onAction?: () => void }) {
+export function SectionTitle(props: {
+  kicker?: string;
+  title: string;
+  actionText?: string;
+  onAction?: () => void;
+}) {
   return (
     <View className="section-title">
       <View className="section-title-copy">
@@ -288,7 +340,10 @@ export function TournamentScope(props: { tournament?: TournamentOption | null | 
     <View className="tournament-scope">
       <View>
         <Text>{meta?.name ?? "选择赛事"}</Text>
-        <Text>League {leagueId} · {labelStatus(meta?.status)}{startsAtText ? ` · ${startsAtText} 开赛` : ""}</Text>
+        <Text>
+          League {leagueId} · {labelStatus(meta?.status)}
+          {startsAtText ? ` · ${startsAtText} 开赛` : ""}
+        </Text>
       </View>
       <Button className="link-button" onClick={() => switchRoute("/pages/index/index")}>
         切换
@@ -315,13 +370,21 @@ function formatTournamentStart(value?: string | null): string {
   return `${month}/${day} ${hour}:${minute}`;
 }
 
-export function FilterRow<T extends string>(props: { labels: T[]; value?: T; onChange?: (value: T) => void }) {
+export function FilterRow<T extends string>(props: {
+  labels: T[];
+  value?: T;
+  onChange?: (value: T) => void;
+}) {
   const activeValue = props.value ?? props.labels[0];
 
   return (
     <View className="filter-row">
       {props.labels.map((label) => (
-        <Button className={`filter ${label === activeValue ? "active" : ""}`} key={label} onClick={() => props.onChange?.(label)}>
+        <Button
+          className={`filter ${label === activeValue ? "active" : ""}`}
+          key={label}
+          onClick={() => props.onChange?.(label)}
+        >
           {label}
         </Button>
       ))}
@@ -329,7 +392,9 @@ export function FilterRow<T extends string>(props: { labels: T[]; value?: T; onC
   );
 }
 
-export function StatGrid(props: { items: Array<{ label: string; value: string; hint?: string | undefined }> }) {
+export function StatGrid(props: {
+  items: Array<{ label: string; value: string; hint?: string | undefined }>;
+}) {
   return (
     <View className="metric-grid stat-grid">
       {props.items.map((item) => (
@@ -352,7 +417,10 @@ export function TeamBadge(props: { team?: TeamBrief | null; align?: "left" | "ri
       {team?.logoUrl ? (
         <Image className="team-logo" mode="aspectFill" src={team.logoUrl} />
       ) : (
-        <View className="team-logo team-logo-fallback" style={{ backgroundColor: team?.color ?? "#334155" }}>
+        <View
+          className="team-logo team-logo-fallback"
+          style={{ backgroundColor: team?.color ?? "#334155" }}
+        >
           {initial}
         </View>
       )}
@@ -370,10 +438,15 @@ export function SeriesCard(props: { series: SeriesSummary; onOpen?: () => void }
   const statusText = seriesScheduleStatusText(props.series.status);
 
   return (
-    <View className={`schedule-card series-card ${isFinished ? "finished" : ""}`} onClick={() => props.onOpen?.()}>
+    <View
+      className={`schedule-card series-card ${isFinished ? "finished" : ""}`}
+      onClick={() => props.onOpen?.()}
+    >
       <View className="schedule-card-head series-meta-row">
         <Text className="schedule-time">{formatDateTime(props.series.scheduledAt)}</Text>
-        <Text className="muted">{props.series.groupName || props.series.roundName || seriesTitle(props.series)}</Text>
+        <Text className="muted">
+          {props.series.groupName || props.series.roundName || seriesTitle(props.series)}
+        </Text>
       </View>
       <View className="schedule-matchup series-vs">
         <Text className="schedule-team">{teamName(props.series.radiantTeam)}</Text>
@@ -384,13 +457,21 @@ export function SeriesCard(props: { series: SeriesSummary; onOpen?: () => void }
       </View>
       <View className="schedule-card-foot series-footer">
         <Text className={`status-tag ${seriesScheduleStatusClass(statusText)}`}>{statusText}</Text>
-        <Text className="match-id">{firstMatchId ? `match ${firstMatchId}` : props.series.seriesKind === "tiebreaker" ? "加赛" : "--"}</Text>
+        <Text className="match-id">
+          {firstMatchId
+            ? `match ${firstMatchId}`
+            : props.series.seriesKind === "tiebreaker"
+              ? "加赛"
+              : "--"}
+        </Text>
       </View>
     </View>
   );
 }
 
-export function seriesScheduleStatusText(status?: string | null): "未开始" | "待补录" | "已完赛" | "延期" {
+export function seriesScheduleStatusText(
+  status?: string | null,
+): "未开始" | "待补录" | "已完赛" | "延期" {
   if (status === "completed") {
     return "已完赛";
   }
@@ -422,21 +503,35 @@ function seriesScheduleStatusClass(status: ReturnType<typeof seriesScheduleStatu
   return "";
 }
 
-export function PlayerAvatar(props: { player: Pick<PlayerListItem, "displayName" | "avatarUrl">; size?: "normal" | "large" }) {
+export function PlayerAvatar(props: {
+  player: Pick<PlayerListItem, "displayName" | "avatarUrl">;
+  size?: "normal" | "large";
+}) {
   const className = props.size === "large" ? "player-avatar player-avatar-large" : "player-avatar";
 
   return props.player.avatarUrl ? (
     <Image className={className} mode="aspectFill" src={props.player.avatarUrl} />
   ) : (
-    <View className={`${className} player-avatar-fallback`}>{props.player.displayName.slice(0, 1)}</View>
+    <View className={`${className} player-avatar-fallback`}>
+      {props.player.displayName.slice(0, 1)}
+    </View>
   );
 }
 
-export function MatchRecordCard(props: { record: MatchRecord; index?: number; onOpen: (matchId: number) => void }) {
+export function MatchRecordCard(props: {
+  record: MatchRecord;
+  index?: number;
+  onOpen: (matchId: number) => void;
+}) {
   const { record } = props;
-  const score = record.radiantScore === null || record.direScore === null ? "- : -" : `${record.radiantScore} : ${record.direScore}`;
-  const winnerClass = record.radiantWin === null ? "" : record.radiantWin ? "radiant-win" : "dire-win";
-  const heroCount = (record.heroLineups?.radiant.length ?? 0) + (record.heroLineups?.dire.length ?? 0);
+  const score =
+    record.radiantScore === null || record.direScore === null
+      ? "- : -"
+      : `${record.radiantScore} : ${record.direScore}`;
+  const winnerClass =
+    record.radiantWin === null ? "" : record.radiantWin ? "radiant-win" : "dire-win";
+  const heroCount =
+    (record.heroLineups?.radiant.length ?? 0) + (record.heroLineups?.dire.length ?? 0);
 
   return (
     <View className={`record-card match-record-card ${winnerClass}`}>
@@ -512,14 +607,22 @@ function RecordHeroMatchup(props: { record: MatchRecord }) {
   );
 }
 
-function RecordHeroStrip(props: { side: "radiant" | "dire"; heroes: NonNullable<MatchRecord["heroLineups"]>["radiant"] }) {
+function RecordHeroStrip(props: {
+  side: "radiant" | "dire";
+  heroes: NonNullable<MatchRecord["heroLineups"]>["radiant"];
+}) {
   return (
     <View className={`record-hero-strip ${props.side}`}>
       {Array.from({ length: 5 }, (_, index) => {
         const hero = props.heroes[index];
 
         return hero ? (
-          <Image className="record-hero" key={`${props.side}:${index}`} mode="aspectFill" src={hero.icon || hero.portrait} />
+          <Image
+            className="record-hero"
+            key={`${props.side}:${index}`}
+            mode="aspectFill"
+            src={hero.icon || hero.portrait}
+          />
         ) : (
           <View className="record-hero empty" key={`${props.side}:${index}`}>
             <View />
@@ -534,14 +637,21 @@ function RecordFlag(props: { label: string; active: boolean }) {
   return <Text className={props.active ? "active" : ""}>{props.label}</Text>;
 }
 
-export function PlayerDirectoryCard(props: { player: PlayerListItem; onOpen: (playerId: string) => void }) {
+export function PlayerDirectoryCard(props: {
+  player: PlayerListItem;
+  onOpen: (playerId: string) => void;
+}) {
   const { player } = props;
   const team = player.currentTeam ?? player.teams[0] ?? null;
   const rate = clampPercent(player.stats.winRate ?? 0);
 
   return (
     <View className="player-stat-card">
-      <Button className="player-stat-card-main" style={{ borderLeftColor: team?.color ?? "#5eead4" }} onClick={() => props.onOpen(player.id)}>
+      <Button
+        className="player-stat-card-main"
+        style={{ borderLeftColor: team?.color ?? "#5eead4" }}
+        onClick={() => props.onOpen(player.id)}
+      >
         <View className="player-stat-head">
           <SteamAvatar player={player} />
           <View className="player-stat-identity">
@@ -551,12 +661,18 @@ export function PlayerDirectoryCard(props: { player: PlayerListItem; onOpen: (pl
             </View>
             <View className="player-stat-subline">
               <Text className="profile-id-link">ID {player.accountId ?? player.id}</Text>
-              <Text>{player.stats.wins}W / {player.stats.losses}L</Text>
+              <Text>
+                {player.stats.wins}W / {player.stats.losses}L
+              </Text>
             </View>
           </View>
           <View className="player-stat-primary">
-            <Text>胜率 <Text>{formatPercent(player.stats.winRate)}</Text></Text>
-            <View className="rate-bar"><View style={{ width: `${rate.toFixed(1)}%` }} /></View>
+            <Text>
+              胜率 <Text>{formatPercent(player.stats.winRate)}</Text>
+            </Text>
+            <View className="rate-bar">
+              <View style={{ width: `${rate.toFixed(1)}%` }} />
+            </View>
             <Text>{formatDecimal(player.stats.kda, 2)}</Text>
             <Text>KDA</Text>
           </View>
@@ -565,7 +681,10 @@ export function PlayerDirectoryCard(props: { player: PlayerListItem; onOpen: (pl
           <PlayerStatTile label="场次" value={formatInteger(player.stats.totalMatches)} />
           <PlayerStatTile label="GPM" value={formatDecimal(player.stats.avgGpm, 0)} />
           <PlayerStatTile label="XPM" value={formatDecimal(player.stats.avgXpm, 0)} />
-          <PlayerStatTile label="击/亡/助" value={`${formatDecimal(player.stats.avgKills)}/${formatDecimal(player.stats.avgDeaths)}/${formatDecimal(player.stats.avgAssists)}`} />
+          <PlayerStatTile
+            label="击/亡/助"
+            value={`${formatDecimal(player.stats.avgKills)}/${formatDecimal(player.stats.avgDeaths)}/${formatDecimal(player.stats.avgAssists)}`}
+          />
           <PlayerStatTile label="场均经济" value={formatCompact(player.stats.avgNetWorth)} />
           <PlayerStatTile label="英雄伤害" value={formatCompact(player.stats.avgHeroDamage)} />
           <PlayerStatTile label="建筑伤害" value={formatCompact(player.stats.avgTowerDamage)} />
@@ -594,12 +713,23 @@ export function TeamDirectoryCard(props: { team: TeamListItem; onOpen: (teamId: 
 
   return (
     <View className="profile-list-card team-card">
-      <Button style={{ borderLeftColor: team.color ?? "#f0c36a" }} onClick={() => props.onOpen(team.id)}>
-        <View className="profile-avatar-fallback team">{(team.shortName ?? team.name).slice(0, 2).toUpperCase()}</View>
+      <Button
+        style={{ borderLeftColor: team.color ?? "#f0c36a" }}
+        onClick={() => props.onOpen(team.id)}
+      >
+        <View className="profile-avatar-fallback team">
+          {(team.shortName ?? team.name).slice(0, 2).toUpperCase()}
+        </View>
         <View>
           <Text>{team.name}</Text>
-          <Text>{team.memberCount} 名成员 · {team.stats.seriesPlayed} 场 · 胜率 {formatPercent(team.stats.winRate)}</Text>
-          <Text>{team.stats.gameWins} 胜 / {team.stats.gameLosses} 负 · 入库 {team.stats.linkedMatches} 场</Text>
+          <Text>
+            {team.memberCount} 名成员 · {team.stats.seriesPlayed} 场 · 胜率{" "}
+            {formatPercent(team.stats.winRate)}
+          </Text>
+          <Text>
+            {team.stats.gameWins} 胜 / {team.stats.gameLosses} 负 · 入库 {team.stats.linkedMatches}{" "}
+            场
+          </Text>
         </View>
         <Text>进入</Text>
       </Button>
@@ -612,12 +742,20 @@ export function PlayerTeamMark(props: { team: TeamBrief | null }) {
     return <Text className="team-mark empty">暂未归队</Text>;
   }
 
-  return <Text className="team-mark" style={{ borderColor: props.team.color ?? "#f0c36a" }}>{props.team.name}</Text>;
+  return (
+    <Text className="team-mark" style={{ borderColor: props.team.color ?? "#f0c36a" }}>
+      {props.team.name}
+    </Text>
+  );
 }
 
 export function PlayerHeroStrip(props: { heroes: Array<{ heroId: number }> }) {
   if (props.heroes.length === 0) {
-    return <View className="player-hero-strip empty"><Text>暂无常用英雄</Text></View>;
+    return (
+      <View className="player-hero-strip empty">
+        <Text>暂无常用英雄</Text>
+      </View>
+    );
   }
 
   return (
@@ -640,7 +778,10 @@ function PlayerStatTile(props: { label: string; value: string }) {
   );
 }
 
-export function SteamAvatar(props: { player: Pick<PlayerListItem, "displayName" | "avatarUrl">; size?: "normal" | "large" | "small" }) {
+export function SteamAvatar(props: {
+  player: Pick<PlayerListItem, "displayName" | "avatarUrl">;
+  size?: "normal" | "large" | "small";
+}) {
   const size = props.size ?? "normal";
   const initial = props.player.displayName.slice(0, 1).toUpperCase();
 

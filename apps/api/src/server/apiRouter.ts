@@ -72,6 +72,7 @@ import {
   upsertAppUser,
   updateTeam,
   updateAcknowledgement,
+  updateAppUserProfile,
   updateTournamentLifecycle,
   updatePlayerTagReview,
   updateSeries,
@@ -97,9 +98,19 @@ import { Router, type RouteGuardContext } from "./router.js";
 const apiRouterDirectory = path.dirname(fileURLToPath(import.meta.url));
 const dotaAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/dota");
 const svgAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/svg");
-const sponsorAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/sponsors");
+const sponsorAssetRoot = path.resolve(
+  apiRouterDirectory,
+  "../../../mobile-web/public/static/sponsors",
+);
 const acknowledgementAssetRoot = resolveAcknowledgementAssetRoot();
-const allowedDotaAssetSections = new Set(["abilities", "constants", "heroes", "hero-icons", "items", "wards"]);
+const allowedDotaAssetSections = new Set([
+  "abilities",
+  "constants",
+  "heroes",
+  "hero-icons",
+  "items",
+  "wards",
+]);
 const maxAcknowledgementImageBytes = 2 * 1024 * 1024;
 const assetContentTypes: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -127,7 +138,9 @@ function resolveAcknowledgementAssetRoot(): string {
   const configuredRoot = process.env.MRJZ_ACKNOWLEDGEMENT_ASSET_ROOT?.trim();
 
   if (configuredRoot !== undefined && configuredRoot.length > 0) {
-    return path.isAbsolute(configuredRoot) ? configuredRoot : path.resolve(process.cwd(), configuredRoot);
+    return path.isAbsolute(configuredRoot)
+      ? configuredRoot
+      : path.resolve(process.cwd(), configuredRoot);
   }
 
   return path.join(path.dirname(resolveDatabasePath()), "acknowledgements");
@@ -208,6 +221,21 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(me);
   });
 
+  router.patch("/api/me/profile", async ({ request }) => {
+    const user = appUserFromRequest(request);
+
+    if (user === null) {
+      return fail(401, "UNAUTHORIZED", "Login is required");
+    }
+
+    try {
+      const body = await readJsonBody(request);
+      return ok(updateAppUserProfile(user.id, bodyToUpdateAppUserProfileInput(body)));
+    } catch (error) {
+      return validationError(error);
+    }
+  });
+
   router.post("/api/me/player-binding", async ({ request }) => {
     const user = appUserFromRequest(request);
 
@@ -277,7 +305,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(admin);
   });
 
-  router.get("/api/admin/acknowledgements", () => ok(listAcknowledgements({ includeHidden: true })));
+  router.get("/api/admin/acknowledgements", () =>
+    ok(listAcknowledgements({ includeHidden: true })),
+  );
 
   router.post("/api/admin/acknowledgements", async ({ request }) => {
     try {
@@ -291,7 +321,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.patch("/api/admin/acknowledgements/:id", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(updateAcknowledgement(params.id ?? "", await bodyToUpdateAcknowledgementInput(body)));
+      return ok(
+        updateAcknowledgement(params.id ?? "", await bodyToUpdateAcknowledgementInput(body)),
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -320,10 +352,14 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/assets/dota/:section/:filename", async ({ params }) => serveDotaAsset(params));
-  router.get("/api/assets/dota/:section/:subdir/:filename", async ({ params }) => serveDotaAsset(params));
+  router.get("/api/assets/dota/:section/:subdir/:filename", async ({ params }) =>
+    serveDotaAsset(params),
+  );
   router.get("/api/assets/svg/:filename", async ({ params }) => serveSvgAsset(params));
   router.get("/api/assets/sponsors/:filename", async ({ params }) => serveSponsorAsset(params));
-  router.get("/api/assets/acknowledgements/:filename", async ({ params }) => serveAcknowledgementAsset(params));
+  router.get("/api/assets/acknowledgements/:filename", async ({ params }) =>
+    serveAcknowledgementAsset(params),
+  );
 
   router.get("/api/acknowledgements", () => ok(listAcknowledgements()));
 
@@ -429,20 +465,30 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(tags);
   });
 
-  router.post("/api/miniprogram/tournaments/:id/players/:playerId/tags", async ({ request, params }) => {
-    const user = appUserFromRequest(request);
+  router.post(
+    "/api/miniprogram/tournaments/:id/players/:playerId/tags",
+    async ({ request, params }) => {
+      const user = appUserFromRequest(request);
 
-    if (user === null) {
-      return fail(401, "UNAUTHORIZED", "Mini program tag submission requires an app user token");
-    }
+      if (user === null) {
+        return fail(401, "UNAUTHORIZED", "Mini program tag submission requires an app user token");
+      }
 
-    try {
-      const body = await readJsonBody(request);
-      return ok(submitPlayerTag(params.id ?? "", params.playerId ?? "", bodyToSubmitPlayerTagInput(body, user.id)), 201);
-    } catch (error) {
-      return validationError(error);
-    }
-  });
+      try {
+        const body = await readJsonBody(request);
+        return ok(
+          submitPlayerTag(
+            params.id ?? "",
+            params.playerId ?? "",
+            bodyToSubmitPlayerTagInput(body, user.id),
+          ),
+          201,
+        );
+      } catch (error) {
+        return validationError(error);
+      }
+    },
+  );
 
   router.post("/api/miniprogram/tags/:tagId/like", ({ request, params }) => {
     const user = appUserFromRequest(request);
@@ -525,7 +571,14 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.post("/api/admin/tournaments/:id/players/:playerId/tags", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(createAdminPlayerTag(params.id ?? "", params.playerId ?? "", bodyToAdminCreatePlayerTagInput(body)), 201);
+      return ok(
+        createAdminPlayerTag(
+          params.id ?? "",
+          params.playerId ?? "",
+          bodyToAdminCreatePlayerTagInput(body),
+        ),
+        201,
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -561,34 +614,51 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.patch("/api/tournaments/:id/schedule-management", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(updateOfficialScheduleConfig(params.id ?? "", bodyToOfficialScheduleConfigInput(body)));
+      return ok(
+        updateOfficialScheduleConfig(params.id ?? "", bodyToOfficialScheduleConfigInput(body)),
+      );
     } catch (error) {
       return validationError(error);
     }
   });
 
-  router.post("/api/tournaments/:id/schedule-management/lock-roster", async ({ request, params }) => {
-    try {
-      const body = await readJsonBody(request);
-      return ok(lockOfficialScheduleRoster(params.id ?? "", bodyToLockOfficialScheduleRosterInput(body)));
-    } catch (error) {
-      return validationError(error);
-    }
-  });
+  router.post(
+    "/api/tournaments/:id/schedule-management/lock-roster",
+    async ({ request, params }) => {
+      try {
+        const body = await readJsonBody(request);
+        return ok(
+          lockOfficialScheduleRoster(params.id ?? "", bodyToLockOfficialScheduleRosterInput(body)),
+        );
+      } catch (error) {
+        return validationError(error);
+      }
+    },
+  );
 
-  router.post("/api/tournaments/:id/schedule-management/unlock-roster", async ({ request, params }) => {
-    try {
-      const body = await readJsonBody(request).catch(() => ({}));
-      return ok(unlockOfficialScheduleRoster(params.id ?? "", optionalStringField(body, "actor") ?? "admin"));
-    } catch (error) {
-      return validationError(error);
-    }
-  });
+  router.post(
+    "/api/tournaments/:id/schedule-management/unlock-roster",
+    async ({ request, params }) => {
+      try {
+        const body = await readJsonBody(request).catch(() => ({}));
+        return ok(
+          unlockOfficialScheduleRoster(
+            params.id ?? "",
+            optionalStringField(body, "actor") ?? "admin",
+          ),
+        );
+      } catch (error) {
+        return validationError(error);
+      }
+    },
+  );
 
   router.post("/api/tournaments/:id/schedule-management/publish", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request).catch(() => ({}));
-      return ok(publishOfficialSchedule(params.id ?? "", optionalStringField(body, "actor") ?? "admin"));
+      return ok(
+        publishOfficialSchedule(params.id ?? "", optionalStringField(body, "actor") ?? "admin"),
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -597,7 +667,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.post("/api/tournaments/:id/schedule-management/withdraw", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request).catch(() => ({}));
-      return ok(withdrawOfficialSchedule(params.id ?? "", optionalStringField(body, "actor") ?? "admin"));
+      return ok(
+        withdrawOfficialSchedule(params.id ?? "", optionalStringField(body, "actor") ?? "admin"),
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -606,27 +678,35 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.post("/api/tournaments/:id/knockout-bracket", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(createKnockoutBracket(params.id ?? "", bodyToCreateKnockoutBracketInput(body)), 201);
+      return ok(
+        createKnockoutBracket(params.id ?? "", bodyToCreateKnockoutBracketInput(body)),
+        201,
+      );
     } catch (error) {
       return validationError(error);
     }
   });
 
-  router.post("/api/tournaments/:id/opendota-matches/:matchId/link-series", async ({ request, params }) => {
-    try {
-      const matchId = Number(params.matchId);
+  router.post(
+    "/api/tournaments/:id/opendota-matches/:matchId/link-series",
+    async ({ request, params }) => {
+      try {
+        const matchId = Number(params.matchId);
 
-      if (!Number.isSafeInteger(matchId) || matchId <= 0) {
-        return fail(400, "VALIDATION_ERROR", "matchId must be a positive integer");
+        if (!Number.isSafeInteger(matchId) || matchId <= 0) {
+          return fail(400, "VALIDATION_ERROR", "matchId must be a positive integer");
+        }
+
+        const body = await readJsonBody(request);
+
+        return ok(
+          linkOpenDotaMatchToSeries(params.id ?? "", matchId, bodyToLinkOpenDotaMatchInput(body)),
+        );
+      } catch (error) {
+        return validationError(error);
       }
-
-      const body = await readJsonBody(request);
-
-      return ok(linkOpenDotaMatchToSeries(params.id ?? "", matchId, bodyToLinkOpenDotaMatchInput(body)));
-    } catch (error) {
-      return validationError(error);
-    }
-  });
+    },
+  );
 
   router.post("/api/tournaments/:id/sync-opendota", async ({ params, url }) => {
     const tournamentId = params.id ?? "";
@@ -649,7 +729,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.patch("/api/tournaments/:id/lifecycle", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(updateTournamentLifecycle(params.id ?? "", bodyToUpdateTournamentLifecycleInput(body)));
+      return ok(
+        updateTournamentLifecycle(params.id ?? "", bodyToUpdateTournamentLifecycleInput(body)),
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -707,7 +789,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.post("/api/stages/:stageId/group-round-robin", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(generateGroupRoundRobin(params.stageId ?? "", bodyToGenerateGroupRoundRobinInput(body)));
+      return ok(
+        generateGroupRoundRobin(params.stageId ?? "", bodyToGenerateGroupRoundRobinInput(body)),
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -716,7 +800,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.patch("/api/stages/:stageId/manual-ranks", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(updateStageManualRanks(params.stageId ?? "", bodyToUpdateStageManualRanksInput(body)));
+      return ok(
+        updateStageManualRanks(params.stageId ?? "", bodyToUpdateStageManualRanksInput(body)),
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -725,7 +811,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.post("/api/stages/:stageId/swiss-pairings", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(generateSwissPairings(params.stageId ?? "", bodyToGenerateSwissPairingsInput(body)));
+      return ok(
+        generateSwissPairings(params.stageId ?? "", bodyToGenerateSwissPairingsInput(body)),
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -791,7 +879,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.post("/api/teams/:teamId/members", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      const input = await resolveTeamMemberProfile(bodyToAddTeamMemberInput(params.teamId ?? "", body));
+      const input = await resolveTeamMemberProfile(
+        bodyToAddTeamMemberInput(params.teamId ?? "", body),
+      );
       return ok(addTeamMember(input), 201);
     } catch (error) {
       return validationError(error);
@@ -911,7 +1001,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
         return fail(400, "VALIDATION_ERROR", "gameIndex must be a positive integer");
       }
 
-      return ok(updateSeriesGameResult(params.seriesId ?? "", gameIndex, bodyToUpdateGameResultInput(body)));
+      return ok(
+        updateSeriesGameResult(params.seriesId ?? "", gameIndex, bodyToUpdateGameResultInput(body)),
+      );
     } catch (error) {
       return validationError(error);
     }
@@ -989,7 +1081,12 @@ async function serveSvgAsset(params: Record<string, string>) {
     return fail(404, "SVG_ASSET_NOT_FOUND", "SVG asset not found");
   }
 
-  return serveStaticAsset(path.join(svgAssetRoot, filename), svgAssetRoot, "SVG_ASSET_NOT_FOUND", "SVG asset not found");
+  return serveStaticAsset(
+    path.join(svgAssetRoot, filename),
+    svgAssetRoot,
+    "SVG_ASSET_NOT_FOUND",
+    "SVG asset not found",
+  );
 }
 
 async function serveSponsorAsset(params: Record<string, string>) {
@@ -999,7 +1096,12 @@ async function serveSponsorAsset(params: Record<string, string>) {
     return fail(404, "SPONSOR_ASSET_NOT_FOUND", "Sponsor asset not found");
   }
 
-  return serveStaticAsset(path.join(sponsorAssetRoot, filename), sponsorAssetRoot, "SPONSOR_ASSET_NOT_FOUND", "Sponsor asset not found");
+  return serveStaticAsset(
+    path.join(sponsorAssetRoot, filename),
+    sponsorAssetRoot,
+    "SPONSOR_ASSET_NOT_FOUND",
+    "Sponsor asset not found",
+  );
 }
 
 async function serveAcknowledgementAsset(params: Record<string, string>) {
@@ -1043,7 +1145,9 @@ async function serveStaticAsset(filePath: string, root: string, code: string, me
 
 function isPathInsideRoot(root: string, filePath: string): boolean {
   const relativePath = path.relative(root, filePath);
-  return relativePath.length > 0 && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+  return (
+    relativePath.length > 0 && !relativePath.startsWith("..") && !path.isAbsolute(relativePath)
+  );
 }
 
 function isSafeAssetSegment(value: string): boolean {
@@ -1051,7 +1155,11 @@ function isSafeAssetSegment(value: string): boolean {
 }
 
 function adminRouteGuard(context: RouteGuardContext) {
-  if (isPublicRoute(context) || isAppUserRoute(context) || context.pattern === "/api/admin/auth/login") {
+  if (
+    isPublicRoute(context) ||
+    isAppUserRoute(context) ||
+    context.pattern === "/api/admin/auth/login"
+  ) {
     return null;
   }
 
@@ -1093,6 +1201,7 @@ function isAppUserRoute(context: RouteGuardContext): boolean {
     context.pattern === "/api/auth/wechat-login" ||
     context.pattern === "/api/auth/logout" ||
     context.pattern === "/api/me" ||
+    context.pattern === "/api/me/profile" ||
     context.pattern === "/api/me/player-binding" ||
     context.pattern === "/api/me/stats" ||
     context.pattern.startsWith("/api/miniprogram/")
@@ -1165,7 +1274,11 @@ function bodyToOfficialScheduleConfigInput(body: Record<string, unknown>) {
   const preliminaryType = optionalStringOrNullField(body, "preliminaryType");
   const knockoutType = optionalStringOrNullField(body, "knockoutType");
 
-  if (preliminaryType !== undefined && preliminaryType !== null && !["group", "swiss"].includes(preliminaryType)) {
+  if (
+    preliminaryType !== undefined &&
+    preliminaryType !== null &&
+    !["group", "swiss"].includes(preliminaryType)
+  ) {
     throw new Error("preliminaryType must be group or swiss");
   }
 
@@ -1265,7 +1378,8 @@ function bodyToUpdateStageManualRanksInput(body: Record<string, unknown>) {
 
       return {
         teamId: stringField(rank as Record<string, unknown>, "teamId"),
-        manualRank: optionalNumberOrNullField(rank as Record<string, unknown>, "manualRank") ?? null,
+        manualRank:
+          optionalNumberOrNullField(rank as Record<string, unknown>, "manualRank") ?? null,
       };
     }),
     actor: optionalStringField(body, "actor"),
@@ -1301,12 +1415,18 @@ function bodyToAddStageGroupTeamInput(groupId: string, body: Record<string, unkn
   }) as Parameters<typeof addStageGroupTeam>[0];
 }
 
-async function resolveTeamMemberProfile(input: Parameters<typeof addTeamMember>[0]): Promise<Parameters<typeof addTeamMember>[0]> {
+async function resolveTeamMemberProfile(
+  input: Parameters<typeof addTeamMember>[0],
+): Promise<Parameters<typeof addTeamMember>[0]> {
   if (input.playerId !== undefined) {
     return input;
   }
 
-  const rawSteamId = input.steamId ?? (input.accountId === undefined || input.accountId === null ? undefined : String(input.accountId));
+  const rawSteamId =
+    input.steamId ??
+    (input.accountId === undefined || input.accountId === null
+      ? undefined
+      : String(input.accountId));
 
   if (rawSteamId === undefined) {
     return input;
@@ -1336,7 +1456,10 @@ function bodyToUpdateTeamInput(body: Record<string, unknown>) {
 function bodyToCreateTournamentInput(body: Record<string, unknown>) {
   const status = optionalStringField(body, "status");
 
-  if (status !== undefined && !["draft", "upcoming", "running", "completed", "archived"].includes(status)) {
+  if (
+    status !== undefined &&
+    !["draft", "upcoming", "running", "completed", "archived"].includes(status)
+  ) {
     throw new Error("status must be draft, upcoming, running, completed, or archived");
   }
 
@@ -1424,7 +1547,10 @@ function bodyToCreateRoundInput(body: Record<string, unknown>) {
   const status = optionalStringField(body, "status");
   const pairingStatus = optionalStringField(body, "pairingStatus");
 
-  if (status !== undefined && !["draft", "published", "running", "completed", "locked"].includes(status)) {
+  if (
+    status !== undefined &&
+    !["draft", "published", "running", "completed", "locked"].includes(status)
+  ) {
     throw new Error("status must be draft, published, running, completed, or locked");
   }
 
@@ -1456,7 +1582,15 @@ function bodyToCreateSeriesInput(body: Record<string, unknown>) {
 
   if (
     status !== undefined &&
-    !["draft", "scheduled", "live", "result_pending", "completed", "conflict", "postponed"].includes(status)
+    ![
+      "draft",
+      "scheduled",
+      "live",
+      "result_pending",
+      "completed",
+      "conflict",
+      "postponed",
+    ].includes(status)
   ) {
     throw new Error("status must be a valid series status");
   }
@@ -1489,7 +1623,15 @@ function bodyToUpdateSeriesInput(body: Record<string, unknown>) {
 
   if (
     status !== undefined &&
-    !["draft", "scheduled", "live", "result_pending", "completed", "conflict", "postponed"].includes(status)
+    ![
+      "draft",
+      "scheduled",
+      "live",
+      "result_pending",
+      "completed",
+      "conflict",
+      "postponed",
+    ].includes(status)
   ) {
     throw new Error("status must be a valid series status");
   }
@@ -1537,7 +1679,10 @@ function bodyToCreateSyncTaskInput(body: Record<string, unknown>) {
     targetType: optionalStringOrNullField(body, "targetType"),
     targetId: optionalStringOrNullField(body, "targetId"),
     payload:
-      payload !== undefined && payload !== null && typeof payload === "object" && !Array.isArray(payload)
+      payload !== undefined &&
+      payload !== null &&
+      typeof payload === "object" &&
+      !Array.isArray(payload)
         ? (payload as Record<string, unknown>)
         : {},
   }) as Parameters<typeof createSyncTask>[0];
@@ -1556,6 +1701,12 @@ function bodyToBindDotaAccountInput(body: Record<string, unknown>) {
     steamId64: optionalStringOrNullField(body, "steamId64"),
     steamId: optionalStringField(body, "steamId"),
   }) as Parameters<typeof bindAppUserDotaAccount>[1];
+}
+
+function bodyToUpdateAppUserProfileInput(body: Record<string, unknown>) {
+  return {
+    nickname: stringField(body, "nickname"),
+  } satisfies Parameters<typeof updateAppUserProfile>[1];
 }
 
 function bodyToAdminLoginInput(body: Record<string, unknown>) {
@@ -1599,7 +1750,9 @@ async function bodyToUpdateAcknowledgementInput(body: Record<string, unknown>) {
   }) as Parameters<typeof updateAcknowledgement>[1];
 }
 
-async function acknowledgementImageUrlFromBody(body: Record<string, unknown>): Promise<string | null | undefined> {
+async function acknowledgementImageUrlFromBody(
+  body: Record<string, unknown>,
+): Promise<string | null | undefined> {
   const imageDataUrl = optionalStringField(body, "imageDataUrl");
 
   if (imageDataUrl !== undefined) {
@@ -1686,7 +1839,10 @@ function queryToListAdminTagPlayersInput(url: URL) {
 function bodyToAdminCreatePlayerTagInput(body: Record<string, unknown>) {
   const status = optionalStringField(body, "status");
 
-  if (status !== undefined && !["pending_review", "approved", "rejected", "hidden"].includes(status)) {
+  if (
+    status !== undefined &&
+    !["pending_review", "approved", "rejected", "hidden"].includes(status)
+  ) {
     throw new Error("status must be pending_review, approved, rejected, or hidden");
   }
 
@@ -1727,19 +1883,22 @@ function bodyToDeletePlayerTagInput(body: Record<string, unknown>) {
 function appUserFromRequest(request: { headers: Record<string, string | string[] | undefined> }) {
   const token = bearerTokenFromRequest(request);
 
-  return token === null ? null : resolveAppUserBySessionToken(token) ?? null;
+  return token === null ? null : (resolveAppUserBySessionToken(token) ?? null);
 }
 
 function adminUserFromRequest(request: { headers: Record<string, string | string[] | undefined> }) {
   const token = bearerTokenFromRequest(request);
 
-  return token === null ? null : resolveAdminBySessionToken(token) ?? null;
+  return token === null ? null : (resolveAdminBySessionToken(token) ?? null);
 }
 
-function bearerTokenFromRequest(request: { headers: Record<string, string | string[] | undefined> }): string | null {
+function bearerTokenFromRequest(request: {
+  headers: Record<string, string | string[] | undefined>;
+}): string | null {
   const authorization = request.headers.authorization;
   const headerValue = Array.isArray(authorization) ? authorization[0] : authorization;
-  const match = typeof headerValue === "string" ? /^Bearer\s+(.+)$/i.exec(headerValue.trim()) : null;
+  const match =
+    typeof headerValue === "string" ? /^Bearer\s+(.+)$/i.exec(headerValue.trim()) : null;
   const token = match?.[1]?.trim();
 
   return token === undefined || token.length === 0 ? null : token;
@@ -1757,7 +1916,8 @@ async function resolveWechatLogin(body: Record<string, unknown>): Promise<Resolv
   const nickname = optionalStringField(body, "nickname") ?? "微信用户";
   const appId = process.env.WECHAT_APP_ID?.trim();
   const appSecret = process.env.WECHAT_APP_SECRET?.trim();
-  const hasWechatCredentials = appId !== undefined && appId.length > 0 && appSecret !== undefined && appSecret.length > 0;
+  const hasWechatCredentials =
+    appId !== undefined && appId.length > 0 && appSecret !== undefined && appSecret.length > 0;
 
   if (hasWechatCredentials) {
     const params = new URLSearchParams({
@@ -1787,7 +1947,12 @@ async function resolveWechatCode2Session(
   nickname: string,
 ): Promise<ResolvedWechatLogin> {
   const response = await fetch(`https://api.weixin.qq.com/sns/jscode2session?${params.toString()}`);
-  const payload = (await response.json()) as { openid?: string; unionid?: string; errcode?: number; errmsg?: string };
+  const payload = (await response.json()) as {
+    openid?: string;
+    unionid?: string;
+    errcode?: number;
+    errmsg?: string;
+  };
 
   if (!response.ok || typeof payload.openid !== "string" || payload.openid.trim().length === 0) {
     const message = payload.errmsg ?? `HTTP ${response.status}`;
@@ -1811,14 +1976,21 @@ async function resolveWechatCode2Session(
 function isDevelopmentWechatLoginAllowed(): boolean {
   const configured = process.env.MRJZ_ALLOW_DEV_WECHAT_LOGIN?.trim().toLowerCase();
 
-  return process.env.NODE_ENV !== "production" && ["1", "true", "yes", "on"].includes(configured ?? "");
+  return (
+    process.env.NODE_ENV !== "production" && ["1", "true", "yes", "on"].includes(configured ?? "")
+  );
 }
 
 function resolveDevelopmentWechatUserId(body: Record<string, unknown>): string {
-  const devUserId = optionalStringField(body, "devUserId") ?? process.env.MRJZ_DEV_WECHAT_USER_ID?.trim() ?? "local";
+  const devUserId =
+    optionalStringField(body, "devUserId") ??
+    process.env.MRJZ_DEV_WECHAT_USER_ID?.trim() ??
+    "local";
 
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(devUserId)) {
-    throw new Error("devUserId must be 1-64 characters and contain only letters, numbers, dot, underscore, or dash");
+    throw new Error(
+      "devUserId must be 1-64 characters and contain only letters, numbers, dot, underscore, or dash",
+    );
   }
 
   return devUserId;
@@ -1840,7 +2012,10 @@ function optionalStringField(body: Record<string, unknown>, fieldName: string): 
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function optionalScheduleTimeField(body: Record<string, unknown>, fieldName: string): string | undefined {
+function optionalScheduleTimeField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): string | undefined {
   if (!(fieldName in body)) {
     return undefined;
   }
@@ -1857,10 +2032,15 @@ function stringArrayField(body: Record<string, unknown>, fieldName: string): str
     throw new Error(`${fieldName} must be an array`);
   }
 
-  return value.flatMap((item) => (typeof item === "string" && item.trim().length > 0 ? [item.trim()] : []));
+  return value.flatMap((item) =>
+    typeof item === "string" && item.trim().length > 0 ? [item.trim()] : [],
+  );
 }
 
-function optionalStringArrayField(body: Record<string, unknown>, fieldName: string): string[] | undefined {
+function optionalStringArrayField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): string[] | undefined {
   if (!(fieldName in body)) {
     return undefined;
   }
@@ -1868,7 +2048,10 @@ function optionalStringArrayField(body: Record<string, unknown>, fieldName: stri
   return stringArrayField(body, fieldName);
 }
 
-function optionalStringOrNullField(body: Record<string, unknown>, fieldName: string): string | null | undefined {
+function optionalStringOrNullField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): string | null | undefined {
   if (!(fieldName in body)) {
     return undefined;
   }
@@ -1882,7 +2065,10 @@ function optionalStringOrNullField(body: Record<string, unknown>, fieldName: str
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function optionalScheduleTimeOrNullField(body: Record<string, unknown>, fieldName: string): string | null | undefined {
+function optionalScheduleTimeOrNullField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): string | null | undefined {
   if (!(fieldName in body)) {
     return undefined;
   }
@@ -1902,7 +2088,10 @@ function optionalNumberField(body: Record<string, unknown>, fieldName: string): 
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function optionalNumberOrNullField(body: Record<string, unknown>, fieldName: string): number | null | undefined {
+function optionalNumberOrNullField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): number | null | undefined {
   if (!(fieldName in body)) {
     return undefined;
   }
@@ -1916,16 +2105,24 @@ function optionalNumberOrNullField(body: Record<string, unknown>, fieldName: str
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function optionalBooleanField(body: Record<string, unknown>, fieldName: string): boolean | undefined {
+function optionalBooleanField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): boolean | undefined {
   const value = body[fieldName];
 
   return typeof value === "boolean" ? value : undefined;
 }
 
-function optionalObjectField(body: Record<string, unknown>, fieldName: string): Record<string, unknown> | undefined {
+function optionalObjectField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): Record<string, unknown> | undefined {
   const value = body[fieldName];
 
-  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function numberField(body: Record<string, unknown>, fieldName: string): number {
@@ -1949,7 +2146,11 @@ function nonNegativeIntegerField(body: Record<string, unknown>, fieldName: strin
 }
 
 function validationError(error: unknown) {
-  return fail(400, "VALIDATION_ERROR", error instanceof Error ? error.message : "Invalid request body");
+  return fail(
+    400,
+    "VALIDATION_ERROR",
+    error instanceof Error ? error.message : "Invalid request body",
+  );
 }
 
 function tooManyRequests(retryAfterMs: number) {
@@ -2000,7 +2201,10 @@ function createFixedWindowRateLimiter(maxAttempts: number, windowMs: number) {
 }
 
 function requestRateLimitKey(
-  request: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string | undefined } },
+  request: {
+    headers: Record<string, string | string[] | undefined>;
+    socket?: { remoteAddress?: string | undefined };
+  },
   scope: string,
 ): string {
   return `${scope}:${clientAddressFromRequest(request)}`;

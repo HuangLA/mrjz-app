@@ -4,11 +4,13 @@ import { useState } from "react";
 import {
   bindDotaAccount,
   getStoredAuthSession,
+  getWechatProfileNickname,
   loadMe,
   loadMyStats,
   loginWithWeChat,
   logout,
   setSelectedTournamentId,
+  updateMyProfile,
 } from "../../api";
 import { PageShell, SectionTitle } from "../../components";
 import type { AppUserMe, AppUserStats, AuthSession } from "../../types";
@@ -21,6 +23,7 @@ export default function MinePage() {
   const [bindingInput, setBindingInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [bindingSaving, setBindingSaving] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [error, setError] = useState("");
 
   useDidShow(() => {
@@ -59,10 +62,12 @@ export default function MinePage() {
       return;
     }
 
+    const nickname = await getWechatProfileNickname();
+
     setLoading(true);
 
     try {
-      const nextSession = await loginWithWeChat();
+      const nextSession = await loginWithWeChat(nickname ? { nickname } : {});
       setSession(nextSession);
       await refreshMine();
       showToast("登录成功", "success");
@@ -77,7 +82,8 @@ export default function MinePage() {
   async function confirmWechatLogin(): Promise<boolean> {
     const result = await Taro.showModal({
       title: "微信登录说明",
-      content: "MRJZ 会通过微信登录凭证识别你的账号，并生成站内登录态，用于提交标签、点赞和绑定 Dota/Steam 账号。不会获取头像、昵称或手机号。",
+      content:
+        "MRJZ 会通过微信登录凭证识别你的账号，并请求微信昵称用于站内展示；不获取手机号，头像暂不保存。",
       confirmText: "继续登录",
       cancelText: "取消",
       confirmColor: "#d8ad55",
@@ -96,6 +102,30 @@ export default function MinePage() {
     setMe(null);
     setMyStats(null);
     showToast("已退出");
+  }
+
+  async function handleSyncWechatNickname() {
+    setProfileSaving(true);
+    setError("");
+
+    try {
+      const nickname = await getWechatProfileNickname();
+
+      if (!nickname) {
+        showToast("未获取到微信昵称", "error");
+        return;
+      }
+
+      const updated = await updateMyProfile({ nickname });
+      setSession((current) => (current ? { ...current, user: updated } : current));
+      setMe((current) => (current ? { ...current, nickname: updated.nickname } : current));
+      showToast("昵称已同步", "success");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "昵称同步失败");
+      showToast("昵称同步失败", "error");
+    } finally {
+      setProfileSaving(false);
+    }
   }
 
   async function handleBindAccount() {
@@ -143,7 +173,9 @@ export default function MinePage() {
     }
 
     setSelectedTournamentId(tournamentId);
-    navigate(`/pages/player-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&playerId=${encodeURIComponent(playerId)}`);
+    navigate(
+      `/pages/player-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&playerId=${encodeURIComponent(playerId)}`,
+    );
   }
 
   const authProviderText = session ? "微信账号已登录" : "未登录";
@@ -152,18 +184,35 @@ export default function MinePage() {
     <PageShell loading={false} error="" routeKey="mine">
       <View className="hero-panel">
         <Text className="kicker">微信登录</Text>
-        <Text className="brand-title">{session ? me?.nickname ?? session.user.nickname : "未登录"}</Text>
+        <Text className="brand-title">
+          {session ? (me?.nickname ?? session.user.nickname) : "未登录"}
+        </Text>
         <Text className="brand-subtitle">登录后可在选手主页提交标签，并给已审核标签点赞 +1。</Text>
         <Text className="badge">{authProviderText}</Text>
       </View>
 
-      {error ? <View className="content-panel"><Text className="muted">{error}</Text></View> : null}
+      {error ? (
+        <View className="content-panel">
+          <Text className="muted">{error}</Text>
+        </View>
+      ) : null}
 
       <View className="action-row">
         {session ? (
           <>
-            <Button className="secondary-button" loading={loading} onClick={() => void refreshMine()}>
+            <Button
+              className="secondary-button"
+              loading={loading}
+              onClick={() => void refreshMine()}
+            >
               刷新状态
+            </Button>
+            <Button
+              className="secondary-button"
+              loading={profileSaving}
+              onClick={() => void handleSyncWechatNickname()}
+            >
+              同步微信昵称
             </Button>
             <Button className="quick-button" onClick={() => void handleLogout()}>
               退出
@@ -180,18 +229,31 @@ export default function MinePage() {
         <>
           <SectionTitle kicker="绑定" title="Dota / Steam 账号" />
           <View className="tag-editor">
-            <Text className="state-text">可输入 Dota account_id 或 SteamID64。没有参赛记录也可以先绑定。</Text>
+            <Text className="state-text">
+              可输入 Dota account_id 或 SteamID64。没有参赛记录也可以先绑定。
+            </Text>
             {myStats?.binding ? (
               <View className="binding-card">
                 <Text className="state-title">{myStats.binding.displayName}</Text>
                 <Text className="state-text">account_id：{myStats.binding.accountId}</Text>
                 <Text className="state-text">SteamID64：{myStats.binding.steamId64}</Text>
-                <Text className="badge">{myStats.binding.verificationStatus === "verified" ? "已认证" : "未认证"}</Text>
+                <Text className="badge">
+                  {myStats.binding.verificationStatus === "verified" ? "已认证" : "未认证"}
+                </Text>
               </View>
             ) : null}
             <View className="tag-input-row">
-              <Input className="account-input" value={bindingInput} placeholder="Dota account_id / SteamID64" onInput={(event) => setBindingInput(String(event.detail.value))} />
-              <Button className="primary-button" loading={bindingSaving} onClick={() => void handleBindAccount()}>
+              <Input
+                className="account-input"
+                value={bindingInput}
+                placeholder="Dota account_id / SteamID64"
+                onInput={(event) => setBindingInput(String(event.detail.value))}
+              />
+              <Button
+                className="primary-button"
+                loading={bindingSaving}
+                onClick={() => void handleBindAccount()}
+              >
                 绑定
               </Button>
             </View>
@@ -201,28 +263,47 @@ export default function MinePage() {
           {myStats?.emptyReason === "not_bound" ? (
             <View className="content-panel">
               <Text className="state-title">先绑定账号</Text>
-              <Text className="state-text">绑定 Dota / Steam 数字账号后，这里会展示你在 MRJZ 联赛内的数据。</Text>
+              <Text className="state-text">
+                绑定 Dota / Steam 数字账号后，这里会展示你在 MRJZ 联赛内的数据。
+              </Text>
             </View>
           ) : myStats?.emptyReason === "no_matches" ? (
             <View className="content-panel">
               <Text className="state-title">暂无 MRJZ 联赛比赛记录</Text>
-              <Text className="state-text">未来该账号出现在 MRJZ 比赛数据中后，这里会自动展示比赛结果。</Text>
+              <Text className="state-text">
+                未来该账号出现在 MRJZ 比赛数据中后，这里会自动展示比赛结果。
+              </Text>
             </View>
           ) : myStats ? (
             <>
               <View className="stat-grid mine-stat-grid">
-                <View className="stat-cell"><Text className="stat-value">{myStats.stats.totalMatches}</Text><Text className="stat-hint">比赛</Text></View>
-                <View className="stat-cell"><Text className="stat-value">{formatPercent(myStats.stats.winRate)}</Text><Text className="stat-hint">胜率</Text></View>
-                <View className="stat-cell"><Text className="stat-value">{formatDecimal(myStats.stats.kda)}</Text><Text className="stat-hint">KDA</Text></View>
+                <View className="stat-cell">
+                  <Text className="stat-value">{myStats.stats.totalMatches}</Text>
+                  <Text className="stat-hint">比赛</Text>
+                </View>
+                <View className="stat-cell">
+                  <Text className="stat-value">{formatPercent(myStats.stats.winRate)}</Text>
+                  <Text className="stat-hint">胜率</Text>
+                </View>
+                <View className="stat-cell">
+                  <Text className="stat-value">{formatDecimal(myStats.stats.kda)}</Text>
+                  <Text className="stat-hint">KDA</Text>
+                </View>
               </View>
               {myStats.tournamentHistory.slice(0, 3).map((entry) => {
                 const status = getTournamentHistoryStatus(entry);
 
                 return (
-                  <View className="content-panel history-item is-clickable" key={entry.tournamentId} onClick={() => handleOpenTournamentPlayer(entry.tournamentId)}>
+                  <View
+                    className="content-panel history-item is-clickable"
+                    key={entry.tournamentId}
+                    onClick={() => handleOpenTournamentPlayer(entry.tournamentId)}
+                  >
                     <View>
                       <Text className="state-title">{entry.tournamentName}</Text>
-                      <Text className="state-text">{entry.matches.length} 场 · {formatPercent(entry.stats.winRate)} 胜率</Text>
+                      <Text className="state-text">
+                        {entry.matches.length} 场 · {formatPercent(entry.stats.winRate)} 胜率
+                      </Text>
                     </View>
                     <Text className={status.className}>{status.label}</Text>
                   </View>
@@ -230,7 +311,9 @@ export default function MinePage() {
               })}
             </>
           ) : (
-            <View className="content-panel"><Text className="muted">我的数据读取中。</Text></View>
+            <View className="content-panel">
+              <Text className="muted">我的数据读取中。</Text>
+            </View>
           )}
         </>
       ) : null}
@@ -244,14 +327,17 @@ export default function MinePage() {
         <Text className="state-title">点赞 +1</Text>
         <Text className="state-text">只对已审核标签生效；同一用户对同一标签只能点赞一次。</Text>
       </View>
-
     </PageShell>
   );
 }
 
-function getTournamentHistoryStatus(entry: AppUserStats["tournamentHistory"][number]): { label: string; className: string } {
+function getTournamentHistoryStatus(entry: AppUserStats["tournamentHistory"][number]): {
+  label: string;
+  className: string;
+} {
   const normalized = entry.status.trim().toLowerCase();
-  const isRunning = entry.isCurrent || ["running", "ongoing", "active", "in_progress"].includes(normalized);
+  const isRunning =
+    entry.isCurrent || ["running", "ongoing", "active", "in_progress"].includes(normalized);
 
   if (isRunning) {
     return { label: "进行中", className: "status-tag green" };
