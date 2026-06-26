@@ -105,16 +105,11 @@ export function PageShell(props: {
       {isHome ? <HomeBackgroundMarquee /> : null}
       <AppBar backUrl={props.backUrl} isHome={isHome} />
       <View className="view">
-        {props.loading ? (
-          <View className="loading-strip">
-            <Text>正在同步赛事数据</Text>
-          </View>
-        ) : null}
-        {props.error ? (
+        {props.loading ? <StatePanel title="读取中" text="正在同步赛事数据" /> : null}
+        {!props.loading && props.error ? (
           <StatePanel title="暂时不可用" text={props.error} tone="danger" />
-        ) : (
-          props.children
-        )}
+        ) : null}
+        {!props.loading && !props.error ? props.children : null}
       </View>
       <FloatingRouteNav routeKey={routeKey} />
     </View>

@@ -200,19 +200,6 @@ button[disabled] {
   padding-bottom: 86px;
 }
 
-.loading-strip {
-  display: flex;
-  min-height: 28px;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 8px;
-  border: 1px solid rgba(216, 173, 85, 0.2);
-  border-radius: 8px;
-  color: #d8ad55;
-  font-size: 12px;
-  background: rgba(216, 173, 85, 0.08);
-}
-
 .floating-route-nav {
   position: fixed;
   left: 8px;
