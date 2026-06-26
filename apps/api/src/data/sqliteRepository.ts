@@ -1358,7 +1358,12 @@ export class SqliteTournamentRepository {
               ELSE image_url
             END,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-          WHERE id IN ('ack_sponsor_rog', 'ack_sponsor_libernovo')
+          WHERE
+            (id = 'ack_sponsor_rog' AND image_url = '/static/sponsors/rog-landscape-red.png')
+            OR (
+              id = 'ack_sponsor_libernovo'
+              AND (display_name = '人体工学椅' OR image_url = '/static/sponsors/libernovo-white.png')
+            )
         `,
       )
       .run();
