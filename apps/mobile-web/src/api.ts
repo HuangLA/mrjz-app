@@ -150,7 +150,7 @@ type ApiHeroLeaderboardItem = {
 type ApiHeroLeaderboardsView = {
   tournamentId?: string;
   tournamentName?: string;
-  basis?: "per_match";
+  basis?: "mixed";
   minMatches?: number;
   leaderboards?: ApiHeroLeaderboardItem[];
 };
@@ -825,7 +825,7 @@ function emptyMobileData(
     heroLeaderboards: {
       tournamentId: selectedTournamentId,
       tournamentName: "暂无真实赛事",
-      basis: "per_match",
+      basis: "mixed",
       minMatches: 5,
       leaderboards: [],
     },
@@ -1177,7 +1177,7 @@ function normalizeHeroLeaderboards(
   return {
     tournamentId: payload?.tournamentId ?? tournamentId,
     tournamentName: payload?.tournamentName ?? tournamentName,
-    basis: "per_match",
+    basis: "mixed",
     minMatches,
     leaderboards: (payload?.leaderboards ?? [])
       .map((item) => normalizeHeroLeaderboardItem(item, minMatches, apiBaseUrl))

@@ -216,7 +216,7 @@ function emptyHeroLeaderboards(): HeroLeaderboardsView {
   return {
     tournamentId: "",
     tournamentName: "",
-    basis: "per_match",
+    basis: "mixed",
     minMatches: 5,
     leaderboards: [],
   };

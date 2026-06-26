@@ -4669,7 +4669,7 @@ function emptyMobileData(): MobileData {
     heroLeaderboards: {
       tournamentId: "",
       tournamentName: "MRJZ",
-      basis: "per_match",
+      basis: "mixed",
       minMatches: 5,
       leaderboards: [],
     },

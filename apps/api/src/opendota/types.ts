@@ -78,6 +78,8 @@ export type OpenDotaMatchPlayer = {
   lane_role?: number;
   purchase?: Record<string, number>;
   purchase_log?: OpenDotaPurchaseLogEntry[];
+  multi_kills?: Record<string, number>;
+  killed?: Record<string, number>;
   item_0?: number;
   item_1?: number;
   item_2?: number;

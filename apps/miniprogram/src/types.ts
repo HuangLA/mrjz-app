@@ -210,7 +210,7 @@ export type HeroLeaderboardItem = {
 export type HeroLeaderboardsView = {
   tournamentId: string;
   tournamentName: string;
-  basis: "per_match";
+  basis: "mixed";
   minMatches: number;
   leaderboards: HeroLeaderboardItem[];
 };

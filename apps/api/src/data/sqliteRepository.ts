@@ -56,6 +56,7 @@ type HeroLeaderboardDefinition = {
   key: HeroLeaderboardMetricKey;
   title: string;
   description: string;
+  publicDescription?: string;
   metricLabel: string;
   unit: string;
   precision: number;
@@ -73,6 +74,11 @@ type HeroLeaderboardAccumulator = {
 };
 
 const HERO_LEADERBOARD_MIN_MATCHES = 5;
+const HIDDEN_HERO_LEADERBOARD_DESCRIPTION = "触发条件隐藏";
+const OLD_POISON_HERO_IDS = new Set([40, 47, 79]);
+const DRAGON_FORM_HERO_IDS = new Set([49, 112, 47, 64, 13]);
+const SNEAKY_B_HERO_IDS = new Set([32, 62, 88, 56, 16, 46, 74, 63, 83, 9, 145]);
+const KS_HERO_IDS = new Set([61, 16, 88]);
 
 const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
@@ -225,6 +231,108 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     rankDirection: "desc",
     rankBasis: "total",
   },
+  {
+    key: "rapierPurchases",
+    title: "剑心犹在",
+    description: "购买圣剑最多",
+    metricLabel: "圣剑购买",
+    unit: "次",
+    precision: 0,
+    rankDirection: "desc",
+    rankBasis: "total",
+    value: rapierPurchaseCount,
+  },
+  {
+    key: "langLangApm",
+    title: "郎朗",
+    description: "场均 APM 最高",
+    metricLabel: "场均 APM",
+    unit: "",
+    precision: 0,
+    rankDirection: "desc",
+    value: (player) => positiveNumber(player.actions_per_min),
+  },
+  {
+    key: "stocktonAssists",
+    title: "斯托克顿",
+    description: "场均助攻最高",
+    metricLabel: "场均助攻",
+    unit: "助",
+    precision: 1,
+    rankDirection: "desc",
+    value: (player) => positiveNumber(player.assists),
+  },
+  {
+    key: "rampages",
+    title: "暴虐成狂",
+    description: "完成暴走次数最多",
+    metricLabel: "暴走",
+    unit: "次",
+    precision: 0,
+    rankDirection: "desc",
+    rankBasis: "total",
+    value: rampageCount,
+  },
+  {
+    key: "oldPoison",
+    title: "老毒物",
+    description: "剧毒术士、冥界亚龙、暗影恶魔选择次数最多",
+    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    metricLabel: "触发次数",
+    unit: "次",
+    precision: 0,
+    rankDirection: "desc",
+    rankBasis: "total",
+    value: (player) => heroSelectionCount(player, OLD_POISON_HERO_IDS),
+  },
+  {
+    key: "painkiller",
+    title: "止痛药",
+    description: "击杀痛苦魔方最多",
+    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    metricLabel: "击杀",
+    unit: "次",
+    precision: 0,
+    rankDirection: "desc",
+    rankBasis: "total",
+    value: painCubeKillCount,
+  },
+  {
+    key: "dragonForm",
+    title: "化龙",
+    description: "龙骑士、寒冰飞龙、冥界亚龙、杰奇洛、帕克选择次数最多",
+    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    metricLabel: "触发次数",
+    unit: "次",
+    precision: 0,
+    rankDirection: "desc",
+    rankBasis: "total",
+    value: (player) => heroSelectionCount(player, DRAGON_FORM_HERO_IDS),
+  },
+  {
+    key: "sneakyB",
+    title: "老阴B",
+    description: "力丸、赏金猎人、司夜刺客、骷髅射手、沙王、圣堂刺客、祈求者、编织者、树精卫士、月之女祭司、凯选择次数最多",
+    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    metricLabel: "触发次数",
+    unit: "次",
+    precision: 0,
+    rankDirection: "desc",
+    rankBasis: "total",
+    value: (player) => heroSelectionCount(player, SNEAKY_B_HERO_IDS),
+  },
+  {
+    key: "ks",
+    title: "KS",
+    description: "育母蜘蛛、沙王、司夜刺客选择次数最多",
+    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    metricLabel: "触发次数",
+    unit: "次",
+    precision: 0,
+    rankDirection: "desc",
+    rankBasis: "total",
+    value: (player) => heroSelectionCount(player, KS_HERO_IDS),
+  },
 ];
 
 export type RepositoryInfo = {
@@ -360,7 +468,16 @@ export type HeroLeaderboardMetricKey =
   | "lowGpm"
   | "lowHeroDamage"
   | "streetMassage"
-  | "uniqueHeroes";
+  | "uniqueHeroes"
+  | "rapierPurchases"
+  | "langLangApm"
+  | "stocktonAssists"
+  | "rampages"
+  | "oldPoison"
+  | "painkiller"
+  | "dragonForm"
+  | "sneakyB"
+  | "ks";
 
 export type HeroLeaderboardCandidate = {
   rank: number;
@@ -386,7 +503,7 @@ export type HeroLeaderboardItem = {
 export type TournamentHeroLeaderboardsView = {
   tournamentId: string;
   tournamentName: string;
-  basis: "per_match";
+  basis: "mixed";
   minMatches: number;
   leaderboards: HeroLeaderboardItem[];
 };
@@ -2343,7 +2460,7 @@ export class SqliteTournamentRepository {
     return {
       tournamentId: target.tournamentId,
       tournamentName: target.tournamentName,
-      basis: "per_match",
+      basis: "mixed",
       minMatches: HERO_LEADERBOARD_MIN_MATCHES,
       leaderboards: HERO_LEADERBOARD_DEFINITIONS.map((definition) => {
         const candidates = eligiblePlayers
@@ -2379,7 +2496,7 @@ export class SqliteTournamentRepository {
         return {
           key: definition.key,
           title: definition.title,
-          description: definition.description,
+          description: definition.publicDescription ?? definition.description,
           metricLabel: definition.metricLabel,
           unit: definition.unit,
           precision: definition.precision,
@@ -9725,6 +9842,39 @@ function positiveNumber(value: unknown): number {
 
 function heroLeaderboardWealth(player: OpenDotaMatchPlayer): number {
   return positiveNumber(player.net_worth) || positiveNumber(player.total_gold) || positiveNumber(player.gold);
+}
+
+function heroSelectionCount(player: OpenDotaMatchPlayer, heroIds: Set<number>): number {
+  return typeof player.hero_id === "number" && heroIds.has(player.hero_id) ? 1 : 0;
+}
+
+function rapierPurchaseCount(player: OpenDotaMatchPlayer): number {
+  return purchaseCount(player, "rapier");
+}
+
+function purchaseCount(player: OpenDotaMatchPlayer, itemKey: string): number {
+  const purchaseTotal = positiveNumber(player.purchase?.[itemKey]);
+
+  if (purchaseTotal > 0) {
+    return purchaseTotal;
+  }
+
+  return (player.purchase_log ?? []).reduce((total, entry) => {
+    if (entry.key !== itemKey) {
+      return total;
+    }
+
+    const charges = positiveNumber(entry.charges);
+    return total + (charges > 0 ? charges : 1);
+  }, 0);
+}
+
+function rampageCount(player: OpenDotaMatchPlayer): number {
+  return positiveNumber(player.multi_kills?.["5"]);
+}
+
+function painCubeKillCount(player: OpenDotaMatchPlayer): number {
+  return positiveNumber(player.killed?.npc_dota_miniboss);
 }
 
 function compareHeroLeaderboardValue(left: number, right: number, direction: "asc" | "desc"): number {

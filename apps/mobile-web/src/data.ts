@@ -140,7 +140,7 @@ export interface HeroLeaderboardItem {
 export interface HeroLeaderboardsView {
   tournamentId: string;
   tournamentName: string;
-  basis: "per_match";
+  basis: "mixed";
   minMatches: number;
   leaderboards: HeroLeaderboardItem[];
 }
