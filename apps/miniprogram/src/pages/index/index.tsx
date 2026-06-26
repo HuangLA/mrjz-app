@@ -192,9 +192,13 @@ function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }
             {supporters.map((supporter) => (
               <View className="home-community-supporter" key={supporter.id}>
                 {supporter.imageUrl ? (
-                  <Image className="home-community-avatar" src={supporter.imageUrl} mode="aspectFill" />
+                  <View className="home-community-avatar">
+                    <Image className="home-community-avatar-image" src={supporter.imageUrl} mode="aspectFill" />
+                  </View>
                 ) : (
-                  <Text className="home-community-avatar fallback">{supporter.displayName.slice(0, 1).toUpperCase() || "?"}</Text>
+                  <View className="home-community-avatar fallback">
+                    <Text>{supporter.displayName.slice(0, 1).toUpperCase() || "?"}</Text>
+                  </View>
                 )}
                 <Text>{supporter.displayName}</Text>
               </View>

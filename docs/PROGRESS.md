@@ -102,6 +102,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序正式发布清理已移除本地 HTTP 图片加载兜底；正式包内 `SmartImage` 回到普通图片包装，Dota 图片通过构建期配置的 API / 静态资源域名加载。
 - 小程序公开页新增无感数据缓存：赛事入口、赛事阶段、赛程、比赛记录、比赛详情、选手榜、选手详情、队伍榜和队伍详情会先展示当前 API 地址下的本地页面快照，再静默刷新接口；刷新成功后替换为新数据，失败时保留缓存内容。
 - ICP 备案通过后，小程序默认 `dev` / `build` 已切换到远端 API `https://api.dota2mrjz.icu/api`，`dev:local` / `build:local` 继续保留本机 API 调试入口；真机预览和提审还需要微信后台同时配置 request / downloadFile 合法域名。
+- 小程序首页鸣谢区、英雄榜和选手标签区按真机反馈继续收敛：社区支持头像改为圆形容器内裁切，英雄榜数值和展开入口移动到主卡左下，选手标签云缩小且无标签时只展示紧凑空态，并将自绘顶部栏和战报浮层的视口读取从已废弃 `getSystemInfoSync` 切到 `getWindowInfo`。
 - 小程序“我的”页微信登录入口收口为真实微信 code 登录：前端只上送 `wx.login` code，后端在配置 `WECHAT_APP_ID` / `WECHAT_APP_SECRET` 时调用微信 `jscode2session` 换取用户身份并签发 MRJZ opaque session；生产环境缺少微信配置时不再静默回退为开发用户。
 - 小程序本地 HTTP 登录联调入口已在正式发布清理中移除；“我的”页不再暴露开发用户 ID，前端不再发送本地假 code 或开发用户标识。
 - 小程序正式发布登录收紧：remote / production 构建隐藏“我的”页开发设置，前端不再发送开发用户 ID 或本地假 code；后端只在未配置微信密钥且显式允许开发登录时走本地用户，已配置微信密钥时严格以 `code2Session` 成败为准。

@@ -230,22 +230,27 @@ export default function PlayerDetailPage() {
                 <Text className="section-heading">选手应援标签</Text>
               </View>
             </View>
-            <View className="tag-cloud">
-              {tags.map((tag) => {
-                const liked = likedTagIds.has(tag.id);
-                return (
-                  <Button
-                    key={tag.id}
-                    className={`tag-pill ${liked ? "tag-pill-liked" : ""}`}
-                    disabled={saving}
-                    onClick={() => void handleToggleLike(tag)}
-                  >
-                    {tag.text}
-                  </Button>
-                );
-              })}
-            </View>
-            {tags.length === 0 ? <View className="content-panel"><Text className="muted">暂无已审核标签，提交后需管理员通过才会公开展示。</Text></View> : null}
+            {tags.length > 0 ? (
+              <View className="tag-cloud">
+                {tags.map((tag) => {
+                  const liked = likedTagIds.has(tag.id);
+                  return (
+                    <Button
+                      key={tag.id}
+                      className={`tag-pill ${liked ? "tag-pill-liked" : ""}`}
+                      disabled={saving}
+                      onClick={() => void handleToggleLike(tag)}
+                    >
+                      {tag.text}
+                    </Button>
+                  );
+                })}
+              </View>
+            ) : (
+              <View className="profile-tag-empty">
+                <Text className="muted">暂无已审核标签，提交后需管理员通过才会公开展示。</Text>
+              </View>
+            )}
           </View>
 
           <ProfileStatGrid

@@ -180,10 +180,10 @@ function goBack(backUrl?: string) {
 function getMiniNavMetrics(): MiniNavMetrics {
   try {
     const menuButton = Taro.getMenuButtonBoundingClientRect?.();
-    const systemInfo = Taro.getSystemInfoSync?.();
+    const windowInfo = Taro.getWindowInfo?.();
     const sideInset =
-      systemInfo?.windowWidth && menuButton?.right
-        ? Math.round(Math.max(8, systemInfo.windowWidth - menuButton.right))
+      windowInfo?.windowWidth && menuButton?.right
+        ? Math.round(Math.max(8, windowInfo.windowWidth - menuButton.right))
         : DEFAULT_MINI_NAV_METRICS.sideInset;
 
     if (menuButton && menuButton.top > 0 && menuButton.height > 0) {
@@ -194,7 +194,7 @@ function getMiniNavMetrics(): MiniNavMetrics {
       };
     }
 
-    const statusBarHeight = systemInfo?.statusBarHeight;
+    const statusBarHeight = windowInfo?.statusBarHeight;
     if (typeof statusBarHeight === "number" && statusBarHeight > 0) {
       return {
         top: Math.round(statusBarHeight + 10),

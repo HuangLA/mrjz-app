@@ -1,7 +1,7 @@
 import { ScrollView, Slider, Text, View } from "@tarojs/components";
 import { formatDotaGameMode } from "@mrjz/shared/dota-game-mode";
 import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
-import { getSystemInfoSync, useDidShow, usePageScroll, useRouter } from "@tarojs/taro";
+import Taro, { useDidShow, usePageScroll, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadMatch } from "../../api";
 import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
@@ -1091,11 +1091,11 @@ function tapPointFromEvent(event: TapPointEvent): { x: number; y: number } {
 
 function getMiniViewportSize(): { width: number; height: number } {
   try {
-    const info = getSystemInfoSync();
+    const info = Taro.getWindowInfo?.();
 
     return {
-      width: info.windowWidth ?? 375,
-      height: info.windowHeight ?? 667,
+      width: info?.windowWidth ?? 375,
+      height: info?.windowHeight ?? 667,
     };
   } catch {
     return { width: 375, height: 667 };
