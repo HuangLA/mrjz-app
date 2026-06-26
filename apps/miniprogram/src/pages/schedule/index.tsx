@@ -5,7 +5,7 @@ import { ensureTournamentId, getSelectedTournamentId, loadOfficialSchedule, load
 import { pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { FilterRow, PageShell, SeriesCard, TournamentScope, seriesScheduleStatusText } from "../../components";
 import type { OfficialScheduleStatus, StageRound, TournamentDetail, TournamentOption } from "../../types";
-import { isOfficialScheduleStage, labelStageType, labelStatus, navigate } from "../../utils";
+import { isOfficialScheduleStage, labelStageType, navigate } from "../../utils";
 
 type ScheduleOrder = "asc" | "desc";
 
@@ -135,14 +135,7 @@ export default function SchedulePage() {
           )) : <View className="section-panel"><Text className="muted">暂无符合条件的赛程</Text></View>}
         </>
       ) : (
-        <View className="section-panel schedule-unpublished">
-          <View className="section-title compact">
-            <View>
-              <Text className="section-heading">赛程暂未发布</Text>
-            </View>
-            <Text className="sync-pill">{labelStatus(officialSchedule?.status)}</Text>
-          </View>
-        </View>
+        <View className="content-panel"><Text className="muted">赛程暂未发布。</Text></View>
       )}
     </PageShell>
   );
