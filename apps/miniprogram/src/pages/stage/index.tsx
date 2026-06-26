@@ -29,16 +29,17 @@ type StageCache = {
 };
 
 export default function StagePage() {
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => readPageCache<StageCache>(pageCacheKey("stage", getSelectedTournamentId() || "auto")));
+  const [loading, setLoading] = useState(initialCache === null);
   const [stageLoading, setStageLoading] = useState(false);
   const [error, setError] = useState("");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
-  const [selectedTournamentId, setSelectedId] = useState("");
-  const [detail, setDetail] = useState<TournamentDetail | null>(null);
-  const [selectedStageId, setSelectedStageId] = useState("");
-  const [rounds, setRounds] = useState<StageRound[]>([]);
-  const [standings, setStandings] = useState<StandingRow[]>([]);
-  const [bracket, setBracket] = useState<BracketNode[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
+  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [detail, setDetail] = useState<TournamentDetail | null>(() => initialCache?.detail ?? null);
+  const [selectedStageId, setSelectedStageId] = useState(() => initialCache?.selectedStageId ?? "");
+  const [rounds, setRounds] = useState<StageRound[]>(() => initialCache?.rounds ?? []);
+  const [standings, setStandings] = useState<StandingRow[]>(() => initialCache?.standings ?? []);
+  const [bracket, setBracket] = useState<BracketNode[]>(() => initialCache?.bracket ?? []);
   const [activeStandingGroupKey, setActiveStandingGroupKey] = useState("");
 
   useDidShow(() => {

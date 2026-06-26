@@ -11,9 +11,10 @@ export default function TeamDetailPage() {
   const router = useRouter();
   const tournamentId = String(router.params.tournamentId ?? "");
   const teamId = String(router.params.teamId ?? "");
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => (tournamentId && teamId ? readPageCache<TeamProfile>(pageCacheKey("team-detail", tournamentId, teamId)) : null));
+  const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [profile, setProfile] = useState<TeamProfile | null>(null);
+  const [profile, setProfile] = useState<TeamProfile | null>(() => initialCache);
 
   useDidShow(() => {
     void refresh();

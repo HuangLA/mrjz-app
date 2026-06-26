@@ -16,11 +16,12 @@ type RecordsCache = {
 const allRecordTeamFilter = "全部";
 
 export default function RecordsPage() {
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => readPageCache<RecordsCache>(pageCacheKey("records", getSelectedTournamentId() || "auto")));
+  const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
-  const [selectedTournamentId, setSelectedId] = useState("");
-  const [records, setRecords] = useState<MatchRecord[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
+  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [records, setRecords] = useState<MatchRecord[]>(() => initialCache?.records ?? []);
   const [teamFilter, setTeamFilter] = useState(allRecordTeamFilter);
 
   useDidShow(() => {

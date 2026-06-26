@@ -40,13 +40,14 @@ type PlayersCache = {
 };
 
 export default function PlayersPage() {
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => readPageCache<PlayersCache>(pageCacheKey("players", getSelectedTournamentId() || "auto")));
+  const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
   const [sortKey, setSortKey] = useState<PlayerSortKey>("totalMatches");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
-  const [selectedTournamentId, setSelectedId] = useState("");
-  const [players, setPlayers] = useState<PlayerListItem[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
+  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [players, setPlayers] = useState<PlayerListItem[]>(() => initialCache?.players ?? []);
 
   useDidShow(() => {
     void refresh();

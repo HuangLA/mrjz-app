@@ -108,6 +108,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序赛程页未发布空态对齐赛事阶段页：撤回或未发布官方赛程时改用同款 `content-panel` + `muted` 说明，不再额外展示标题栏和状态胶囊。
 - 小程序构建启用微信组件按需注入：`app.config.ts` 增加 `lazyCodeLoading: "requiredComponents"`，构建后的 `dist/app.json` 已生成对应字段，用于通过微信开发者工具 / 上传质量检查。
 - 小程序公共页面缓存改为 5 分钟新鲜度策略：首页、赛事阶段、赛程、比赛记录、比赛详情、英雄榜、选手、队伍和详情页命中新鲜本地快照时不再重复拉接口，过期后仍先展示缓存再刷新；选手标签点赞 / 提交会同步更新选手详情缓存。
+- 小程序缓存首屏继续收口：公开页面挂载时会同步从本地快照初始化页面 state 和 loading 状态，底部导航切页命中缓存时不再先闪“读取中”；赛事阶段页也移除选中阶段变化导致的自动二次刷新，改为点击阶段 tab 时才刷新对应阶段数据。
 - 小程序“我的”页微信登录入口收口为真实微信 code 登录：前端只上送 `wx.login` code，后端在配置 `WECHAT_APP_ID` / `WECHAT_APP_SECRET` 时调用微信 `jscode2session` 换取用户身份并签发 MRJZ opaque session；生产环境缺少微信配置时不再静默回退为开发用户。
 - 小程序本地 HTTP 登录联调入口已在正式发布清理中移除；“我的”页不再暴露开发用户 ID，前端不再发送本地假 code 或开发用户标识。
 - 小程序正式发布登录收紧：remote / production 构建隐藏“我的”页开发设置，前端不再发送开发用户 ID 或本地假 code；后端只在未配置微信密钥且显式允许开发登录时走本地用户，已配置微信密钥时严格以 `code2Session` 成败为准。
@@ -622,7 +623,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit | 内容 |
 | --- | --- |
-| `pending` | Add mini program page cache freshness |
+| `pending` | Initialize mini program pages from cache |
+| `6937399` | Add mini program page cache freshness |
 | `d52e156` | Enable mini program component lazy loading |
 | `d640283` | Align mini program unpublished schedule state |
 | `f56299d` | Proxy mini program Steam avatars through API |

@@ -34,10 +34,11 @@ const awardPopoverMargin = 10;
 export default function MatchDetailPage() {
   const router = useRouter();
   const matchId = String(router.params.matchId ?? "");
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => (matchId ? readPageCache<MatchDetail>(pageCacheKey("match-detail", matchId)) : null));
+  const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [detail, setDetail] = useState<MatchDetail | null>(null);
-  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => new Set());
+  const [detail, setDetail] = useState<MatchDetail | null>(() => initialCache);
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => (initialCache ? defaultExpandedPlayers(initialCache) : new Set()));
   const [wardSecond, setWardSecond] = useState(0);
   const [awardPopover, setAwardPopover] = useState<MatchAwardPopover | null>(null);
 

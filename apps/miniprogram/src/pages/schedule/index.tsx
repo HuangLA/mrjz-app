@@ -21,13 +21,14 @@ type ScheduleCache = {
 };
 
 export default function SchedulePage() {
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => readPageCache<ScheduleCache>(pageCacheKey("schedule", getSelectedTournamentId() || "auto")));
+  const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
-  const [selectedTournamentId, setSelectedId] = useState("");
-  const [detail, setDetail] = useState<TournamentDetail | null>(null);
-  const [officialSchedule, setOfficialSchedule] = useState<OfficialScheduleStatus | null>(null);
-  const [rounds, setRounds] = useState<StageRound[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
+  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [detail, setDetail] = useState<TournamentDetail | null>(() => initialCache?.detail ?? null);
+  const [officialSchedule, setOfficialSchedule] = useState<OfficialScheduleStatus | null>(() => initialCache?.officialSchedule ?? null);
+  const [rounds, setRounds] = useState<StageRound[]>(() => initialCache?.rounds ?? []);
   const [statusFilter, setStatusFilter] = useState<ScheduleFilter>("全部");
   const [scheduleOrder, setScheduleOrder] = useState<ScheduleOrder>("desc");
 

@@ -14,12 +14,13 @@ type HeroLeaderboardCache = {
 };
 
 export default function HeroLeaderboardPage() {
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => readPageCache<HeroLeaderboardCache>(pageCacheKey("hero-leaderboard", getSelectedTournamentId() || "auto")));
+  const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
-  const [selectedTournamentId, setSelectedId] = useState("");
-  const [leaderboards, setLeaderboards] = useState<HeroLeaderboardsView>(emptyHeroLeaderboards());
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
+  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [leaderboards, setLeaderboards] = useState<HeroLeaderboardsView>(() => initialCache?.leaderboards ?? emptyHeroLeaderboards());
 
   useDidShow(() => {
     void refresh();

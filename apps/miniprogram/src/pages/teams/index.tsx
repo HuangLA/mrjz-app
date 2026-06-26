@@ -14,11 +14,12 @@ type TeamsCache = {
 };
 
 export default function TeamsPage() {
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => readPageCache<TeamsCache>(pageCacheKey("teams", getSelectedTournamentId() || "auto")));
+  const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
-  const [selectedTournamentId, setSelectedId] = useState("");
-  const [teams, setTeams] = useState<TeamListItem[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
+  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [teams, setTeams] = useState<TeamListItem[]>(() => initialCache?.teams ?? []);
 
   useDidShow(() => {
     void refresh();

@@ -47,14 +47,17 @@ export default function PlayerDetailPage() {
   const tournamentId = String(router.params.tournamentId ?? "");
   const playerId = String(router.params.playerId ?? "");
   const fromTeamId = String(router.params.fromTeamId ?? "");
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => (tournamentId && playerId ? readPageCache<PlayerDetailCache>(pageCacheKey("player-detail", tournamentId, playerId)) : null));
+  const [loading, setLoading] = useState(initialCache === null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [profile, setProfile] = useState<PlayerProfile | null>(null);
-  const [tags, setTags] = useState<PlayerTag[]>([]);
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
+  const [profile, setProfile] = useState<PlayerProfile | null>(() => initialCache?.profile ?? null);
+  const [tags, setTags] = useState<PlayerTag[]>(() => initialCache?.tags ?? []);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
   const [draftTag, setDraftTag] = useState("");
-  const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string>>(() => new Set());
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string>>(
+    () => new Set(initialCache?.profile ? [initialCache.profile.tournamentId] : []),
+  );
   const [session, setSession] = useState<AuthSession | null>(() => getStoredAuthSession());
   const [likedTagIds, setLikedTagIds] = useState<Set<string>>(() => {
     const storedSession = getStoredAuthSession();

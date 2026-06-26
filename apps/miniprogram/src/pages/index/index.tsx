@@ -22,12 +22,15 @@ type HomeCache = {
 };
 
 export default function HomePage() {
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => readPageCache<HomeCache>(pageCacheKey("home")));
+  const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [acknowledgements, setAcknowledgements] = useState<AcknowledgementItem[]>([]);
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
-  const [selectedTournamentId, setSelectedId] = useState("");
-  const [recentRecordsByTournament, setRecentRecordsByTournament] = useState<Record<string, MatchRecord[]>>({});
+  const [acknowledgements, setAcknowledgements] = useState<AcknowledgementItem[]>(() => initialCache?.acknowledgements ?? []);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>(() => initialCache?.tournaments ?? []);
+  const [selectedTournamentId, setSelectedId] = useState(() => initialCache?.selectedTournamentId ?? "");
+  const [recentRecordsByTournament, setRecentRecordsByTournament] = useState<Record<string, MatchRecord[]>>(
+    () => initialCache?.recentRecordsByTournament ?? {},
+  );
 
   useDidShow(() => {
     void refresh();
