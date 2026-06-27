@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   bindDotaAccount,
   getStoredAuthSession,
-  getWechatProfileNickname,
   loadMe,
   loadMyStats,
   loginWithWeChat,
@@ -56,8 +55,7 @@ export default function MinePage() {
     setLoading(true);
 
     try {
-      const nickname = await getWechatProfileNickname();
-      const nextSession = await loginWithWeChat({ nickname });
+      const nextSession = await loginWithWeChat();
       setSession(nextSession);
       await refreshMine();
       showToast("登录成功", "success");

@@ -1890,7 +1890,7 @@ type ResolvedWechatLogin = {
 
 async function resolveWechatLogin(body: Record<string, unknown>): Promise<ResolvedWechatLogin> {
   const code = stringField(body, "code");
-  const nickname = wechatNicknameField(body);
+  const nickname = optionalStringField(body, "nickname") ?? "微信用户";
   const appId = process.env.WECHAT_APP_ID?.trim();
   const appSecret = process.env.WECHAT_APP_SECRET?.trim();
   const hasWechatCredentials =
@@ -1981,16 +1981,6 @@ function stringField(body: Record<string, unknown>, fieldName: string): string {
   }
 
   return value.trim();
-}
-
-function wechatNicknameField(body: Record<string, unknown>): string {
-  const nickname = Array.from(stringField(body, "nickname")).slice(0, 64).join("");
-
-  if (nickname === "微信用户") {
-    throw new Error("WeChat nickname authorization is required");
-  }
-
-  return nickname;
 }
 
 function optionalStringField(body: Record<string, unknown>, fieldName: string): string | undefined {

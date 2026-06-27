@@ -5,7 +5,6 @@ import { useState } from "react";
 import {
   getLocalLikedTagIds,
   getStoredAuthSession,
-  getWechatProfileNickname,
   likePlayerTag,
   loadPlayerProfile,
   loadPlayerTags,
@@ -143,8 +142,7 @@ export default function PlayerDetailPage() {
     }
 
     try {
-      const nickname = await getWechatProfileNickname();
-      const nextSession = await loginWithWeChat({ nickname });
+      const nextSession = await loginWithWeChat();
       setSession(nextSession);
       setLikedTagIds(getLocalLikedTagIds(nextSession.user.id));
       showToast("已登录", "success");

@@ -611,7 +611,7 @@ export type AppUserView = {
 export type UpsertAppUserInput = {
   openId: string;
   unionId?: string | null;
-  nickname: string;
+  nickname?: string;
 };
 
 export type UserSessionView = {
@@ -2654,7 +2654,7 @@ export class SqliteTournamentRepository {
   upsertAppUser(input: UpsertAppUserInput): AppUserView {
     const openId = requiredString(input.openId, "openId");
     const unionId = cleanOptionalText(input.unionId) ?? null;
-    const nickname = requiredNickname(input.nickname);
+    const nickname = cleanOptionalNickname(input.nickname) ?? "微信用户";
     const existing = this.database
       .prepare("SELECT * FROM app_users WHERE open_id = ?")
       .get(openId) as DbRow | undefined;
@@ -10199,20 +10199,6 @@ function cleanOptionalNickname(value: string | null | undefined): string | undef
   const trimmed = cleanOptionalText(value);
 
   return trimmed === undefined ? undefined : Array.from(trimmed).slice(0, 64).join("");
-}
-
-function requiredNickname(value: string | undefined): string {
-  const nickname = cleanOptionalNickname(value);
-
-  if (nickname === undefined) {
-    throw new Error("nickname is required");
-  }
-
-  if (nickname === "微信用户") {
-    throw new Error("nickname authorization is required");
-  }
-
-  return nickname;
 }
 
 function requiredPositiveInteger(value: number | undefined, fieldName: string): number {

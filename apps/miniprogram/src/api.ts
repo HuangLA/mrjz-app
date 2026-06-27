@@ -85,46 +85,17 @@ export function setLocalLikedTagIds(userId: string, tagIds: Set<string>): void {
   Taro.setStorageSync(LOCAL_LIKED_TAGS_STORAGE_KEY, next);
 }
 
-export async function loginWithWeChat(options: { nickname: string }): Promise<AuthSession> {
-  const nickname = cleanWechatProfileNickname(options.nickname);
-
-  if (!nickname) {
-    throw new Error("未获取到微信昵称，已取消登录");
-  }
-
+export async function loginWithWeChat(): Promise<AuthSession> {
   const code = await getWechatLoginCode();
-  const data = {
-    code,
-    nickname,
-  };
 
   const session = await request<AuthSession>("/auth/wechat-login", {
     method: "POST",
-    data,
+    data: { code },
     withAuth: false,
   });
 
   Taro.setStorageSync(AUTH_SESSION_STORAGE_KEY, session);
   return session;
-}
-
-export async function getWechatProfileNickname(): Promise<string> {
-  try {
-    const profile = await Taro.getUserProfile({
-      desc: "用于展示 MRJZ 昵称",
-      lang: "zh_CN",
-    });
-    const nickname = cleanWechatProfileNickname(profile.userInfo?.nickName);
-
-    if (!nickname) {
-      throw new Error("微信未返回有效昵称，已取消登录");
-    }
-
-    return nickname;
-  } catch (caught) {
-    console.warn("[MRJZ login] wx.getUserProfile failed", requestFailureMessage(caught));
-    throw new Error(caught instanceof Error ? caught.message : "微信昵称授权失败，已取消登录");
-  }
 }
 
 async function getWechatLoginCode(): Promise<string> {
@@ -445,12 +416,6 @@ function cleanDisplayNickname(value: string | null | undefined): string | undefi
   const trimmed = value?.trim();
 
   return trimmed ? Array.from(trimmed).slice(0, 64).join("") : undefined;
-}
-
-function cleanWechatProfileNickname(value: string | null | undefined): string | undefined {
-  const nickname = cleanDisplayNickname(value);
-
-  return nickname && nickname !== "微信用户" ? nickname : undefined;
 }
 
 function requestFailureMessage(caught: unknown): string {
