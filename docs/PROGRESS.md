@@ -115,6 +115,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序页面数据缓存已关闭：页面快照读写改为 no-op，公开页每次进入都重新拉取接口；登录态、点赞记录和当前届次等必要本地状态仍保留。
 - 小程序浏览器式缓存重新启用并加固：页面快照按当前 API 地址和届次隔离，进入公开页时先展示本地 stale 数据并按页面类型静默刷新；比赛记录、选手、队伍、赛程、赛事阶段和英雄榜会保存并恢复滚动位置、筛选、排序、阶段 tab、积分榜分组和英雄榜展开项，详情页返回列表不再白屏重拉或回到顶部。
 - 小程序主导航切换改为首页常驻滑动容器：底部导航不再对首页、赛事阶段、赛程、比赛记录、英雄榜、选手、队伍和我的页面执行 `redirectTo`，而是在同一页面内用 Swiper 横向切换并保活各主入口；底部导航新增滑动高亮条，主入口间切换不再黑屏 / 白屏重建。
+- 小程序主导航滑动容器修正 Taro page entry 限制：赛事阶段、赛程、比赛记录、英雄榜、选手、队伍和我的页面内容抽为非 page entry 的 `Content.tsx`，原 `index.tsx` 只负责注册各自 Page，首页 Swiper 引用内容组件，避免 `pages/index/index.js` 注册多个 `Page()`。
 - 小程序微信登录链路改为“用户填写昵称 + 微信 code 登录”：登录前要求填写必填展示昵称，前端上送 `wx.login` code + nickname，后端用 `jscode2session` 换取微信身份并签发 MRJZ opaque session。
 - 小程序“我的”页和选手详情互动登录入口统一要求填写昵称；后端 `POST /api/auth/wechat-login` 也把 `nickname` 作为必填字段，避免旧包或绕过前端创建无昵称用户。
 - 小程序本地 HTTP 登录联调入口已在正式发布清理中移除；“我的”页不再暴露开发用户 ID，前端不再发送本地假 code 或开发用户标识。
@@ -632,7 +633,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
-| `pending` | Add sliding mini program main tab host        |
+| `pending` | Fix main tab host page registration           |
+| `19461b4` | Add sliding mini program main tabs            |
 | `280b91d` | Restore mini program browser-style caching    |
 | `6937399` | Add mini program page cache freshness         |
 | `d52e156` | Enable mini program component lazy loading    |

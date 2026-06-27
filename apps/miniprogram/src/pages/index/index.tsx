@@ -21,13 +21,13 @@ import {
 import { SmartImage as Image } from "../../SmartImage";
 import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
 import { formatDate, labelStatus, switchTab } from "../../utils";
-import HeroLeaderboardPage from "../hero-leaderboard/index";
-import MinePage from "../mine/index";
-import PlayersPage from "../players/index";
-import RecordsPage from "../records/index";
-import SchedulePage from "../schedule/index";
-import StagePage from "../stage/index";
-import TeamsPage from "../teams/index";
+import { HeroLeaderboardContent } from "../hero-leaderboard/Content";
+import { MineContent } from "../mine/Content";
+import { PlayersContent } from "../players/Content";
+import { RecordsContent } from "../records/Content";
+import { ScheduleContent } from "../schedule/Content";
+import { StageContent } from "../stage/Content";
+import { TeamsContent } from "../teams/Content";
 
 type HomeCache = {
   acknowledgements: AcknowledgementItem[];
@@ -283,19 +283,19 @@ function mainTabRenderer(routeKey: MiniRouteKey): () => JSX.Element {
     case "home":
       return () => <HomePage />;
     case "stage":
-      return () => <StagePage />;
+      return () => <StageContent />;
     case "schedule":
-      return () => <SchedulePage />;
+      return () => <ScheduleContent />;
     case "records":
-      return () => <RecordsPage />;
+      return () => <RecordsContent />;
     case "leaderboard":
-      return () => <HeroLeaderboardPage />;
+      return () => <HeroLeaderboardContent />;
     case "players":
-      return () => <PlayersPage />;
+      return () => <PlayersContent />;
     case "teams":
-      return () => <TeamsPage />;
+      return () => <TeamsContent />;
     case "mine":
-      return () => <MinePage />;
+      return () => <MineContent />;
   }
 }
 
