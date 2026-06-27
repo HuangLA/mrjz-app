@@ -9,7 +9,6 @@ import {
   loadPlayerProfile,
   loadPlayerTags,
   loadTournaments,
-  loginWithWeChat,
   setLocalLikedTagIds,
   submitPlayerTag,
   unlikePlayerTag,
@@ -74,7 +73,6 @@ export default function PlayerDetailPage() {
   const [tournaments, setTournaments] = useState<TournamentOption[]>(
     () => initialCache?.tournaments ?? [],
   );
-  const [loginNickname, setLoginNickname] = useState("");
   const [draftTag, setDraftTag] = useState("");
   const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string>>(
     () => new Set(initialCache?.profile ? [initialCache.profile.tournamentId] : []),
@@ -135,43 +133,22 @@ export default function PlayerDetailPage() {
     }
   }
 
-  async function ensureLogin(): Promise<AuthSession | null> {
-    const existing = getStoredAuthSession();
-    if (existing) {
-      setSession(existing);
-      return existing;
-    }
-
-    const nickname = loginNickname.trim();
-
-    if (nickname.length === 0) {
-      showToast("请输入昵称", "error");
-      return null;
-    }
-
-    try {
-      const nextSession = await loginWithWeChat({ nickname });
-      setSession(nextSession);
-      setLoginNickname("");
-      setLikedTagIds(getLocalLikedTagIds(nextSession.user.id));
-      showToast("已登录", "success");
-      return nextSession;
-    } catch (caught) {
-      showToast(caught instanceof Error ? caught.message : "登录失败", "error");
-      return null;
-    }
-  }
-
   async function handleSubmitTag() {
+    const activeSession = getStoredAuthSession();
+
+    if (!activeSession) {
+      showToast("请先到我的页面登录", "error");
+      return;
+    }
+
+    setSession(activeSession);
+
     const text = draftTag.trim();
 
     if (text.length === 0) {
       showToast("请输入标签");
       return;
     }
-
-    const activeSession = await ensureLogin();
-    if (!activeSession) return;
 
     setSaving(true);
     try {
@@ -194,8 +171,14 @@ export default function PlayerDetailPage() {
   }
 
   async function handleToggleLike(tag: PlayerTag) {
-    const activeSession = await ensureLogin();
-    if (!activeSession) return;
+    const activeSession = getStoredAuthSession();
+
+    if (!activeSession) {
+      showToast("请先到我的页面登录", "error");
+      return;
+    }
+
+    setSession(activeSession);
 
     const isLiked = likedTagIds.has(tag.id);
     setSaving(true);
@@ -324,6 +307,31 @@ export default function PlayerDetailPage() {
                 <Text className="muted">暂无已审核标签，提交后需管理员通过才会公开展示。</Text>
               </View>
             )}
+            <View className="tag-editor-inline">
+              <Text className="muted">
+                {session
+                  ? `当前登录：${session.user.nickname}`
+                  : "想给选手贴标签或点赞？请先到“我的”页面完成登录。"}
+              </Text>
+              {session ? (
+                <View className="tag-input-row">
+                  <Input
+                    className="tag-input"
+                    value={draftTag}
+                    maxlength={16}
+                    placeholder="输入 2-16 字短标签"
+                    onInput={(event) => setDraftTag(String(event.detail.value))}
+                  />
+                  <Button
+                    className="primary-button"
+                    loading={saving}
+                    onClick={() => void handleSubmitTag()}
+                  >
+                    提交
+                  </Button>
+                </View>
+              ) : null}
+            </View>
           </View>
 
           <ProfileStatGrid
@@ -345,43 +353,6 @@ export default function PlayerDetailPage() {
           />
 
           <SignatureHeroes heroes={profile.stats.topHeroes} />
-
-          <SectionTitle kicker="应援标签" title="给选手贴标签" />
-          <View className="tag-editor">
-            <Text className="muted">
-              {session
-                ? `当前登录：${session.user.nickname}`
-                : "登录微信小程序后可提交标签和真实点赞。"}
-            </Text>
-            {!session ? (
-              <View className="tag-input-row">
-                <Input
-                  className="tag-input"
-                  type="nickname"
-                  value={loginNickname}
-                  maxlength={64}
-                  placeholder="昵称（必填）"
-                  onInput={(event) => setLoginNickname(String(event.detail.value))}
-                />
-              </View>
-            ) : null}
-            <View className="tag-input-row">
-              <Input
-                className="tag-input"
-                value={draftTag}
-                maxlength={16}
-                placeholder="输入 2-16 字短标签"
-                onInput={(event) => setDraftTag(String(event.detail.value))}
-              />
-              <Button
-                className="primary-button"
-                loading={saving}
-                onClick={session ? handleSubmitTag : () => void ensureLogin()}
-              >
-                {session ? "提交" : "登录"}
-              </Button>
-            </View>
-          </View>
 
           <PlayerTournamentHistory
             expandedHistoryIds={expandedHistoryIds}
