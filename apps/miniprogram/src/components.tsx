@@ -1,5 +1,6 @@
 import { Button, Picker, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
+import { createContext, useContext } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { dotaAssetUrl, heroIcon } from "./dota";
 import { SmartImage as Image } from "./SmartImage";
@@ -32,7 +33,9 @@ export type MiniRouteKey =
   | "teams"
   | "mine";
 
-const routeNavItems: Array<{ key: MiniRouteKey; label: string; url: string }> = [
+export type MiniRouteNavItem = { key: MiniRouteKey; label: string; url: string };
+
+export const routeNavItems: MiniRouteNavItem[] = [
   { key: "home", label: "首页", url: "/pages/index/index" },
   { key: "stage", label: "赛事阶段", url: "/pages/stage/index" },
   { key: "schedule", label: "赛程", url: "/pages/schedule/index" },
@@ -90,33 +93,84 @@ const DEFAULT_MINI_NAV_METRICS: MiniNavMetrics = {
   sideInset: 10,
 };
 
+type MainTabHostContextValue = {
+  activeRouteKey: MiniRouteKey;
+  embedded: boolean;
+  switchRoute: (url: string) => void;
+};
+
+const MainTabHostContext = createContext<MainTabHostContextValue | null>(null);
+
+export function MainTabHostProvider(props: {
+  activeRouteKey: MiniRouteKey;
+  children: ReactNode;
+  switchRoute: (url: string) => void;
+}) {
+  return (
+    <MainTabHostContext.Provider
+      value={{
+        activeRouteKey: props.activeRouteKey,
+        embedded: true,
+        switchRoute: props.switchRoute,
+      }}
+    >
+      {props.children}
+    </MainTabHostContext.Provider>
+  );
+}
+
+export function useMainTabSwitcher(): ((url: string) => void) | null {
+  return useContext(MainTabHostContext)?.switchRoute ?? null;
+}
+
 export function PageShell(props: {
   children: ReactNode;
   loading?: boolean;
   error?: string;
   routeKey?: MiniRouteKey;
   backUrl?: string | undefined;
+  className?: string;
+  embedded?: boolean;
 }) {
+  const hostContext = useContext(MainTabHostContext);
+  const shouldRenderEmbedded = props.embedded ?? Boolean(hostContext?.embedded);
   const routeKey = props.routeKey ?? "stage";
   const isHome = routeKey === "home";
+  const body = (
+    <>
+      {props.loading ? <StatePanel title="读取中" text="正在同步赛事数据" /> : null}
+      {!props.loading && props.error ? (
+        <StatePanel title="暂时不可用" text={props.error} tone="danger" />
+      ) : null}
+      {!props.loading && !props.error ? props.children : null}
+    </>
+  );
+
+  if (shouldRenderEmbedded) {
+    return <View className="embedded-page-view">{body}</View>;
+  }
 
   return (
-    <View className={`app-shell ${isHome ? "route-home" : "route-secondary"}`}>
+    <View
+      className={`app-shell ${isHome ? "route-home" : "route-secondary"} ${props.className ?? ""}`.trim()}
+    >
       {isHome ? <HomeBackgroundMarquee /> : null}
-      <AppBar backUrl={props.backUrl} isHome={isHome} />
-      <View className="view">
-        {props.loading ? <StatePanel title="读取中" text="正在同步赛事数据" /> : null}
-        {!props.loading && props.error ? (
-          <StatePanel title="暂时不可用" text={props.error} tone="danger" />
-        ) : null}
-        {!props.loading && !props.error ? props.children : null}
-      </View>
+      <AppBar
+        backUrl={props.backUrl}
+        isHome={isHome}
+        onBack={hostContext ? () => hostContext.switchRoute("/pages/index/index") : undefined}
+      />
+      <View className="view">{body}</View>
       <FloatingRouteNav routeKey={routeKey} />
     </View>
   );
 }
 
-function AppBar(props: { backUrl?: string | undefined; isHome: boolean }) {
+function AppBar(props: {
+  backUrl?: string | undefined;
+  isHome: boolean;
+  onBack?: (() => void) | undefined;
+}) {
   const navMetrics = getMiniNavMetrics();
   const appBarStyle: CSSProperties = {
     paddingTop: `${navMetrics.top}px`,
@@ -146,7 +200,14 @@ function AppBar(props: { backUrl?: string | undefined; isHome: boolean }) {
           <Button
             className="icon-button"
             style={navButtonStyle}
-            onClick={() => goBack(props.backUrl)}
+            onClick={() => {
+              if (props.onBack) {
+                props.onBack();
+                return;
+              }
+
+              goBack(props.backUrl);
+            }}
           >
             ‹
           </Button>
@@ -157,14 +218,32 @@ function AppBar(props: { backUrl?: string | undefined; isHome: boolean }) {
 }
 
 function FloatingRouteNav(props: { routeKey: MiniRouteKey }) {
+  const hostContext = useContext(MainTabHostContext);
+  const activeIndex = Math.max(
+    0,
+    routeNavItems.findIndex((item) => item.key === props.routeKey),
+  );
+  const indicatorStyle: CSSProperties = {
+    transform: `translateX(${activeIndex * 100}%)`,
+    width: `${100 / routeNavItems.length}%`,
+  };
+
   return (
     <View className="floating-route-nav">
       <View className="route-tabs">
+        <View className="route-tab-indicator" style={indicatorStyle} />
         {routeNavItems.map((item) => (
           <Button
             className={`route-tab ${item.key === props.routeKey ? "active" : ""}`}
             key={item.key}
-            onClick={() => switchRoute(item.url)}
+            onClick={() => {
+              if (hostContext) {
+                hostContext.switchRoute(item.url);
+                return;
+              }
+
+              switchRoute(item.url);
+            }}
           >
             {item.label}
           </Button>

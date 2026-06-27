@@ -1,5 +1,5 @@
-import { Button, Text, View } from "@tarojs/components";
-import { useDidShow } from "@tarojs/taro";
+import { Button, ScrollView, Swiper, SwiperItem, Text, View } from "@tarojs/components";
+import Taro, { useDidShow, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import {
   chooseTournamentId,
@@ -10,10 +10,24 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { PageShell } from "../../components";
+import {
+  MainTabHostProvider,
+  PageShell,
+  routeNavItems,
+  type MiniRouteKey,
+  type MiniRouteNavItem,
+  useMainTabSwitcher,
+} from "../../components";
 import { SmartImage as Image } from "../../SmartImage";
 import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
 import { formatDate, labelStatus, switchTab } from "../../utils";
+import HeroLeaderboardPage from "../hero-leaderboard/index";
+import MinePage from "../mine/index";
+import PlayersPage from "../players/index";
+import RecordsPage from "../records/index";
+import SchedulePage from "../schedule/index";
+import StagePage from "../stage/index";
+import TeamsPage from "../teams/index";
 
 type HomeCache = {
   acknowledgements: AcknowledgementItem[];
@@ -22,7 +36,67 @@ type HomeCache = {
   tournaments: TournamentOption[];
 };
 
-export default function HomePage() {
+type MainTabPage = MiniRouteNavItem & {
+  render: () => JSX.Element;
+};
+
+const mainTabPages: MainTabPage[] = routeNavItems.map((item) => ({
+  ...item,
+  render: mainTabRenderer(item.key),
+}));
+
+export default function MainTabsPage() {
+  const router = useRouter();
+  const [activeIndex, setActiveIndex] = useState(() =>
+    routeIndexFromKey(routeKeyFromParam(router.params.tab)),
+  );
+  const activePage = mainTabPages[activeIndex] ?? mainTabPages[0]!;
+
+  function switchMainRoute(url: string) {
+    const nextIndex = routeIndexFromUrl(url);
+
+    if (nextIndex >= 0) {
+      setActiveIndex(nextIndex);
+      return;
+    }
+
+    void Taro.redirectTo({ url });
+  }
+
+  function handleSwiperChange(event: { detail?: { current?: number } }) {
+    const nextIndex = event.detail?.current;
+
+    if (typeof nextIndex !== "number" || !mainTabPages[nextIndex]) {
+      return;
+    }
+
+    setActiveIndex(nextIndex);
+  }
+
+  return (
+    <MainTabHostProvider activeRouteKey={activePage.key} switchRoute={switchMainRoute}>
+      <PageShell className="main-tab-shell" embedded={false} routeKey={activePage.key}>
+        <Swiper
+          className="main-tab-swiper"
+          current={activeIndex}
+          duration={260}
+          onChange={handleSwiperChange}
+        >
+          {mainTabPages.map((page) => (
+            <SwiperItem className="main-tab-item" key={page.key}>
+              <ScrollView className="main-tab-scroll" enhanced scrollY showScrollbar={false}>
+                <View className="main-tab-pane">{page.render()}</View>
+              </ScrollView>
+            </SwiperItem>
+          ))}
+        </Swiper>
+      </PageShell>
+    </MainTabHostProvider>
+  );
+}
+
+function HomePage() {
+  const switchMainTab = useMainTabSwitcher();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() => readPageCache<HomeCache>(pageCacheKey("home")));
   const [loading, setLoading] = useState(initialCache === null);
@@ -136,6 +210,11 @@ export default function HomePage() {
   function enterTournament(tournamentId: string) {
     setSelectedTournamentId(tournamentId);
     setSelectedId(tournamentId);
+    if (switchMainTab) {
+      switchMainTab("/pages/stage/index");
+      return;
+    }
+
     switchTab("/pages/stage/index");
   }
 
@@ -197,6 +276,44 @@ export default function HomePage() {
       </View>
     </PageShell>
   );
+}
+
+function mainTabRenderer(routeKey: MiniRouteKey): () => JSX.Element {
+  switch (routeKey) {
+    case "home":
+      return () => <HomePage />;
+    case "stage":
+      return () => <StagePage />;
+    case "schedule":
+      return () => <SchedulePage />;
+    case "records":
+      return () => <RecordsPage />;
+    case "leaderboard":
+      return () => <HeroLeaderboardPage />;
+    case "players":
+      return () => <PlayersPage />;
+    case "teams":
+      return () => <TeamsPage />;
+    case "mine":
+      return () => <MinePage />;
+  }
+}
+
+function routeIndexFromKey(routeKey: MiniRouteKey): number {
+  return Math.max(
+    0,
+    mainTabPages.findIndex((page) => page.key === routeKey),
+  );
+}
+
+function routeIndexFromUrl(url: string): number {
+  const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+
+  return mainTabPages.findIndex((page) => page.url === normalizedUrl);
+}
+
+function routeKeyFromParam(value: unknown): MiniRouteKey {
+  return routeNavItems.find((item) => item.key === value)?.key ?? "home";
 }
 
 function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }) {

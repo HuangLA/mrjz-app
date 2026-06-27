@@ -92,6 +92,22 @@ button[disabled] {
   padding-bottom: 94px;
 }
 
+.app-shell.main-tab-shell {
+  display: flex;
+  height: 100vh;
+  min-height: 100vh;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.app-shell.main-tab-shell .view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px 0 0;
+}
+
 .home-background-marquee {
   position: absolute;
   top: 0;
@@ -216,12 +232,28 @@ button[disabled] {
 }
 
 .route-tabs {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 3px;
+  overflow: hidden;
+}
+
+.route-tab-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #e2b65f, #b98132);
+  box-shadow: 0 6px 18px rgba(226, 182, 95, 0.24);
+  transition: transform 260ms ease;
 }
 
 .route-tab {
+  position: relative;
+  z-index: 1;
   display: flex;
   min-width: 0;
   min-height: 30px;
@@ -241,9 +273,39 @@ button[disabled] {
 
 .route-tab.active,
 .chip-button-active {
-  background: linear-gradient(180deg, #e2b65f, #b98132);
   color: #11100c;
   font-weight: 800;
+}
+
+.route-tab.active {
+  background: transparent;
+}
+
+.chip-button-active {
+  background: linear-gradient(180deg, #e2b65f, #b98132);
+}
+
+.main-tab-swiper {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  min-height: 0;
+}
+
+.main-tab-item,
+.main-tab-scroll {
+  height: 100%;
+  min-height: 0;
+  background: transparent;
+}
+
+.main-tab-pane {
+  min-height: 100%;
+  padding: 0 10px 104px;
+}
+
+.embedded-page-view {
+  min-height: 100%;
 }
 
 .home-hero {
