@@ -1,6 +1,6 @@
 import { Button, Input, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   bindDotaAccount,
   getStoredAuthSession,
@@ -10,11 +10,12 @@ import {
   logout,
   setSelectedTournamentId,
 } from "../../api";
-import { PageShell, SectionTitle } from "../../components";
+import { PageShell, SectionTitle, useMainTabState } from "../../components";
 import type { AppUserMe, AppUserStats, AuthSession } from "../../types";
 import { formatDecimal, formatPercent, navigate, showToast } from "../../utils";
 
 export function MineContent() {
+  const mainTabState = useMainTabState();
   const [session, setSession] = useState<AuthSession | null>(() => getStoredAuthSession());
   const [me, setMe] = useState<AppUserMe | null>(null);
   const [myStats, setMyStats] = useState<AppUserStats | null>(null);
@@ -25,6 +26,22 @@ export function MineContent() {
   const [error, setError] = useState("");
 
   useDidShow(() => {
+    if (mainTabState) {
+      return;
+    }
+
+    refreshLocalSession();
+  });
+
+  useEffect(() => {
+    if (mainTabState?.activeRouteKey !== "mine") {
+      return;
+    }
+
+    refreshLocalSession();
+  }, [mainTabState?.activeRouteKey]);
+
+  function refreshLocalSession(): void {
     const stored = getStoredAuthSession();
     setSession(stored);
     if (stored) {
@@ -33,7 +50,7 @@ export function MineContent() {
       setMe(null);
       setMyStats(null);
     }
-  });
+  }
 
   async function refreshMine() {
     setLoading(true);
@@ -133,10 +150,19 @@ export function MineContent() {
       return;
     }
 
-    setSelectedTournamentId(tournamentId);
+    persistSelectedTournamentId(tournamentId);
     navigate(
       `/pages/player-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&playerId=${encodeURIComponent(playerId)}`,
     );
+  }
+
+  function persistSelectedTournamentId(tournamentId: string): void {
+    if (mainTabState) {
+      mainTabState.selectTournament(tournamentId);
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
   }
 
   const authProviderText = session ? "微信账号已登录" : "未登录";

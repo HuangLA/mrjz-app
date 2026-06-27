@@ -1,6 +1,6 @@
 import { Button, ScrollView, Swiper, SwiperItem, Text, View } from "@tarojs/components";
 import Taro, { useDidShow, useRouter } from "@tarojs/taro";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -14,9 +14,10 @@ import {
   MainTabHostProvider,
   PageShell,
   routeNavItems,
+  takePendingMainTabRouteKey,
   type MiniRouteKey,
   type MiniRouteNavItem,
-  useMainTabSwitcher,
+  useMainTabState,
 } from "../../components";
 import { SmartImage as Image } from "../../SmartImage";
 import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
@@ -50,7 +51,25 @@ export default function MainTabsPage() {
   const [activeIndex, setActiveIndex] = useState(() =>
     routeIndexFromKey(routeKeyFromParam(router.params.tab)),
   );
+  const [selectedTournamentIdState, setSelectedTournamentIdState] = useState(() =>
+    getSelectedTournamentId(),
+  );
+  const [selectedTournamentVersion, setSelectedTournamentVersion] = useState(0);
   const activePage = mainTabPages[activeIndex] ?? mainTabPages[0]!;
+
+  useDidShow(() => {
+    const pendingRouteKey = takePendingMainTabRouteKey();
+
+    if (pendingRouteKey) {
+      setActiveIndex(routeIndexFromKey(pendingRouteKey));
+    }
+
+    syncSelectedTournamentFromStorage();
+  });
+
+  useEffect(() => {
+    setActiveIndex(routeIndexFromKey(routeKeyFromParam(router.params.tab)));
+  }, [router.params.tab]);
 
   function switchMainRoute(url: string) {
     const nextIndex = routeIndexFromUrl(url);
@@ -73,8 +92,49 @@ export default function MainTabsPage() {
     setActiveIndex(nextIndex);
   }
 
+  function selectMainTournament(tournamentId: string): void {
+    const nextTournamentId = tournamentId.trim();
+
+    if (!nextTournamentId) {
+      return;
+    }
+
+    setSelectedTournamentId(nextTournamentId);
+    setSelectedTournamentIdState((currentTournamentId) => {
+      if (currentTournamentId === nextTournamentId) {
+        return currentTournamentId;
+      }
+
+      setSelectedTournamentVersion((currentVersion) => currentVersion + 1);
+      return nextTournamentId;
+    });
+  }
+
+  function syncSelectedTournamentFromStorage(): void {
+    const storedTournamentId = getSelectedTournamentId();
+
+    if (!storedTournamentId) {
+      return;
+    }
+
+    setSelectedTournamentIdState((currentTournamentId) => {
+      if (currentTournamentId === storedTournamentId) {
+        return currentTournamentId;
+      }
+
+      setSelectedTournamentVersion((currentVersion) => currentVersion + 1);
+      return storedTournamentId;
+    });
+  }
+
   return (
-    <MainTabHostProvider activeRouteKey={activePage.key} switchRoute={switchMainRoute}>
+    <MainTabHostProvider
+      activeRouteKey={activePage.key}
+      selectedTournamentId={selectedTournamentIdState}
+      selectedTournamentVersion={selectedTournamentVersion}
+      selectTournament={selectMainTournament}
+      switchRoute={switchMainRoute}
+    >
       <PageShell className="main-tab-shell" embedded={false} routeKey={activePage.key}>
         <Swiper
           className="main-tab-swiper"
@@ -96,7 +156,7 @@ export default function MainTabsPage() {
 }
 
 function HomePage() {
-  const switchMainTab = useMainTabSwitcher();
+  const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() => readPageCache<HomeCache>(pageCacheKey("home")));
   const [loading, setLoading] = useState(initialCache === null);
@@ -122,6 +182,26 @@ function HomePage() {
     void refresh();
   });
 
+  useEffect(() => {
+    const hostTournamentId = mainTabState?.selectedTournamentId ?? "";
+
+    if (!hostTournamentId || hostTournamentId === selectedTournamentId) {
+      return;
+    }
+
+    if (tournaments.some((tournament) => tournament.id === hostTournamentId)) {
+      setSelectedId(hostTournamentId);
+      return;
+    }
+
+    void refresh(hostTournamentId);
+  }, [
+    mainTabState?.selectedTournamentId,
+    mainTabState?.selectedTournamentVersion,
+    selectedTournamentId,
+    tournaments,
+  ]);
+
   async function refresh(nextTournamentId?: string) {
     const cacheKey = pageCacheKey("home");
     const storedTournamentId = getSelectedTournamentId();
@@ -142,7 +222,7 @@ function HomePage() {
       setLoading(false);
 
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
-        setSelectedTournamentId(cachedSelectedTournamentId);
+        persistSelectedTournamentId(cachedSelectedTournamentId);
       }
     } else {
       setLoading(true);
@@ -173,7 +253,7 @@ function HomePage() {
         return;
       }
 
-      setSelectedTournamentId(targetId);
+      persistSelectedTournamentId(targetId);
       const recentEntries: Array<readonly [string, MatchRecord[]]> = [];
 
       for (const tournament of allTournaments) {
@@ -208,14 +288,23 @@ function HomePage() {
   }
 
   function enterTournament(tournamentId: string) {
-    setSelectedTournamentId(tournamentId);
+    persistSelectedTournamentId(tournamentId);
     setSelectedId(tournamentId);
-    if (switchMainTab) {
-      switchMainTab("/pages/stage/index");
+    if (mainTabState) {
+      mainTabState.switchRoute("/pages/stage/index");
       return;
     }
 
     switchTab("/pages/stage/index");
+  }
+
+  function persistSelectedTournamentId(tournamentId: string): void {
+    if (mainTabState) {
+      mainTabState.selectTournament(tournamentId);
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
   }
 
   const recordCount = Object.values(recentRecordsByTournament).reduce(

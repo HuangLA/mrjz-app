@@ -1,6 +1,6 @@
 import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -17,6 +17,7 @@ import {
   SeriesCard,
   TournamentScope,
   seriesScheduleStatusText,
+  useMainTabState,
 } from "../../components";
 import {
   mergePageViewState,
@@ -53,6 +54,7 @@ type ScheduleViewState = {
 };
 
 export function ScheduleContent() {
+  const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<ScheduleCache>(pageCacheKey("schedule", initialStoredTournamentId || "auto")),
@@ -93,8 +95,24 @@ export function ScheduleContent() {
   usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
+    if (mainTabState) {
+      return;
+    }
+
     void refresh();
   });
+
+  useEffect(() => {
+    if (mainTabState?.activeRouteKey !== "schedule") {
+      return;
+    }
+
+    void refresh(mainTabState.selectedTournamentId);
+  }, [
+    mainTabState?.activeRouteKey,
+    mainTabState?.selectedTournamentId,
+    mainTabState?.selectedTournamentVersion,
+  ]);
 
   async function refresh(nextTournamentId?: string) {
     const storedTournamentId = getSelectedTournamentId();
@@ -117,7 +135,7 @@ export function ScheduleContent() {
       setLoading(false);
 
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
-        setSelectedTournamentId(cachedSelectedTournamentId);
+        persistSelectedTournamentId(cachedSelectedTournamentId);
       }
 
       applyScheduleViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
@@ -146,7 +164,7 @@ export function ScheduleContent() {
       );
 
       if (targetId) {
-        setSelectedTournamentId(targetId);
+        persistSelectedTournamentId(targetId);
       }
 
       const snapshot = {
@@ -186,6 +204,19 @@ export function ScheduleContent() {
     }
 
     restorePageScroll(key);
+  }
+
+  function persistSelectedTournamentId(tournamentId: string): void {
+    if (!tournamentId) {
+      return;
+    }
+
+    if (mainTabState) {
+      mainTabState.selectTournament(tournamentId);
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
   }
 
   function handleStatusFilter(nextFilter: string) {

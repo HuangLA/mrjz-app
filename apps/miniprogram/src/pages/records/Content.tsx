@@ -1,6 +1,6 @@
 import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -9,7 +9,13 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { FilterRow, MatchRecordCard, PageShell, TournamentScope } from "../../components";
+import {
+  FilterRow,
+  MatchRecordCard,
+  PageShell,
+  TournamentScope,
+  useMainTabState,
+} from "../../components";
 import {
   mergePageViewState,
   pageViewStateKey,
@@ -34,6 +40,7 @@ type RecordsViewState = {
 const allRecordTeamFilter = "全部";
 
 export function RecordsContent() {
+  const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<RecordsCache>(pageCacheKey("records", initialStoredTournamentId || "auto")),
@@ -67,8 +74,24 @@ export function RecordsContent() {
   usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
+    if (mainTabState) {
+      return;
+    }
+
     void refresh();
   });
+
+  useEffect(() => {
+    if (mainTabState?.activeRouteKey !== "records") {
+      return;
+    }
+
+    void refresh(mainTabState.selectedTournamentId);
+  }, [
+    mainTabState?.activeRouteKey,
+    mainTabState?.selectedTournamentId,
+    mainTabState?.selectedTournamentVersion,
+  ]);
 
   async function refresh(nextTournamentId?: string) {
     const storedTournamentId = getSelectedTournamentId();
@@ -89,7 +112,7 @@ export function RecordsContent() {
       setLoading(false);
 
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
-        setSelectedTournamentId(cachedSelectedTournamentId);
+        persistSelectedTournamentId(cachedSelectedTournamentId);
       }
 
       applyRecordsViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
@@ -113,7 +136,7 @@ export function RecordsContent() {
       const nextRecords = targetId ? await loadTournamentMatches(targetId, 100) : [];
 
       if (targetId) {
-        setSelectedTournamentId(targetId);
+        persistSelectedTournamentId(targetId);
       }
 
       const snapshot = {
@@ -145,6 +168,19 @@ export function RecordsContent() {
     }
 
     restorePageScroll(key);
+  }
+
+  function persistSelectedTournamentId(tournamentId: string): void {
+    if (!tournamentId) {
+      return;
+    }
+
+    if (mainTabState) {
+      mainTabState.selectTournament(tournamentId);
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
   }
 
   function handleTeamFilter(nextFilter: string) {

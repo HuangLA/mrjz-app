@@ -12,7 +12,7 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { PageShell, SeriesCard, TournamentScope } from "../../components";
+import { PageShell, SeriesCard, TournamentScope, useMainTabState } from "../../components";
 import {
   mergePageViewState,
   pageViewStateKey,
@@ -48,6 +48,7 @@ type StageViewState = {
 };
 
 export function StageContent() {
+  const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<StageCache>(pageCacheKey("stage", initialStoredTournamentId || "auto")),
@@ -88,8 +89,24 @@ export function StageContent() {
   usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
+    if (mainTabState) {
+      return;
+    }
+
     void refresh();
   });
+
+  useEffect(() => {
+    if (mainTabState?.activeRouteKey !== "stage") {
+      return;
+    }
+
+    void refresh(mainTabState.selectedTournamentId);
+  }, [
+    mainTabState?.activeRouteKey,
+    mainTabState?.selectedTournamentId,
+    mainTabState?.selectedTournamentVersion,
+  ]);
 
   useEffect(() => {
     const groups = groupStandingRows(standings);
@@ -125,7 +142,7 @@ export function StageContent() {
       setLoading(false);
 
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
-        setSelectedTournamentId(cachedSelectedTournamentId);
+        persistSelectedTournamentId(cachedSelectedTournamentId);
       }
 
       applyStageViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
@@ -157,7 +174,7 @@ export function StageContent() {
         "";
 
       if (targetId) {
-        setSelectedTournamentId(targetId);
+        persistSelectedTournamentId(targetId);
       }
 
       setTournaments(allTournaments);
@@ -198,6 +215,19 @@ export function StageContent() {
     setSelectedStageId(stageId);
     mergePageViewState<StageViewState>(viewStateKey, { selectedStageId: stageId });
     void refreshStage(stageId);
+  }
+
+  function persistSelectedTournamentId(tournamentId: string): void {
+    if (!tournamentId) {
+      return;
+    }
+
+    if (mainTabState) {
+      mainTabState.selectTournament(tournamentId);
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
   }
 
   function selectStandingGroup(groupKey: string): void {

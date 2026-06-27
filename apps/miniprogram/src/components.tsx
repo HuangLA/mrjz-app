@@ -96,14 +96,21 @@ const DEFAULT_MINI_NAV_METRICS: MiniNavMetrics = {
 type MainTabHostContextValue = {
   activeRouteKey: MiniRouteKey;
   embedded: boolean;
+  selectedTournamentId: string;
+  selectedTournamentVersion: number;
+  selectTournament: (tournamentId: string) => void;
   switchRoute: (url: string) => void;
 };
 
 const MainTabHostContext = createContext<MainTabHostContextValue | null>(null);
+const PENDING_MAIN_TAB_ROUTE_KEY = "mrjz.mainTab.pendingRouteKey";
 
 export function MainTabHostProvider(props: {
   activeRouteKey: MiniRouteKey;
   children: ReactNode;
+  selectedTournamentId: string;
+  selectedTournamentVersion: number;
+  selectTournament: (tournamentId: string) => void;
   switchRoute: (url: string) => void;
 }) {
   return (
@@ -111,6 +118,9 @@ export function MainTabHostProvider(props: {
       value={{
         activeRouteKey: props.activeRouteKey,
         embedded: true,
+        selectedTournamentId: props.selectedTournamentId,
+        selectedTournamentVersion: props.selectedTournamentVersion,
+        selectTournament: props.selectTournament,
         switchRoute: props.switchRoute,
       }}
     >
@@ -121,6 +131,41 @@ export function MainTabHostProvider(props: {
 
 export function useMainTabSwitcher(): ((url: string) => void) | null {
   return useContext(MainTabHostContext)?.switchRoute ?? null;
+}
+
+export function useMainTabState(): MainTabHostContextValue | null {
+  return useContext(MainTabHostContext);
+}
+
+export function mainTabHostUrl(routeKey: MiniRouteKey): string {
+  return `/pages/index/index?tab=${routeKey}`;
+}
+
+export function mainTabRouteKeyFromUrl(url: string): MiniRouteKey | null {
+  const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+  const [path = "", queryString = ""] = normalizedUrl.split("?");
+  const tabParam = queryString
+    .split("&")
+    .map((pair) => pair.split("="))
+    .find(([key]) => key === "tab")?.[1];
+  const tabRouteKey = routeKeyFromUnknown(tabParam ? decodeURIComponent(tabParam) : "");
+
+  if (path === "/pages/index/index" && tabRouteKey) {
+    return tabRouteKey;
+  }
+
+  return routeNavItems.find((item) => item.url === path)?.key ?? null;
+}
+
+export function takePendingMainTabRouteKey(): MiniRouteKey | null {
+  try {
+    const value = Taro.getStorageSync<string | "">(PENDING_MAIN_TAB_ROUTE_KEY);
+    Taro.removeStorageSync(PENDING_MAIN_TAB_ROUTE_KEY);
+
+    return routeKeyFromUnknown(value);
+  } catch {
+    return null;
+  }
 }
 
 export function PageShell(props: {
@@ -331,6 +376,13 @@ function getMiniNavMetrics(): MiniNavMetrics {
 }
 
 function switchRoute(url: string) {
+  const routeKey = mainTabRouteKeyFromUrl(url);
+
+  if (routeKey) {
+    openMainTabRoute(routeKey);
+    return;
+  }
+
   const currentRoute = Taro.getCurrentPages().at(-1)?.route;
 
   if (currentRoute && url === `/${currentRoute}`) {
@@ -338,6 +390,37 @@ function switchRoute(url: string) {
   }
 
   void Taro.redirectTo({ url });
+}
+
+function openMainTabRoute(routeKey: MiniRouteKey) {
+  const pages = Taro.getCurrentPages();
+  const currentRoute = pages.at(-1)?.route;
+  const hostPageIndex = pages.findIndex((page) => page.route === "pages/index/index");
+
+  if (currentRoute === "pages/index/index") {
+    writePendingMainTabRouteKey(routeKey);
+    return;
+  }
+
+  if (hostPageIndex >= 0 && hostPageIndex < pages.length - 1) {
+    writePendingMainTabRouteKey(routeKey);
+    void Taro.navigateBack({ delta: pages.length - 1 - hostPageIndex });
+    return;
+  }
+
+  void Taro.redirectTo({ url: mainTabHostUrl(routeKey) });
+}
+
+function writePendingMainTabRouteKey(routeKey: MiniRouteKey): void {
+  try {
+    Taro.setStorageSync(PENDING_MAIN_TAB_ROUTE_KEY, routeKey);
+  } catch {
+    // Best effort only; redirect fallback still carries the tab in the URL.
+  }
+}
+
+function routeKeyFromUnknown(value: unknown): MiniRouteKey | null {
+  return routeNavItems.find((item) => item.key === value)?.key ?? null;
 }
 
 export function StatePanel(props: { title: string; text: string; tone?: "default" | "danger" }) {
@@ -406,6 +489,7 @@ export function TournamentPicker(props: {
 }
 
 export function TournamentScope(props: { tournament?: TournamentOption | null | undefined }) {
+  const hostContext = useContext(MainTabHostContext);
   const meta = props.tournament;
   const leagueId = meta?.league?.opendotaLeagueId ?? "-";
   const startsAtText = formatTournamentStart(meta?.startsAt);
@@ -419,7 +503,17 @@ export function TournamentScope(props: { tournament?: TournamentOption | null | 
           {startsAtText ? ` · ${startsAtText} 开赛` : ""}
         </Text>
       </View>
-      <Button className="link-button" onClick={() => switchRoute("/pages/index/index")}>
+      <Button
+        className="link-button"
+        onClick={() => {
+          if (hostContext) {
+            hostContext.switchRoute("/pages/index/index");
+            return;
+          }
+
+          switchRoute("/pages/index/index");
+        }}
+      >
         切换
       </Button>
     </View>

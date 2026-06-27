@@ -1,6 +1,6 @@
 import { Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -9,7 +9,7 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { PageShell, TeamDirectoryCard, TournamentScope } from "../../components";
+import { PageShell, TeamDirectoryCard, TournamentScope, useMainTabState } from "../../components";
 import { pageViewStateKey, restorePageScroll, usePageScrollMemory } from "../../pageState";
 import type { TeamListItem, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
@@ -21,6 +21,7 @@ type TeamsCache = {
 };
 
 export function TeamsContent() {
+  const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<TeamsCache>(pageCacheKey("teams", initialStoredTournamentId || "auto")),
@@ -46,8 +47,24 @@ export function TeamsContent() {
   usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
+    if (mainTabState) {
+      return;
+    }
+
     void refresh();
   });
+
+  useEffect(() => {
+    if (mainTabState?.activeRouteKey !== "teams") {
+      return;
+    }
+
+    void refresh(mainTabState.selectedTournamentId);
+  }, [
+    mainTabState?.activeRouteKey,
+    mainTabState?.selectedTournamentId,
+    mainTabState?.selectedTournamentVersion,
+  ]);
 
   async function refresh(nextTournamentId?: string) {
     const storedTournamentId = getSelectedTournamentId();
@@ -68,7 +85,7 @@ export function TeamsContent() {
       setLoading(false);
 
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
-        setSelectedTournamentId(cachedSelectedTournamentId);
+        persistSelectedTournamentId(cachedSelectedTournamentId);
       }
 
       restoreTeamsViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
@@ -92,7 +109,7 @@ export function TeamsContent() {
       const nextTeams = targetId ? await loadTournamentTeams(targetId) : [];
 
       if (targetId) {
-        setSelectedTournamentId(targetId);
+        persistSelectedTournamentId(targetId);
       }
 
       const snapshot = {
@@ -117,6 +134,19 @@ export function TeamsContent() {
 
   function restoreTeamsViewState(tournamentId: string) {
     restorePageScroll(pageViewStateKey("teams", tournamentId || "auto"));
+  }
+
+  function persistSelectedTournamentId(tournamentId: string): void {
+    if (!tournamentId) {
+      return;
+    }
+
+    if (mainTabState) {
+      mainTabState.selectTournament(tournamentId);
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
   }
 
   const visibleTeams = useMemo(() => {

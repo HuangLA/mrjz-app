@@ -1,6 +1,6 @@
 import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -9,7 +9,7 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { PageShell, PlayerDirectoryCard, TournamentScope } from "../../components";
+import { PageShell, PlayerDirectoryCard, TournamentScope, useMainTabState } from "../../components";
 import {
   mergePageViewState,
   pageViewStateKey,
@@ -63,6 +63,7 @@ type PlayersViewState = {
 };
 
 export function PlayersContent() {
+  const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<PlayersCache>(pageCacheKey("players", initialStoredTournamentId || "auto")),
@@ -99,8 +100,24 @@ export function PlayersContent() {
   usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
+    if (mainTabState) {
+      return;
+    }
+
     void refresh();
   });
+
+  useEffect(() => {
+    if (mainTabState?.activeRouteKey !== "players") {
+      return;
+    }
+
+    void refresh(mainTabState.selectedTournamentId);
+  }, [
+    mainTabState?.activeRouteKey,
+    mainTabState?.selectedTournamentId,
+    mainTabState?.selectedTournamentVersion,
+  ]);
 
   async function refresh(nextTournamentId?: string) {
     const storedTournamentId = getSelectedTournamentId();
@@ -121,7 +138,7 @@ export function PlayersContent() {
       setLoading(false);
 
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
-        setSelectedTournamentId(cachedSelectedTournamentId);
+        persistSelectedTournamentId(cachedSelectedTournamentId);
       }
 
       applyPlayersViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
@@ -145,7 +162,7 @@ export function PlayersContent() {
       const nextPlayers = targetId ? await loadTournamentPlayers(targetId) : [];
 
       if (targetId) {
-        setSelectedTournamentId(targetId);
+        persistSelectedTournamentId(targetId);
       }
 
       const snapshot = {
@@ -211,6 +228,19 @@ export function PlayersContent() {
     }
 
     restorePageScroll(key);
+  }
+
+  function persistSelectedTournamentId(tournamentId: string): void {
+    if (!tournamentId) {
+      return;
+    }
+
+    if (mainTabState) {
+      mainTabState.selectTournament(tournamentId);
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
   }
 
   const activeSort =

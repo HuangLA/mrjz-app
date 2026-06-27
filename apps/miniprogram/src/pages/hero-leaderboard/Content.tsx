@@ -1,6 +1,6 @@
 import { Button, Text, View } from "@tarojs/components";
 import { useDidShow } from "@tarojs/taro";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -9,7 +9,7 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { PageShell, SteamAvatar, TournamentScope } from "../../components";
+import { PageShell, SteamAvatar, TournamentScope, useMainTabState } from "../../components";
 import {
   mergePageViewState,
   pageViewStateKey,
@@ -37,6 +37,7 @@ type HeroLeaderboardViewState = {
 };
 
 export function HeroLeaderboardContent() {
+  const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<HeroLeaderboardCache>(
@@ -74,8 +75,24 @@ export function HeroLeaderboardContent() {
   usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
+    if (mainTabState) {
+      return;
+    }
+
     void refresh();
   });
+
+  useEffect(() => {
+    if (mainTabState?.activeRouteKey !== "leaderboard") {
+      return;
+    }
+
+    void refresh(mainTabState.selectedTournamentId);
+  }, [
+    mainTabState?.activeRouteKey,
+    mainTabState?.selectedTournamentId,
+    mainTabState?.selectedTournamentVersion,
+  ]);
 
   async function refresh(nextTournamentId?: string) {
     const storedTournamentId = getSelectedTournamentId();
@@ -96,7 +113,7 @@ export function HeroLeaderboardContent() {
       setLoading(false);
 
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
-        setSelectedTournamentId(cachedSelectedTournamentId);
+        persistSelectedTournamentId(cachedSelectedTournamentId);
       }
 
       applyHeroLeaderboardViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
@@ -122,7 +139,7 @@ export function HeroLeaderboardContent() {
         : emptyHeroLeaderboards();
 
       if (targetId) {
-        setSelectedTournamentId(targetId);
+        persistSelectedTournamentId(targetId);
       }
 
       const snapshot = {
@@ -158,6 +175,19 @@ export function HeroLeaderboardContent() {
       mergePageViewState<HeroLeaderboardViewState>(viewStateKey, { expandedKeys: [...next] });
       return next;
     });
+  }
+
+  function persistSelectedTournamentId(tournamentId: string): void {
+    if (!tournamentId) {
+      return;
+    }
+
+    if (mainTabState) {
+      mainTabState.selectTournament(tournamentId);
+      return;
+    }
+
+    setSelectedTournamentId(tournamentId);
   }
 
   function applyHeroLeaderboardViewState(tournamentId: string) {
