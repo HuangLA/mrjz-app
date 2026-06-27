@@ -103,6 +103,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序公开页新增无感数据缓存：赛事入口、赛事阶段、赛程、比赛记录、比赛详情、选手榜、选手详情、队伍榜和队伍详情会先展示当前 API 地址下的本地页面快照，再静默刷新接口；刷新成功后替换为新数据，失败时保留缓存内容。
 - ICP 备案通过后，小程序默认 `dev` / `build` 已切换到远端 API `https://api.dota2mrjz.icu/api`，`dev:local` / `build:local` 继续保留本机 API 调试入口；真机预览和提审还需要微信后台同时配置 request / downloadFile 合法域名。
 - 小程序首页鸣谢区、英雄榜和选手标签区按真机反馈继续收敛：社区支持头像改为圆形容器内裁切，英雄榜主卡恢复 H5 的标题 + 选手 / 数据操作双列结构，数值和展开入口与选手信息在同一主行对齐，选手标签云缩小且无标签时只展示紧凑空态，并将自绘顶部栏和战报浮层的视口读取从已废弃 `getSystemInfoSync` 切到 `getWindowInfo`。
+- 小程序首页社区支持名单继续微调真机排版：头像与下方 ID 的竖向间距略增，并给 ID 文本增加微信端稳定生效的顶部外边距和中文行高，避免圆形头像边缘轻微遮挡中文 ID。
 - 小程序远端 API 请求 timeout 继续加固：公开 GET 请求超时从 12 秒提高到 25 秒，并对 timeout 自动间隔 500ms 重试一次；POST / PATCH / DELETE 不重试，避免登录、标签和点赞重复写入。
 - 小程序 timeout 定位到外域 Steam 头像加载风险：远端 API JSON 接口本机实测均在 500ms 内返回，剩余微信控制台 timeout 更可能来自 `avatars.steamstatic.com` 图片下载；小程序端现将选手头像统一改写为后端缓存代理 `/api/assets/steam-avatars/{accountId}.jpg`，并为微信登录、API 请求和图片加载失败增加 `[MRJZ login]` / `[MRJZ request]` / `[MRJZ image]` 诊断日志。
 - 小程序赛程页未发布空态对齐赛事阶段页：撤回或未发布官方赛程时改用同款 `content-panel` + `muted` 说明，不再额外展示标题栏和状态胶囊。
