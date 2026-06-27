@@ -37,6 +37,8 @@ type HomeCache = {
   tournaments: TournamentOption[];
 };
 
+const HOME_PAGE_CACHE_MAX_AGE_MS = 30 * 1000;
+
 type MainTabPage = MiniRouteNavItem & {
   render: () => JSX.Element;
 };
@@ -187,6 +189,14 @@ function HomePage() {
   });
 
   useEffect(() => {
+    if (mainTabState?.activeRouteKey !== "home") {
+      return;
+    }
+
+    void refresh();
+  }, [mainTabState?.activeRouteKey]);
+
+  useEffect(() => {
     const hostTournamentId = mainTabState?.selectedTournamentId ?? "";
 
     if (!hostTournamentId || hostTournamentId === selectedTournamentId) {
@@ -234,7 +244,7 @@ function HomePage() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey)) {
+    if (cached && isPageCacheFresh(cacheKey, HOME_PAGE_CACHE_MAX_AGE_MS)) {
       return;
     }
 

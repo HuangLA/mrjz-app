@@ -119,6 +119,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序主导航状态同步继续修正：首页常驻容器现在统一持有当前届次和版本号，切换届次后赛事阶段、赛程、比赛记录、英雄榜、选手和队伍 tab 会在激活时立即读取对应届次缓存并刷新；详情 / 次级页底部导航若发现页面栈中已有首页容器，会先写入目标 tab 再 `navigateBack` 回原容器，避免重新创建主页面导致黑屏或长载入。
 - 小程序底部自绘导航真机位置微调：导航栏整体上移，降低和手机底部系统手势区误触的风险，页面底部内容预留保持不变。
 - 小程序主 tab 手势冲突修复：通用筛选栏改为横向 `ScrollView`，触摸筛选栏时临时禁用外层主 Swiper，避免比赛记录队伍筛选左右滑动被识别成切换到相邻 tab。
+- 小程序首页鸣谢刷新策略调整：首页 tab 激活时会重新检查缓存新鲜度，首页缓存新鲜期从默认 5 分钟收紧到 30 秒，后台修改赞助 / 鸣谢名称后无需退出小程序即可较快静默更新。
 - 小程序微信登录链路改为“用户填写昵称 + 微信 code 登录”：登录前要求填写必填展示昵称，前端上送 `wx.login` code + nickname，后端用 `jscode2session` 换取微信身份并签发 MRJZ opaque session。
 - 小程序“我的”页和选手详情互动登录入口统一要求填写昵称；后端 `POST /api/auth/wechat-login` 也把 `nickname` 作为必填字段，避免旧包或绕过前端创建无昵称用户。
 - 小程序本地 HTTP 登录联调入口已在正式发布清理中移除；“我的”页不再暴露开发用户 ID，前端不再发送本地假 code 或开发用户标识。
@@ -636,7 +637,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
-| `pending` | Fix mini program filter swipe conflict        |
+| `pending` | Refresh mini program home acknowledgements    |
+| `4267d56` | Fix mini program filter swipe conflict        |
 | `d2390f6` | Raise mini program bottom nav                 |
 | `b5b8a4c` | Fix mini program main tab state sync          |
 | `c6a6c45` | Fix main tab host page registration           |
