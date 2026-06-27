@@ -220,7 +220,7 @@ button[disabled] {
   position: fixed;
   left: 8px;
   right: 8px;
-  bottom: 10px;
+  bottom: 24px;
   z-index: 20;
   padding: 7px;
   border: 1px solid rgba(255, 255, 255, 0.09);
