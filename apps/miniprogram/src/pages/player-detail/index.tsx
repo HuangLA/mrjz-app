@@ -74,6 +74,7 @@ export default function PlayerDetailPage() {
   const [tournaments, setTournaments] = useState<TournamentOption[]>(
     () => initialCache?.tournaments ?? [],
   );
+  const [loginNickname, setLoginNickname] = useState("");
   const [draftTag, setDraftTag] = useState("");
   const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<string>>(
     () => new Set(initialCache?.profile ? [initialCache.profile.tournamentId] : []),
@@ -141,9 +142,17 @@ export default function PlayerDetailPage() {
       return existing;
     }
 
+    const nickname = loginNickname.trim();
+
+    if (nickname.length === 0) {
+      showToast("请输入昵称", "error");
+      return null;
+    }
+
     try {
-      const nextSession = await loginWithWeChat();
+      const nextSession = await loginWithWeChat({ nickname });
       setSession(nextSession);
+      setLoginNickname("");
       setLikedTagIds(getLocalLikedTagIds(nextSession.user.id));
       showToast("已登录", "success");
       return nextSession;
@@ -344,6 +353,18 @@ export default function PlayerDetailPage() {
                 ? `当前登录：${session.user.nickname}`
                 : "登录微信小程序后可提交标签和真实点赞。"}
             </Text>
+            {!session ? (
+              <View className="tag-input-row">
+                <Input
+                  className="tag-input"
+                  type="nickname"
+                  value={loginNickname}
+                  maxlength={64}
+                  placeholder="昵称（必填）"
+                  onInput={(event) => setLoginNickname(String(event.detail.value))}
+                />
+              </View>
+            ) : null}
             <View className="tag-input-row">
               <Input
                 className="tag-input"

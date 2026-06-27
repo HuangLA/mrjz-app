@@ -185,8 +185,9 @@ sequenceDiagram
   participant DB as 数据库
 
   MP->>MP: 用户点击微信登录按钮
+  MP->>MP: 校验必填展示昵称
   MP->>MP: wx.login 获取 code
-  MP->>API: POST /api/auth/wechat-login { code }
+  MP->>API: POST /api/auth/wechat-login { code, nickname }
   API->>WX: code2Session
   WX-->>API: openid, session_key, unionid
   API->>DB: upsert app_user + create user_session
@@ -194,7 +195,7 @@ sequenceDiagram
   MP->>API: Authorization: Bearer userToken
 ```
 
-小程序登录只代表平台普通用户，不要求该用户已经参赛。登录动作由用户点击触发：前端调用 `wx.login` 获取 code 并交给后端 `code2Session` 换取微信身份；微信昵称不是一键登录凭证的一部分，缺少昵称时后端使用默认展示名，不阻断登录。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。提审、体验版和生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`，并严格使用微信 `code2Session`；小程序端不提供本地开发用户、运行期 API 地址切换或假 code 兜底。
+小程序登录只代表平台普通用户，不要求该用户已经参赛。登录动作由用户点击触发：前端要求用户先填写展示昵称，再调用 `wx.login` 获取 code 并交给后端 `code2Session` 换取微信身份；昵称为登录接口必填字段，但不依赖 `wx.getUserProfile` 静默获取。登录用户可以继续浏览公开赛事、提交选手标签、点赞标签，并可在“我的”页绑定 Dota account_id 或 SteamID64。提审、体验版和生产环境必须配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`，并严格使用微信 `code2Session`；小程序端不提供本地开发用户、运行期 API 地址切换或假 code 兜底。
 
 ### 4.2 Web Admin 登录
 
@@ -385,7 +386,7 @@ H5 第一版不把登录作为上线阻塞项，优先提供公开展示和分�
 
 | 方法 | 路径                     | 说明                                            |
 | ---- | ------------------------ | ----------------------------------------------- |
-| POST | `/api/auth/wechat-login` | 微信 code 登录                                  |
+| POST | `/api/auth/wechat-login` | 微信 code + 必填展示昵称登录                    |
 | POST | `/api/auth/logout`       | 退出登录                                        |
 | GET  | `/api/me`                | 当前用户和账号绑定                              |
 | POST | `/api/me/player-binding` | 绑定 Dota account_id 或 SteamID64，可无比赛记录 |
@@ -721,6 +722,5 @@ Web Admin：
 - OpenDota OpenAPI：[https://api.opendota.com/api](https://api.opendota.com/api)
 - OpenDota 文档入口：[https://docs.opendota.com/](https://docs.opendota.com/)
 - 微信小程序登录：[小程序登录](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/login.html)
-- 微信用户信息授权：[wx.getUserProfile](https://developers.weixin.qq.com/miniprogram/dev/api/open-api/user-info/wx.getUserProfile.html)
 - 微信头像昵称填写：[头像昵称填写](https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/userProfile.html)
 - 微信 code2Session：[auth.code2Session](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-login/code2Session.html)

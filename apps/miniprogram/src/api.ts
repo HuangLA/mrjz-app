@@ -85,12 +85,18 @@ export function setLocalLikedTagIds(userId: string, tagIds: Set<string>): void {
   Taro.setStorageSync(LOCAL_LIKED_TAGS_STORAGE_KEY, next);
 }
 
-export async function loginWithWeChat(): Promise<AuthSession> {
+export async function loginWithWeChat(options: { nickname: string }): Promise<AuthSession> {
+  const nickname = cleanDisplayNickname(options.nickname);
+
+  if (!nickname) {
+    throw new Error("请输入昵称");
+  }
+
   const code = await getWechatLoginCode();
 
   const session = await request<AuthSession>("/auth/wechat-login", {
     method: "POST",
-    data: { code },
+    data: { code, nickname },
     withAuth: false,
   });
 

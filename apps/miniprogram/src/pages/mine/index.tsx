@@ -18,6 +18,7 @@ export default function MinePage() {
   const [session, setSession] = useState<AuthSession | null>(() => getStoredAuthSession());
   const [me, setMe] = useState<AppUserMe | null>(null);
   const [myStats, setMyStats] = useState<AppUserStats | null>(null);
+  const [loginNickname, setLoginNickname] = useState("");
   const [bindingInput, setBindingInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [bindingSaving, setBindingSaving] = useState(false);
@@ -51,12 +52,21 @@ export default function MinePage() {
   }
 
   async function handleLogin() {
+    const nickname = loginNickname.trim();
+
+    if (nickname.length === 0) {
+      setError("请输入昵称");
+      showToast("请输入昵称", "error");
+      return;
+    }
+
     setError("");
     setLoading(true);
 
     try {
-      const nextSession = await loginWithWeChat();
+      const nextSession = await loginWithWeChat({ nickname });
       setSession(nextSession);
+      setLoginNickname("");
       await refreshMine();
       showToast("登录成功", "success");
     } catch (caught) {
@@ -145,6 +155,21 @@ export default function MinePage() {
       {error ? (
         <View className="content-panel">
           <Text className="muted">{error}</Text>
+        </View>
+      ) : null}
+
+      {!session ? (
+        <View className="tag-editor">
+          <View className="tag-input-row">
+            <Input
+              className="account-input"
+              type="nickname"
+              value={loginNickname}
+              maxlength={64}
+              placeholder="昵称（必填）"
+              onInput={(event) => setLoginNickname(String(event.detail.value))}
+            />
+          </View>
         </View>
       ) : null}
 
