@@ -10,6 +10,7 @@ import {
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, TeamDirectoryCard, TournamentScope } from "../../components";
+import { pageViewStateKey, restorePageScroll, usePageScrollMemory } from "../../pageState";
 import type { TeamListItem, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
 
@@ -37,6 +38,12 @@ export default function TeamsPage() {
     ),
   );
   const [teams, setTeams] = useState<TeamListItem[]>(() => initialCache?.teams ?? []);
+  const viewStateKey = pageViewStateKey(
+    "teams",
+    selectedTournamentId || initialStoredTournamentId || "auto",
+  );
+
+  usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
     void refresh();
@@ -63,6 +70,8 @@ export default function TeamsPage() {
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
         setSelectedTournamentId(cachedSelectedTournamentId);
       }
+
+      restoreTeamsViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
     } else {
       setLoading(true);
     }
@@ -96,6 +105,7 @@ export default function TeamsPage() {
       setSelectedId(snapshot.selectedTournamentId);
       setTeams(snapshot.teams);
       writePageCache(pageCacheKey("teams", targetId || "auto"), snapshot);
+      restoreTeamsViewState(targetId || "auto");
     } catch (caught) {
       if (!cached) {
         setError(caught instanceof Error ? caught.message : "队伍读取失败");
@@ -103,6 +113,10 @@ export default function TeamsPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function restoreTeamsViewState(tournamentId: string) {
+    restorePageScroll(pageViewStateKey("teams", tournamentId || "auto"));
   }
 
   const visibleTeams = useMemo(() => {

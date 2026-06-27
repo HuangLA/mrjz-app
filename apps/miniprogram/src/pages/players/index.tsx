@@ -10,6 +10,13 @@ import {
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerDirectoryCard, TournamentScope } from "../../components";
+import {
+  mergePageViewState,
+  pageViewStateKey,
+  readPageViewState,
+  restorePageScroll,
+  usePageScrollMemory,
+} from "../../pageState";
 import type { PlayerListItem, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
 
@@ -49,15 +56,30 @@ type PlayersCache = {
   tournaments: TournamentOption[];
 };
 
+type PlayersViewState = {
+  scrollTop?: number;
+  sortDirection?: SortDirection;
+  sortKey?: PlayerSortKey;
+};
+
 export default function PlayersPage() {
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<PlayersCache>(pageCacheKey("players", initialStoredTournamentId || "auto")),
   );
+  const [initialViewState] = useState(() =>
+    readPageViewState<PlayersViewState>(
+      pageViewStateKey("players", initialStoredTournamentId || "auto"),
+    ),
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [sortKey, setSortKey] = useState<PlayerSortKey>("totalMatches");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [sortKey, setSortKey] = useState<PlayerSortKey>(() =>
+    normalizePlayerSortKey(initialViewState?.sortKey),
+  );
+  const [sortDirection, setSortDirection] = useState<SortDirection>(() =>
+    normalizeSortDirection(initialViewState?.sortDirection),
+  );
   const [tournaments, setTournaments] = useState<TournamentOption[]>(
     () => initialCache?.tournaments ?? [],
   );
@@ -69,6 +91,12 @@ export default function PlayersPage() {
     ),
   );
   const [players, setPlayers] = useState<PlayerListItem[]>(() => initialCache?.players ?? []);
+  const viewStateKey = pageViewStateKey(
+    "players",
+    selectedTournamentId || initialStoredTournamentId || "auto",
+  );
+
+  usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
     void refresh();
@@ -95,6 +123,8 @@ export default function PlayersPage() {
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
         setSelectedTournamentId(cachedSelectedTournamentId);
       }
+
+      applyPlayersViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
     } else {
       setLoading(true);
     }
@@ -128,6 +158,7 @@ export default function PlayersPage() {
       setSelectedId(snapshot.selectedTournamentId);
       setPlayers(snapshot.players);
       writePageCache(pageCacheKey("players", targetId || "auto"), snapshot);
+      applyPlayersViewState(targetId || "auto");
     } catch (caught) {
       if (!cached) {
         setError(caught instanceof Error ? caught.message : "选手读取失败");
@@ -144,14 +175,42 @@ export default function PlayersPage() {
 
   function handleSort(nextKey: PlayerSortKey) {
     if (nextKey === sortKey) {
-      setSortDirection((current) => (current === "desc" ? "asc" : "desc"));
+      setSortDirection((current) => {
+        const nextDirection = current === "desc" ? "asc" : "desc";
+        mergePageViewState<PlayersViewState>(viewStateKey, {
+          sortDirection: nextDirection,
+          sortKey: nextKey,
+        });
+
+        return nextDirection;
+      });
       return;
     }
 
+    const nextDirection =
+      playerSortOptions.find((option) => option.key === nextKey)?.defaultDirection ?? "desc";
+
     setSortKey(nextKey);
-    setSortDirection(
-      playerSortOptions.find((option) => option.key === nextKey)?.defaultDirection ?? "desc",
-    );
+    setSortDirection(nextDirection);
+    mergePageViewState<PlayersViewState>(viewStateKey, {
+      sortDirection: nextDirection,
+      sortKey: nextKey,
+    });
+  }
+
+  function applyPlayersViewState(tournamentId: string) {
+    const key = pageViewStateKey("players", tournamentId || "auto");
+    const state = readPageViewState<PlayersViewState>(key);
+
+    if (isPlayerSortKey(state?.sortKey)) {
+      setSortKey(state.sortKey);
+    }
+
+    if (isSortDirection(state?.sortDirection)) {
+      setSortDirection(state.sortDirection);
+    }
+
+    restorePageScroll(key);
   }
 
   const activeSort =
@@ -285,4 +344,20 @@ function playerSortValue(player: PlayerListItem, key: PlayerSortKey): number | n
     case "displayName":
       return null;
   }
+}
+
+function normalizePlayerSortKey(value: PlayerSortKey | undefined): PlayerSortKey {
+  return isPlayerSortKey(value) ? value : "totalMatches";
+}
+
+function normalizeSortDirection(value: SortDirection | undefined): SortDirection {
+  return isSortDirection(value) ? value : "desc";
+}
+
+function isPlayerSortKey(value: unknown): value is PlayerSortKey {
+  return playerSortOptions.some((option) => option.key === value);
+}
+
+function isSortDirection(value: unknown): value is SortDirection {
+  return value === "asc" || value === "desc";
 }

@@ -18,6 +18,13 @@ import {
   TournamentScope,
   seriesScheduleStatusText,
 } from "../../components";
+import {
+  mergePageViewState,
+  pageViewStateKey,
+  readPageViewState,
+  restorePageScroll,
+  usePageScrollMemory,
+} from "../../pageState";
 import type {
   OfficialScheduleStatus,
   StageRound,
@@ -39,10 +46,21 @@ type ScheduleCache = {
   tournaments: TournamentOption[];
 };
 
+type ScheduleViewState = {
+  scheduleOrder?: ScheduleOrder;
+  scrollTop?: number;
+  statusFilter?: ScheduleFilter;
+};
+
 export default function SchedulePage() {
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<ScheduleCache>(pageCacheKey("schedule", initialStoredTournamentId || "auto")),
+  );
+  const [initialViewState] = useState(() =>
+    readPageViewState<ScheduleViewState>(
+      pageViewStateKey("schedule", initialStoredTournamentId || "auto"),
+    ),
   );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
@@ -61,8 +79,18 @@ export default function SchedulePage() {
     () => initialCache?.officialSchedule ?? null,
   );
   const [rounds, setRounds] = useState<StageRound[]>(() => initialCache?.rounds ?? []);
-  const [statusFilter, setStatusFilter] = useState<ScheduleFilter>("全部");
-  const [scheduleOrder, setScheduleOrder] = useState<ScheduleOrder>("desc");
+  const [statusFilter, setStatusFilter] = useState<ScheduleFilter>(() =>
+    normalizeScheduleFilter(initialViewState?.statusFilter),
+  );
+  const [scheduleOrder, setScheduleOrder] = useState<ScheduleOrder>(() =>
+    normalizeScheduleOrder(initialViewState?.scheduleOrder),
+  );
+  const viewStateKey = pageViewStateKey(
+    "schedule",
+    selectedTournamentId || initialStoredTournamentId || "auto",
+  );
+
+  usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
     void refresh();
@@ -91,6 +119,8 @@ export default function SchedulePage() {
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
         setSelectedTournamentId(cachedSelectedTournamentId);
       }
+
+      applyScheduleViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
     } else {
       setLoading(true);
     }
@@ -133,6 +163,7 @@ export default function SchedulePage() {
       setOfficialSchedule(snapshot.officialSchedule);
       setRounds(snapshot.rounds);
       writePageCache(pageCacheKey("schedule", targetId || "auto"), snapshot);
+      applyScheduleViewState(targetId || "auto");
     } catch (caught) {
       if (!cached) {
         setError(caught instanceof Error ? caught.message : "赛程读取失败");
@@ -140,6 +171,36 @@ export default function SchedulePage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function applyScheduleViewState(tournamentId: string) {
+    const key = pageViewStateKey("schedule", tournamentId || "auto");
+    const state = readPageViewState<ScheduleViewState>(key);
+
+    if (isScheduleFilter(state?.statusFilter)) {
+      setStatusFilter(state.statusFilter);
+    }
+
+    if (isScheduleOrder(state?.scheduleOrder)) {
+      setScheduleOrder(state.scheduleOrder);
+    }
+
+    restorePageScroll(key);
+  }
+
+  function handleStatusFilter(nextFilter: string) {
+    const normalized = normalizeScheduleFilter(nextFilter);
+    setStatusFilter(normalized);
+    mergePageViewState<ScheduleViewState>(viewStateKey, { statusFilter: normalized });
+  }
+
+  function toggleScheduleOrder() {
+    setScheduleOrder((current) => {
+      const nextOrder = current === "desc" ? "asc" : "desc";
+      mergePageViewState<ScheduleViewState>(viewStateKey, { scheduleOrder: nextOrder });
+
+      return nextOrder;
+    });
   }
 
   const visibleSeries = useMemo(() => {
@@ -180,12 +241,9 @@ export default function SchedulePage() {
               <FilterRow
                 labels={[...scheduleFilters]}
                 value={statusFilter}
-                onChange={setStatusFilter}
+                onChange={handleStatusFilter}
               />
-              <Button
-                className="schedule-order-button"
-                onClick={() => setScheduleOrder((current) => (current === "desc" ? "asc" : "desc"))}
-              >
+              <Button className="schedule-order-button" onClick={toggleScheduleOrder}>
                 {scheduleOrder === "desc" ? "切换正序" : "切换倒序"}
               </Button>
             </View>
@@ -227,4 +285,20 @@ export default function SchedulePage() {
       )}
     </PageShell>
   );
+}
+
+function normalizeScheduleFilter(value: unknown): ScheduleFilter {
+  return isScheduleFilter(value) ? value : "全部";
+}
+
+function normalizeScheduleOrder(value: unknown): ScheduleOrder {
+  return isScheduleOrder(value) ? value : "desc";
+}
+
+function isScheduleFilter(value: unknown): value is ScheduleFilter {
+  return scheduleFilters.includes(value as ScheduleFilter);
+}
+
+function isScheduleOrder(value: unknown): value is ScheduleOrder {
+  return value === "asc" || value === "desc";
 }

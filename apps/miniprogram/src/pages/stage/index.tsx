@@ -13,6 +13,13 @@ import {
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, SeriesCard, TournamentScope } from "../../components";
+import {
+  mergePageViewState,
+  pageViewStateKey,
+  readPageViewState,
+  restorePageScroll,
+  usePageScrollMemory,
+} from "../../pageState";
 import type {
   BracketNode,
   StageRound,
@@ -34,10 +41,21 @@ type StageCache = {
   tournaments: TournamentOption[];
 };
 
+type StageViewState = {
+  activeStandingGroupKey?: string;
+  scrollTop?: number;
+  selectedStageId?: string;
+};
+
 export default function StagePage() {
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
     readPageCache<StageCache>(pageCacheKey("stage", initialStoredTournamentId || "auto")),
+  );
+  const [initialViewState] = useState(() =>
+    readPageViewState<StageViewState>(
+      pageViewStateKey("stage", initialStoredTournamentId || "auto"),
+    ),
   );
   const [loading, setLoading] = useState(initialCache === null);
   const [stageLoading, setStageLoading] = useState(false);
@@ -53,11 +71,21 @@ export default function StagePage() {
     ),
   );
   const [detail, setDetail] = useState<TournamentDetail | null>(() => initialCache?.detail ?? null);
-  const [selectedStageId, setSelectedStageId] = useState(() => initialCache?.selectedStageId ?? "");
+  const [selectedStageId, setSelectedStageId] = useState(
+    () => initialViewState?.selectedStageId ?? initialCache?.selectedStageId ?? "",
+  );
   const [rounds, setRounds] = useState<StageRound[]>(() => initialCache?.rounds ?? []);
   const [standings, setStandings] = useState<StandingRow[]>(() => initialCache?.standings ?? []);
   const [bracket, setBracket] = useState<BracketNode[]>(() => initialCache?.bracket ?? []);
-  const [activeStandingGroupKey, setActiveStandingGroupKey] = useState("");
+  const [activeStandingGroupKey, setActiveStandingGroupKey] = useState(
+    () => initialViewState?.activeStandingGroupKey ?? "",
+  );
+  const viewStateKey = pageViewStateKey(
+    "stage",
+    selectedTournamentId || initialStoredTournamentId || "auto",
+  );
+
+  usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
     void refresh();
@@ -70,8 +98,9 @@ export default function StagePage() {
 
     if (activeStandingGroupKey !== nextKey) {
       setActiveStandingGroupKey(nextKey);
+      mergePageViewState<StageViewState>(viewStateKey, { activeStandingGroupKey: nextKey });
     }
-  }, [activeStandingGroupKey, standings]);
+  }, [activeStandingGroupKey, standings, viewStateKey]);
 
   async function refresh(nextTournamentId?: string) {
     const storedTournamentId = getSelectedTournamentId();
@@ -98,6 +127,8 @@ export default function StagePage() {
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
         setSelectedTournamentId(cachedSelectedTournamentId);
       }
+
+      applyStageViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
     } else {
       setLoading(true);
     }
@@ -117,7 +148,10 @@ export default function StagePage() {
       );
       const nextDetail = targetId ? await loadTournament(targetId) : null;
       const officialStages = nextDetail?.stages?.filter(isOfficialScheduleStage) ?? [];
+      const persistedStageId =
+        readStageViewState(targetId || "auto")?.selectedStageId ?? cached?.selectedStageId;
       const nextStageId =
+        officialStages.find((stage) => stage.id === persistedStageId)?.id ??
         officialStages.find((stage) => stage.id === nextDetail?.currentStage?.id)?.id ??
         officialStages[0]?.id ??
         "";
@@ -130,6 +164,9 @@ export default function StagePage() {
       setSelectedId(targetId);
       setDetail(nextDetail);
       setSelectedStageId(nextStageId);
+      mergePageViewState<StageViewState>(pageViewStateKey("stage", targetId || "auto"), {
+        selectedStageId: nextStageId,
+      });
       if (nextStageId) {
         void refreshStage(nextStageId, {
           detail: nextDetail,
@@ -146,6 +183,7 @@ export default function StagePage() {
           standings: [],
           tournaments: allTournaments,
         });
+        applyStageViewState(targetId || "auto");
       }
     } catch (caught) {
       if (!cached) {
@@ -158,7 +196,28 @@ export default function StagePage() {
 
   function selectStage(stageId: string): void {
     setSelectedStageId(stageId);
+    mergePageViewState<StageViewState>(viewStateKey, { selectedStageId: stageId });
     void refreshStage(stageId);
+  }
+
+  function selectStandingGroup(groupKey: string): void {
+    setActiveStandingGroupKey(groupKey);
+    mergePageViewState<StageViewState>(viewStateKey, { activeStandingGroupKey: groupKey });
+  }
+
+  function applyStageViewState(tournamentId: string) {
+    const key = pageViewStateKey("stage", tournamentId || "auto");
+    const state = readPageViewState<StageViewState>(key);
+
+    if (state?.activeStandingGroupKey) {
+      setActiveStandingGroupKey(state.activeStandingGroupKey);
+    }
+
+    restorePageScroll(key);
+  }
+
+  function readStageViewState(tournamentId: string): StageViewState | null {
+    return readPageViewState<StageViewState>(pageViewStateKey("stage", tournamentId || "auto"));
   }
 
   async function refreshStage(
@@ -172,10 +231,9 @@ export default function StagePage() {
     setStageLoading(true);
 
     try {
-      const cacheKey = pageCacheKey(
-        "stage",
-        context?.selectedTournamentId || selectedTournamentId || "auto",
-      );
+      const tournamentIdForState = context?.selectedTournamentId || selectedTournamentId || "auto";
+      const cacheKey = pageCacheKey("stage", tournamentIdForState);
+      const stateKey = pageViewStateKey("stage", tournamentIdForState);
       const cached = readPageCache<StageCache>(cacheKey);
       const [roundsResult, standingsResult, bracketResult] = await Promise.allSettled([
         loadStageRounds(stageId),
@@ -192,6 +250,7 @@ export default function StagePage() {
       setRounds(nextRounds);
       setStandings(nextStandings);
       setBracket(nextBracket);
+      mergePageViewState<StageViewState>(stateKey, { selectedStageId: stageId });
       writePageCache(cacheKey, {
         bracket: nextBracket,
         detail: context?.detail ?? detail,
@@ -201,6 +260,7 @@ export default function StagePage() {
         standings: nextStandings,
         tournaments: context?.tournaments ?? tournaments,
       });
+      restorePageScroll(stateKey);
     } finally {
       setStageLoading(false);
     }
@@ -269,7 +329,7 @@ export default function StagePage() {
                     <Button
                       key={group.key}
                       className={group.key === activeStandingGroup?.key ? "active" : ""}
-                      onClick={() => setActiveStandingGroupKey(group.key)}
+                      onClick={() => selectStandingGroup(group.key)}
                     >
                       <Text>{group.label}</Text>
                       <Text className="standing-tab-count">{group.rows.length} 队</Text>

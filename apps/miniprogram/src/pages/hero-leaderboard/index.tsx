@@ -10,6 +10,13 @@ import {
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, SteamAvatar, TournamentScope } from "../../components";
+import {
+  mergePageViewState,
+  pageViewStateKey,
+  readPageViewState,
+  restorePageScroll,
+  usePageScrollMemory,
+} from "../../pageState";
 import type {
   HeroLeaderboardCandidate,
   HeroLeaderboardItem,
@@ -24,6 +31,11 @@ type HeroLeaderboardCache = {
   tournaments: TournamentOption[];
 };
 
+type HeroLeaderboardViewState = {
+  expandedKeys?: string[];
+  scrollTop?: number;
+};
+
 export default function HeroLeaderboardPage() {
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
@@ -31,9 +43,16 @@ export default function HeroLeaderboardPage() {
       pageCacheKey("hero-leaderboard", initialStoredTournamentId || "auto"),
     ),
   );
+  const [initialViewState] = useState(() =>
+    readPageViewState<HeroLeaderboardViewState>(
+      pageViewStateKey("hero-leaderboard", initialStoredTournamentId || "auto"),
+    ),
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set());
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(
+    () => new Set(safeStringArray(initialViewState?.expandedKeys)),
+  );
   const [tournaments, setTournaments] = useState<TournamentOption[]>(
     () => initialCache?.tournaments ?? [],
   );
@@ -47,6 +66,12 @@ export default function HeroLeaderboardPage() {
   const [leaderboards, setLeaderboards] = useState<HeroLeaderboardsView>(
     () => initialCache?.leaderboards ?? emptyHeroLeaderboards(),
   );
+  const viewStateKey = pageViewStateKey(
+    "hero-leaderboard",
+    selectedTournamentId || initialStoredTournamentId || "auto",
+  );
+
+  usePageScrollMemory(viewStateKey);
 
   useDidShow(() => {
     void refresh();
@@ -73,6 +98,8 @@ export default function HeroLeaderboardPage() {
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
         setSelectedTournamentId(cachedSelectedTournamentId);
       }
+
+      applyHeroLeaderboardViewState(cachedSelectedTournamentId || requestedTournamentId || "auto");
     } else {
       setLoading(true);
     }
@@ -108,6 +135,7 @@ export default function HeroLeaderboardPage() {
       setSelectedId(snapshot.selectedTournamentId);
       setLeaderboards(snapshot.leaderboards);
       writePageCache(pageCacheKey("hero-leaderboard", targetId || "auto"), snapshot);
+      applyHeroLeaderboardViewState(targetId || "auto");
     } catch (caught) {
       if (!cached) {
         setError(caught instanceof Error ? caught.message : "英雄榜读取失败");
@@ -127,8 +155,20 @@ export default function HeroLeaderboardPage() {
         next.add(key);
       }
 
+      mergePageViewState<HeroLeaderboardViewState>(viewStateKey, { expandedKeys: [...next] });
       return next;
     });
+  }
+
+  function applyHeroLeaderboardViewState(tournamentId: string) {
+    const key = pageViewStateKey("hero-leaderboard", tournamentId || "auto");
+    const state = readPageViewState<HeroLeaderboardViewState>(key);
+
+    if (state?.expandedKeys) {
+      setExpandedKeys(new Set(safeStringArray(state.expandedKeys)));
+    }
+
+    restorePageScroll(key);
   }
 
   return (
@@ -296,4 +336,10 @@ function emptyHeroLeaderboards(): HeroLeaderboardsView {
     minMatches: 5,
     leaderboards: [],
   };
+}
+
+function safeStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
