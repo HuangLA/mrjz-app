@@ -12,7 +12,14 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { PageShell, SeriesCard, TournamentScope, useMainTabState } from "../../components";
+import {
+  PageShell,
+  SeriesCard,
+  TournamentScope,
+  useMainTabRefresh,
+  useMainTabState,
+  useStandalonePullDownRefresh,
+} from "../../components";
 import {
   mergePageViewState,
   pageViewStateKey,
@@ -87,6 +94,10 @@ export function StageContent() {
   );
 
   usePageScrollMemory(viewStateKey);
+  useMainTabRefresh("stage", () =>
+    refresh(mainTabState?.selectedTournamentId, { force: true }),
+  );
+  useStandalonePullDownRefresh(() => refresh(undefined, { force: true }));
 
   useDidShow(() => {
     if (mainTabState) {
@@ -119,7 +130,7 @@ export function StageContent() {
     }
   }, [activeStandingGroupKey, standings, viewStateKey]);
 
-  async function refresh(nextTournamentId?: string) {
+  async function refresh(nextTournamentId?: string, options?: { force?: boolean }) {
     const storedTournamentId = getSelectedTournamentId();
     const requestedTournamentId = nextTournamentId ?? storedTournamentId;
     const cacheKey = pageCacheKey("stage", requestedTournamentId || "auto");
@@ -152,7 +163,7 @@ export function StageContent() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey)) {
+    if (!options?.force && cached && isPageCacheFresh(cacheKey)) {
       return;
     }
 
@@ -185,7 +196,7 @@ export function StageContent() {
         selectedStageId: nextStageId,
       });
       if (nextStageId) {
-        void refreshStage(nextStageId, {
+        await refreshStage(nextStageId, {
           detail: nextDetail,
           selectedTournamentId: targetId,
           tournaments: allTournaments,

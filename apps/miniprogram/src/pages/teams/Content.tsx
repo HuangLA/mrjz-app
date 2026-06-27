@@ -9,7 +9,14 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { PageShell, TeamDirectoryCard, TournamentScope, useMainTabState } from "../../components";
+import {
+  PageShell,
+  TeamDirectoryCard,
+  TournamentScope,
+  useMainTabRefresh,
+  useMainTabState,
+  useStandalonePullDownRefresh,
+} from "../../components";
 import { pageViewStateKey, restorePageScroll, usePageScrollMemory } from "../../pageState";
 import type { TeamListItem, TournamentOption } from "../../types";
 import { navigate } from "../../utils";
@@ -45,6 +52,10 @@ export function TeamsContent() {
   );
 
   usePageScrollMemory(viewStateKey);
+  useMainTabRefresh("teams", () =>
+    refresh(mainTabState?.selectedTournamentId, { force: true }),
+  );
+  useStandalonePullDownRefresh(() => refresh(undefined, { force: true }));
 
   useDidShow(() => {
     if (mainTabState) {
@@ -66,7 +77,7 @@ export function TeamsContent() {
     mainTabState?.selectedTournamentVersion,
   ]);
 
-  async function refresh(nextTournamentId?: string) {
+  async function refresh(nextTournamentId?: string, options?: { force?: boolean }) {
     const storedTournamentId = getSelectedTournamentId();
     const requestedTournamentId = nextTournamentId ?? storedTournamentId;
     const cacheKey = pageCacheKey("teams", requestedTournamentId || "auto");
@@ -95,7 +106,7 @@ export function TeamsContent() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey)) {
+    if (!options?.force && cached && isPageCacheFresh(cacheKey)) {
       return;
     }
 

@@ -9,7 +9,14 @@ import {
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
-import { PageShell, SteamAvatar, TournamentScope, useMainTabState } from "../../components";
+import {
+  PageShell,
+  SteamAvatar,
+  TournamentScope,
+  useMainTabRefresh,
+  useMainTabState,
+  useStandalonePullDownRefresh,
+} from "../../components";
 import {
   mergePageViewState,
   pageViewStateKey,
@@ -73,6 +80,10 @@ export function HeroLeaderboardContent() {
   );
 
   usePageScrollMemory(viewStateKey);
+  useMainTabRefresh("leaderboard", () =>
+    refresh(mainTabState?.selectedTournamentId, { force: true }),
+  );
+  useStandalonePullDownRefresh(() => refresh(undefined, { force: true }));
 
   useDidShow(() => {
     if (mainTabState) {
@@ -94,7 +105,7 @@ export function HeroLeaderboardContent() {
     mainTabState?.selectedTournamentVersion,
   ]);
 
-  async function refresh(nextTournamentId?: string) {
+  async function refresh(nextTournamentId?: string, options?: { force?: boolean }) {
     const storedTournamentId = getSelectedTournamentId();
     const requestedTournamentId = nextTournamentId ?? storedTournamentId;
     const cacheKey = pageCacheKey("hero-leaderboard", requestedTournamentId || "auto");
@@ -123,7 +134,7 @@ export function HeroLeaderboardContent() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey)) {
+    if (!options?.force && cached && isPageCacheFresh(cacheKey)) {
       return;
     }
 

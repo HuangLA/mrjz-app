@@ -14,7 +14,9 @@ import {
   MatchRecordCard,
   PageShell,
   TournamentScope,
+  useMainTabRefresh,
   useMainTabState,
+  useStandalonePullDownRefresh,
 } from "../../components";
 import {
   mergePageViewState,
@@ -72,6 +74,10 @@ export function RecordsContent() {
   );
 
   usePageScrollMemory(viewStateKey);
+  useMainTabRefresh("records", () =>
+    refresh(mainTabState?.selectedTournamentId, { force: true }),
+  );
+  useStandalonePullDownRefresh(() => refresh(undefined, { force: true }));
 
   useDidShow(() => {
     if (mainTabState) {
@@ -93,7 +99,7 @@ export function RecordsContent() {
     mainTabState?.selectedTournamentVersion,
   ]);
 
-  async function refresh(nextTournamentId?: string) {
+  async function refresh(nextTournamentId?: string, options?: { force?: boolean }) {
     const storedTournamentId = getSelectedTournamentId();
     const requestedTournamentId = nextTournamentId ?? storedTournamentId;
     const cacheKey = pageCacheKey("records", requestedTournamentId || "auto");
@@ -122,7 +128,7 @@ export function RecordsContent() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey)) {
+    if (!options?.force && cached && isPageCacheFresh(cacheKey)) {
       return;
     }
 

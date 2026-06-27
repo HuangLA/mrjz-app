@@ -1,6 +1,6 @@
 import { Button, Picker, ScrollView, Text, View } from "@tarojs/components";
-import Taro from "@tarojs/taro";
-import { createContext, useContext } from "react";
+import Taro, { usePullDownRefresh } from "@tarojs/taro";
+import { createContext, useContext, useEffect, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { dotaAssetUrl, heroIcon } from "./dota";
 import { SmartImage as Image } from "./SmartImage";
@@ -96,6 +96,10 @@ const DEFAULT_MINI_NAV_METRICS: MiniNavMetrics = {
 type MainTabHostContextValue = {
   activeRouteKey: MiniRouteKey;
   embedded: boolean;
+  registerRefreshHandler: (
+    routeKey: MiniRouteKey,
+    handler: () => Promise<void> | void,
+  ) => () => void;
   selectedTournamentId: string;
   selectedTournamentVersion: number;
   selectTournament: (tournamentId: string) => void;
@@ -109,6 +113,10 @@ const PENDING_MAIN_TAB_ROUTE_KEY = "mrjz.mainTab.pendingRouteKey";
 export function MainTabHostProvider(props: {
   activeRouteKey: MiniRouteKey;
   children: ReactNode;
+  registerRefreshHandler: (
+    routeKey: MiniRouteKey,
+    handler: () => Promise<void> | void,
+  ) => () => void;
   selectedTournamentId: string;
   selectedTournamentVersion: number;
   selectTournament: (tournamentId: string) => void;
@@ -120,6 +128,7 @@ export function MainTabHostProvider(props: {
       value={{
         activeRouteKey: props.activeRouteKey,
         embedded: true,
+        registerRefreshHandler: props.registerRefreshHandler,
         selectedTournamentId: props.selectedTournamentId,
         selectedTournamentVersion: props.selectedTournamentVersion,
         selectTournament: props.selectTournament,
@@ -138,6 +147,42 @@ export function useMainTabSwitcher(): ((url: string) => void) | null {
 
 export function useMainTabState(): MainTabHostContextValue | null {
   return useContext(MainTabHostContext);
+}
+
+export function useMainTabRefresh(
+  routeKey: MiniRouteKey,
+  refresh: () => Promise<void> | void,
+): void {
+  const hostContext = useContext(MainTabHostContext);
+  const refreshRef = useRef(refresh);
+
+  refreshRef.current = refresh;
+
+  useEffect(() => {
+    if (!hostContext) {
+      return undefined;
+    }
+
+    return hostContext.registerRefreshHandler(routeKey, () => refreshRef.current());
+  }, [hostContext?.registerRefreshHandler, routeKey]);
+}
+
+export function useStandalonePullDownRefresh(refresh: () => Promise<void> | void): void {
+  const hostContext = useContext(MainTabHostContext);
+  const refreshRef = useRef(refresh);
+
+  refreshRef.current = refresh;
+
+  usePullDownRefresh(() => {
+    if (hostContext?.embedded) {
+      void Taro.stopPullDownRefresh();
+      return;
+    }
+
+    void Promise.resolve(refreshRef.current()).finally(() => {
+      void Taro.stopPullDownRefresh();
+    });
+  });
 }
 
 export function mainTabHostUrl(routeKey: MiniRouteKey): string {

@@ -10,7 +10,13 @@ import {
   logout,
   setSelectedTournamentId,
 } from "../../api";
-import { PageShell, SectionTitle, useMainTabState } from "../../components";
+import {
+  PageShell,
+  SectionTitle,
+  useMainTabRefresh,
+  useMainTabState,
+  useStandalonePullDownRefresh,
+} from "../../components";
 import type { AppUserMe, AppUserStats, AuthSession } from "../../types";
 import { formatDecimal, formatPercent, navigate, showToast } from "../../utils";
 
@@ -30,25 +36,30 @@ export function MineContent() {
       return;
     }
 
-    refreshLocalSession();
+    void refreshLocalSession();
   });
+
+  useMainTabRefresh("mine", refreshLocalSession);
+  useStandalonePullDownRefresh(refreshLocalSession);
 
   useEffect(() => {
     if (mainTabState?.activeRouteKey !== "mine") {
       return;
     }
 
-    refreshLocalSession();
+    void refreshLocalSession();
   }, [mainTabState?.activeRouteKey]);
 
-  function refreshLocalSession(): void {
+  async function refreshLocalSession(): Promise<void> {
     const stored = getStoredAuthSession();
     setSession(stored);
     if (stored) {
-      void refreshMine();
+      await refreshMine();
     } else {
       setMe(null);
       setMyStats(null);
+      setLoading(false);
+      setError("");
     }
   }
 

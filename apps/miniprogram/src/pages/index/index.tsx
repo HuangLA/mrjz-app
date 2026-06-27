@@ -1,6 +1,6 @@
 import { Button, ScrollView, Swiper, SwiperItem, Text, View } from "@tarojs/components";
 import Taro, { useDidShow, useRouter } from "@tarojs/taro";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -17,6 +17,7 @@ import {
   takePendingMainTabRouteKey,
   type MiniRouteKey,
   type MiniRouteNavItem,
+  useMainTabRefresh,
   useMainTabState,
 } from "../../components";
 import { SmartImage as Image } from "../../SmartImage";
@@ -58,7 +59,23 @@ export default function MainTabsPage() {
   );
   const [selectedTournamentVersion, setSelectedTournamentVersion] = useState(0);
   const [tabSwipeLocked, setTabSwipeLocked] = useState(false);
+  const [refreshingRouteKey, setRefreshingRouteKey] = useState<MiniRouteKey | null>(null);
+  const refreshHandlersRef = useRef(new Map<MiniRouteKey, () => Promise<void> | void>());
+  const refreshingRouteKeyRef = useRef<MiniRouteKey | null>(null);
   const activePage = mainTabPages[activeIndex] ?? mainTabPages[0]!;
+
+  const registerRefreshHandler = useCallback(
+    (routeKey: MiniRouteKey, handler: () => Promise<void> | void) => {
+      refreshHandlersRef.current.set(routeKey, handler);
+
+      return () => {
+        if (refreshHandlersRef.current.get(routeKey) === handler) {
+          refreshHandlersRef.current.delete(routeKey);
+        }
+      };
+    },
+    [],
+  );
 
   useDidShow(() => {
     const pendingRouteKey = takePendingMainTabRouteKey();
@@ -131,9 +148,32 @@ export default function MainTabsPage() {
     });
   }
 
+  async function refreshMainTab(routeKey: MiniRouteKey) {
+    if (refreshingRouteKeyRef.current) {
+      return;
+    }
+
+    const handler = refreshHandlersRef.current.get(routeKey);
+
+    if (!handler) {
+      return;
+    }
+
+    refreshingRouteKeyRef.current = routeKey;
+    setRefreshingRouteKey(routeKey);
+
+    try {
+      await handler();
+    } finally {
+      refreshingRouteKeyRef.current = null;
+      setRefreshingRouteKey(null);
+    }
+  }
+
   return (
     <MainTabHostProvider
       activeRouteKey={activePage.key}
+      registerRefreshHandler={registerRefreshHandler}
       selectedTournamentId={selectedTournamentIdState}
       selectedTournamentVersion={selectedTournamentVersion}
       selectTournament={selectMainTournament}
@@ -150,7 +190,19 @@ export default function MainTabsPage() {
         >
           {mainTabPages.map((page) => (
             <SwiperItem className="main-tab-item" key={page.key}>
-              <ScrollView className="main-tab-scroll" enhanced scrollY showScrollbar={false}>
+              <ScrollView
+                className="main-tab-scroll"
+                enhanced
+                refresherBackground="#07090c"
+                refresherDefaultStyle="white"
+                refresherEnabled
+                refresherTriggered={refreshingRouteKey === page.key}
+                scrollY
+                showScrollbar={false}
+                onRefresherRefresh={() => {
+                  void refreshMainTab(page.key);
+                }}
+              >
                 <View className="main-tab-pane">{page.render()}</View>
               </ScrollView>
             </SwiperItem>
@@ -184,6 +236,8 @@ function HomePage() {
     Record<string, MatchRecord[]>
   >(() => initialCache?.recentRecordsByTournament ?? {});
 
+  useMainTabRefresh("home", () => refresh(undefined, { force: true }));
+
   useDidShow(() => {
     void refresh();
   });
@@ -216,7 +270,7 @@ function HomePage() {
     tournaments,
   ]);
 
-  async function refresh(nextTournamentId?: string) {
+  async function refresh(nextTournamentId?: string, options?: { force?: boolean }) {
     const cacheKey = pageCacheKey("home");
     const storedTournamentId = getSelectedTournamentId();
     const cached = nextTournamentId ? null : readPageCache<HomeCache>(cacheKey);
@@ -244,7 +298,7 @@ function HomePage() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey, HOME_PAGE_CACHE_MAX_AGE_MS)) {
+    if (!options?.force && cached && isPageCacheFresh(cacheKey, HOME_PAGE_CACHE_MAX_AGE_MS)) {
       return;
     }
 

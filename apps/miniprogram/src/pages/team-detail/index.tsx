@@ -1,5 +1,5 @@
 import { Text, View } from "@tarojs/components";
-import { useDidShow, useRouter } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadTeamProfile } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
@@ -20,7 +20,13 @@ export default function TeamDetailPage() {
     void refresh();
   });
 
-  async function refresh() {
+  usePullDownRefresh(() => {
+    void refresh({ force: true }).finally(() => {
+      void Taro.stopPullDownRefresh();
+    });
+  });
+
+  async function refresh(options?: { force?: boolean }) {
     if (!tournamentId || !teamId) {
       setError("缺少队伍参数");
       setLoading(false);
@@ -39,7 +45,7 @@ export default function TeamDetailPage() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey)) {
+    if (!options?.force && cached && isPageCacheFresh(cacheKey)) {
       return;
     }
 

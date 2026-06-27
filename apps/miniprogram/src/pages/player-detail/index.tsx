@@ -1,5 +1,5 @@
 import { Button, Input, Text, View } from "@tarojs/components";
-import { useDidShow, useRouter } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh, useRouter } from "@tarojs/taro";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import {
@@ -88,7 +88,13 @@ export default function PlayerDetailPage() {
     void refresh();
   });
 
-  async function refresh() {
+  usePullDownRefresh(() => {
+    void refresh({ force: true }).finally(() => {
+      void Taro.stopPullDownRefresh();
+    });
+  });
+
+  async function refresh(options?: { force?: boolean }) {
     if (!tournamentId || !playerId) {
       setError("缺少选手参数");
       setLoading(false);
@@ -110,7 +116,7 @@ export default function PlayerDetailPage() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey)) {
+    if (!options?.force && cached && isPageCacheFresh(cacheKey)) {
       return;
     }
 

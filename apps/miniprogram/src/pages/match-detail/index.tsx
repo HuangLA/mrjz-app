@@ -1,7 +1,7 @@
 import { ScrollView, Slider, Text, View } from "@tarojs/components";
 import { formatDotaGameMode } from "@mrjz/shared/dota-game-mode";
 import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
-import Taro, { useDidShow, usePageScroll, useRouter } from "@tarojs/taro";
+import Taro, { useDidShow, usePageScroll, usePullDownRefresh, useRouter } from "@tarojs/taro";
 import { useState } from "react";
 import { loadMatch } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
@@ -46,6 +46,12 @@ export default function MatchDetailPage() {
     void refresh();
   });
 
+  usePullDownRefresh(() => {
+    void refresh({ force: true }).finally(() => {
+      void Taro.stopPullDownRefresh();
+    });
+  });
+
   usePageScroll(() => {
     closeAwardPopover();
   });
@@ -75,7 +81,7 @@ export default function MatchDetailPage() {
     });
   }
 
-  async function refresh() {
+  async function refresh(options?: { force?: boolean }) {
     if (!matchId) {
       setError("缺少 match_id");
       setLoading(false);
@@ -95,7 +101,7 @@ export default function MatchDetailPage() {
 
     setError("");
 
-    if (cached && isPageCacheFresh(cacheKey)) {
+    if (!options?.force && cached && isPageCacheFresh(cacheKey)) {
       return;
     }
 
