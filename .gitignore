@@ -10,6 +10,7 @@ artifacts/
 
 # Runtime data
 apps/api/var/
+apps/api/*.db
 var/**/*.pid
 var/**/*.png
 *.sqlite
