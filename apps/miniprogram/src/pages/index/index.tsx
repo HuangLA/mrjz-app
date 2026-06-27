@@ -55,6 +55,7 @@ export default function MainTabsPage() {
     getSelectedTournamentId(),
   );
   const [selectedTournamentVersion, setSelectedTournamentVersion] = useState(0);
+  const [tabSwipeLocked, setTabSwipeLocked] = useState(false);
   const activePage = mainTabPages[activeIndex] ?? mainTabPages[0]!;
 
   useDidShow(() => {
@@ -89,6 +90,7 @@ export default function MainTabsPage() {
       return;
     }
 
+    setTabSwipeLocked(false);
     setActiveIndex(nextIndex);
   }
 
@@ -133,12 +135,14 @@ export default function MainTabsPage() {
       selectedTournamentId={selectedTournamentIdState}
       selectedTournamentVersion={selectedTournamentVersion}
       selectTournament={selectMainTournament}
+      setSwipeLocked={setTabSwipeLocked}
       switchRoute={switchMainRoute}
     >
       <PageShell className="main-tab-shell" embedded={false} routeKey={activePage.key}>
         <Swiper
           className="main-tab-swiper"
           current={activeIndex}
+          disableTouch={tabSwipeLocked}
           duration={260}
           onChange={handleSwiperChange}
         >

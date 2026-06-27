@@ -2920,11 +2920,16 @@ button[disabled] {
 }
 
 .filter-row {
-  display: flex;
+  margin-top: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.filter-row-content {
+  display: inline-flex;
+  min-width: 100%;
   flex-wrap: nowrap;
   gap: 6px;
-  overflow-x: auto;
-  margin-top: 8px;
 }
 
 .filter {

@@ -1,4 +1,4 @@
-import { Button, Picker, Text, View } from "@tarojs/components";
+import { Button, Picker, ScrollView, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { createContext, useContext } from "react";
 import type { CSSProperties, ReactNode } from "react";
@@ -99,6 +99,7 @@ type MainTabHostContextValue = {
   selectedTournamentId: string;
   selectedTournamentVersion: number;
   selectTournament: (tournamentId: string) => void;
+  setSwipeLocked: (locked: boolean) => void;
   switchRoute: (url: string) => void;
 };
 
@@ -111,6 +112,7 @@ export function MainTabHostProvider(props: {
   selectedTournamentId: string;
   selectedTournamentVersion: number;
   selectTournament: (tournamentId: string) => void;
+  setSwipeLocked: (locked: boolean) => void;
   switchRoute: (url: string) => void;
 }) {
   return (
@@ -121,6 +123,7 @@ export function MainTabHostProvider(props: {
         selectedTournamentId: props.selectedTournamentId,
         selectedTournamentVersion: props.selectedTournamentVersion,
         selectTournament: props.selectTournament,
+        setSwipeLocked: props.setSwipeLocked,
         switchRoute: props.switchRoute,
       }}
     >
@@ -543,20 +546,32 @@ export function FilterRow<T extends string>(props: {
   value?: T;
   onChange?: (value: T) => void;
 }) {
+  const hostContext = useContext(MainTabHostContext);
   const activeValue = props.value ?? props.labels[0];
+  const setSwipeLocked = (locked: boolean) => hostContext?.setSwipeLocked(locked);
 
   return (
-    <View className="filter-row">
-      {props.labels.map((label) => (
-        <Button
-          className={`filter ${label === activeValue ? "active" : ""}`}
-          key={label}
-          onClick={() => props.onChange?.(label)}
-        >
-          {label}
-        </Button>
-      ))}
-    </View>
+    <ScrollView
+      className="filter-row"
+      enhanced
+      scrollX
+      showScrollbar={false}
+      onTouchCancel={() => setSwipeLocked(false)}
+      onTouchEnd={() => setSwipeLocked(false)}
+      onTouchStart={() => setSwipeLocked(true)}
+    >
+      <View className="filter-row-content">
+        {props.labels.map((label) => (
+          <Button
+            className={`filter ${label === activeValue ? "active" : ""}`}
+            key={label}
+            onClick={() => props.onChange?.(label)}
+          >
+            {label}
+          </Button>
+        ))}
+      </View>
+    </ScrollView>
   );
 }
 
