@@ -109,7 +109,7 @@ export default function TeamDetailPage() {
               className="content-panel roster-item"
               key={member.id}
               onClick={() => navigate(
-                `/pages/player-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&playerId=${encodeURIComponent(member.id)}&fromTeamId=${encodeURIComponent(teamId)}`,
+                `/pages/player-detail/index?tournamentId=${encodeURIComponent(profile.tournamentId || tournamentId)}&playerId=${encodeURIComponent(member.id)}&fromTeamId=${encodeURIComponent(profile.id || teamId)}`,
               )}
             >
               <SteamAvatar player={member} size="small" />

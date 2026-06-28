@@ -1,9 +1,9 @@
 import Taro from "@tarojs/taro";
 import { getApiBaseUrl } from "./runtimeConfig";
 
-const PAGE_CACHE_PREFIX = "mrjz.pageCache.v1";
+const PAGE_CACHE_PREFIX = "mrjz.pageCache.v2";
 const PAGE_CACHE_INDEX_KEY = `${PAGE_CACHE_PREFIX}:index`;
-const PAGE_CACHE_VERSION = 1;
+const PAGE_CACHE_VERSION = 2;
 const MAX_PAGE_CACHE_ENTRIES = 80;
 const DEFAULT_PAGE_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 const FAST_PAGE_CACHE_MAX_AGE_MS = 60 * 1000;

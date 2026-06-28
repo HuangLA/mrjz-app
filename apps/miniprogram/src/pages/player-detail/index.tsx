@@ -246,12 +246,14 @@ export default function PlayerDetailPage() {
   }
 
   const team = profile ? primaryPlayerTeam(profile) : null;
+  const backTournamentId = profile?.tournamentId || tournamentId;
+  const backTeamId = profile ? resolveBackTeamId(profile, fromTeamId) : fromTeamId;
 
   return (
     <PageShell
       backUrl={
-        fromTeamId
-          ? `/pages/team-detail/index?tournamentId=${encodeURIComponent(tournamentId)}&teamId=${encodeURIComponent(fromTeamId)}`
+        backTeamId
+          ? `/pages/team-detail/index?tournamentId=${encodeURIComponent(backTournamentId)}&teamId=${encodeURIComponent(backTeamId)}`
           : undefined
       }
       loading={loading}
@@ -378,6 +380,16 @@ function primaryPlayerTeam(profile: PlayerProfile) {
   const teams = Array.isArray(profile.teams) ? profile.teams : [];
 
   return profile.currentTeam ?? teams[0] ?? null;
+}
+
+function resolveBackTeamId(profile: PlayerProfile, fromTeamId: string): string {
+  const teams = Array.isArray(profile.teams) ? profile.teams : [];
+
+  if (fromTeamId && teams.some((team) => team.id === fromTeamId)) {
+    return fromTeamId;
+  }
+
+  return profile.currentTeam?.id ?? teams[0]?.id ?? fromTeamId;
 }
 
 function ProfileStatGrid(props: { items: Array<{ label: string; value: string }> }) {

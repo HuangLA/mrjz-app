@@ -2515,7 +2515,7 @@ export class SqliteTournamentRepository {
       .all(target.tournamentId)
       .map((row) => {
         const team = teamFromPrefixedRow(row, "team");
-        const members = this.getTeamMembers(team.id);
+        const members = this.getTeamMembersForTournament(target.tournamentId, team.id);
 
         return {
           ...team,
@@ -3709,7 +3709,7 @@ export class SqliteTournamentRepository {
       return undefined;
     }
 
-    const members = this.getTeamMembers(team.id);
+    const members = this.getTeamMembersForTournament(target.tournamentId, team.id);
 
     return {
       ...team,
@@ -7291,15 +7291,39 @@ export class SqliteTournamentRepository {
   }
 
   private getPlayerById(playerId: string): PlayerBrief | undefined {
-    const row = this.database.prepare("SELECT * FROM players WHERE id = ?").get(playerId);
+    const row = this.getPlayerRowByIdentifier(playerId);
 
     return row === undefined ? undefined : this.playerFromRow(row);
   }
 
   private getPlayerForTournament(tournamentId: string, playerId: string): PlayerBrief | undefined {
-    const row = this.database.prepare("SELECT * FROM players WHERE id = ?").get(playerId);
+    const row = this.getPlayerRowByIdentifier(playerId);
 
     return row === undefined ? undefined : this.playerFromTournamentRow(row, tournamentId);
+  }
+
+  private getPlayerRowByIdentifier(playerId: string): DbRow | undefined {
+    const id = playerId.trim();
+
+    if (!id) {
+      return undefined;
+    }
+
+    const row = this.database.prepare("SELECT * FROM players WHERE id = ?").get(id);
+
+    if (row !== undefined) {
+      return row as DbRow;
+    }
+
+    const accountId = accountIdFromPlayerIdentifier(id);
+
+    if (accountId === null) {
+      return undefined;
+    }
+
+    return this.database
+      .prepare("SELECT * FROM players WHERE account_id = ? ORDER BY id ASC LIMIT 1")
+      .get(accountId) as DbRow | undefined;
   }
 
   private playerFromRow(row: DbRow): PlayerBrief {
@@ -7343,6 +7367,12 @@ export class SqliteTournamentRepository {
       )
       .all(teamId)
       .map((row) => this.playerFromRow(row));
+  }
+
+  private getTeamMembersForTournament(tournamentId: string, teamId: string): PlayerBrief[] {
+    return this.getTeamMembers(teamId).map((member) =>
+      this.contextualizePlayerForTournament(tournamentId, member),
+    );
   }
 
   private getPlayerTeams(playerId: string): TeamBrief[] {
@@ -8022,13 +8052,15 @@ export class SqliteTournamentRepository {
 
     const tournamentId = text(row, "tournament_id");
 
+    const members = this.getTeamMembersForTournament(tournamentId, team.id);
+
     return {
       ...team,
       tournamentId,
       seed: nullableNumber(row, "seed"),
       status: text(row, "status"),
-      memberCount: this.getTeamMembers(team.id).length,
-      members: this.getTeamMembers(team.id),
+      memberCount: members.length,
+      members,
       stats: this.getTeamStatsSnapshot(tournamentId, team.id),
     };
   }
@@ -10469,6 +10501,19 @@ function uniqueId(prefix: string, seed: string): string {
     .slice(0, 48);
 
   return `${prefix}_${normalized || "item"}_${Date.now().toString(36)}`;
+}
+
+function accountIdFromPlayerIdentifier(value: string): number | null {
+  const trimmed = value.trim();
+  const match = /^(?:player_account_|player_)?(\d+)(?:_|$)/.exec(trimmed);
+
+  if (match === null) {
+    return null;
+  }
+
+  const accountId = Number(match[1]);
+
+  return Number.isSafeInteger(accountId) && accountId > 0 ? accountId : null;
 }
 
 function matchStartTime(rawMatch: OpenDotaMatchDetail): string | null {
