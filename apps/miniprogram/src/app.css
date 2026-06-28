@@ -248,7 +248,6 @@ button[disabled] {
   border-radius: 7px;
   background: linear-gradient(180deg, #e2b65f, #b98132);
   box-shadow: 0 6px 18px rgba(226, 182, 95, 0.24);
-  transition: transform 260ms ease;
 }
 
 .route-tab {
