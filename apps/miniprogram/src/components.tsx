@@ -870,8 +870,10 @@ export function PlayerDirectoryCard(props: {
   onOpen: (playerId: string) => void;
 }) {
   const { player } = props;
-  const team = player.currentTeam ?? player.teams[0] ?? null;
-  const rate = clampPercent(player.stats.winRate ?? 0);
+  const stats = player.stats ?? emptyPlayerStats();
+  const teams = Array.isArray(player.teams) ? player.teams : [];
+  const team = player.currentTeam ?? teams[0] ?? null;
+  const rate = clampPercent(stats.winRate ?? 0);
 
   return (
     <View className="player-stat-card">
@@ -890,35 +892,35 @@ export function PlayerDirectoryCard(props: {
             <View className="player-stat-subline">
               <Text className="profile-id-link">ID {player.accountId ?? player.id}</Text>
               <Text>
-                {player.stats.wins}W / {player.stats.losses}L
+                {stats.wins}W / {stats.losses}L
               </Text>
             </View>
           </View>
           <View className="player-stat-primary">
             <Text>
-              胜率 <Text>{formatPercent(player.stats.winRate)}</Text>
+              胜率 <Text>{formatPercent(stats.winRate)}</Text>
             </Text>
             <View className="rate-bar">
               <View style={{ width: `${rate.toFixed(1)}%` }} />
             </View>
-            <Text>{formatDecimal(player.stats.kda, 2)}</Text>
+            <Text>{formatDecimal(stats.kda, 2)}</Text>
             <Text>KDA</Text>
           </View>
         </View>
         <View className="player-stat-grid">
-          <PlayerStatTile label="场次" value={formatInteger(player.stats.totalMatches)} />
-          <PlayerStatTile label="GPM" value={formatDecimal(player.stats.avgGpm, 0)} />
-          <PlayerStatTile label="XPM" value={formatDecimal(player.stats.avgXpm, 0)} />
+          <PlayerStatTile label="场次" value={formatInteger(stats.totalMatches)} />
+          <PlayerStatTile label="GPM" value={formatDecimal(stats.avgGpm, 0)} />
+          <PlayerStatTile label="XPM" value={formatDecimal(stats.avgXpm, 0)} />
           <PlayerStatTile
             label="击/亡/助"
-            value={`${formatDecimal(player.stats.avgKills)}/${formatDecimal(player.stats.avgDeaths)}/${formatDecimal(player.stats.avgAssists)}`}
+            value={`${formatDecimal(stats.avgKills)}/${formatDecimal(stats.avgDeaths)}/${formatDecimal(stats.avgAssists)}`}
           />
-          <PlayerStatTile label="场均经济" value={formatCompact(player.stats.avgNetWorth)} />
-          <PlayerStatTile label="英雄伤害" value={formatCompact(player.stats.avgHeroDamage)} />
-          <PlayerStatTile label="建筑伤害" value={formatCompact(player.stats.avgTowerDamage)} />
-          <PlayerStatTile label="承伤" value={formatCompact(player.stats.avgDamageTaken)} />
+          <PlayerStatTile label="场均经济" value={formatCompact(stats.avgNetWorth)} />
+          <PlayerStatTile label="英雄伤害" value={formatCompact(stats.avgHeroDamage)} />
+          <PlayerStatTile label="建筑伤害" value={formatCompact(stats.avgTowerDamage)} />
+          <PlayerStatTile label="承伤" value={formatCompact(stats.avgDamageTaken)} />
         </View>
-        <PlayerHeroStrip heroes={player.stats.topHeroes} />
+        <PlayerHeroStrip heroes={stats.topHeroes} />
       </Button>
     </View>
   );
@@ -938,6 +940,8 @@ function formatCompact(value: number | null | undefined): string {
 
 export function TeamDirectoryCard(props: { team: TeamListItem; onOpen: (teamId: string) => void }) {
   const { team } = props;
+  const stats = team.stats ?? emptyTeamStats();
+  const teamName = team.name || team.shortName || "未知队伍";
 
   return (
     <View className="profile-list-card team-card">
@@ -946,16 +950,16 @@ export function TeamDirectoryCard(props: { team: TeamListItem; onOpen: (teamId: 
         onClick={() => props.onOpen(team.id)}
       >
         <View className="profile-avatar-fallback team">
-          {(team.shortName ?? team.name).slice(0, 2).toUpperCase()}
+          {(team.shortName ?? teamName).slice(0, 2).toUpperCase()}
         </View>
         <View>
-          <Text>{team.name}</Text>
+          <Text>{teamName}</Text>
           <Text>
-            {team.memberCount} 名成员 · {team.stats.seriesPlayed} 场 · 胜率{" "}
-            {formatPercent(team.stats.winRate)}
+            {team.memberCount} 名成员 · {stats.seriesPlayed} 场 · 胜率{" "}
+            {formatPercent(stats.winRate)}
           </Text>
           <Text>
-            {team.stats.gameWins} 胜 / {team.stats.gameLosses} 负 · 入库 {team.stats.linkedMatches}{" "}
+            {stats.gameWins} 胜 / {stats.gameLosses} 负 · 入库 {stats.linkedMatches}{" "}
             场
           </Text>
         </View>
@@ -978,7 +982,9 @@ export function PlayerTeamMark(props: { team: TeamBrief | null }) {
 }
 
 export function PlayerHeroStrip(props: { heroes: Array<{ heroId: number }> }) {
-  if (props.heroes.length === 0) {
+  const heroes = Array.isArray(props.heroes) ? props.heroes : [];
+
+  if (heroes.length === 0) {
     return (
       <View className="player-hero-strip empty">
         <Text>暂无常用英雄</Text>
@@ -988,13 +994,46 @@ export function PlayerHeroStrip(props: { heroes: Array<{ heroId: number }> }) {
 
   return (
     <View className="player-hero-strip">
-      {props.heroes.slice(0, 3).map((hero) => (
+      {heroes.slice(0, 3).map((hero) => (
         <View key={hero.heroId}>
           <Image mode="aspectFill" src={heroIcon(hero.heroId)} />
         </View>
       ))}
     </View>
   );
+}
+
+function emptyPlayerStats(): PlayerListItem["stats"] {
+  return {
+    totalMatches: 0,
+    wins: 0,
+    losses: 0,
+    winRate: null,
+    kda: null,
+    avgKills: null,
+    avgDeaths: null,
+    avgAssists: null,
+    avgGpm: null,
+    avgXpm: null,
+    avgNetWorth: null,
+    avgHeroDamage: null,
+    avgTowerDamage: null,
+    avgDamageTaken: null,
+    topHeroes: [],
+  };
+}
+
+function emptyTeamStats(): TeamListItem["stats"] {
+  return {
+    seriesPlayed: 0,
+    seriesWins: 0,
+    seriesLosses: 0,
+    gameWins: 0,
+    gameLosses: 0,
+    linkedMatches: 0,
+    winRate: null,
+    topHeroes: [],
+  };
 }
 
 function PlayerStatTile(props: { label: string; value: string }) {

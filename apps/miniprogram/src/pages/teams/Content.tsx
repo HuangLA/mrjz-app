@@ -6,6 +6,7 @@ import {
   getSelectedTournamentId,
   loadTournamentTeams,
   loadTournaments,
+  normalizeTeamListItem,
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
@@ -31,7 +32,9 @@ export function TeamsContent() {
   const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
-    readPageCache<TeamsCache>(pageCacheKey("teams", initialStoredTournamentId || "auto")),
+    sanitizeTeamsCache(
+      readPageCache<TeamsCache>(pageCacheKey("teams", initialStoredTournamentId || "auto")),
+    ),
   );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
@@ -81,7 +84,7 @@ export function TeamsContent() {
     const storedTournamentId = getSelectedTournamentId();
     const requestedTournamentId = nextTournamentId ?? storedTournamentId;
     const cacheKey = pageCacheKey("teams", requestedTournamentId || "auto");
-    const cached = readPageCache<TeamsCache>(cacheKey);
+    const cached = sanitizeTeamsCache(readPageCache<TeamsCache>(cacheKey));
 
     if (cached) {
       const cachedSelectedTournamentId = chooseTournamentId(
@@ -203,4 +206,17 @@ export function TeamsContent() {
       </View>
     </PageShell>
   );
+}
+
+function sanitizeTeamsCache(cache: TeamsCache | null): TeamsCache | null {
+  if (!cache) {
+    return null;
+  }
+
+  return {
+    selectedTournamentId:
+      typeof cache.selectedTournamentId === "string" ? cache.selectedTournamentId : "",
+    teams: Array.isArray(cache.teams) ? cache.teams.map(normalizeTeamListItem) : [],
+    tournaments: Array.isArray(cache.tournaments) ? cache.tournaments : [],
+  };
 }

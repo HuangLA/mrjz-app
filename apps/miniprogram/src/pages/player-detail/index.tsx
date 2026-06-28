@@ -9,6 +9,7 @@ import {
   loadPlayerProfile,
   loadPlayerTags,
   loadTournaments,
+  normalizePlayerProfile,
   setLocalLikedTagIds,
   submitPlayerTag,
   unlikePlayerTag,
@@ -62,7 +63,9 @@ export default function PlayerDetailPage() {
   const fromTeamId = String(router.params.fromTeamId ?? "");
   const [initialCache] = useState(() =>
     tournamentId && playerId
-      ? readPageCache<PlayerDetailCache>(pageCacheKey("player-detail", tournamentId, playerId))
+      ? sanitizePlayerDetailCache(
+          readPageCache<PlayerDetailCache>(pageCacheKey("player-detail", tournamentId, playerId)),
+        )
       : null,
   );
   const [loading, setLoading] = useState(initialCache === null);
@@ -102,7 +105,7 @@ export default function PlayerDetailPage() {
     }
 
     const cacheKey = pageCacheKey("player-detail", tournamentId, playerId);
-    const cached = readPageCache<PlayerDetailCache>(cacheKey);
+    const cached = sanitizePlayerDetailCache(readPageCache<PlayerDetailCache>(cacheKey));
 
     if (cached) {
       setProfile(cached.profile);
@@ -242,6 +245,8 @@ export default function PlayerDetailPage() {
     });
   }
 
+  const team = profile ? primaryPlayerTeam(profile) : null;
+
   return (
     <PageShell
       backUrl={
@@ -261,19 +266,17 @@ export default function PlayerDetailPage() {
 
           <View
             className="profile-hero player-profile"
-            style={profileAccentStyle(
-              profile.currentTeam?.color ?? profile.teams[0]?.color ?? "#5eead4",
-            )}
+            style={profileAccentStyle(team?.color ?? "#5eead4")}
           >
             <View className="profile-hero-main">
               <SteamAvatar player={profile} size="large" />
               <View>
                 <View className="profile-name-row">
                   <Text className="brand-title">{profile.displayName}</Text>
-                  <PlayerTeamMark team={profile.currentTeam ?? profile.teams[0] ?? null} />
+                  <PlayerTeamMark team={team} />
                 </View>
                 <Text className="brand-subtitle">
-                  {profile.currentTeam?.name ?? "暂未归队"} · Account {profile.accountId ?? "-"}
+                  {team?.name ?? "暂未归队"} · Account {profile.accountId ?? "-"}
                 </Text>
               </View>
             </View>
@@ -369,6 +372,12 @@ export default function PlayerDetailPage() {
       ) : null}
     </PageShell>
   );
+}
+
+function primaryPlayerTeam(profile: PlayerProfile) {
+  const teams = Array.isArray(profile.teams) ? profile.teams : [];
+
+  return profile.currentTeam ?? teams[0] ?? null;
 }
 
 function ProfileStatGrid(props: { items: Array<{ label: string; value: string }> }) {
@@ -689,4 +698,18 @@ function mergeTag(tags: PlayerTag[], updated: PlayerTag): PlayerTag[] {
       (left, right) =>
         right.likeCount - left.likeCount || left.createdAt.localeCompare(right.createdAt),
     );
+}
+
+function sanitizePlayerDetailCache(
+  cache: PlayerDetailCache | null,
+): PlayerDetailCache | null {
+  if (!cache?.profile) {
+    return null;
+  }
+
+  return {
+    profile: normalizePlayerProfile(cache.profile),
+    tags: Array.isArray(cache.tags) ? cache.tags : [],
+    tournaments: Array.isArray(cache.tournaments) ? cache.tournaments : [],
+  };
 }

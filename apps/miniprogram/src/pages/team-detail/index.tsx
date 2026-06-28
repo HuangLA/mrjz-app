@@ -1,7 +1,7 @@
 import { Text, View } from "@tarojs/components";
 import Taro, { useDidShow, usePullDownRefresh, useRouter } from "@tarojs/taro";
 import { useState } from "react";
-import { loadTeamProfile } from "../../api";
+import { loadTeamProfile, normalizeTeamProfile } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerHeroStrip, SectionTitle, StatGrid, SteamAvatar } from "../../components";
 import type { TeamProfile } from "../../types";
@@ -11,7 +11,13 @@ export default function TeamDetailPage() {
   const router = useRouter();
   const tournamentId = String(router.params.tournamentId ?? "");
   const teamId = String(router.params.teamId ?? "");
-  const [initialCache] = useState(() => (tournamentId && teamId ? readPageCache<TeamProfile>(pageCacheKey("team-detail", tournamentId, teamId)) : null));
+  const [initialCache] = useState(() =>
+    tournamentId && teamId
+      ? sanitizeTeamProfileCache(
+          readPageCache<TeamProfile>(pageCacheKey("team-detail", tournamentId, teamId)),
+        )
+      : null,
+  );
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
   const [profile, setProfile] = useState<TeamProfile | null>(() => initialCache);
@@ -34,7 +40,7 @@ export default function TeamDetailPage() {
     }
 
     const cacheKey = pageCacheKey("team-detail", tournamentId, teamId);
-    const cached = readPageCache<TeamProfile>(cacheKey);
+    const cached = sanitizeTeamProfileCache(readPageCache<TeamProfile>(cacheKey));
 
     if (cached) {
       setProfile(cached);
@@ -126,4 +132,8 @@ export default function TeamDetailPage() {
       ) : null}
     </PageShell>
   );
+}
+
+function sanitizeTeamProfileCache(profile: TeamProfile | null): TeamProfile | null {
+  return profile ? normalizeTeamProfile(profile) : null;
 }

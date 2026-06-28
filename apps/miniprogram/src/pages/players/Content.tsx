@@ -6,6 +6,7 @@ import {
   getSelectedTournamentId,
   loadTournamentPlayers,
   loadTournaments,
+  normalizePlayerListItem,
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
@@ -73,7 +74,9 @@ export function PlayersContent() {
   const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
-    readPageCache<PlayersCache>(pageCacheKey("players", initialStoredTournamentId || "auto")),
+    sanitizePlayersCache(
+      readPageCache<PlayersCache>(pageCacheKey("players", initialStoredTournamentId || "auto")),
+    ),
   );
   const [initialViewState] = useState(() =>
     readPageViewState<PlayersViewState>(
@@ -134,7 +137,7 @@ export function PlayersContent() {
     const storedTournamentId = getSelectedTournamentId();
     const requestedTournamentId = nextTournamentId ?? storedTournamentId;
     const cacheKey = pageCacheKey("players", requestedTournamentId || "auto");
-    const cached = readPageCache<PlayersCache>(cacheKey);
+    const cached = sanitizePlayersCache(readPageCache<PlayersCache>(cacheKey));
 
     if (cached) {
       const cachedSelectedTournamentId = chooseTournamentId(
@@ -401,4 +404,17 @@ function isPlayerSortKey(value: unknown): value is PlayerSortKey {
 
 function isSortDirection(value: unknown): value is SortDirection {
   return value === "asc" || value === "desc";
+}
+
+function sanitizePlayersCache(cache: PlayersCache | null): PlayersCache | null {
+  if (!cache) {
+    return null;
+  }
+
+  return {
+    players: Array.isArray(cache.players) ? cache.players.map(normalizePlayerListItem) : [],
+    selectedTournamentId:
+      typeof cache.selectedTournamentId === "string" ? cache.selectedTournamentId : "",
+    tournaments: Array.isArray(cache.tournaments) ? cache.tournaments : [],
+  };
 }

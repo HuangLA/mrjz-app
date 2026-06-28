@@ -20,11 +20,14 @@ import type {
   HeroPickSummary,
   MatchDetail,
   MatchRecord,
+  MatchRecordHero,
   OfficialScheduleStatus,
   PlayerListItem,
   PlayerStatsSummary,
   PlayerProfile,
   PlayerTag,
+  PlayerTournamentHistoryEntry,
+  ProfileMatchSummary,
   StageRound,
   StandingRow,
   TeamBrief,
@@ -141,7 +144,7 @@ export async function loadMe(): Promise<AppUserMe> {
 
   return {
     ...me,
-    bindings: me.bindings.map(normalizeDotaAccountBinding),
+    bindings: safeArray(me.bindings).map(normalizeDotaAccountBinding),
   };
 }
 
@@ -215,7 +218,7 @@ export async function loadTournamentMatches(
     },
   );
 
-  return records.map(normalizeMatchRecord);
+  return safeArray(records).map(normalizeMatchRecord);
 }
 
 export async function loadMatch(matchId: number | string): Promise<MatchDetail> {
@@ -231,7 +234,7 @@ export async function loadTournamentPlayers(tournamentId: string): Promise<Playe
     { withAuth: false },
   );
 
-  return players.map(normalizePlayerListItem);
+  return safeArray(players).map(normalizePlayerListItem);
 }
 
 export async function loadHeroLeaderboards(tournamentId: string): Promise<HeroLeaderboardsView> {
@@ -250,7 +253,7 @@ export async function loadAcknowledgements(): Promise<AcknowledgementItem[]> {
     withAuth: false,
   });
 
-  return acknowledgements.map(normalizeAcknowledgementItem);
+  return safeArray(acknowledgements).map(normalizeAcknowledgementItem);
 }
 
 export async function loadPlayerProfile(
@@ -268,10 +271,12 @@ export async function loadPlayerProfile(
 }
 
 export async function loadPlayerTags(tournamentId: string, playerId: string): Promise<PlayerTag[]> {
-  return request<PlayerTag[]>(
+  const tags = await request<PlayerTag[]>(
     `/tournaments/${encodeURIComponent(tournamentId)}/players/${encodeURIComponent(playerId)}/tags`,
     { withAuth: false },
   );
+
+  return safeArray(tags).map(normalizePlayerTag).filter(isDefined);
 }
 
 export async function submitPlayerTag(
@@ -306,7 +311,7 @@ export async function loadTournamentTeams(tournamentId: string): Promise<TeamLis
     { withAuth: false },
   );
 
-  return teams.map(normalizeTeamListItem);
+  return safeArray(teams).map(normalizeTeamListItem);
 }
 
 export async function loadTeamProfile(tournamentId: string, teamId: string): Promise<TeamProfile> {
@@ -465,11 +470,25 @@ function logRequestFailure(
   );
 }
 
-function normalizeAppUserStats(stats: AppUserStats): AppUserStats {
+function normalizeAppUserStats(stats: Partial<AppUserStats>): AppUserStats {
   return {
-    ...stats,
+    user: stats.user ?? {
+      id: "",
+      nickname: "未登录",
+      openId: null,
+      role: "viewer",
+    },
     binding: stats.binding ? normalizeDotaAccountBinding(stats.binding) : null,
     player: stats.player ? normalizePlayerListItem(stats.player) : null,
+    stats: normalizePlayerStatsSummary(stats.stats),
+    matches: safeArray(stats.matches).map(normalizeProfileMatchSummary),
+    tournamentHistory: safeArray(stats.tournamentHistory).map((entry) =>
+      normalizePlayerTournamentHistoryEntry(entry),
+    ),
+    emptyReason:
+      stats.emptyReason === "not_bound" || stats.emptyReason === "no_matches"
+        ? stats.emptyReason
+        : null,
   };
 }
 
@@ -483,26 +502,50 @@ function normalizeDotaAccountBinding(binding: DotaAccountBinding): DotaAccountBi
   };
 }
 
-function normalizePlayerProfile(profile: PlayerProfile): PlayerProfile {
+export function normalizePlayerProfile(profile: Partial<PlayerProfile>): PlayerProfile {
+  const basePlayer = normalizePlayerListItem(profile);
+  const tournamentId = cleanString(profile.tournamentId);
+  const matches = safeArray(profile.matches).map(normalizeProfileMatchSummary);
+  const tournamentHistory = safeArray(profile.tournamentHistory).map((entry) =>
+    normalizePlayerTournamentHistoryEntry(entry, {
+      fallbackMatches: matches,
+      fallbackStats: basePlayer.stats,
+      fallbackTournamentId: tournamentId,
+    }),
+  );
+
   return {
-    ...profile,
-    avatarUrl: normalizeSteamAvatarUrl(profile),
+    ...basePlayer,
+    tournamentId,
+    matches,
+    tournamentHistory,
   };
 }
 
-function normalizeTeamProfile(profile: TeamProfile): TeamProfile {
+export function normalizeTeamProfile(profile: Partial<TeamProfile>): TeamProfile {
+  const baseTeam = normalizeTeamListItem(profile);
+
   return {
-    ...profile,
-    logoUrl: normalizeApiImageUrl(profile.logoUrl ?? null),
-    members: profile.members.map(normalizePlayerListItem),
+    ...baseTeam,
+    matches: safeArray(profile.matches).map(normalizeProfileMatchSummary),
   };
 }
 
-function normalizeTeamListItem(team: TeamListItem): TeamListItem {
+export function normalizeTeamListItem(team: Partial<TeamListItem>): TeamListItem {
+  const brief = normalizeTeamBrief(team) ?? {
+    id: cleanString(team.id) || "unknown-team",
+    name: cleanString(team.name) || cleanString(team.shortName) || "未知队伍",
+  };
+  const members = safeArray(team.members).map(normalizePlayerListItem);
+
   return {
-    ...team,
-    logoUrl: normalizeApiImageUrl(team.logoUrl ?? null),
-    members: team.members.map(normalizePlayerListItem),
+    ...brief,
+    tournamentId: cleanString(team.tournamentId),
+    seed: finiteNullableNumber(team.seed),
+    status: cleanString(team.status) || "active",
+    memberCount: finiteNumber(team.memberCount, members.length),
+    members,
+    stats: normalizeTeamStatsSummary(team.stats),
   };
 }
 
@@ -579,7 +622,7 @@ function normalizeHeroLeaderboardCandidate(
   };
 }
 
-function normalizePlayerListItem(player: Partial<PlayerListItem>): PlayerListItem {
+export function normalizePlayerListItem(player: Partial<PlayerListItem>): PlayerListItem {
   const accountId = finiteNullableNumber(player.accountId);
   const id = cleanString(player.id) || String(accountId ?? "");
   const teams = safeArray(player.teams).map(normalizeTeamBrief).filter(isDefined);
@@ -618,6 +661,90 @@ function normalizePlayerStatsSummary(
     avgTowerDamage: finiteNullableNumber(stats?.avgTowerDamage),
     avgDamageTaken: finiteNullableNumber(stats?.avgDamageTaken),
     topHeroes: safeArray(stats?.topHeroes).map(normalizeHeroPickSummary),
+  };
+}
+
+function normalizeTeamStatsSummary(
+  stats: Partial<TeamListItem["stats"]> | null | undefined,
+): TeamListItem["stats"] {
+  return {
+    seriesPlayed: finiteNumber(stats?.seriesPlayed, 0),
+    seriesWins: finiteNumber(stats?.seriesWins, 0),
+    seriesLosses: finiteNumber(stats?.seriesLosses, 0),
+    gameWins: finiteNumber(stats?.gameWins, 0),
+    gameLosses: finiteNumber(stats?.gameLosses, 0),
+    linkedMatches: finiteNumber(stats?.linkedMatches, 0),
+    winRate: finiteNullableNumber(stats?.winRate),
+    topHeroes: safeArray(stats?.topHeroes).map(normalizeHeroPickSummary),
+  };
+}
+
+function normalizeProfileMatchSummary(
+  match: Partial<ProfileMatchSummary>,
+): ProfileMatchSummary {
+  const side = match.side === "radiant" || match.side === "dire" ? match.side : null;
+  const result =
+    match.result === "win" || match.result === "loss" || match.result === "unknown"
+      ? match.result
+      : "unknown";
+  const normalized: ProfileMatchSummary = {
+    matchId: finiteNumber(match.matchId, 0),
+    startTime: cleanNullableString(match.startTime),
+    durationText: cleanNullableString(match.durationText),
+    radiantTeamName: cleanString(match.radiantTeamName) || "天辉",
+    direTeamName: cleanString(match.direTeamName) || "夜魇",
+    radiantScore: finiteNullableNumber(match.radiantScore),
+    direScore: finiteNullableNumber(match.direScore),
+    radiantWin: typeof match.radiantWin === "boolean" ? match.radiantWin : null,
+    heroLineups: {
+      radiant: normalizeMatchRecordHeroes(match.heroLineups?.radiant),
+      dire: normalizeMatchRecordHeroes(match.heroLineups?.dire),
+    },
+    hasDraft: Boolean(match.hasDraft),
+    hasVision: Boolean(match.hasVision),
+    hasChat: Boolean(match.hasChat),
+    side,
+    heroId: finiteNullableNumber(match.heroId),
+    kills: finiteNullableNumber(match.kills),
+    deaths: finiteNullableNumber(match.deaths),
+    assists: finiteNullableNumber(match.assists),
+    result,
+  };
+  const playerCount = finiteNullableNumber(match.playerCount);
+
+  if (playerCount !== null) {
+    normalized.playerCount = playerCount;
+  }
+
+  return normalized;
+}
+
+function normalizeMatchRecordHeroes(
+  heroes: MatchRecordHero[] | null | undefined,
+): MatchRecordHero[] {
+  return safeArray(heroes).filter((hero): hero is MatchRecordHero => {
+    return typeof hero?.heroId === "number" && hero.heroId > 0;
+  });
+}
+
+function normalizePlayerTournamentHistoryEntry(
+  entry: Partial<PlayerTournamentHistoryEntry>,
+  options?: {
+    fallbackMatches?: ProfileMatchSummary[];
+    fallbackStats?: PlayerStatsSummary;
+    fallbackTournamentId?: string;
+  },
+): PlayerTournamentHistoryEntry {
+  return {
+    tournamentId: cleanString(entry.tournamentId) || options?.fallbackTournamentId || "",
+    tournamentName: cleanString(entry.tournamentName) || "本届赛事",
+    startsAt: cleanNullableString(entry.startsAt),
+    status: cleanString(entry.status),
+    isCurrent: Boolean(entry.isCurrent),
+    stats: normalizePlayerStatsSummary(entry.stats ?? options?.fallbackStats),
+    matches: safeArray(entry.matches).length > 0
+      ? safeArray(entry.matches).map(normalizeProfileMatchSummary)
+      : options?.fallbackMatches ?? [],
   };
 }
 
@@ -681,6 +808,33 @@ function finiteNumber(value: unknown, fallback: number): number {
 
 function finiteNullableNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizePlayerTag(tag: Partial<PlayerTag>): PlayerTag | null {
+  const id = cleanString(tag.id);
+  const text = cleanString(tag.text);
+
+  if (!id || !text) {
+    return null;
+  }
+
+  return {
+    id,
+    tournamentId: cleanString(tag.tournamentId),
+    targetType: "player",
+    targetId: cleanString(tag.targetId),
+    text,
+    likeCount: finiteNumber(tag.likeCount, 0),
+    sizeLevel: finiteNumber(tag.sizeLevel, 1),
+    status:
+      tag.status === "pending_review" ||
+      tag.status === "approved" ||
+      tag.status === "rejected" ||
+      tag.status === "hidden"
+        ? tag.status
+        : "approved",
+    createdAt: cleanString(tag.createdAt),
+  };
 }
 
 function normalizeAcknowledgementItem(item: AcknowledgementItem): AcknowledgementItem {
