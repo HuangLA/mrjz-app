@@ -15,15 +15,19 @@ import type {
   DotaAccountBinding,
   BracketNode,
   HeroLeaderboardCandidate,
+  HeroLeaderboardItem,
   HeroLeaderboardsView,
+  HeroPickSummary,
   MatchDetail,
   MatchRecord,
   OfficialScheduleStatus,
   PlayerListItem,
+  PlayerStatsSummary,
   PlayerProfile,
   PlayerTag,
   StageRound,
   StandingRow,
+  TeamBrief,
   TeamListItem,
   TeamProfile,
   TournamentDetail,
@@ -502,31 +506,181 @@ function normalizeTeamListItem(team: TeamListItem): TeamListItem {
   };
 }
 
-function normalizeHeroLeaderboards(view: HeroLeaderboardsView): HeroLeaderboardsView {
+export function normalizeHeroLeaderboards(
+  view: Partial<HeroLeaderboardsView> | null | undefined,
+): HeroLeaderboardsView {
+  const minMatches = finiteNumber(view?.minMatches, 5);
+
   return {
-    ...view,
-    leaderboards: view.leaderboards.map((board) => ({
-      ...board,
-      winner: board.winner ? normalizeHeroLeaderboardCandidate(board.winner) : null,
-      candidates: board.candidates.map(normalizeHeroLeaderboardCandidate),
-    })),
+    tournamentId: cleanString(view?.tournamentId),
+    tournamentName: cleanString(view?.tournamentName),
+    basis: "mixed",
+    minMatches,
+    leaderboards: safeArray(view?.leaderboards)
+      .map((board) => normalizeHeroLeaderboardItem(board, minMatches))
+      .filter(isDefined),
+  };
+}
+
+function normalizeHeroLeaderboardItem(
+  board: Partial<HeroLeaderboardItem>,
+  defaultMinMatches: number,
+): HeroLeaderboardItem | null {
+  const key = cleanString(board.key);
+
+  if (!key) {
+    return null;
+  }
+
+  const candidates = safeArray(board.candidates)
+    .map(normalizeHeroLeaderboardCandidate)
+    .filter(isDefined);
+  const winner = normalizeHeroLeaderboardCandidate(board.winner) ?? candidates[0] ?? null;
+
+  return {
+    key,
+    title: cleanString(board.title) || key,
+    description: cleanString(board.description) || "场均数据最高",
+    metricLabel: cleanString(board.metricLabel) || "场均",
+    unit: cleanString(board.unit),
+    precision: finiteNumber(board.precision, 1),
+    minMatches: finiteNumber(board.minMatches, defaultMinMatches),
+    winner,
+    candidates,
   };
 }
 
 function normalizeHeroLeaderboardCandidate(
-  candidate: HeroLeaderboardCandidate,
-): HeroLeaderboardCandidate {
+  candidate: Partial<HeroLeaderboardCandidate> | null | undefined,
+): HeroLeaderboardCandidate | null {
+  const player = candidate?.player;
+
+  if (!player || !cleanString(player.id)) {
+    return null;
+  }
+
+  const candidateTeams = safeArray(candidate.teams)
+    .map(normalizeTeamBrief)
+    .filter(isDefined);
+  const playerTeams = safeArray(player.teams).map(normalizeTeamBrief).filter(isDefined);
+  const teams = playerTeams.length > 0 ? playerTeams : candidateTeams;
+
   return {
-    ...candidate,
-    player: normalizePlayerListItem(candidate.player),
+    rank: finiteNumber(candidate.rank, 0),
+    player: normalizePlayerListItem({
+      ...player,
+      currentTeam: normalizeTeamBrief(player.currentTeam) ?? teams[0] ?? null,
+      teams,
+    }),
+    teams: candidateTeams,
+    matches: finiteNumber(candidate.matches, 0),
+    average: finiteNumber(candidate.average, 0),
+    total: finiteNumber(candidate.total, 0),
   };
 }
 
-function normalizePlayerListItem(player: PlayerListItem): PlayerListItem {
+function normalizePlayerListItem(player: Partial<PlayerListItem>): PlayerListItem {
+  const accountId = finiteNullableNumber(player.accountId);
+  const id = cleanString(player.id) || String(accountId ?? "");
+  const teams = safeArray(player.teams).map(normalizeTeamBrief).filter(isDefined);
+
   return {
-    ...player,
-    avatarUrl: normalizeSteamAvatarUrl(player),
+    id,
+    accountId,
+    steamId64: cleanNullableString(player.steamId64),
+    displayName: cleanString(player.displayName) || id || "未知选手",
+    avatarUrl: normalizeSteamAvatarUrl({
+      accountId,
+      avatarUrl: cleanNullableString(player.avatarUrl),
+    }),
+    currentTeam: normalizeTeamBrief(player.currentTeam) ?? teams[0] ?? null,
+    teams,
+    stats: normalizePlayerStatsSummary(player.stats),
   };
+}
+
+function normalizePlayerStatsSummary(
+  stats: Partial<PlayerStatsSummary> | null | undefined,
+): PlayerStatsSummary {
+  return {
+    totalMatches: finiteNumber(stats?.totalMatches, 0),
+    wins: finiteNumber(stats?.wins, 0),
+    losses: finiteNumber(stats?.losses, 0),
+    winRate: finiteNullableNumber(stats?.winRate),
+    kda: finiteNullableNumber(stats?.kda),
+    avgKills: finiteNullableNumber(stats?.avgKills),
+    avgDeaths: finiteNullableNumber(stats?.avgDeaths),
+    avgAssists: finiteNullableNumber(stats?.avgAssists),
+    avgGpm: finiteNullableNumber(stats?.avgGpm),
+    avgXpm: finiteNullableNumber(stats?.avgXpm),
+    avgNetWorth: finiteNullableNumber(stats?.avgNetWorth),
+    avgHeroDamage: finiteNullableNumber(stats?.avgHeroDamage),
+    avgTowerDamage: finiteNullableNumber(stats?.avgTowerDamage),
+    avgDamageTaken: finiteNullableNumber(stats?.avgDamageTaken),
+    topHeroes: safeArray(stats?.topHeroes).map(normalizeHeroPickSummary),
+  };
+}
+
+function normalizeHeroPickSummary(hero: Partial<HeroPickSummary>): HeroPickSummary {
+  return {
+    heroId: finiteNumber(hero.heroId, 0),
+    picks: finiteNumber(hero.picks, 0),
+    wins: finiteNumber(hero.wins, 0),
+  };
+}
+
+function normalizeTeamBrief(team: Partial<TeamBrief> | null | undefined): TeamBrief | null {
+  const id = cleanString(team?.id) || cleanString(team?.shortName) || cleanString(team?.name);
+  const name = cleanString(team?.name) || cleanString(team?.shortName) || id;
+
+  if (!id || !name) {
+    return null;
+  }
+
+  const normalized: TeamBrief = { id, name };
+  const shortName = cleanString(team?.shortName);
+  const logoUrl = cleanNullableString(team?.logoUrl);
+  const color = cleanString(team?.color);
+
+  if (shortName) {
+    normalized.shortName = shortName;
+  }
+
+  if (logoUrl !== null) {
+    normalized.logoUrl = normalizeApiImageUrl(logoUrl);
+  }
+
+  if (color) {
+    normalized.color = color;
+  }
+
+  return normalized;
+}
+
+function safeArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function isDefined<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
+}
+
+function cleanString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function cleanNullableString(value: unknown): string | null {
+  const valueString = cleanString(value);
+
+  return valueString || null;
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function finiteNullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function normalizeAcknowledgementItem(item: AcknowledgementItem): AcknowledgementItem {

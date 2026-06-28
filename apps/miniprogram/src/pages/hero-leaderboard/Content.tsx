@@ -6,6 +6,7 @@ import {
   getSelectedTournamentId,
   loadHeroLeaderboards,
   loadTournaments,
+  normalizeHeroLeaderboards,
   setSelectedTournamentId,
 } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
@@ -47,8 +48,10 @@ export function HeroLeaderboardContent() {
   const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
   const [initialCache] = useState(() =>
-    readPageCache<HeroLeaderboardCache>(
-      pageCacheKey("hero-leaderboard", initialStoredTournamentId || "auto"),
+    sanitizeHeroLeaderboardCache(
+      readPageCache<HeroLeaderboardCache>(
+        pageCacheKey("hero-leaderboard", initialStoredTournamentId || "auto"),
+      ),
     ),
   );
   const [initialViewState] = useState(() =>
@@ -109,7 +112,7 @@ export function HeroLeaderboardContent() {
     const storedTournamentId = getSelectedTournamentId();
     const requestedTournamentId = nextTournamentId ?? storedTournamentId;
     const cacheKey = pageCacheKey("hero-leaderboard", requestedTournamentId || "auto");
-    const cached = readPageCache<HeroLeaderboardCache>(cacheKey);
+    const cached = sanitizeHeroLeaderboardCache(readPageCache<HeroLeaderboardCache>(cacheKey));
 
     if (cached) {
       const cachedSelectedTournamentId = chooseTournamentId(
@@ -205,9 +208,7 @@ export function HeroLeaderboardContent() {
     const key = pageViewStateKey("hero-leaderboard", tournamentId || "auto");
     const state = readPageViewState<HeroLeaderboardViewState>(key);
 
-    if (state?.expandedKeys) {
-      setExpandedKeys(new Set(safeStringArray(state.expandedKeys)));
-    }
+    setExpandedKeys(new Set(safeStringArray(state?.expandedKeys)));
 
     restorePageScroll(key);
   }
@@ -329,8 +330,10 @@ function HeroLeaderboardCard(props: {
 }
 
 function leaderboardTeamName(candidate: HeroLeaderboardCandidate): string {
+  const playerTeams = Array.isArray(candidate.player.teams) ? candidate.player.teams : [];
+  const candidateTeams = Array.isArray(candidate.teams) ? candidate.teams : [];
   const team =
-    candidate.player.currentTeam ?? candidate.player.teams[0] ?? candidate.teams[0] ?? null;
+    candidate.player.currentTeam ?? playerTeams[0] ?? candidateTeams[0] ?? null;
 
   return team?.name || team?.shortName || "自由人";
 }
@@ -376,6 +379,21 @@ function emptyHeroLeaderboards(): HeroLeaderboardsView {
     basis: "mixed",
     minMatches: 5,
     leaderboards: [],
+  };
+}
+
+function sanitizeHeroLeaderboardCache(
+  cache: HeroLeaderboardCache | null,
+): HeroLeaderboardCache | null {
+  if (!cache) {
+    return null;
+  }
+
+  return {
+    leaderboards: normalizeHeroLeaderboards(cache.leaderboards),
+    selectedTournamentId:
+      typeof cache.selectedTournamentId === "string" ? cache.selectedTournamentId : "",
+    tournaments: Array.isArray(cache.tournaments) ? cache.tournaments : [],
   };
 }
 
