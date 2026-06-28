@@ -1,6 +1,7 @@
 import { Button, ScrollView, Text, View } from "@tarojs/components";
 import Taro, { useDidShow, useRouter } from "@tarojs/taro";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -48,18 +49,32 @@ const mainTabPages: MainTabPage[] = routeNavItems.map((item) => ({
   ...item,
   render: mainTabRenderer(item.key),
 }));
-const MAIN_TAB_SCROLL_VIEW_ID = "main-tab-pager";
-const MAIN_TAB_SCROLL_TARGET_PREFIX = "main-tab-panel-";
-const MIN_MAIN_TAB_PAGE_WIDTH = 160;
+const MAIN_TAB_PAGE_WIDTH_PERCENT = 100 / mainTabPages.length;
+const MAIN_TAB_SWIPE_AXIS_LOCK_PX = 8;
+const MAIN_TAB_SWIPE_TRIGGER_PX = 44;
+const MAIN_TAB_EDGE_RESISTANCE = 0.35;
 
-type MainTabScrollEvent = {
-  detail?: {
-    scrollLeft?: number;
-    scrollWidth?: number;
-  };
-  target?: {
-    id?: string;
-  };
+type MainTabTouchPoint = {
+  clientX?: number;
+  clientY?: number;
+  pageX?: number;
+  pageY?: number;
+};
+
+type MainTabTouchEvent = {
+  changedTouches?: MainTabTouchPoint[];
+  preventDefault?: () => void;
+  stopPropagation?: () => void;
+  touches?: MainTabTouchPoint[];
+};
+
+type MainTabGestureState = {
+  axis: "horizontal" | "vertical" | null;
+  lastX: number;
+  lastY: number;
+  startIndex: number;
+  startX: number;
+  startY: number;
 };
 
 export default function MainTabsPage() {
@@ -67,19 +82,24 @@ export default function MainTabsPage() {
   const [activeIndex, setActiveIndex] = useState(() =>
     routeIndexFromKey(routeKeyFromParam(router.params.tab)),
   );
-  const [mainTabScrollTarget, setMainTabScrollTarget] = useState(() =>
-    mainTabScrollTargetId(routeIndexFromKey(routeKeyFromParam(router.params.tab))),
-  );
   const [selectedTournamentIdState, setSelectedTournamentIdState] = useState(() =>
     getSelectedTournamentId(),
   );
   const [selectedTournamentVersion, setSelectedTournamentVersion] = useState(0);
   const [tabSwipeLocked, setTabSwipeLocked] = useState(false);
+  const [tabDragOffsetPx, setTabDragOffsetPx] = useState(0);
+  const [tabDragging, setTabDragging] = useState(false);
   const [refreshingRouteKey, setRefreshingRouteKey] = useState<MiniRouteKey | null>(null);
   const activeIndexRef = useRef(activeIndex);
+  const mainTabGestureRef = useRef<MainTabGestureState | null>(null);
   const refreshHandlersRef = useRef(new Map<MiniRouteKey, () => Promise<void> | void>());
   const refreshingRouteKeyRef = useRef<MiniRouteKey | null>(null);
+  const tabSwipeLockedRef = useRef(tabSwipeLocked);
   const activePage = mainTabPages[activeIndex] ?? mainTabPages[0]!;
+  const mainTabTrackStyle: CSSProperties = {
+    transform: `translateX(${-activeIndex * MAIN_TAB_PAGE_WIDTH_PERCENT}%) translateX(${tabDragOffsetPx}px)`,
+    transition: tabDragging ? "none" : undefined,
+  };
 
   const registerRefreshHandler = useCallback(
     (routeKey: MiniRouteKey, handler: () => Promise<void> | void) => {
@@ -119,27 +139,103 @@ export default function MainTabsPage() {
     void Taro.redirectTo({ url });
   }
 
-  function handleMainTabScrollEnd(event: MainTabScrollEvent) {
-    if (!isMainTabPagerEvent(event)) {
+  function handleMainTabTouchStart(event: MainTabTouchEvent) {
+    if (tabSwipeLockedRef.current) {
       return;
     }
 
-    const nextIndex = routeIndexFromScrollEvent(event);
+    const touch = getMainTabTouchPoint(event);
 
-    if (nextIndex === null) {
+    if (!touch) {
       return;
     }
 
-    setTabSwipeLocked(false);
-    commitActiveIndex(nextIndex);
+    mainTabGestureRef.current = {
+      axis: null,
+      lastX: touch.x,
+      lastY: touch.y,
+      startIndex: activeIndexRef.current,
+      startX: touch.x,
+      startY: touch.y,
+    };
+    setTabDragging(false);
+    setTabDragOffsetPx(0);
   }
 
-  function handleMainTabDragStart(event: MainTabScrollEvent) {
-    if (!isMainTabPagerEvent(event)) {
+  function handleMainTabTouchMove(event: MainTabTouchEvent) {
+    const gesture = mainTabGestureRef.current;
+
+    if (!gesture || tabSwipeLockedRef.current) {
       return;
     }
 
-    setMainTabScrollTarget("");
+    const touch = getMainTabTouchPoint(event);
+
+    if (!touch) {
+      return;
+    }
+
+    const dx = touch.x - gesture.startX;
+    const dy = touch.y - gesture.startY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    if (!gesture.axis) {
+      if (Math.max(absDx, absDy) < MAIN_TAB_SWIPE_AXIS_LOCK_PX) {
+        return;
+      }
+
+      gesture.axis = absDx > absDy * 1.15 ? "horizontal" : "vertical";
+    }
+
+    gesture.lastX = touch.x;
+    gesture.lastY = touch.y;
+
+    if (gesture.axis !== "horizontal") {
+      return;
+    }
+
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    setTabDragging(true);
+    setTabDragOffsetPx(applyMainTabEdgeResistance(dx, gesture.startIndex));
+  }
+
+  function handleMainTabTouchEnd(event: MainTabTouchEvent) {
+    finishMainTabTouch(event);
+  }
+
+  function handleMainTabTouchCancel(event: MainTabTouchEvent) {
+    finishMainTabTouch(event, { cancelled: true });
+  }
+
+  function finishMainTabTouch(
+    event: MainTabTouchEvent,
+    options: { cancelled?: boolean } = {},
+  ): void {
+    const gesture = mainTabGestureRef.current;
+
+    if (!gesture) {
+      return;
+    }
+
+    const touch = getMainTabTouchPoint(event);
+    const endX = touch?.x ?? gesture.lastX;
+    const dx = endX - gesture.startX;
+    let nextIndex = gesture.startIndex;
+
+    if (
+      !options.cancelled &&
+      gesture.axis === "horizontal" &&
+      Math.abs(dx) >= MAIN_TAB_SWIPE_TRIGGER_PX
+    ) {
+      nextIndex += dx < 0 ? 1 : -1;
+    }
+
+    mainTabGestureRef.current = null;
+    setTabDragging(false);
+    setTabDragOffsetPx(0);
+    commitActiveIndex(clampMainTabIndex(nextIndex));
   }
 
   function commitActiveIndex(nextIndex: number) {
@@ -149,7 +245,11 @@ export default function MainTabsPage() {
 
     activeIndexRef.current = nextIndex;
     setActiveIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex));
-    setMainTabScrollTarget(mainTabScrollTargetId(nextIndex));
+  }
+
+  function setMainTabSwipeLocked(locked: boolean) {
+    tabSwipeLockedRef.current = locked;
+    setTabSwipeLocked(locked);
   }
 
   function selectMainTournament(tournamentId: string): void {
@@ -216,7 +316,7 @@ export default function MainTabsPage() {
       selectedTournamentId={selectedTournamentIdState}
       selectedTournamentVersion={selectedTournamentVersion}
       selectTournament={selectMainTournament}
-      setSwipeLocked={setTabSwipeLocked}
+      setSwipeLocked={setMainTabSwipeLocked}
       switchRoute={switchMainRoute}
     >
       <PageShell
@@ -224,32 +324,20 @@ export default function MainTabsPage() {
         embedded={false}
         routeKey={activePage.key}
       >
-        <ScrollView
+        <View
           className="main-tab-swiper"
-          bounces={false}
-          enhanced
-          fastDeceleration
-          id={MAIN_TAB_SCROLL_VIEW_ID}
-          pagingEnabled
-          scrollIntoView={mainTabScrollTarget}
-          scrollIntoViewAlignment="start"
-          scrollX={!tabSwipeLocked}
-          scrollY={false}
-          showScrollbar={false}
-          onDragStart={handleMainTabDragStart}
-          onScrollEnd={handleMainTabScrollEnd}
+          catchMove={tabDragging && !tabSwipeLocked}
+          onTouchCancel={handleMainTabTouchCancel}
+          onTouchEnd={handleMainTabTouchEnd}
+          onTouchMove={handleMainTabTouchMove}
+          onTouchStart={handleMainTabTouchStart}
         >
-          <View className="main-tab-track">
+          <View className="main-tab-track" style={mainTabTrackStyle}>
             {mainTabPages.map((page) => (
-              <View
-                className="main-tab-item"
-                id={mainTabScrollTargetIdFromKey(page.key)}
-                key={page.key}
-              >
+              <View className="main-tab-item" key={page.key}>
                 <ScrollView
                   className="main-tab-scroll"
                   enhanced
-                  id={`${mainTabScrollTargetIdFromKey(page.key)}-scroll`}
                   refresherBackground="#07090c"
                   refresherDefaultStyle="white"
                   refresherEnabled
@@ -265,7 +353,7 @@ export default function MainTabsPage() {
               </View>
             ))}
           </View>
-        </ScrollView>
+        </View>
       </PageShell>
     </MainTabHostProvider>
   );
@@ -526,45 +614,32 @@ function routeIndexFromUrl(url: string): number {
   return mainTabPages.findIndex((page) => page.url === normalizedUrl);
 }
 
-function routeIndexFromScrollEvent(event: MainTabScrollEvent): number | null {
-  const scrollLeft = event.detail?.scrollLeft;
-  const scrollWidth = event.detail?.scrollWidth;
-
-  if (
-    typeof scrollLeft !== "number" ||
-    typeof scrollWidth !== "number" ||
-    !Number.isFinite(scrollLeft) ||
-    !Number.isFinite(scrollWidth) ||
-    scrollWidth <= 0
-  ) {
-    return null;
-  }
-
-  const tabWidth = scrollWidth / mainTabPages.length;
-
-  if (tabWidth < MIN_MAIN_TAB_PAGE_WIDTH) {
-    return null;
-  }
-
-  return clampMainTabIndex(Math.round(scrollLeft / tabWidth));
-}
-
 function clampMainTabIndex(index: number): number {
   return Math.min(mainTabPages.length - 1, Math.max(0, index));
 }
 
-function mainTabScrollTargetId(index: number): string {
-  return mainTabScrollTargetIdFromKey(mainTabPages[index]?.key ?? "home");
+function getMainTabTouchPoint(event: MainTabTouchEvent): { x: number; y: number } | null {
+  const touch = event.touches?.[0] ?? event.changedTouches?.[0];
+
+  if (!touch) {
+    return null;
+  }
+
+  const x = typeof touch.clientX === "number" ? touch.clientX : touch.pageX;
+  const y = typeof touch.clientY === "number" ? touch.clientY : touch.pageY;
+
+  if (typeof x !== "number" || typeof y !== "number") {
+    return null;
+  }
+
+  return { x, y };
 }
 
-function mainTabScrollTargetIdFromKey(routeKey: MiniRouteKey): string {
-  return `${MAIN_TAB_SCROLL_TARGET_PREFIX}${routeKey}`;
-}
+function applyMainTabEdgeResistance(offsetPx: number, startIndex: number): number {
+  const isAtFirstTab = startIndex <= 0 && offsetPx > 0;
+  const isAtLastTab = startIndex >= mainTabPages.length - 1 && offsetPx < 0;
 
-function isMainTabPagerEvent(event: MainTabScrollEvent): boolean {
-  const targetId = event.target?.id;
-
-  return !targetId || targetId === MAIN_TAB_SCROLL_VIEW_ID;
+  return isAtFirstTab || isAtLastTab ? offsetPx * MAIN_TAB_EDGE_RESISTANCE : offsetPx;
 }
 
 function routeKeyFromParam(value: unknown): MiniRouteKey {
