@@ -9,8 +9,8 @@ import { formatDate, formatInteger, formatPercent, navigate } from "../../utils"
 
 export default function TeamDetailPage() {
   const router = useRouter();
-  const tournamentId = String(router.params.tournamentId ?? "");
-  const teamId = String(router.params.teamId ?? "");
+  const tournamentId = decodeRouteParam(router.params.tournamentId);
+  const teamId = decodeRouteParam(router.params.teamId);
   const [initialCache] = useState(() =>
     tournamentId && teamId
       ? sanitizeTeamProfileCache(
@@ -108,9 +108,12 @@ export default function TeamDetailPage() {
             <View
               className="content-panel roster-item"
               key={member.id}
-              onClick={() => navigate(
-                `/pages/player-detail/index?tournamentId=${encodeURIComponent(profile.tournamentId || tournamentId)}&playerId=${encodeURIComponent(member.id)}&fromTeamId=${encodeURIComponent(profile.id || teamId)}`,
-              )}
+              onClick={() => navigate(playerDetailUrl({
+                tournamentId: profile.tournamentId || tournamentId,
+                playerId: member.id,
+                accountId: member.accountId,
+                fromTeamId: profile.id || teamId,
+              }))}
             >
               <SteamAvatar player={member} size="small" />
               <Text className="record-title">{member.displayName}</Text>
@@ -136,4 +139,34 @@ export default function TeamDetailPage() {
 
 function sanitizeTeamProfileCache(profile: TeamProfile | null): TeamProfile | null {
   return profile ? normalizeTeamProfile(profile) : null;
+}
+
+function decodeRouteParam(value: unknown): string {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const text = String(rawValue ?? "").trim();
+
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+}
+
+function playerDetailUrl(input: {
+  tournamentId: string;
+  playerId: string;
+  accountId: number | null;
+  fromTeamId: string;
+}): string {
+  const query = [
+    `tournamentId=${encodeURIComponent(input.tournamentId)}`,
+    `playerId=${encodeURIComponent(input.playerId)}`,
+    `fromTeamId=${encodeURIComponent(input.fromTeamId)}`,
+  ];
+
+  if (input.accountId !== null) {
+    query.push(`accountId=${encodeURIComponent(String(input.accountId))}`);
+  }
+
+  return `/pages/player-detail/index?${query.join("&")}`;
 }

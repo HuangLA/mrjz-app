@@ -8,6 +8,7 @@ import {
   likePlayerTag,
   loadPlayerProfile,
   loadPlayerTags,
+  loadTournamentPlayers,
   loadTournaments,
   normalizePlayerProfile,
   setLocalLikedTagIds,
@@ -58,9 +59,10 @@ type PlayerDetailCache = {
 
 export default function PlayerDetailPage() {
   const router = useRouter();
-  const tournamentId = String(router.params.tournamentId ?? "");
-  const playerId = String(router.params.playerId ?? "");
-  const fromTeamId = String(router.params.fromTeamId ?? "");
+  const tournamentId = decodeRouteParam(router.params.tournamentId);
+  const playerId = decodeRouteParam(router.params.playerId);
+  const fromTeamId = decodeRouteParam(router.params.fromTeamId);
+  const accountId = parseAccountId(router.params.accountId);
   const [initialCache] = useState(() =>
     tournamentId && playerId
       ? sanitizePlayerDetailCache(
@@ -124,11 +126,12 @@ export default function PlayerDetailPage() {
     }
 
     try {
-      const [nextProfile, nextTags, nextTournaments] = await Promise.all([
-        loadPlayerProfile(tournamentId, playerId),
-        loadPlayerTags(tournamentId, playerId),
+      const [nextProfile, nextTournaments] = await Promise.all([
+        loadPlayerProfileWithFallback(tournamentId, playerId, accountId),
         loadTournaments(),
       ]);
+      const nextTags = await loadSafePlayerTags(tournamentId, nextProfile.id || playerId);
+
       setProfile(nextProfile);
       setTags(nextTags);
       setTournaments(nextTournaments);
@@ -161,7 +164,8 @@ export default function PlayerDetailPage() {
 
     setSaving(true);
     try {
-      const created = await submitPlayerTag(tournamentId, playerId, text);
+      const activePlayerId = profile?.id || playerId;
+      const created = await submitPlayerTag(tournamentId, activePlayerId, text);
       setDraftTag("");
       if (created.status === "approved") {
         setTags((current) => {
@@ -382,6 +386,37 @@ function primaryPlayerTeam(profile: PlayerProfile) {
   return profile.currentTeam ?? teams[0] ?? null;
 }
 
+async function loadPlayerProfileWithFallback(
+  tournamentId: string,
+  playerId: string,
+  accountId: number | null,
+): Promise<PlayerProfile> {
+  try {
+    return await loadPlayerProfile(tournamentId, playerId);
+  } catch (caught) {
+    if (accountId === null) {
+      throw caught;
+    }
+
+    const players = await loadTournamentPlayers(tournamentId);
+    const resolved = players.find((player) => player.accountId === accountId);
+
+    if (!resolved) {
+      throw caught;
+    }
+
+    return loadPlayerProfile(tournamentId, resolved.id);
+  }
+}
+
+async function loadSafePlayerTags(tournamentId: string, playerId: string): Promise<PlayerTag[]> {
+  try {
+    return await loadPlayerTags(tournamentId, playerId);
+  } catch {
+    return [];
+  }
+}
+
 function resolveBackTeamId(profile: PlayerProfile, fromTeamId: string): string {
   const teams = Array.isArray(profile.teams) ? profile.teams : [];
 
@@ -390,6 +425,24 @@ function resolveBackTeamId(profile: PlayerProfile, fromTeamId: string): string {
   }
 
   return profile.currentTeam?.id ?? teams[0]?.id ?? fromTeamId;
+}
+
+function parseAccountId(value: unknown): number | null {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const accountId = Number(String(rawValue ?? "").trim());
+
+  return Number.isSafeInteger(accountId) && accountId > 0 ? accountId : null;
+}
+
+function decodeRouteParam(value: unknown): string {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const text = String(rawValue ?? "").trim();
+
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
 }
 
 function ProfileStatGrid(props: { items: Array<{ label: string; value: string }> }) {

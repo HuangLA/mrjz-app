@@ -192,7 +192,7 @@ export function TeamsContent() {
               team={team}
               onOpen={(teamId) =>
                 navigate(
-                  `/pages/team-detail/index?tournamentId=${selectedTournamentId}&teamId=${teamId}`,
+                  `/pages/team-detail/index?tournamentId=${encodeURIComponent(selectedTournamentId)}&teamId=${encodeURIComponent(teamId)}`,
                 )
               }
             />

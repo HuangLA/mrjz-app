@@ -302,7 +302,7 @@ export function PlayersContent() {
               player={player}
               onOpen={(playerId) =>
                 navigate(
-                  `/pages/player-detail/index?tournamentId=${selectedTournamentId}&playerId=${playerId}`,
+                  `/pages/player-detail/index?tournamentId=${encodeURIComponent(selectedTournamentId)}&playerId=${encodeURIComponent(playerId)}`,
                 )
               }
             />

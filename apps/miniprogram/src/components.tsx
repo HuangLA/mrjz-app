@@ -376,15 +376,15 @@ function HomeHeroRail(props: { side: "radiant" | "dire" }) {
 }
 
 function goBack(backUrl?: string) {
-  if (backUrl) {
-    void Taro.redirectTo({ url: backUrl });
-    return;
-  }
-
   const pages = Taro.getCurrentPages();
 
   if (pages.length > 1) {
     void Taro.navigateBack();
+    return;
+  }
+
+  if (backUrl) {
+    void Taro.redirectTo({ url: backUrl });
     return;
   }
 

@@ -236,7 +236,7 @@ export function HeroLeaderboardContent() {
               key={board.key}
               onOpenPlayer={(playerId) =>
                 navigate(
-                  `/pages/player-detail/index?tournamentId=${selectedTournamentId}&playerId=${playerId}`,
+                  `/pages/player-detail/index?tournamentId=${encodeURIComponent(selectedTournamentId)}&playerId=${encodeURIComponent(playerId)}`,
                 )
               }
               onToggle={() => toggleBoard(board.key)}
