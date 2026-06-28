@@ -314,6 +314,8 @@ export function StageContent() {
     standingGroups.find((group) => group.key === activeStandingGroupKey) ??
     standingGroups[0] ??
     null;
+  const isGroupStage = selectedStage?.type === "group";
+  const isKnockoutStage = selectedStage?.type === "knockout";
 
   return (
     <PageShell loading={loading} error={error} routeKey="stage">
@@ -345,7 +347,9 @@ export function StageContent() {
             <View className="stage-head">
               <View>
                 <Text className="section-heading">
-                  {selectedStage.name} · {rounds[0]?.name ?? labelStatus(selectedStage.status)}
+                  {isGroupStage
+                    ? selectedStage.name
+                    : `${selectedStage.name} · ${rounds[0]?.name ?? labelStatus(selectedStage.status)}`}
                 </Text>
               </View>
             </View>
@@ -357,7 +361,7 @@ export function StageContent() {
             </View>
           ) : null}
 
-          {selectedStage.type !== "knockout" ? (
+          {!isKnockoutStage ? (
             <View className="section-panel">
               <View className="section-title compact">
                 <View>
@@ -395,31 +399,33 @@ export function StageContent() {
             </View>
           ) : null}
 
-          <View className="section-panel">
-            <View className="section-title compact">
-              <View>
-                <Text className="section-heading">当前轮</Text>
-              </View>
-              <Text className="status-tag blue">{rounds[0]?.name ?? "暂无"}</Text>
-            </View>
-            <View className="schedule-list">
-              {rounds.flatMap((round) => round.series).length > 0 ? (
-                rounds
-                  .flatMap((round) =>
-                    round.series.map((series) => (
-                      <SeriesCard key={series.id} series={{ ...series, roundName: round.name }} />
-                    )),
-                  )
-                  .slice(0, 6)
-              ) : (
-                <View className="content-panel">
-                  <Text className="muted">暂无</Text>
+          {!isGroupStage ? (
+            <View className="section-panel">
+              <View className="section-title compact">
+                <View>
+                  <Text className="section-heading">当前轮</Text>
                 </View>
-              )}
+                <Text className="status-tag blue">{rounds[0]?.name ?? "暂无"}</Text>
+              </View>
+              <View className="schedule-list">
+                {rounds.flatMap((round) => round.series).length > 0 ? (
+                  rounds
+                    .flatMap((round) =>
+                      round.series.map((series) => (
+                        <SeriesCard key={series.id} series={{ ...series, roundName: round.name }} />
+                      )),
+                    )
+                    .slice(0, 6)
+                ) : (
+                  <View className="content-panel">
+                    <Text className="muted">暂无</Text>
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
+          ) : null}
 
-          {selectedStage.type === "knockout" ? (
+          {isKnockoutStage ? (
             <View className="section-panel">
               <View className="section-title compact">
                 <View>

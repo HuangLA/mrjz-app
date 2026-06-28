@@ -986,10 +986,13 @@ function StagePage({
     );
   }
 
+  const isGroupStage = activeStageKey === "group";
   const isKnockoutStage = activeStageKey === "knockout";
-  const stageMatches = data.scheduleGroups
-    .flatMap((group) => group.matches)
-    .filter((match) => match.stage === currentStage.name);
+  const stageMatches = isGroupStage
+    ? []
+    : data.scheduleGroups
+        .flatMap((group) => group.matches)
+        .filter((match) => match.stage === currentStage.name);
 
   return (
     <>
@@ -1018,7 +1021,7 @@ function StagePage({
         <div className="stage-head">
           <div>
             <h2>
-              {currentStage.name} · {currentStage.currentRound}
+              {isGroupStage ? currentStage.name : `${currentStage.name} · ${currentStage.currentRound}`}
             </h2>
           </div>
         </div>
@@ -1058,23 +1061,25 @@ function StagePage({
         </section>
       ) : null}
 
-      <section className="section-panel">
-        <div className="section-title compact">
-          <div>
-            <h2>当前轮</h2>
+      {!isGroupStage ? (
+        <section className="section-panel">
+          <div className="section-title compact">
+            <div>
+              <h2>当前轮</h2>
+            </div>
+            <span className="status-tag blue">{currentStage.currentRound}</span>
           </div>
-          <span className="status-tag blue">{currentStage.currentRound}</span>
-        </div>
-        <div className="schedule-list">
-          {stageMatches.length > 0 ? (
-            stageMatches.slice(0, 6).map((match) => (
-              <ScheduleCard key={`${match.stage}:${match.round}:${match.teamA}:${match.teamB}:${match.time}`} match={match} onOpenMatch={onOpenMatch} />
-            ))
-          ) : (
-            <EmptyState text="暂无" />
-          )}
-        </div>
-      </section>
+          <div className="schedule-list">
+            {stageMatches.length > 0 ? (
+              stageMatches.slice(0, 6).map((match) => (
+                <ScheduleCard key={`${match.stage}:${match.round}:${match.teamA}:${match.teamB}:${match.time}`} match={match} onOpenMatch={onOpenMatch} />
+              ))
+            ) : (
+              <EmptyState text="暂无" />
+            )}
+          </div>
+        </section>
+      ) : null}
 
       {isKnockoutStage ? (
         <section className="section-panel">
