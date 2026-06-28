@@ -274,6 +274,26 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     value: rampageCount,
   },
   {
+    key: "observerWardKills",
+    title: "反侦察科科长",
+    description: "场均排掉观察守卫最多",
+    metricLabel: "场均排眼",
+    unit: "个",
+    precision: 1,
+    rankDirection: "desc",
+    value: (player) => positiveNumber(player.observer_kills),
+  },
+  {
+    key: "campsStacked",
+    title: "动物园园长",
+    description: "场均屯野最多",
+    metricLabel: "场均屯野",
+    unit: "波",
+    precision: 1,
+    rankDirection: "desc",
+    value: (player) => positiveNumber(player.camps_stacked),
+  },
+  {
     key: "oldPoison",
     title: "老毒物",
     description: "剧毒术士、冥界亚龙、暗影恶魔选择次数最多",
@@ -474,6 +494,8 @@ export type HeroLeaderboardMetricKey =
   | "langLangApm"
   | "stocktonAssists"
   | "rampages"
+  | "observerWardKills"
+  | "campsStacked"
   | "oldPoison"
   | "painkiller"
   | "dragonForm"

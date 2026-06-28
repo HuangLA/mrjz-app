@@ -83,6 +83,8 @@ export type OpenDotaMatchPlayer = {
   pings?: number;
   stuns?: number;
   neutral_kills?: number;
+  observer_kills?: number;
+  camps_stacked?: number;
   lane?: number;
   lane_role?: number;
   purchase?: Record<string, number>;

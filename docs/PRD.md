@@ -207,6 +207,8 @@
 | 郎朗 | `players[].actions_per_min` | 场均 APM 最高 |
 | 斯托克顿 | `players[].assists` | 场均助攻最高 |
 | 暴虐成狂 | `players[].multi_kills["5"]` | 本届完成暴走次数最多 |
+| 反侦察科科长 | `players[].observer_kills` | 场均排掉观察守卫最多，岗哨守卫不计入，单位“个” |
+| 动物园园长 | `players[].camps_stacked` | 场均屯野最多，单位“波” |
 | 老毒物 | `players[].hero_id in [40, 47, 79]` | 剧毒术士、冥界亚龙、暗影恶魔选择次数最多；前端显示“触发条件隐藏” |
 | 止痛药 | `objectives[].type = CHAT_MESSAGE_MINIBOSS_KILL` 按 `player_slot` 归因 | 本届击杀痛苦魔方最多；前端显示“触发条件隐藏” |
 | 化龙 | `players[].hero_id in [49, 112, 47, 64, 13]` | 龙骑士、寒冰飞龙、冥界亚龙、杰奇洛、帕克选择次数最多；前端显示“触发条件隐藏” |
