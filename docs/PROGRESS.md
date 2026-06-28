@@ -97,6 +97,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 英雄榜新增剑心犹在、郎朗、斯托克顿、暴虐成狂、老毒物、止痛药、化龙、老阴B 和 KS：后端按本届 raw JSON 聚合圣剑购买、APM、助攻、暴走、指定英雄选择和痛苦魔方击杀等口径；老毒物、止痛药、化龙、老阴B 和 KS 对 H5 / 小程序只暴露“触发条件隐藏”。
 - 英雄榜“止痛药”痛苦魔方击杀口径改为 `CHAT_MESSAGE_MINIBOSS_KILL` objective 事件按 `player_slot` 归因，不再使用和事件归因不一致的 `players[].killed.npc_dota_miniboss`。
 - 英雄榜新增公开称号“反侦察科科长”和“动物园园长”：后端按本届 raw JSON 聚合 `players[].observer_kills` 和 `players[].camps_stacked` 场均值，排眼只统计观察守卫不统计岗哨守卫，并在隐藏触发条件称号之前返回。
+- 云端 API 已部署英雄榜新增称号构建：`mrjz-api.service` 已重启，公网 `/api/tournaments/:id/hero-leaderboards` 已验证返回“反侦察科科长”和“动物园园长”。
 - 小程序自定义顶部栏适配微信右上胶囊按钮：页面顶部整体按胶囊按钮位置下移，左上返回按钮高度、顶部位置和横向留边跟随 `getMenuButtonBoundingClientRect()` 对齐，降低和原生按钮冲突风险。
 - 小程序真机调试包体修正：默认构建不再复制约 57MB 的 `src/assets/dota` 和约 1.8MB 的首页 hero 大图，只保留本地 SVG 资源；英雄、物品、技能、小地图等图片改为跟随当前 API 地址从 `/api/assets/dota` 加载，天赋树 SVG 仍由小程序本地生成。
 - 小程序本地真机素材加载原因确认：后端 `/api/assets/dota` GET 路由可正常返回英雄、物品、眼位和小地图素材；真机不能使用 `127.0.0.1` 访问电脑服务，“我的”页 API 地址提示已改为电脑局域网 IP 口径，并新增当前 Dota 图片 URL 与测试图，便于区分旧构建地址、局域网不可达和微信图片域名校验问题。
