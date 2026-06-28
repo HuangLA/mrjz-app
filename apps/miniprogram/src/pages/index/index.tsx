@@ -48,7 +48,7 @@ const mainTabPages: MainTabPage[] = routeNavItems.map((item) => ({
   ...item,
   render: mainTabRenderer(item.key),
 }));
-const MAIN_TAB_SWITCH_DURATION_MS = 180;
+const MAIN_TAB_SWITCH_DURATION_MS = 120;
 
 type MainTabSwiperEvent = {
   detail?: {
@@ -122,16 +122,6 @@ export default function MainTabsPage() {
     }
 
     setTabSwipeLocked(false);
-    commitActiveIndex(nextIndex);
-  }
-
-  function handleSwiperAnimationFinish(event: MainTabSwiperEvent) {
-    const nextIndex = event.detail?.current;
-
-    if (typeof nextIndex !== "number" || !mainTabPages[nextIndex]) {
-      return;
-    }
-
     commitActiveIndex(nextIndex);
   }
 
@@ -221,7 +211,6 @@ export default function MainTabsPage() {
           current={activeIndex}
           disableTouch={tabSwipeLocked}
           duration={MAIN_TAB_SWITCH_DURATION_MS}
-          onAnimationFinish={handleSwiperAnimationFinish}
           onChange={handleSwiperChange}
         >
           {mainTabPages.map((page) => (
