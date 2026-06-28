@@ -224,6 +224,8 @@ export function PageShell(props: {
   backUrl?: string | undefined;
   className?: string;
   embedded?: boolean;
+  navProgressIndex?: number | undefined;
+  navTracking?: boolean | undefined;
 }) {
   const hostContext = useContext(MainTabHostContext);
   const shouldRenderEmbedded = props.embedded ?? Boolean(hostContext?.embedded);
@@ -254,7 +256,11 @@ export function PageShell(props: {
         onBack={hostContext ? () => hostContext.switchRoute("/pages/index/index") : undefined}
       />
       <View className="view">{body}</View>
-      <FloatingRouteNav routeKey={routeKey} />
+      <FloatingRouteNav
+        progressIndex={props.navProgressIndex}
+        routeKey={routeKey}
+        tracking={props.navTracking}
+      />
     </View>
   );
 }
@@ -310,14 +316,24 @@ function AppBar(props: {
   );
 }
 
-function FloatingRouteNav(props: { routeKey: MiniRouteKey }) {
+function FloatingRouteNav(props: {
+  progressIndex?: number | undefined;
+  routeKey: MiniRouteKey;
+  tracking?: boolean | undefined;
+}) {
   const hostContext = useContext(MainTabHostContext);
   const activeIndex = Math.max(
     0,
     routeNavItems.findIndex((item) => item.key === props.routeKey),
   );
+  const progressIndex =
+    typeof props.progressIndex === "number" && Number.isFinite(props.progressIndex)
+      ? clampRouteNavProgress(props.progressIndex)
+      : activeIndex;
+  const visualActiveIndex = Math.round(progressIndex);
   const indicatorStyle: CSSProperties = {
-    transform: `translateX(${activeIndex * 100}%)`,
+    transform: `translateX(${progressIndex * 100}%)`,
+    transition: props.tracking ? "none" : undefined,
     width: `${100 / routeNavItems.length}%`,
   };
 
@@ -327,7 +343,7 @@ function FloatingRouteNav(props: { routeKey: MiniRouteKey }) {
         <View className="route-tab-indicator" style={indicatorStyle} />
         {routeNavItems.map((item) => (
           <Button
-            className={`route-tab ${item.key === props.routeKey ? "active" : ""}`}
+            className={`route-tab ${routeNavItems[visualActiveIndex]?.key === item.key ? "active" : ""}`}
             key={item.key}
             onClick={() => {
               if (hostContext) {
@@ -344,6 +360,10 @@ function FloatingRouteNav(props: { routeKey: MiniRouteKey }) {
       </View>
     </View>
   );
+}
+
+function clampRouteNavProgress(value: number): number {
+  return Math.min(routeNavItems.length - 1, Math.max(0, value));
 }
 
 function HomeBackgroundMarquee() {

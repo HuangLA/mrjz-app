@@ -49,11 +49,11 @@ const mainTabPages: MainTabPage[] = routeNavItems.map((item) => ({
   render: mainTabRenderer(item.key),
 }));
 const MAIN_TAB_SWITCH_ANIMATION_MS = 260;
-const MAIN_TAB_SWITCH_SETTLE_MS = MAIN_TAB_SWITCH_ANIMATION_MS + 120;
 
 type MainTabSwiperEvent = {
   detail?: {
     current?: number;
+    dx?: number;
   };
 };
 
@@ -67,11 +67,10 @@ export default function MainTabsPage() {
   );
   const [selectedTournamentVersion, setSelectedTournamentVersion] = useState(0);
   const [tabSwipeLocked, setTabSwipeLocked] = useState(false);
-  const [tabSwitchLocked, setTabSwitchLocked] = useState(false);
+  const [navProgressIndex, setNavProgressIndex] = useState(activeIndex);
+  const [navTracking, setNavTracking] = useState(false);
   const [refreshingRouteKey, setRefreshingRouteKey] = useState<MiniRouteKey | null>(null);
   const activeIndexRef = useRef(activeIndex);
-  const pendingProgrammaticIndexRef = useRef<number | null>(null);
-  const tabSwitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshHandlersRef = useRef(new Map<MiniRouteKey, () => Promise<void> | void>());
   const refreshingRouteKeyRef = useRef<MiniRouteKey | null>(null);
   const activePage = mainTabPages[activeIndex] ?? mainTabPages[0]!;
@@ -103,12 +102,6 @@ export default function MainTabsPage() {
     commitActiveIndex(routeIndexFromKey(routeKeyFromParam(router.params.tab)));
   }, [router.params.tab]);
 
-  useEffect(() => {
-    return () => {
-      clearTabSwitchTimer();
-    };
-  }, []);
-
   function switchMainRoute(url: string) {
     const nextIndex = routeIndexFromUrl(url);
 
@@ -117,8 +110,6 @@ export default function MainTabsPage() {
         return;
       }
 
-      pendingProgrammaticIndexRef.current = nextIndex;
-      lockTabSwitch();
       commitActiveIndex(nextIndex);
       return;
     }
@@ -133,14 +124,7 @@ export default function MainTabsPage() {
       return;
     }
 
-    const pendingProgrammaticIndex = pendingProgrammaticIndexRef.current;
-
-    if (pendingProgrammaticIndex !== null && nextIndex !== pendingProgrammaticIndex) {
-      return;
-    }
-
     setTabSwipeLocked(false);
-    lockTabSwitch();
     commitActiveIndex(nextIndex);
   }
 
@@ -148,18 +132,29 @@ export default function MainTabsPage() {
     const nextIndex = event.detail?.current;
 
     if (typeof nextIndex !== "number" || !mainTabPages[nextIndex]) {
-      unlockTabSwitch();
-      return;
-    }
-
-    const pendingProgrammaticIndex = pendingProgrammaticIndexRef.current;
-
-    if (pendingProgrammaticIndex !== null && nextIndex !== pendingProgrammaticIndex) {
       return;
     }
 
     commitActiveIndex(nextIndex);
-    unlockTabSwitch();
+    setNavTracking(false);
+  }
+
+  function handleSwiperTransition(event: MainTabSwiperEvent) {
+    const dx = event.detail?.dx;
+
+    if (typeof dx !== "number" || !Number.isFinite(dx)) {
+      return;
+    }
+
+    const windowWidth = getMainTabWindowWidth();
+
+    if (windowWidth <= 0) {
+      return;
+    }
+
+    const nextProgressIndex = clampTabProgress(activeIndexRef.current - dx / windowWidth);
+    setNavTracking(true);
+    setNavProgressIndex(nextProgressIndex);
   }
 
   function commitActiveIndex(nextIndex: number) {
@@ -169,29 +164,7 @@ export default function MainTabsPage() {
 
     activeIndexRef.current = nextIndex;
     setActiveIndex(nextIndex);
-  }
-
-  function lockTabSwitch() {
-    setTabSwitchLocked(true);
-    clearTabSwitchTimer();
-    tabSwitchTimerRef.current = setTimeout(() => {
-      unlockTabSwitch();
-    }, MAIN_TAB_SWITCH_SETTLE_MS);
-  }
-
-  function unlockTabSwitch() {
-    pendingProgrammaticIndexRef.current = null;
-    setTabSwitchLocked(false);
-    clearTabSwitchTimer();
-  }
-
-  function clearTabSwitchTimer() {
-    if (tabSwitchTimerRef.current === null) {
-      return;
-    }
-
-    clearTimeout(tabSwitchTimerRef.current);
-    tabSwitchTimerRef.current = null;
+    setNavProgressIndex(nextIndex);
   }
 
   function selectMainTournament(tournamentId: string): void {
@@ -261,14 +234,21 @@ export default function MainTabsPage() {
       setSwipeLocked={setTabSwipeLocked}
       switchRoute={switchMainRoute}
     >
-      <PageShell className="main-tab-shell" embedded={false} routeKey={activePage.key}>
+      <PageShell
+        className="main-tab-shell"
+        embedded={false}
+        navProgressIndex={navProgressIndex}
+        navTracking={navTracking}
+        routeKey={activePage.key}
+      >
         <Swiper
           className="main-tab-swiper"
           current={activeIndex}
-          disableTouch={tabSwipeLocked || tabSwitchLocked}
+          disableTouch={tabSwipeLocked}
           duration={MAIN_TAB_SWITCH_ANIMATION_MS}
           onAnimationFinish={handleSwiperAnimationFinish}
           onChange={handleSwiperChange}
+          onTransition={handleSwiperTransition}
         >
           {mainTabPages.map((page) => (
             <SwiperItem className="main-tab-item" key={page.key}>
@@ -548,6 +528,18 @@ function routeIndexFromUrl(url: string): number {
   const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
 
   return mainTabPages.findIndex((page) => page.url === normalizedUrl);
+}
+
+function clampTabProgress(value: number): number {
+  return Math.min(mainTabPages.length - 1, Math.max(0, value));
+}
+
+function getMainTabWindowWidth(): number {
+  try {
+    return Taro.getWindowInfo?.().windowWidth ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 function routeKeyFromParam(value: unknown): MiniRouteKey {
