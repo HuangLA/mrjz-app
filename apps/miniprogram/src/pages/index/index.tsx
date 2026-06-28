@@ -22,7 +22,7 @@ import {
 } from "../../components";
 import { SmartImage as Image } from "../../SmartImage";
 import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
-import { formatDate, labelStatus, switchTab } from "../../utils";
+import { formatDate, formatInteger, labelStatus, switchTab } from "../../utils";
 import { HeroLeaderboardContent } from "../hero-leaderboard/Content";
 import { MineContent } from "../mine/Content";
 import { PlayersContent } from "../players/Content";
@@ -375,10 +375,9 @@ function HomePage() {
     setSelectedTournamentId(tournamentId);
   }
 
-  const recordCount = Object.values(recentRecordsByTournament).reduce(
-    (sum, tournamentRecords) => sum + tournamentRecords.length,
-    0,
-  );
+  const recordCount = tournaments.reduce((sum, tournament) => {
+    return sum + (typeof tournament.matchCount === "number" ? tournament.matchCount : 0);
+  }, 0);
 
   return (
     <PageShell loading={loading} error={error} routeKey="home">
@@ -396,7 +395,7 @@ function HomePage() {
             </View>
             <View>
               <Text>比赛</Text>
-              <Text>{String(recordCount)}</Text>
+              <Text>{formatInteger(recordCount)}</Text>
             </View>
             <View>
               <Text>战场</Text>

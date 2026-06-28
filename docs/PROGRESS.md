@@ -119,6 +119,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序主导航状态同步继续修正：首页常驻容器现在统一持有当前届次和版本号，切换届次后赛事阶段、赛程、比赛记录、英雄榜、选手和队伍 tab 会在激活时立即读取对应届次缓存并刷新；详情 / 次级页底部导航若发现页面栈中已有首页容器，会先写入目标 tab 再 `navigateBack` 回原容器，避免重新创建主页面导致黑屏或长载入。
 - 小程序底部自绘导航真机位置微调：导航栏整体上移，降低和手机底部系统手势区误触的风险，页面底部内容预留保持不变。
 - 小程序主动下拉刷新补齐：首页主导航内嵌 Swiper / ScrollView 页面使用微信 scroll-view 自带 refresher，在不重建页面的前提下强制绕过缓存重新拉取当前 tab 数据；赛事阶段、赛程、比赛记录、英雄榜、选手、队伍、我的和详情独立入口页也启用页面级下拉刷新并在完成后关闭原生刷新状态。
+- 小程序首页比赛总数修正为后端赛事列表 `matchCount` 累加口径，和 H5 首页一致，不再误把每届最近 3 场预览数组当作总比赛数。
 - 小程序主 tab 手势冲突修复：通用筛选栏改为横向 `ScrollView`，触摸筛选栏时临时禁用外层主 Swiper，避免比赛记录队伍筛选左右滑动被识别成切换到相邻 tab。
 - 小程序首页鸣谢刷新策略调整：首页 tab 激活时会重新检查缓存新鲜度，首页缓存新鲜期从默认 5 分钟收紧到 30 秒，后台修改赞助 / 鸣谢名称后无需退出小程序即可较快静默更新。
 - 小程序微信登录链路改为“用户填写昵称 + 微信 code 登录”：登录前要求填写必填展示昵称，前端上送 `wx.login` code + nickname，后端用 `jscode2session` 换取微信身份并签发 MRJZ opaque session。
@@ -638,7 +639,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
-| `pending` | Add mini program pull-down refresh            |
+| `pending` | Fix mini program home match total             |
+| `599466a` | Add mini program pull-down refresh            |
 | `c584dc9` | Refresh mini program home acknowledgements    |
 | `4267d56` | Fix mini program filter swipe conflict        |
 | `d2390f6` | Raise mini program bottom nav                 |
