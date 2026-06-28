@@ -1,4 +1,4 @@
-import { Button, ScrollView, Swiper, SwiperItem, Text, View } from "@tarojs/components";
+import { Button, ScrollView, Text, View } from "@tarojs/components";
 import Taro, { useDidShow, useRouter } from "@tarojs/taro";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -48,11 +48,17 @@ const mainTabPages: MainTabPage[] = routeNavItems.map((item) => ({
   ...item,
   render: mainTabRenderer(item.key),
 }));
-const MAIN_TAB_SWITCH_DURATION_MS = 120;
+const MAIN_TAB_SCROLL_VIEW_ID = "main-tab-pager";
+const MAIN_TAB_SCROLL_TARGET_PREFIX = "main-tab-panel-";
+const MIN_MAIN_TAB_PAGE_WIDTH = 160;
 
-type MainTabSwiperEvent = {
+type MainTabScrollEvent = {
   detail?: {
-    current?: number;
+    scrollLeft?: number;
+    scrollWidth?: number;
+  };
+  target?: {
+    id?: string;
   };
 };
 
@@ -60,6 +66,9 @@ export default function MainTabsPage() {
   const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(() =>
     routeIndexFromKey(routeKeyFromParam(router.params.tab)),
+  );
+  const [mainTabScrollTarget, setMainTabScrollTarget] = useState(() =>
+    mainTabScrollTargetId(routeIndexFromKey(routeKeyFromParam(router.params.tab))),
   );
   const [selectedTournamentIdState, setSelectedTournamentIdState] = useState(() =>
     getSelectedTournamentId(),
@@ -103,10 +112,6 @@ export default function MainTabsPage() {
     const nextIndex = routeIndexFromUrl(url);
 
     if (nextIndex >= 0) {
-      if (nextIndex === activeIndexRef.current) {
-        return;
-      }
-
       commitActiveIndex(nextIndex);
       return;
     }
@@ -114,10 +119,14 @@ export default function MainTabsPage() {
     void Taro.redirectTo({ url });
   }
 
-  function handleSwiperChange(event: MainTabSwiperEvent) {
-    const nextIndex = event.detail?.current;
+  function handleMainTabScrollEnd(event: MainTabScrollEvent) {
+    if (!isMainTabPagerEvent(event)) {
+      return;
+    }
 
-    if (typeof nextIndex !== "number" || !mainTabPages[nextIndex]) {
+    const nextIndex = routeIndexFromScrollEvent(event);
+
+    if (nextIndex === null) {
       return;
     }
 
@@ -125,13 +134,22 @@ export default function MainTabsPage() {
     commitActiveIndex(nextIndex);
   }
 
+  function handleMainTabDragStart(event: MainTabScrollEvent) {
+    if (!isMainTabPagerEvent(event)) {
+      return;
+    }
+
+    setMainTabScrollTarget("");
+  }
+
   function commitActiveIndex(nextIndex: number) {
-    if (!mainTabPages[nextIndex] || activeIndexRef.current === nextIndex) {
+    if (!mainTabPages[nextIndex]) {
       return;
     }
 
     activeIndexRef.current = nextIndex;
-    setActiveIndex(nextIndex);
+    setActiveIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex));
+    setMainTabScrollTarget(mainTabScrollTargetId(nextIndex));
   }
 
   function selectMainTournament(tournamentId: string): void {
@@ -206,33 +224,48 @@ export default function MainTabsPage() {
         embedded={false}
         routeKey={activePage.key}
       >
-        <Swiper
+        <ScrollView
           className="main-tab-swiper"
-          current={activeIndex}
-          disableTouch={tabSwipeLocked}
-          duration={MAIN_TAB_SWITCH_DURATION_MS}
-          onChange={handleSwiperChange}
+          bounces={false}
+          enhanced
+          fastDeceleration
+          id={MAIN_TAB_SCROLL_VIEW_ID}
+          pagingEnabled
+          scrollIntoView={mainTabScrollTarget}
+          scrollIntoViewAlignment="start"
+          scrollX={!tabSwipeLocked}
+          scrollY={false}
+          showScrollbar={false}
+          onDragStart={handleMainTabDragStart}
+          onScrollEnd={handleMainTabScrollEnd}
         >
-          {mainTabPages.map((page) => (
-            <SwiperItem className="main-tab-item" key={page.key}>
-              <ScrollView
-                className="main-tab-scroll"
-                enhanced
-                refresherBackground="#07090c"
-                refresherDefaultStyle="white"
-                refresherEnabled
-                refresherTriggered={refreshingRouteKey === page.key}
-                scrollY
-                showScrollbar={false}
-                onRefresherRefresh={() => {
-                  void refreshMainTab(page.key);
-                }}
+          <View className="main-tab-track">
+            {mainTabPages.map((page) => (
+              <View
+                className="main-tab-item"
+                id={mainTabScrollTargetIdFromKey(page.key)}
+                key={page.key}
               >
-                <View className="main-tab-pane">{page.render()}</View>
-              </ScrollView>
-            </SwiperItem>
-          ))}
-        </Swiper>
+                <ScrollView
+                  className="main-tab-scroll"
+                  enhanced
+                  id={`${mainTabScrollTargetIdFromKey(page.key)}-scroll`}
+                  refresherBackground="#07090c"
+                  refresherDefaultStyle="white"
+                  refresherEnabled
+                  refresherTriggered={refreshingRouteKey === page.key}
+                  scrollY
+                  showScrollbar={false}
+                  onRefresherRefresh={() => {
+                    void refreshMainTab(page.key);
+                  }}
+                >
+                  <View className="main-tab-pane">{page.render()}</View>
+                </ScrollView>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </PageShell>
     </MainTabHostProvider>
   );
@@ -491,6 +524,47 @@ function routeIndexFromUrl(url: string): number {
   const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
 
   return mainTabPages.findIndex((page) => page.url === normalizedUrl);
+}
+
+function routeIndexFromScrollEvent(event: MainTabScrollEvent): number | null {
+  const scrollLeft = event.detail?.scrollLeft;
+  const scrollWidth = event.detail?.scrollWidth;
+
+  if (
+    typeof scrollLeft !== "number" ||
+    typeof scrollWidth !== "number" ||
+    !Number.isFinite(scrollLeft) ||
+    !Number.isFinite(scrollWidth) ||
+    scrollWidth <= 0
+  ) {
+    return null;
+  }
+
+  const tabWidth = scrollWidth / mainTabPages.length;
+
+  if (tabWidth < MIN_MAIN_TAB_PAGE_WIDTH) {
+    return null;
+  }
+
+  return clampMainTabIndex(Math.round(scrollLeft / tabWidth));
+}
+
+function clampMainTabIndex(index: number): number {
+  return Math.min(mainTabPages.length - 1, Math.max(0, index));
+}
+
+function mainTabScrollTargetId(index: number): string {
+  return mainTabScrollTargetIdFromKey(mainTabPages[index]?.key ?? "home");
+}
+
+function mainTabScrollTargetIdFromKey(routeKey: MiniRouteKey): string {
+  return `${MAIN_TAB_SCROLL_TARGET_PREFIX}${routeKey}`;
+}
+
+function isMainTabPagerEvent(event: MainTabScrollEvent): boolean {
+  const targetId = event.target?.id;
+
+  return !targetId || targetId === MAIN_TAB_SCROLL_VIEW_ID;
 }
 
 function routeKeyFromParam(value: unknown): MiniRouteKey {

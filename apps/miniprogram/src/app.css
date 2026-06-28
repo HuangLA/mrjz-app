@@ -291,11 +291,23 @@ button[disabled] {
   min-height: 0;
 }
 
+.main-tab-track {
+  display: flex;
+  width: 800%;
+  height: 100%;
+  min-height: 0;
+}
+
 .main-tab-item,
 .main-tab-scroll {
   height: 100%;
   min-height: 0;
   background: transparent;
+}
+
+.main-tab-item {
+  flex: 0 0 12.5%;
+  width: 12.5%;
 }
 
 .main-tab-pane {
