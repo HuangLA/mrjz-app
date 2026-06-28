@@ -1,7 +1,6 @@
 import { Button, ScrollView, Text, View } from "@tarojs/components";
 import Taro, { useDidShow, useRouter } from "@tarojs/taro";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
 import {
   chooseTournamentId,
   getSelectedTournamentId,
@@ -50,32 +49,6 @@ const mainTabPages: MainTabPage[] = routeNavItems.map((item) => ({
   render: mainTabRenderer(item.key),
 }));
 const MAIN_TAB_PAGE_WIDTH_PERCENT = 100 / mainTabPages.length;
-const MAIN_TAB_SWIPE_AXIS_LOCK_PX = 8;
-const MAIN_TAB_SWIPE_TRIGGER_PX = 44;
-const MAIN_TAB_EDGE_RESISTANCE = 0.35;
-
-type MainTabTouchPoint = {
-  clientX?: number;
-  clientY?: number;
-  pageX?: number;
-  pageY?: number;
-};
-
-type MainTabTouchEvent = {
-  changedTouches?: MainTabTouchPoint[];
-  preventDefault?: () => void;
-  stopPropagation?: () => void;
-  touches?: MainTabTouchPoint[];
-};
-
-type MainTabGestureState = {
-  axis: "horizontal" | "vertical" | null;
-  lastX: number;
-  lastY: number;
-  startIndex: number;
-  startX: number;
-  startY: number;
-};
 
 export default function MainTabsPage() {
   const router = useRouter();
@@ -86,19 +59,13 @@ export default function MainTabsPage() {
     getSelectedTournamentId(),
   );
   const [selectedTournamentVersion, setSelectedTournamentVersion] = useState(0);
-  const [tabSwipeLocked, setTabSwipeLocked] = useState(false);
-  const [tabDragOffsetPx, setTabDragOffsetPx] = useState(0);
-  const [tabDragging, setTabDragging] = useState(false);
   const [refreshingRouteKey, setRefreshingRouteKey] = useState<MiniRouteKey | null>(null);
   const activeIndexRef = useRef(activeIndex);
-  const mainTabGestureRef = useRef<MainTabGestureState | null>(null);
   const refreshHandlersRef = useRef(new Map<MiniRouteKey, () => Promise<void> | void>());
   const refreshingRouteKeyRef = useRef<MiniRouteKey | null>(null);
-  const tabSwipeLockedRef = useRef(tabSwipeLocked);
   const activePage = mainTabPages[activeIndex] ?? mainTabPages[0]!;
-  const mainTabTrackStyle: CSSProperties = {
-    transform: `translateX(${-activeIndex * MAIN_TAB_PAGE_WIDTH_PERCENT}%) translateX(${tabDragOffsetPx}px)`,
-    transition: tabDragging ? "none" : undefined,
+  const mainTabTrackStyle = {
+    transform: `translateX(${-activeIndex * MAIN_TAB_PAGE_WIDTH_PERCENT}%)`,
   };
 
   const registerRefreshHandler = useCallback(
@@ -139,105 +106,6 @@ export default function MainTabsPage() {
     void Taro.redirectTo({ url });
   }
 
-  function handleMainTabTouchStart(event: MainTabTouchEvent) {
-    if (tabSwipeLockedRef.current) {
-      return;
-    }
-
-    const touch = getMainTabTouchPoint(event);
-
-    if (!touch) {
-      return;
-    }
-
-    mainTabGestureRef.current = {
-      axis: null,
-      lastX: touch.x,
-      lastY: touch.y,
-      startIndex: activeIndexRef.current,
-      startX: touch.x,
-      startY: touch.y,
-    };
-    setTabDragging(false);
-    setTabDragOffsetPx(0);
-  }
-
-  function handleMainTabTouchMove(event: MainTabTouchEvent) {
-    const gesture = mainTabGestureRef.current;
-
-    if (!gesture || tabSwipeLockedRef.current) {
-      return;
-    }
-
-    const touch = getMainTabTouchPoint(event);
-
-    if (!touch) {
-      return;
-    }
-
-    const dx = touch.x - gesture.startX;
-    const dy = touch.y - gesture.startY;
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
-
-    if (!gesture.axis) {
-      if (Math.max(absDx, absDy) < MAIN_TAB_SWIPE_AXIS_LOCK_PX) {
-        return;
-      }
-
-      gesture.axis = absDx > absDy * 1.15 ? "horizontal" : "vertical";
-    }
-
-    gesture.lastX = touch.x;
-    gesture.lastY = touch.y;
-
-    if (gesture.axis !== "horizontal") {
-      return;
-    }
-
-    event.preventDefault?.();
-    event.stopPropagation?.();
-    setTabDragging(true);
-    setTabDragOffsetPx(applyMainTabEdgeResistance(dx, gesture.startIndex));
-  }
-
-  function handleMainTabTouchEnd(event: MainTabTouchEvent) {
-    finishMainTabTouch(event);
-  }
-
-  function handleMainTabTouchCancel(event: MainTabTouchEvent) {
-    finishMainTabTouch(event, { cancelled: true });
-  }
-
-  function finishMainTabTouch(
-    event: MainTabTouchEvent,
-    options: { cancelled?: boolean } = {},
-  ): void {
-    const gesture = mainTabGestureRef.current;
-
-    if (!gesture) {
-      return;
-    }
-
-    const touch = getMainTabTouchPoint(event);
-    const endX = touch?.x ?? gesture.lastX;
-    const dx = endX - gesture.startX;
-    let nextIndex = gesture.startIndex;
-
-    if (
-      !options.cancelled &&
-      gesture.axis === "horizontal" &&
-      Math.abs(dx) >= MAIN_TAB_SWIPE_TRIGGER_PX
-    ) {
-      nextIndex += dx < 0 ? 1 : -1;
-    }
-
-    mainTabGestureRef.current = null;
-    setTabDragging(false);
-    setTabDragOffsetPx(0);
-    commitActiveIndex(clampMainTabIndex(nextIndex));
-  }
-
   function commitActiveIndex(nextIndex: number) {
     if (!mainTabPages[nextIndex]) {
       return;
@@ -247,9 +115,8 @@ export default function MainTabsPage() {
     setActiveIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex));
   }
 
-  function setMainTabSwipeLocked(locked: boolean) {
-    tabSwipeLockedRef.current = locked;
-    setTabSwipeLocked(locked);
+  function setMainTabSwipeLocked(_locked: boolean) {
+    // Main tab swipe is disabled; child horizontal scrollers can keep their native behavior.
   }
 
   function selectMainTournament(tournamentId: string): void {
@@ -326,11 +193,6 @@ export default function MainTabsPage() {
       >
         <View
           className="main-tab-swiper"
-          catchMove={tabDragging && !tabSwipeLocked}
-          onTouchCancel={handleMainTabTouchCancel}
-          onTouchEnd={handleMainTabTouchEnd}
-          onTouchMove={handleMainTabTouchMove}
-          onTouchStart={handleMainTabTouchStart}
         >
           <View className="main-tab-track" style={mainTabTrackStyle}>
             {mainTabPages.map((page) => (
@@ -612,34 +474,6 @@ function routeIndexFromUrl(url: string): number {
   const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
 
   return mainTabPages.findIndex((page) => page.url === normalizedUrl);
-}
-
-function clampMainTabIndex(index: number): number {
-  return Math.min(mainTabPages.length - 1, Math.max(0, index));
-}
-
-function getMainTabTouchPoint(event: MainTabTouchEvent): { x: number; y: number } | null {
-  const touch = event.touches?.[0] ?? event.changedTouches?.[0];
-
-  if (!touch) {
-    return null;
-  }
-
-  const x = typeof touch.clientX === "number" ? touch.clientX : touch.pageX;
-  const y = typeof touch.clientY === "number" ? touch.clientY : touch.pageY;
-
-  if (typeof x !== "number" || typeof y !== "number") {
-    return null;
-  }
-
-  return { x, y };
-}
-
-function applyMainTabEdgeResistance(offsetPx: number, startIndex: number): number {
-  const isAtFirstTab = startIndex <= 0 && offsetPx > 0;
-  const isAtLastTab = startIndex >= mainTabPages.length - 1 && offsetPx < 0;
-
-  return isAtFirstTab || isAtLastTab ? offsetPx * MAIN_TAB_EDGE_RESISTANCE : offsetPx;
 }
 
 function routeKeyFromParam(value: unknown): MiniRouteKey {
