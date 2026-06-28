@@ -71,6 +71,7 @@ export default function MainTabsPage() {
   const [navTracking, setNavTracking] = useState(false);
   const [refreshingRouteKey, setRefreshingRouteKey] = useState<MiniRouteKey | null>(null);
   const activeIndexRef = useRef(activeIndex);
+  const transitionBaseIndexRef = useRef<number | null>(null);
   const refreshHandlersRef = useRef(new Map<MiniRouteKey, () => Promise<void> | void>());
   const refreshingRouteKeyRef = useRef<MiniRouteKey | null>(null);
   const activePage = mainTabPages[activeIndex] ?? mainTabPages[0]!;
@@ -125,7 +126,7 @@ export default function MainTabsPage() {
     }
 
     setTabSwipeLocked(false);
-    commitActiveIndex(nextIndex);
+    commitActiveIndex(nextIndex, { syncNav: false });
   }
 
   function handleSwiperAnimationFinish(event: MainTabSwiperEvent) {
@@ -137,6 +138,7 @@ export default function MainTabsPage() {
 
     commitActiveIndex(nextIndex);
     setNavTracking(false);
+    transitionBaseIndexRef.current = null;
   }
 
   function handleSwiperTransition(event: MainTabSwiperEvent) {
@@ -152,19 +154,27 @@ export default function MainTabsPage() {
       return;
     }
 
-    const nextProgressIndex = clampTabProgress(activeIndexRef.current - dx / windowWidth);
+    if (transitionBaseIndexRef.current === null) {
+      transitionBaseIndexRef.current = activeIndexRef.current;
+    }
+
+    const nextProgressIndex = clampTabProgress(transitionBaseIndexRef.current + dx / windowWidth);
     setNavTracking(true);
     setNavProgressIndex(nextProgressIndex);
   }
 
-  function commitActiveIndex(nextIndex: number) {
+  function commitActiveIndex(nextIndex: number, options?: { syncNav?: boolean }) {
     if (!mainTabPages[nextIndex]) {
       return;
     }
 
     activeIndexRef.current = nextIndex;
     setActiveIndex(nextIndex);
-    setNavProgressIndex(nextIndex);
+
+    if (options?.syncNav !== false) {
+      transitionBaseIndexRef.current = null;
+      setNavProgressIndex(nextIndex);
+    }
   }
 
   function selectMainTournament(tournamentId: string): void {
