@@ -697,8 +697,9 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     tournament.name,
     apiBaseUrl,
   );
-  const [players, acknowledgements] = await Promise.all([
+  const [players, teams, acknowledgements] = await Promise.all([
     loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []),
+    loadTournamentTeams(apiBaseUrl, selectedTournamentId).catch(() => []),
     loadAcknowledgements(apiBaseUrl).catch(() => []),
   ]);
   await constantsPromise;
@@ -724,7 +725,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     acknowledgements,
     heroLeaderboards,
     players,
-    teams: [],
+    teams,
     featuredMatch: match,
     notice: null,
   };
@@ -1520,10 +1521,13 @@ function normalizeStanding(row: ApiStanding): StandingRow {
   const wins = row.seriesWins ?? 0;
   const draws = row.seriesDraws ?? 0;
   const losses = row.seriesLosses ?? 0;
+  const team = normalizeTeamBrief(row.team);
+  const fallbackTeamName = row.team?.name ?? row.team?.shortName ?? row.team?.short_name ?? "待定队伍";
 
   return {
     rank: row.rank ?? 0,
-    team: row.team?.name ?? "待定队伍",
+    teamId: team?.id ?? row.team?.id ?? "",
+    team: team?.name ?? fallbackTeamName,
     groupName: typeof row.groupName === "string" && row.groupName.trim().length > 0 ? row.groupName.trim() : null,
     score: draws > 0 ? `${wins}-${draws}-${losses}` : `${wins}-${losses}`,
     points: `${row.points ?? 0} 分`,

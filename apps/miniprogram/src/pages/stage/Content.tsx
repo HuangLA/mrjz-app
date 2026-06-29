@@ -8,9 +8,11 @@ import {
   loadStageRounds,
   loadStageStandings,
   loadTournament,
+  loadTournamentTeams,
   loadTournaments,
   setSelectedTournamentId,
 } from "../../api";
+import { SmartImage as Image } from "../../SmartImage";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import {
   PageShell,
@@ -31,6 +33,7 @@ import type {
   BracketNode,
   StageRound,
   StandingRow,
+  TeamListItem,
   TournamentDetail,
   TournamentOption,
 } from "../../types";
@@ -45,6 +48,7 @@ type StageCache = {
   selectedStageId: string;
   selectedTournamentId: string;
   standings: StandingRow[];
+  teams: TeamListItem[];
   tournaments: TournamentOption[];
 };
 
@@ -85,8 +89,12 @@ export function StageContent() {
   const [rounds, setRounds] = useState<StageRound[]>(() => initialCache?.rounds ?? []);
   const [standings, setStandings] = useState<StandingRow[]>(() => initialCache?.standings ?? []);
   const [bracket, setBracket] = useState<BracketNode[]>(() => initialCache?.bracket ?? []);
+  const [teams, setTeams] = useState<TeamListItem[]>(() => initialCache?.teams ?? []);
   const [activeStandingGroupKey, setActiveStandingGroupKey] = useState(
     () => initialViewState?.activeStandingGroupKey ?? "",
+  );
+  const [expandedStandingTeamKeys, setExpandedStandingTeamKeys] = useState<Set<string>>(
+    () => new Set(),
   );
   const viewStateKey = pageViewStateKey(
     "stage",
@@ -130,6 +138,10 @@ export function StageContent() {
     }
   }, [activeStandingGroupKey, standings, viewStateKey]);
 
+  useEffect(() => {
+    setExpandedStandingTeamKeys(new Set());
+  }, [selectedStageId, selectedTournamentId]);
+
   async function refresh(nextTournamentId?: string, options?: { force?: boolean }) {
     const storedTournamentId = getSelectedTournamentId();
     const requestedTournamentId = nextTournamentId ?? storedTournamentId;
@@ -150,6 +162,7 @@ export function StageContent() {
       setRounds(cached.rounds);
       setStandings(cached.standings);
       setBracket(cached.bracket);
+      setTeams(cached.teams ?? []);
       setLoading(false);
 
       if (cachedSelectedTournamentId && cachedSelectedTournamentId !== storedTournamentId) {
@@ -209,6 +222,7 @@ export function StageContent() {
           selectedStageId: "",
           selectedTournamentId: targetId,
           standings: [],
+          teams: [],
           tournaments: allTournaments,
         });
         applyStageViewState(targetId || "auto");
@@ -246,6 +260,20 @@ export function StageContent() {
     mergePageViewState<StageViewState>(viewStateKey, { activeStandingGroupKey: groupKey });
   }
 
+  function toggleStandingTeam(teamKey: string): void {
+    setExpandedStandingTeamKeys((current) => {
+      const next = new Set(current);
+
+      if (next.has(teamKey)) {
+        next.delete(teamKey);
+      } else {
+        next.add(teamKey);
+      }
+
+      return next;
+    });
+  }
+
   function applyStageViewState(tournamentId: string) {
     const key = pageViewStateKey("stage", tournamentId || "auto");
     const state = readPageViewState<StageViewState>(key);
@@ -276,10 +304,13 @@ export function StageContent() {
       const cacheKey = pageCacheKey("stage", tournamentIdForState);
       const stateKey = pageViewStateKey("stage", tournamentIdForState);
       const cached = readPageCache<StageCache>(cacheKey);
-      const [roundsResult, standingsResult, bracketResult] = await Promise.allSettled([
+      const [roundsResult, standingsResult, bracketResult, teamsResult] = await Promise.allSettled([
         loadStageRounds(stageId),
         loadStageStandings(stageId),
         loadStageBracket(stageId),
+        tournamentIdForState && tournamentIdForState !== "auto"
+          ? loadTournamentTeams(tournamentIdForState)
+          : Promise.resolve([]),
       ]);
       const nextRounds =
         roundsResult.status === "fulfilled" ? roundsResult.value : (cached?.rounds ?? []);
@@ -287,10 +318,13 @@ export function StageContent() {
         standingsResult.status === "fulfilled" ? standingsResult.value : (cached?.standings ?? []);
       const nextBracket =
         bracketResult.status === "fulfilled" ? bracketResult.value : (cached?.bracket ?? []);
+      const nextTeams =
+        teamsResult.status === "fulfilled" ? teamsResult.value : (cached?.teams ?? teams);
 
       setRounds(nextRounds);
       setStandings(nextStandings);
       setBracket(nextBracket);
+      setTeams(nextTeams);
       mergePageViewState<StageViewState>(stateKey, { selectedStageId: stageId });
       writePageCache(cacheKey, {
         bracket: nextBracket,
@@ -299,6 +333,7 @@ export function StageContent() {
         selectedStageId: stageId,
         selectedTournamentId: context?.selectedTournamentId ?? selectedTournamentId,
         standings: nextStandings,
+        teams: nextTeams,
         tournaments: context?.tournaments ?? tournaments,
       });
       restorePageScroll(stateKey);
@@ -314,6 +349,7 @@ export function StageContent() {
     standingGroups.find((group) => group.key === activeStandingGroupKey) ??
     standingGroups[0] ??
     null;
+  const standingMemberLookup = buildStandingMemberLookup(teams);
   const isGroupStage = selectedStage?.type === "group";
   const isKnockoutStage = selectedStage?.type === "knockout";
 
@@ -384,12 +420,19 @@ export function StageContent() {
               ) : null}
               <View className="standing-list">
                 {activeStandingGroup && activeStandingGroup.rows.length > 0 ? (
-                  activeStandingGroup.rows.map((row) => (
-                    <StandingRowItem
-                      key={`${row.groupName ?? "all"}-${row.teamId}-${row.rank}`}
-                      row={row}
-                    />
-                  ))
+                  activeStandingGroup.rows.map((row) => {
+                    const rowKey = standingRowKey(row);
+
+                    return (
+                      <StandingRowItem
+                        key={`${row.groupName ?? "all"}-${rowKey}-${row.rank}`}
+                        row={row}
+                        members={standingMembersForRow(row, standingMemberLookup)}
+                        expanded={expandedStandingTeamKeys.has(rowKey)}
+                        onToggle={() => toggleStandingTeam(rowKey)}
+                      />
+                    );
+                  })
                 ) : (
                   <View className="content-panel">
                     <Text className="muted">暂无</Text>
@@ -779,17 +822,142 @@ function groupStandingRows(
   }));
 }
 
-function StandingRowItem(props: { row: StandingRow }) {
+type StandingTeamMember = TeamListItem["members"][number];
+type StandingMemberLookup = Map<string, StandingTeamMember[]>;
+
+function StandingRowItem(props: {
+  row: StandingRow;
+  members: StandingTeamMember[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const { row } = props;
+  const visibleMembers = props.members.slice(0, 6);
 
   return (
-    <View className="standing-row">
-      <Text className="rank">{row.rank}</Text>
-      <Text>{teamName(row.team)}</Text>
-      <Text>
-        {row.seriesWins}-{row.seriesDraws}-{row.seriesLosses}
-      </Text>
-      <Text>{row.points} 分</Text>
+    <View className={`standing-row-card ${props.expanded ? "is-expanded" : ""}`}>
+      <View className="standing-row" onClick={props.onToggle}>
+        <Text className="rank">{row.rank}</Text>
+        <Text>{teamName(row.team)}</Text>
+        <Text>
+          {row.seriesWins}-{row.seriesDraws}-{row.seriesLosses}
+        </Text>
+        <Text>{row.points} 分</Text>
+        <View className="standing-row-chevron" />
+      </View>
+      {props.expanded ? (
+        visibleMembers.length > 0 ? (
+          <View className="standing-members">
+            {visibleMembers.map((member) => (
+              <View className="standing-member" key={member.id || member.displayName}>
+                <StandingMemberAvatar member={member} />
+                <Text className="standing-member-id">{standingMemberDisplayId(member)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View className="standing-members empty">
+            <Text>暂无队员</Text>
+          </View>
+        )
+      ) : null}
     </View>
   );
+}
+
+function StandingMemberAvatar(props: { member: StandingTeamMember }) {
+  const { member } = props;
+  const initial = standingMemberDisplayId(member).slice(0, 1).toUpperCase() || "选";
+
+  return (
+    <View className={`standing-member-avatar ${member.avatarUrl ? "" : "fallback"}`.trim()}>
+      {member.avatarUrl ? (
+        <Image mode="aspectFill" src={member.avatarUrl} />
+      ) : (
+        <Text>{initial}</Text>
+      )}
+    </View>
+  );
+}
+
+function buildStandingMemberLookup(teams: TeamListItem[]): StandingMemberLookup {
+  const lookup: StandingMemberLookup = new Map();
+
+  for (const team of teams) {
+    addStandingMembers(lookup, standingTeamLookupKeys(team), team.members);
+  }
+
+  return lookup;
+}
+
+function standingMembersForRow(row: StandingRow, lookup: StandingMemberLookup): StandingTeamMember[] {
+  for (const key of standingTeamLookupKeys({
+    id: row.teamId,
+    name: teamName(row.team),
+    shortName: row.team.shortName ?? null,
+  })) {
+    const members = lookup.get(key);
+
+    if (members && members.length > 0) {
+      return members;
+    }
+  }
+
+  return [];
+}
+
+function standingRowKey(row: StandingRow): string {
+  return row.teamId || `${row.groupName ?? "all"}:${teamName(row.team)}`;
+}
+
+function standingTeamLookupKeys(team: { id?: string | null; name?: string | null; shortName?: string | null }): string[] {
+  const keys: string[] = [];
+
+  if (team.id) {
+    keys.push(`id:${team.id}`);
+  }
+
+  for (const value of [team.name, team.shortName]) {
+    const normalized = normalizeStandingLookupValue(value);
+
+    if (normalized) {
+      keys.push(`name:${normalized}`);
+    }
+  }
+
+  return [...new Set(keys)];
+}
+
+function addStandingMembers(
+  lookup: StandingMemberLookup,
+  keys: string[],
+  members: StandingTeamMember[],
+): void {
+  if (keys.length === 0 || members.length === 0) {
+    return;
+  }
+
+  for (const key of keys) {
+    const current = lookup.get(key) ?? [];
+    const seen = new Set(current.map((member) => member.id || member.displayName));
+
+    for (const member of members) {
+      const memberKey = member.id || member.displayName;
+
+      if (!seen.has(memberKey)) {
+        current.push(member);
+        seen.add(memberKey);
+      }
+    }
+
+    lookup.set(key, current);
+  }
+}
+
+function normalizeStandingLookupValue(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function standingMemberDisplayId(member: StandingTeamMember): string {
+  return member.displayName || (member.accountId === null ? "未登记" : String(member.accountId));
 }

@@ -233,6 +233,7 @@ export interface TournamentMeta {
 
 export interface StandingRow {
   rank: number;
+  teamId: string;
   team: string;
   groupName: string | null;
   score: string;

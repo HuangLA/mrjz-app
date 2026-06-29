@@ -3041,7 +3041,7 @@ button[disabled] {
 
 .standing-list {
   display: grid;
-  gap: 4px;
+  gap: 0;
 }
 
 .standing-tabs {
@@ -3060,19 +3060,96 @@ button[disabled] {
   opacity: 0.72;
 }
 
+.standing-row-card {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 .standing-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto 12px;
   gap: 6px;
   align-items: center;
   padding: 6px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
   font-size: 10px;
 }
 
-.standing-row > text:not(.rank):not(.status-tag) {
+.standing-row > text:not(.rank):not(.status-tag):not(.standing-row-chevron) {
   overflow: hidden;
   color: #c9d4e6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standing-row-chevron {
+  justify-self: center;
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid #8e99ac;
+  border-bottom: 1px solid #8e99ac;
+  transform: rotate(45deg);
+}
+
+.standing-row-card.is-expanded .standing-row-chevron {
+  border-color: #f1c15f;
+  transform: rotate(225deg);
+}
+
+.standing-members {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px 0 8px 28px;
+}
+
+.standing-members.empty {
+  grid-template-columns: 1fr;
+  color: #8e99ac;
+  font-size: 9px;
+}
+
+.standing-member {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  justify-items: center;
+}
+
+.standing-member-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 999px;
+  background:
+    linear-gradient(145deg, rgba(240, 195, 106, 0.28), rgba(101, 181, 255, 0.14)),
+    rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 6px 14px rgba(0, 0, 0, 0.22);
+}
+
+.standing-member-avatar image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.standing-member-avatar.fallback text {
+  color: #ffe7ae;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.standing-member-id {
+  max-width: 100%;
+  overflow: hidden;
+  color: #c9d4e6;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

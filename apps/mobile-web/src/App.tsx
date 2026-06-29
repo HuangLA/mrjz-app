@@ -934,7 +934,9 @@ function StagePage({
   const currentStage = data.stageViews[activeStageKey];
   const standingGroups = useMemo(() => groupStandingRows(currentStage.standings), [currentStage.standings]);
   const [activeStandingGroupKey, setActiveStandingGroupKey] = useState("");
+  const [expandedStandingTeamKeys, setExpandedStandingTeamKeys] = useState<Set<string>>(() => new Set());
   const activeStandingGroup = standingGroups.find((group) => group.key === activeStandingGroupKey) ?? standingGroups[0] ?? null;
+  const standingTeamMembers = useMemo(() => buildStandingTeamMemberLookup(data), [data.players, data.teams]);
 
   useEffect(() => {
     if (data.officialSchedule.isPublished && activeStageKey !== stage) {
@@ -949,6 +951,24 @@ function StagePage({
       setActiveStandingGroupKey(nextKey);
     }
   }, [activeStandingGroup?.key, activeStandingGroupKey]);
+
+  useEffect(() => {
+    setExpandedStandingTeamKeys(new Set());
+  }, [activeStageKey, data.selectedTournamentId]);
+
+  const toggleStandingTeam = useCallback((teamKey: string) => {
+    setExpandedStandingTeamKeys((current) => {
+      const next = new Set(current);
+
+      if (next.has(teamKey)) {
+        next.delete(teamKey);
+      } else {
+        next.add(teamKey);
+      }
+
+      return next;
+    });
+  }, []);
 
   if (!data.officialSchedule.isPublished) {
     return (
@@ -1053,7 +1073,19 @@ function StagePage({
           ) : null}
           <div className="standing-list">
             {activeStandingGroup && activeStandingGroup.rows.length > 0 ? (
-              activeStandingGroup.rows.map((row) => <StandingRow key={`${row.groupName ?? "all"}:${row.rank}:${row.team}`} row={row} />)
+              activeStandingGroup.rows.map((row) => {
+                const rowKey = standingRowKey(row);
+
+                return (
+                  <StandingRow
+                    key={`${row.groupName ?? "all"}:${rowKey}:${row.rank}`}
+                    row={row}
+                    members={standingMembersForRow(row, standingTeamMembers)}
+                    expanded={expandedStandingTeamKeys.has(rowKey)}
+                    onToggle={() => toggleStandingTeam(rowKey)}
+                  />
+                );
+              })
             ) : (
               <EmptyState text="暂无" />
             )}
@@ -3500,24 +3532,159 @@ function seededUnit(seed: string): number {
   return ((hash >>> 0) % 10000) / 10000;
 }
 
+type StandingTeamMember = Pick<PlayerDirectoryItem, "id" | "accountId" | "displayName" | "avatarUrl">;
+type StandingTeamMemberLookup = Map<string, StandingTeamMember[]>;
+
 function StandingRow({
   row,
+  members,
+  expanded,
+  onToggle,
 }: {
-  row: {
-    rank: number;
-    team: string;
-    score: string;
-    points: string;
-  };
+  row: StageView["standings"][number];
+  members: StandingTeamMember[];
+  expanded: boolean;
+  onToggle: () => void;
 }) {
+  const visibleMembers = members.slice(0, 6);
+
   return (
-    <div className="standing-row">
-      <span className="rank">{row.rank}</span>
-      <b>{row.team}</b>
-      <span>{row.score}</span>
-      <span>{row.points}</span>
+    <div className={`standing-row-card ${expanded ? "is-expanded" : ""}`}>
+      <button className="standing-row" type="button" aria-expanded={expanded} onClick={onToggle}>
+        <span className="rank">{row.rank}</span>
+        <b>{row.team}</b>
+        <span>{row.score}</span>
+        <span>{row.points}</span>
+        <span className="standing-row-chevron" aria-hidden="true" />
+      </button>
+      {expanded ? (
+        visibleMembers.length > 0 ? (
+          <div className="standing-members" aria-label={`${row.team} 队员`}>
+            {visibleMembers.map((member) => (
+              <div className="standing-member" key={member.id || member.displayName}>
+                <StandingMemberAvatar member={member} />
+                <span className="standing-member-id">{standingMemberDisplayId(member)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="standing-members empty">暂无队员</div>
+        )
+      ) : null}
     </div>
   );
+}
+
+function StandingMemberAvatar({ member }: { member: StandingTeamMember }) {
+  const [failed, setFailed] = useState(false);
+  const initial = standingMemberDisplayId(member).slice(0, 1).toUpperCase() || "选";
+
+  useEffect(() => {
+    setFailed(false);
+  }, [member.avatarUrl]);
+
+  if (!member.avatarUrl || failed) {
+    return (
+      <span className="standing-member-avatar fallback" aria-hidden="true">
+        {initial}
+      </span>
+    );
+  }
+
+  return (
+    <span className="standing-member-avatar">
+      <img src={member.avatarUrl} alt="" loading="lazy" onError={() => setFailed(true)} />
+    </span>
+  );
+}
+
+function buildStandingTeamMemberLookup(data: MobileData): StandingTeamMemberLookup {
+  const lookup: StandingTeamMemberLookup = new Map();
+
+  for (const team of data.teams) {
+    addStandingTeamMembers(lookup, standingTeamLookupKeys(team), team.members);
+  }
+
+  for (const player of data.players) {
+    const teams = player.currentTeam ? [player.currentTeam] : player.teams;
+
+    for (const team of teams) {
+      addStandingTeamMembers(lookup, standingTeamLookupKeys(team), [player]);
+    }
+  }
+
+  return lookup;
+}
+
+function standingMembersForRow(
+  row: StageView["standings"][number],
+  lookup: StandingTeamMemberLookup,
+): StandingTeamMember[] {
+  for (const key of standingTeamLookupKeys({ id: row.teamId, name: row.team, shortName: row.team })) {
+    const members = lookup.get(key);
+
+    if (members && members.length > 0) {
+      return members;
+    }
+  }
+
+  return [];
+}
+
+function standingRowKey(row: StageView["standings"][number]): string {
+  return row.teamId || `${row.groupName ?? "all"}:${row.team}`;
+}
+
+function standingTeamLookupKeys(team: { id?: string | null; name?: string | null; shortName?: string | null }): string[] {
+  const keys: string[] = [];
+
+  if (team.id) {
+    keys.push(`id:${team.id}`);
+  }
+
+  for (const value of [team.name, team.shortName]) {
+    const normalized = normalizeStandingLookupValue(value);
+
+    if (normalized) {
+      keys.push(`name:${normalized}`);
+    }
+  }
+
+  return [...new Set(keys)];
+}
+
+function addStandingTeamMembers(
+  lookup: StandingTeamMemberLookup,
+  keys: string[],
+  members: StandingTeamMember[],
+): void {
+  if (keys.length === 0 || members.length === 0) {
+    return;
+  }
+
+  for (const key of keys) {
+    const current = lookup.get(key) ?? [];
+    const seen = new Set(current.map((member) => member.id || member.displayName));
+
+    for (const member of members) {
+      const memberKey = member.id || member.displayName;
+
+      if (!seen.has(memberKey)) {
+        current.push(member);
+        seen.add(memberKey);
+      }
+    }
+
+    lookup.set(key, current);
+  }
+}
+
+function normalizeStandingLookupValue(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function standingMemberDisplayId(member: StandingTeamMember): string {
+  return member.displayName || (member.accountId === null ? "未登记" : String(member.accountId));
 }
 
 function groupStandingRows(rows: StageView["standings"]): Array<{ key: string; label: string; rows: StageView["standings"] }> {
