@@ -29,6 +29,7 @@ import {
   getAppUserStats,
   getOfficialScheduleManagement,
   getOfficialSchedulePublicStatus,
+  getPlayerAvatarUrlByAccountId,
   getStageBracket,
   listStageGroups,
   getStageRounds,
@@ -89,7 +90,7 @@ import { fileURLToPath } from "node:url";
 import { resolveDatabasePath } from "../db/client.js";
 import { resolvePlayerProfileBySteamId } from "../opendota/playerProfiles.js";
 import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
-import { readSteamAvatarCache } from "../opendota/steamAvatarCache.js";
+import { cacheSteamAvatar, readSteamAvatarCache } from "../opendota/steamAvatarCache.js";
 import { readJsonBody } from "./body.js";
 import { binary, json, ok, fail } from "./responses.js";
 import { Router, type RouteGuardContext } from "./router.js";
@@ -124,6 +125,10 @@ const acknowledgementImageExtensions: Record<string, string> = {
   "image/png": ".png",
   "image/webp": ".webp",
 };
+const transparentAvatarPlaceholder = Buffer.from(
+  "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+  "base64",
+);
 const adminLoginRateLimiter = createFixedWindowRateLimiter(
   readPositiveInteger(process.env.ADMIN_LOGIN_RATE_LIMIT_MAX, 20),
   readPositiveInteger(process.env.ADMIN_LOGIN_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
@@ -323,10 +328,22 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
 
   router.get("/api/assets/steam-avatars/:filename", async ({ params }) => {
     const accountId = Number((params.filename ?? "").replace(/\.jpg$/i, ""));
-    const avatar = await readSteamAvatarCache(accountId);
+    let avatar = await readSteamAvatarCache(accountId);
 
     if (avatar === null) {
-      return fail(404, "STEAM_AVATAR_NOT_FOUND", "Steam avatar cache not found");
+      const avatarUrl = getPlayerAvatarUrlByAccountId(accountId);
+
+      if (isFetchableSteamAvatarSource(avatarUrl, accountId)) {
+        await cacheSteamAvatar(accountId, avatarUrl).catch(() => false);
+        avatar = await readSteamAvatarCache(accountId);
+      }
+    }
+
+    if (avatar === null) {
+      return binary(200, transparentAvatarPlaceholder, {
+        "content-type": "image/gif",
+        "cache-control": "public, max-age=300",
+      });
     }
 
     return binary(200, avatar.bytes, {
@@ -1030,6 +1047,22 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   return router;
+}
+
+function isFetchableSteamAvatarSource(avatarUrl: string | null, accountId: number): avatarUrl is string {
+  if (avatarUrl === null || !Number.isSafeInteger(accountId) || accountId <= 0) {
+    return false;
+  }
+
+  try {
+    const url = new URL(avatarUrl);
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      !url.pathname.toLowerCase().includes(`/api/assets/steam-avatars/${accountId}.jpg`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function serveDotaAsset(params: Record<string, string>) {

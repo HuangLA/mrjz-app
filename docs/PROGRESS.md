@@ -110,6 +110,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序首页社区支持名单继续微调真机排版：头像与下方 ID 的竖向间距略增，并给 ID 文本增加微信端稳定生效的顶部外边距和中文行高，避免圆形头像边缘轻微遮挡中文 ID。
 - 小程序远端 API 请求 timeout 继续加固：公开 GET 请求超时从 12 秒提高到 25 秒，并对 timeout 自动间隔 500ms 重试一次；POST / PATCH / DELETE 不重试，避免登录、标签和点赞重复写入。
 - 小程序 timeout 定位到外域 Steam 头像加载风险：远端 API JSON 接口本机实测均在 500ms 内返回，剩余微信控制台 timeout 更可能来自 `avatars.steamstatic.com` 图片下载；小程序端现将选手头像统一改写为后端缓存代理 `/api/assets/steam-avatars/{accountId}.jpg`，并为微信登录、API 请求和图片加载失败增加 `[MRJZ login]` / `[MRJZ request]` / `[MRJZ image]` 诊断日志。
+- API Steam 头像代理补强：缓存 miss 时会按账号数据库原始头像 URL 即时补缓存，仍不可用时返回 200 透明占位图，避免小程序渲染层因单个缺失头像报 404 网络错误。
 - 小程序赛程页未发布空态对齐赛事阶段页：撤回或未发布官方赛程时改用同款 `content-panel` + `muted` 说明，不再额外展示标题栏和状态胶囊。
 - 小程序构建启用微信组件按需注入：`app.config.ts` 增加 `lazyCodeLoading: "requiredComponents"`，构建后的 `dist/app.json` 已生成对应字段，用于通过微信开发者工具 / 上传质量检查。
 - 小程序公共页页面快照缓存已回退：此前 5 分钟新鲜度策略不再启用，首页、赛事阶段、赛程、比赛记录、比赛详情、英雄榜、选手、队伍和详情页都会重新请求接口。

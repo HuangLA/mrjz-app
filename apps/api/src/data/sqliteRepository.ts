@@ -7964,6 +7964,18 @@ export class SqliteTournamentRepository {
       .run(opendotaTeamId, teamId);
   }
 
+  getPlayerAvatarUrlByAccountId(accountId: number): string | null {
+    if (!Number.isSafeInteger(accountId) || accountId <= 0) {
+      return null;
+    }
+
+    const row = this.database
+      .prepare("SELECT avatar_url FROM players WHERE account_id = ?")
+      .get(accountId) as DbRow | undefined;
+
+    return row === undefined ? null : nullableText(row, "avatar_url");
+  }
+
   private getPlayerByAccountId(accountId: number): PlayerBrief | undefined {
     const row = this.database.prepare("SELECT * FROM players WHERE account_id = ?").get(accountId);
 

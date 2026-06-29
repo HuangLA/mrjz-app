@@ -108,6 +108,7 @@ type Repository = {
   listTournamentTeams(tournamentId: string): TournamentTeamListItem[] | undefined;
   listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
   listTournamentHeroLeaderboards(tournamentId: string): TournamentHeroLeaderboardsView | undefined;
+  getPlayerAvatarUrlByAccountId(accountId: number): string | null;
   getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined;
   getTournamentPlayerDetail(
     tournamentId: string,
@@ -278,6 +279,10 @@ export function listTournamentPlayers(tournamentId: string) {
 
 export function listTournamentHeroLeaderboards(tournamentId: string) {
   return repository.listTournamentHeroLeaderboards(tournamentId);
+}
+
+export function getPlayerAvatarUrlByAccountId(accountId: number) {
+  return repository.getPlayerAvatarUrlByAccountId(accountId);
 }
 
 export function getTournamentTeamDetail(tournamentId: string, teamId: string) {
