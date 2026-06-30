@@ -183,6 +183,8 @@ interface TeamDraftForm {
   name: string;
   shortName: string;
   logoUrl: string;
+  logoImageDataUrl: string | null;
+  logoPreviewUrl: string | null;
   color: string;
   opendotaTeamId: string;
 }
@@ -231,6 +233,7 @@ const DEFAULT_GROUP_COUNT = 1;
 const MIN_GROUP_COUNT = 1;
 const MAX_GROUP_COUNT = 16;
 const MAX_ACKNOWLEDGEMENT_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_TEAM_LOGO_IMAGE_BYTES = 2 * 1024 * 1024;
 const GROUP_COUNT_PRESETS = [1, 2, 3, 4, 5, 6] as const;
 const SERIES_FOCUS_EVENT = "mrjz:focus-series-row";
 const BRACKET_NEXT_FOCUS_EVENT = "mrjz:focus-bracket-next";
@@ -7303,7 +7306,7 @@ function groupTagsForAdmin(tags: PlayerTagModerationItem[]): Array<{ status: Pla
 
 function TeamManagementView({ data, reload, setNotice }: { data: AdminData; reload: () => Promise<void>; setNotice: React.Dispatch<React.SetStateAction<{ tone: Tone; text: string } | null>> }) {
   const [query, setQuery] = useState("");
-  const [createDraft, setCreateDraft] = useState<TeamDraftForm>({ name: "", shortName: "", logoUrl: "", color: "#2f7d57", opendotaTeamId: "" });
+  const [createDraft, setCreateDraft] = useState<TeamDraftForm>(emptyTeamDraft);
   const [editDrafts, setEditDrafts] = useState<Record<string, TeamDraftForm>>({});
   const [memberDrafts, setMemberDrafts] = useState<Record<string, string>>({});
   const [activeTeamId, setActiveTeamId] = useState("");
@@ -7316,7 +7319,7 @@ function TeamManagementView({ data, reload, setNotice }: { data: AdminData; relo
   const normalizedQuery = query.trim().toLowerCase();
   const visibleTeams = data.teams.filter((team) => {
     if (!normalizedQuery) return true;
-    return [team.name, team.shortName, ...team.members.map((member) => member.displayName), ...team.members.map((member) => member.steamId64 ?? ""), ...team.members.map((member) => member.accountId?.toString() ?? "")]
+    return [team.name, team.shortName, team.opendotaTeamId?.toString() ?? "", ...team.members.map((member) => member.displayName), ...team.members.map((member) => member.steamId64 ?? ""), ...team.members.map((member) => member.accountId?.toString() ?? "")]
       .join(" ")
       .toLowerCase()
       .includes(normalizedQuery);
@@ -7331,6 +7334,31 @@ function TeamManagementView({ data, reload, setNotice }: { data: AdminData; relo
     return result;
   };
 
+  const chooseTeamLogo = async (
+    file: File | undefined,
+    patch: (next: Partial<TeamDraftForm>) => void,
+    input: HTMLInputElement,
+  ) => {
+    input.value = "";
+
+    if (file === undefined) {
+      return;
+    }
+
+    if (file.size > MAX_TEAM_LOGO_IMAGE_BYTES) {
+      setNotice({ tone: "warn", text: "战队 Logo 不能超过 2MB。" });
+      return;
+    }
+
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setNotice({ tone: "warn", text: "战队 Logo 只支持 PNG、JPG 或 WebP。" });
+      return;
+    }
+
+    const dataUrl = await readFileAsDataUrl(file);
+    patch({ logoImageDataUrl: dataUrl, logoPreviewUrl: dataUrl, logoUrl: "" });
+  };
+
   const createTeam = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = createDraft.name.trim();
@@ -7338,15 +7366,17 @@ function TeamManagementView({ data, reload, setNotice }: { data: AdminData; relo
       setNotice({ tone: "warn", text: "战队名称不能为空。" });
       return;
     }
-    await runTeamAction("创建战队", "POST", "/teams", {
+    const result = await runTeamAction("创建战队", "POST", "/teams", teamPayload(createDraft, {
       tournamentId: data.selectedTournamentId,
       name,
       shortName: createDraft.shortName.trim() || undefined,
-      logoUrl: createDraft.logoUrl.trim() || null,
       color: createDraft.color || "#2f7d57",
       opendotaTeamId: numberFromDraft(createDraft.opendotaTeamId),
-    });
-    setCreateDraft({ name: "", shortName: "", logoUrl: "", color: "#2f7d57", opendotaTeamId: "" });
+    }));
+
+    if (result.ok) {
+      setCreateDraft(emptyTeamDraft());
+    }
   };
 
   const saveTeam = async (team: TournamentTeamListItem) => {
@@ -7355,13 +7385,12 @@ function TeamManagementView({ data, reload, setNotice }: { data: AdminData; relo
       setNotice({ tone: "warn", text: "战队名称不能为空。" });
       return;
     }
-    await runTeamAction("保存战队资料", "PATCH", `/teams/${encodeURIComponent(team.id)}`, {
+    await runTeamAction("保存战队资料", "PATCH", `/teams/${encodeURIComponent(team.id)}`, teamPayload(draft, {
       name: draft.name.trim(),
       shortName: draft.shortName.trim() || draft.name.trim(),
-      logoUrl: draft.logoUrl.trim() || null,
       color: draft.color || "#64748b",
       opendotaTeamId: numberFromDraft(draft.opendotaTeamId),
-    });
+    }));
   };
 
   const addMember = async (team: TournamentTeamListItem) => {
@@ -7413,6 +7442,7 @@ function TeamManagementView({ data, reload, setNotice }: { data: AdminData; relo
                 saveTeam={() => void saveTeam(team)}
                 addMember={() => void addMember(team)}
                 removeMember={(player) => void removeMember(team, player)}
+                chooseLogo={(file, patch, input) => void chooseTeamLogo(file, patch, input)}
               />
             ))}
           </div>
@@ -7422,7 +7452,16 @@ function TeamManagementView({ data, reload, setNotice }: { data: AdminData; relo
             <div className="panel-kicker"><Plus size={15} /> 新建战队</div>
             <label>完整队名<input value={createDraft.name} onChange={(event) => setCreateDraft((current) => ({ ...current, name: event.target.value }))} placeholder="例如：每日节奏一队" /></label>
             <label>简称<input value={createDraft.shortName} onChange={(event) => setCreateDraft((current) => ({ ...current, shortName: event.target.value }))} placeholder="可留空，系统自动生成" /></label>
-            <label>Logo URL<input value={createDraft.logoUrl} onChange={(event) => setCreateDraft((current) => ({ ...current, logoUrl: event.target.value }))} placeholder="可手动粘贴头像链接" /></label>
+            <label>Logo URL<input value={createDraft.logoUrl} onChange={(event) => setCreateDraft((current) => ({ ...current, logoUrl: event.target.value, logoImageDataUrl: null, logoPreviewUrl: null }))} placeholder="可手动粘贴头像链接" /></label>
+            <TeamLogoPicker
+              draft={createDraft}
+              fallbackLabel={createDraft.shortName || createDraft.name || "?"}
+              color={createDraft.color}
+              uploadLabel="上传 Logo"
+              clearLabel="清除 Logo"
+              setDraft={(patch) => setCreateDraft((current) => ({ ...current, ...patch }))}
+              chooseLogo={chooseTeamLogo}
+            />
             <div className="split-inputs"><label>颜色<input type="color" value={createDraft.color} onChange={(event) => setCreateDraft((current) => ({ ...current, color: event.target.value }))} /></label><label>OpenDota 队伍 ID<input inputMode="numeric" value={createDraft.opendotaTeamId} onChange={(event) => setCreateDraft((current) => ({ ...current, opendotaTeamId: event.target.value }))} placeholder="可选" /></label></div>
             <button className="primary-button full" type="submit"><Plus size={15} /> 创建并加入当前届次</button>
           </form>
@@ -7454,6 +7493,11 @@ function TeamManagementCard(props: {
   saveTeam: () => void;
   addMember: () => void;
   removeMember: (player: PlayerBrief) => void;
+  chooseLogo: (
+    file: File | undefined,
+    patch: (next: Partial<TeamDraftForm>) => void,
+    input: HTMLInputElement,
+  ) => void;
 }) {
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -7467,12 +7511,21 @@ function TeamManagementCard(props: {
         <summary>
           <span>资料编辑</span>
           <strong>{props.draft.shortName || props.team.shortName || "未填简称"}</strong>
-          <small>Logo / 颜色 / OpenDota</small>
+          <small>{props.team.opendotaTeamId ? `OpenDota ${props.team.opendotaTeamId}` : "Logo / 颜色 / OpenDota"}</small>
         </summary>
         {profileOpen ? <div className="team-edit-grid">
           <label>队名<input value={props.draft.name} onChange={(event) => props.setDraft({ name: event.target.value })} /></label>
           <label>简称<input value={props.draft.shortName} onChange={(event) => props.setDraft({ shortName: event.target.value })} /></label>
-          <label>Logo<input value={props.draft.logoUrl} onChange={(event) => props.setDraft({ logoUrl: event.target.value })} placeholder="可留空" /></label>
+          <label>Logo<input value={props.draft.logoUrl} onChange={(event) => props.setDraft({ logoUrl: event.target.value, logoImageDataUrl: null, logoPreviewUrl: null })} placeholder="可留空" /></label>
+          <TeamLogoPicker
+            draft={props.draft}
+            fallbackLabel={props.draft.shortName || props.draft.name || props.team.name}
+            color={props.draft.color || props.team.color}
+            uploadLabel="替换 Logo"
+            clearLabel="清除 Logo"
+            setDraft={props.setDraft}
+            chooseLogo={props.chooseLogo}
+          />
           <label>颜色<input type="color" value={props.draft.color} onChange={(event) => props.setDraft({ color: event.target.value })} /></label>
           <label>OpenDota ID<input inputMode="numeric" value={props.draft.opendotaTeamId} onChange={(event) => props.setDraft({ opendotaTeamId: event.target.value })} placeholder="可选" /></label>
           <button type="button" className="secondary-button save-team-button" onClick={props.saveTeam}><Check size={14} /> 保存资料</button>
@@ -7687,10 +7740,58 @@ function AcknowledgementManagementView({
 }
 
 function TeamIdentity({ team, size = "normal" }: { team: TeamBrief; size?: "normal" | "large" }) {
+  const logoUrl = resolveAdminAssetUrl(team.logoUrl ?? null);
+
   return (
     <div className={`team-identity team-identity-${size}`}>
-      {team.logoUrl ? <img src={team.logoUrl} alt="" /> : <div className="team-avatar" style={{ background: team.color }}>{team.name.slice(0, 1)}</div>}
+      {logoUrl ? <img src={logoUrl} alt="" /> : <div className="team-avatar" style={{ background: team.color }}>{team.name.slice(0, 1)}</div>}
       <div><strong>{team.name}</strong><small>{team.shortName}</small></div>
+    </div>
+  );
+}
+
+function TeamLogoPicker(props: {
+  draft: TeamDraftForm;
+  fallbackLabel: string;
+  color: string;
+  uploadLabel: string;
+  clearLabel: string;
+  setDraft: (patch: Partial<TeamDraftForm>) => void;
+  chooseLogo: (
+    file: File | undefined,
+    patch: (next: Partial<TeamDraftForm>) => void,
+    input: HTMLInputElement,
+  ) => void;
+}) {
+  const previewUrl = props.draft.logoPreviewUrl ?? resolveAdminAssetUrl(props.draft.logoUrl);
+  const fallback = props.fallbackLabel.slice(0, 2).toUpperCase() || "?";
+
+  return (
+    <div className="team-logo-picker">
+      {previewUrl ? (
+        <img src={previewUrl} alt="" />
+      ) : (
+        <span style={{ background: props.color }}>{fallback}</span>
+      )}
+      <div className="team-logo-picker-actions">
+        <label className="ack-file-button">
+          <ImagePlus size={14} /> {props.uploadLabel}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(event) =>
+              props.chooseLogo(event.currentTarget.files?.[0], props.setDraft, event.currentTarget)
+            }
+          />
+        </label>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => props.setDraft({ logoImageDataUrl: null, logoPreviewUrl: null, logoUrl: "" })}
+        >
+          <X size={14} /> {props.clearLabel}
+        </button>
+      </div>
     </div>
   );
 }
@@ -8783,19 +8884,45 @@ function matchesSeriesQuery(series: SeriesSummary, query: string): boolean {
   return searchable.includes(query);
 }
 
+function emptyTeamDraft(): TeamDraftForm {
+  return {
+    name: "",
+    shortName: "",
+    logoUrl: "",
+    logoImageDataUrl: null,
+    logoPreviewUrl: null,
+    color: "#2f7d57",
+    opendotaTeamId: "",
+  };
+}
+
 function teamToDraft(team: TeamBrief): TeamDraftForm {
   return {
     name: team.name,
     shortName: team.shortName,
     logoUrl: team.logoUrl ?? "",
+    logoImageDataUrl: null,
+    logoPreviewUrl: resolveAdminAssetUrl(team.logoUrl ?? null),
     color: team.color || "#64748b",
-    opendotaTeamId: "",
+    opendotaTeamId: team.opendotaTeamId?.toString() ?? "",
   };
 }
 
-function numberFromDraft(value: string): number | undefined {
+function teamPayload(
+  draft: TeamDraftForm,
+  base: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...base,
+    ...(draft.logoImageDataUrl !== null
+      ? { logoImageDataUrl: draft.logoImageDataUrl }
+      : { logoUrl: draft.logoUrl.trim() || null }),
+  };
+}
+
+function numberFromDraft(value: string): number | null | undefined {
   const trimmed = value.trim();
-  if (!trimmed) return undefined;
+  if (!trimmed) return null;
   const parsed = Number(trimmed);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }

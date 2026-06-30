@@ -39,6 +39,7 @@ const FALLBACK_TEAMS: Record<TeamSide, TeamBrief> = {
     id: "radiant",
     name: "天辉",
     shortName: "RADIANT",
+    opendotaTeamId: null,
     logoUrl: null,
     color: "#34d399",
   },
@@ -46,6 +47,7 @@ const FALLBACK_TEAMS: Record<TeamSide, TeamBrief> = {
     id: "dire",
     name: "夜魇",
     shortName: "DIRE",
+    opendotaTeamId: null,
     logoUrl: null,
     color: "#f87171",
   },
@@ -159,6 +161,7 @@ function teamFromRaw(side: TeamSide, raw: OpenDotaMatchDetail): TeamBrief {
   return {
     ...fallback,
     id: typeof teamId === "number" ? `${side}_${teamId}` : fallback.id,
+    opendotaTeamId: typeof teamId === "number" ? teamId : fallback.opendotaTeamId,
     name: normalizedName,
     shortName: normalizedName === fallback.name ? fallback.shortName : shortName(normalizedName),
   };

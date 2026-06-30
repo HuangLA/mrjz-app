@@ -26,6 +26,7 @@ export interface TeamBrief {
   id: string;
   name: string;
   shortName: string;
+  opendotaTeamId?: number | null;
   logoUrl?: string | null;
   color: string;
 }

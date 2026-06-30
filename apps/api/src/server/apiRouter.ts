@@ -103,6 +103,7 @@ const sponsorAssetRoot = path.resolve(
   "../../../mobile-web/public/static/sponsors",
 );
 const acknowledgementAssetRoot = resolveAcknowledgementAssetRoot();
+const teamLogoAssetRoot = resolveTeamLogoAssetRoot();
 const allowedDotaAssetSections = new Set([
   "abilities",
   "constants",
@@ -112,6 +113,7 @@ const allowedDotaAssetSections = new Set([
   "wards",
 ]);
 const maxAcknowledgementImageBytes = 2 * 1024 * 1024;
+const maxTeamLogoImageBytes = 2 * 1024 * 1024;
 const assetContentTypes: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
@@ -121,6 +123,11 @@ const assetContentTypes: Record<string, string> = {
   ".webp": "image/webp",
 };
 const acknowledgementImageExtensions: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+};
+const managedImageExtensions: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
@@ -148,6 +155,18 @@ function resolveAcknowledgementAssetRoot(): string {
   }
 
   return path.join(path.dirname(resolveDatabasePath()), "acknowledgements");
+}
+
+function resolveTeamLogoAssetRoot(): string {
+  const configuredRoot = process.env.MRJZ_TEAM_LOGO_ASSET_ROOT?.trim();
+
+  if (configuredRoot !== undefined && configuredRoot.length > 0) {
+    return path.isAbsolute(configuredRoot)
+      ? configuredRoot
+      : path.resolve(process.cwd(), configuredRoot);
+  }
+
+  return path.join(path.dirname(resolveDatabasePath()), "team-logos");
 }
 
 export type HealthStatus = {
@@ -360,6 +379,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.get("/api/assets/sponsors/:filename", async ({ params }) => serveSponsorAsset(params));
   router.get("/api/assets/acknowledgements/:filename", async ({ params }) =>
     serveAcknowledgementAsset(params),
+  );
+  router.get("/api/assets/team-logos/:filename", async ({ params }) =>
+    serveTeamLogoAsset(params),
   );
 
   router.get("/api/acknowledgements", () => ok(listAcknowledgements()));
@@ -853,7 +875,7 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.post("/api/teams", async ({ request }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(createTeam(bodyToCreateTeamInput(body)), 201);
+      return ok(createTeam(await bodyToCreateTeamInput(body)), 201);
     } catch (error) {
       return validationError(error);
     }
@@ -862,7 +884,7 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.patch("/api/teams/:teamId", async ({ request, params }) => {
     try {
       const body = await readJsonBody(request);
-      return ok(updateTeam(params.teamId ?? "", bodyToUpdateTeamInput(body)));
+      return ok(updateTeam(params.teamId ?? "", await bodyToUpdateTeamInput(body)));
     } catch (error) {
       return validationError(error);
     }
@@ -1136,6 +1158,21 @@ async function serveAcknowledgementAsset(params: Record<string, string>) {
   );
 }
 
+async function serveTeamLogoAsset(params: Record<string, string>) {
+  const filename = params.filename ?? "";
+
+  if (!isSafeAssetSegment(filename)) {
+    return fail(404, "TEAM_LOGO_ASSET_NOT_FOUND", "Team logo asset not found");
+  }
+
+  return serveStaticAsset(
+    path.join(teamLogoAssetRoot, filename),
+    teamLogoAssetRoot,
+    "TEAM_LOGO_ASSET_NOT_FOUND",
+    "Team logo asset not found",
+  );
+}
+
 async function serveStaticAsset(filePath: string, root: string, code: string, message: string) {
   const normalizedPath = path.resolve(filePath);
 
@@ -1232,6 +1269,7 @@ const PUBLIC_GET_PATTERNS = new Set([
   "/api/assets/steam-avatars/:filename",
   "/api/assets/sponsors/:filename",
   "/api/assets/svg/:filename",
+  "/api/assets/team-logos/:filename",
   "/api/leagues",
   "/api/tournaments",
   "/api/tournaments/:id",
@@ -1250,11 +1288,11 @@ const PUBLIC_GET_PATTERNS = new Set([
   "/api/matches/:matchId",
 ]);
 
-function bodyToCreateTeamInput(body: Record<string, unknown>) {
+async function bodyToCreateTeamInput(body: Record<string, unknown>) {
   return withoutUndefined({
     name: stringField(body, "name"),
     shortName: optionalStringField(body, "shortName"),
-    logoUrl: optionalStringOrNullField(body, "logoUrl"),
+    logoUrl: await teamLogoUrlFromBody(body),
     color: optionalStringField(body, "color"),
     opendotaTeamId: optionalNumberOrNullField(body, "opendotaTeamId"),
     tournamentId: optionalStringField(body, "tournamentId"),
@@ -1459,11 +1497,11 @@ async function resolveTeamMemberProfile(
   });
 }
 
-function bodyToUpdateTeamInput(body: Record<string, unknown>) {
+async function bodyToUpdateTeamInput(body: Record<string, unknown>) {
   return withoutUndefined({
     name: optionalStringField(body, "name"),
     shortName: optionalStringField(body, "shortName"),
-    logoUrl: optionalStringOrNullField(body, "logoUrl"),
+    logoUrl: await teamLogoUrlFromBody(body),
     color: optionalStringOrNullField(body, "color"),
     opendotaTeamId: optionalNumberOrNullField(body, "opendotaTeamId"),
   }) as Parameters<typeof updateTeam>[1];
@@ -1772,6 +1810,18 @@ async function acknowledgementImageUrlFromBody(
   return optionalStringOrNullField(body, "imageUrl");
 }
 
+async function teamLogoUrlFromBody(
+  body: Record<string, unknown>,
+): Promise<string | null | undefined> {
+  const logoImageDataUrl = optionalStringField(body, "logoImageDataUrl");
+
+  if (logoImageDataUrl !== undefined) {
+    return await storeTeamLogoImage(logoImageDataUrl);
+  }
+
+  return optionalStringOrNullField(body, "logoUrl");
+}
+
 function acknowledgementCategoryField(body: Record<string, unknown>, fieldName: string) {
   const category = stringField(body, fieldName);
 
@@ -1819,6 +1869,37 @@ async function storeAcknowledgementImage(dataUrl: string): Promise<string> {
   await writeFile(path.join(acknowledgementAssetRoot, filename), bytes);
 
   return `/api/assets/acknowledgements/${filename}`;
+}
+
+async function storeTeamLogoImage(dataUrl: string): Promise<string> {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl.trim());
+
+  if (match === null) {
+    throw new Error("logoImageDataUrl must be a png, jpg, or webp data URL");
+  }
+
+  const mimeType = match[1] ?? "";
+  const extension = managedImageExtensions[mimeType];
+
+  if (extension === undefined) {
+    throw new Error("logoImageDataUrl must be a png, jpg, or webp data URL");
+  }
+
+  const bytes = Buffer.from((match[2] ?? "").replace(/\s/g, ""), "base64");
+
+  if (bytes.byteLength === 0) {
+    throw new Error("logoImageDataUrl is empty");
+  }
+
+  if (bytes.byteLength > maxTeamLogoImageBytes) {
+    throw new Error("logoImageDataUrl must be 2MB or smaller");
+  }
+
+  await mkdir(teamLogoAssetRoot, { recursive: true });
+  const filename = `${Date.now()}-${randomUUID()}${extension}`;
+  await writeFile(path.join(teamLogoAssetRoot, filename), bytes);
+
+  return `/api/assets/team-logos/${filename}`;
 }
 
 function queryToListAdminTagsInput(url: URL) {

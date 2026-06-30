@@ -2076,6 +2076,7 @@ export class SqliteTournamentRepository {
             tm.id AS team_team_id,
             tm.name AS team_team_name,
             tm.short_name AS team_team_short_name,
+            tm.opendota_team_id AS team_team_opendota_team_id,
             tm.logo_url AS team_team_logo_url,
             tm.color AS team_team_color
           FROM tournament_schedule_teams tst
@@ -2196,6 +2197,7 @@ export class SqliteTournamentRepository {
             tm.id AS team_team_id,
             tm.name AS team_team_name,
             tm.short_name AS team_team_short_name,
+            tm.opendota_team_id AS team_team_opendota_team_id,
             tm.logo_url AS team_team_logo_url,
             tm.color AS team_team_color
           FROM standings st
@@ -2504,6 +2506,7 @@ export class SqliteTournamentRepository {
             tm.id AS team_team_id,
             tm.name AS team_team_name,
             tm.short_name AS team_team_short_name,
+            tm.opendota_team_id AS team_team_opendota_team_id,
             tm.logo_url AS team_team_logo_url,
             tm.color AS team_team_color
           FROM tournament_teams tt
@@ -4547,6 +4550,7 @@ export class SqliteTournamentRepository {
       id,
       name,
       shortName,
+      opendotaTeamId,
       logoUrl,
       color,
     };
@@ -7255,6 +7259,7 @@ export class SqliteTournamentRepository {
             id AS team_team_id,
             name AS team_team_name,
             short_name AS team_team_short_name,
+            opendota_team_id AS team_team_opendota_team_id,
             logo_url AS team_team_logo_url,
             color AS team_team_color
           FROM teams
@@ -7602,6 +7607,7 @@ export class SqliteTournamentRepository {
       const existingByExternalId = this.getTeamIdByOpenDotaTeamId(opendotaTeamId);
 
       if (existingByExternalId !== null) {
+        this.syncTeamNameFromOpenDota(existingByExternalId, name);
         return existingByExternalId;
       }
 
@@ -7962,6 +7968,26 @@ export class SqliteTournamentRepository {
         `,
       )
       .run(opendotaTeamId, teamId);
+  }
+
+  private syncTeamNameFromOpenDota(teamId: string, name: string | null): void {
+    if (name === null) {
+      return;
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE teams
+          SET
+            name = ?,
+            short_name = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+            AND (trim(name) <> ? OR trim(short_name) <> ?)
+        `,
+      )
+      .run(name, normalizeShortName(name), teamId, name, normalizeShortName(name));
   }
 
   getPlayerAvatarUrlByAccountId(accountId: number): string | null {
@@ -10185,6 +10211,7 @@ function teamFromPrefixedRow(row: DbRow, prefix: string): TeamBrief {
     id: text(row, `${prefix}_team_id`),
     name: text(row, `${prefix}_team_name`),
     shortName: text(row, `${prefix}_team_short_name`),
+    opendotaTeamId: nullableNumber(row, `${prefix}_team_opendota_team_id`),
     logoUrl: nullableText(row, `${prefix}_team_logo_url`),
     color: nullableText(row, `${prefix}_team_color`) ?? "#64748b",
   };

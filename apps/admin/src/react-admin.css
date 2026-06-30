@@ -10135,6 +10135,34 @@ label {
   padding: 4px;
 }
 
+.team-logo-picker {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 10px;
+}
+
+.team-logo-picker img,
+.team-logo-picker > span {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  object-fit: cover;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.team-logo-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
 .save-team-button {
   grid-column: 1 / -1;
   min-height: 34px;
