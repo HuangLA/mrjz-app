@@ -51,6 +51,7 @@ npm run db:reset
 - `stages.type` 固定为 `group`、`swiss`、`knockout`，后台和用户端统一识别普通小组赛、瑞士轮、淘汰赛。
 - `tournaments.status` 固定为 `draft`、`upcoming`、`running`、`completed`、`archived`；只有 `running` 会进入 10 分钟 OpenDota 自动同步。
 - `tournaments.starts_at` 支持管理员为 `upcoming` 赛事手动设置开赛时间，H5 和管理后台都直接展示。
+- `teams.opendota_team_id` 不做全局唯一约束；同一支 OpenDota 队伍可以在不同届次拥有各自的本地队伍记录。后端创建和 OpenDota 同步按 `tournament_teams` 在当前届次内优先去重，避免跨届队伍资料和统计串联。
 - `series_games.match_id` 全局唯一，避免同一局 OpenDota match 被重复绑定。
 - `series_games.conflict_status` 用于标记人工赛果和 OpenDota 赛果冲突；冲突未处理前不推进积分、瑞士轮配对或淘汰赛节点。
 - `opendota_matches.raw_json` 暂存原始 OpenDota 返回，后端 normalizer 统一生成比赛详情视图。

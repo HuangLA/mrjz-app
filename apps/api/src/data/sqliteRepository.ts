@@ -1104,9 +1104,7 @@ export class SqliteTournamentRepository {
     this.ensureColumn("bracket_nodes", "loser_next_slot", "TEXT");
     this.ensureColumn("series", "group_id", "TEXT");
     this.ensureColumn("series", "series_kind", "TEXT NOT NULL DEFAULT 'regular'");
-    this.database.exec(
-      "CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);",
-    );
+    this.ensureTeamsAllowDuplicateOpenDotaTeamIds();
     this.database.exec(
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);",
     );
@@ -1123,6 +1121,103 @@ export class SqliteTournamentRepository {
 
     if (!columns.some((column) => text(column, "name") === columnName)) {
       this.database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
+    }
+  }
+
+  private ensureTeamsAllowDuplicateOpenDotaTeamIds(): void {
+    this.database.exec("DROP INDEX IF EXISTS idx_teams_opendota_team_id;");
+
+    if (this.hasUniqueOpenDotaTeamIdIndex()) {
+      this.rebuildTeamsTableWithoutOpenDotaTeamIdUnique();
+    }
+
+    this.database.exec(
+      "CREATE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);",
+    );
+  }
+
+  private hasUniqueOpenDotaTeamIdIndex(): boolean {
+    return this.database
+      .prepare("PRAGMA index_list(teams)")
+      .all()
+      .some((index) => {
+        if (numberValue(index, "unique") !== 1) {
+          return false;
+        }
+
+        const indexName = text(index, "name");
+
+        if (indexName.length === 0) {
+          return false;
+        }
+
+        const columns = this.database
+          .prepare(`PRAGMA index_info(${quotedIdentifier(indexName)})`)
+          .all()
+          .map((column) => text(column, "name"));
+
+        return columns.length === 1 && columns[0] === "opendota_team_id";
+      });
+  }
+
+  private rebuildTeamsTableWithoutOpenDotaTeamIdUnique(): void {
+    this.database.exec("PRAGMA foreign_keys = OFF;");
+    this.database.exec("BEGIN;");
+
+    try {
+      this.database.exec(`
+        DROP TABLE IF EXISTS teams_without_opendota_unique;
+
+        CREATE TABLE teams_without_opendota_unique (
+          id TEXT PRIMARY KEY,
+          opendota_team_id INTEGER,
+          name TEXT NOT NULL,
+          short_name TEXT NOT NULL,
+          logo_url TEXT,
+          color TEXT,
+          source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'opendota')),
+          created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+          updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ) STRICT;
+
+        INSERT INTO teams_without_opendota_unique (
+          id,
+          opendota_team_id,
+          name,
+          short_name,
+          logo_url,
+          color,
+          source,
+          created_at,
+          updated_at
+        )
+        SELECT
+          id,
+          opendota_team_id,
+          name,
+          short_name,
+          logo_url,
+          color,
+          COALESCE(source, 'manual'),
+          created_at,
+          updated_at
+        FROM teams;
+
+        DROP TABLE teams;
+        ALTER TABLE teams_without_opendota_unique RENAME TO teams;
+      `);
+      this.database.exec("COMMIT;");
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    } finally {
+      this.database.exec("PRAGMA foreign_keys = ON;");
+    }
+
+    const foreignKeyViolations = this.database.prepare("PRAGMA foreign_key_check").all();
+
+    if (foreignKeyViolations.length > 0) {
+      throw new Error("teams table migration left foreign key violations");
     }
   }
 
@@ -4486,19 +4581,22 @@ export class SqliteTournamentRepository {
     const name = requiredString(input.name, "name");
     const shortName = normalizeShortName(input.shortName ?? name);
     const logoUrl = input.logoUrl?.trim() || null;
+    const tournamentId = input.tournamentId?.trim() || undefined;
     const opendotaTeamId =
       input.opendotaTeamId === undefined || input.opendotaTeamId === null
         ? null
         : requiredPositiveInteger(input.opendotaTeamId, "opendotaTeamId");
     const existingId =
       opendotaTeamId === null
-        ? input.tournamentId === undefined
+        ? tournamentId === undefined
           ? this.getTeamIdByName(name)
-          : this.getTournamentTeamIdByName(input.tournamentId, name)
-        : (this.getTeamIdByOpenDotaTeamId(opendotaTeamId) ??
-          (input.tournamentId === undefined
+          : this.getTournamentTeamIdByName(tournamentId, name)
+        : ((tournamentId === undefined
+            ? this.getTeamIdByOpenDotaTeamId(opendotaTeamId)
+            : this.getTournamentTeamIdByOpenDotaTeamId(tournamentId, opendotaTeamId)) ??
+          (tournamentId === undefined
             ? this.getTeamIdByName(name)
-            : this.getTournamentTeamIdByName(input.tournamentId, name)));
+            : this.getTournamentTeamIdByName(tournamentId, name)));
     const color = input.color ?? "#64748b";
 
     if (existingId !== null) {
@@ -4514,8 +4612,8 @@ export class SqliteTournamentRepository {
         this.fillOpenDotaTeamIdIfMissing(existingId, opendotaTeamId);
       }
 
-      if (input.tournamentId !== undefined && input.tournamentId.length > 0) {
-        this.ensureTournamentTeam(input.tournamentId, existingId);
+      if (tournamentId !== undefined) {
+        this.ensureTournamentTeam(tournamentId, existingId);
       }
 
       return this.requireTeam(existingId);
@@ -4532,12 +4630,12 @@ export class SqliteTournamentRepository {
         )
         .run(id, opendotaTeamId, name, shortName, logoUrl, color, "manual");
 
-      if (input.tournamentId !== undefined && input.tournamentId.length > 0) {
+      if (tournamentId !== undefined) {
         this.database
           .prepare(
             "INSERT OR IGNORE INTO tournament_teams (tournament_id, team_id, seed) VALUES (?, ?, ?)",
           )
-          .run(input.tournamentId, id, this.nextTournamentSeed(input.tournamentId));
+          .run(tournamentId, id, this.nextTournamentSeed(tournamentId));
       }
 
       this.database.exec("COMMIT;");
@@ -7604,7 +7702,10 @@ export class SqliteTournamentRepository {
       Number.isSafeInteger(opendotaTeamId) &&
       opendotaTeamId > 0
     ) {
-      const existingByExternalId = this.getTeamIdByOpenDotaTeamId(opendotaTeamId);
+      const existingByExternalId = this.getTournamentTeamIdByOpenDotaTeamId(
+        tournamentId,
+        opendotaTeamId,
+      );
 
       if (existingByExternalId !== null) {
         this.syncTeamNameFromOpenDota(existingByExternalId, name);
@@ -7613,7 +7714,8 @@ export class SqliteTournamentRepository {
 
       const existingByName =
         name === null ? null : this.getTournamentTeamIdByName(tournamentId, name);
-      const teamId = existingByName ?? `team_opendota_${opendotaTeamId}`;
+      const teamId =
+        existingByName ?? `team_${slugify(tournamentId) || "tournament"}_opendota_${opendotaTeamId}`;
 
       this.database
         .prepare(
@@ -7922,8 +8024,37 @@ export class SqliteTournamentRepository {
 
   private getTeamIdByOpenDotaTeamId(opendotaTeamId: number): string | null {
     const row = this.database
-      .prepare("SELECT id FROM teams WHERE opendota_team_id = ?")
+      .prepare(
+        `
+          SELECT id
+          FROM teams
+          WHERE opendota_team_id = ?
+          ORDER BY source ASC, updated_at DESC, id ASC
+          LIMIT 1
+        `,
+      )
       .get(opendotaTeamId);
+
+    return row === undefined ? null : text(row, "id");
+  }
+
+  private getTournamentTeamIdByOpenDotaTeamId(
+    tournamentId: string,
+    opendotaTeamId: number,
+  ): string | null {
+    const row = this.database
+      .prepare(
+        `
+          SELECT tm.id
+          FROM tournament_teams tt
+          JOIN teams tm ON tm.id = tt.team_id
+          WHERE tt.tournament_id = ?
+            AND tm.opendota_team_id = ?
+          ORDER BY tm.source ASC, tt.seed ASC, tm.updated_at DESC, tm.id ASC
+          LIMIT 1
+        `,
+      )
+      .get(tournamentId, opendotaTeamId);
 
     return row === undefined ? null : text(row, "id");
   }
@@ -8442,7 +8573,7 @@ export class SqliteTournamentRepository {
     const opendotaTeamId = side === "radiant" ? rawMatch.radiant_team_id : rawMatch.dire_team_id;
 
     if (typeof opendotaTeamId === "number" && opendotaTeamId > 0) {
-      const teamId = this.getTeamIdByOpenDotaTeamId(opendotaTeamId);
+      const teamId = this.getTournamentTeamIdByOpenDotaTeamId(tournamentId, opendotaTeamId);
 
       if (teamId !== null) {
         return teamId;
@@ -10540,6 +10671,10 @@ function uniqueId(prefix: string, seed: string): string {
     .slice(0, 48);
 
   return `${prefix}_${normalized || "item"}_${Date.now().toString(36)}`;
+}
+
+function quotedIdentifier(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
 }
 
 function accountIdFromPlayerIdentifier(value: string): number | null {

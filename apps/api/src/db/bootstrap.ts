@@ -20,6 +20,8 @@ type TournamentSeed = {
   stageStatus: "completed" | "running";
 };
 
+type DbRow = Record<string, unknown>;
+
 const realTournamentSeeds: TournamentSeed[] = [
   {
     leagueId: "league_mrjz_s1",
@@ -106,6 +108,8 @@ function applyMigrations(): void {
     database.exec("ROLLBACK;");
     throw error;
   }
+
+  ensureTeamsAllowDuplicateOpenDotaTeamIds();
 }
 
 function applySchemaPatches(): void {
@@ -119,7 +123,6 @@ function applySchemaPatches(): void {
   ensureColumn("bracket_nodes", "loser_next_slot", "TEXT");
   ensureColumn("series", "group_id", "TEXT");
   ensureColumn("series", "series_kind", "TEXT NOT NULL DEFAULT 'regular'");
-  database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
   database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_players_steam_id64 ON players(steam_id64);");
   database.exec("CREATE INDEX IF NOT EXISTS idx_series_group ON series(group_id);");
   ensureEntityTables();
@@ -135,6 +138,116 @@ function ensureColumn(tableName: string, columnName: string, definition: string)
   if (!exists) {
     database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
   }
+}
+
+function ensureTeamsAllowDuplicateOpenDotaTeamIds(): void {
+  database.exec("DROP INDEX IF EXISTS idx_teams_opendota_team_id;");
+
+  if (hasUniqueOpenDotaTeamIdIndex()) {
+    rebuildTeamsTableWithoutOpenDotaTeamIdUnique();
+  }
+
+  database.exec("CREATE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);");
+}
+
+function hasUniqueOpenDotaTeamIdIndex(): boolean {
+  const indexes = database.prepare("PRAGMA index_list(teams)").all() as DbRow[];
+
+  return indexes.some((index) => {
+    if (numberFromRow(index, "unique") !== 1) {
+      return false;
+    }
+
+    const indexName = textFromRow(index, "name");
+
+    if (indexName.length === 0) {
+      return false;
+    }
+
+    const columns = (database
+      .prepare(`PRAGMA index_info(${quotedIdentifier(indexName)})`)
+      .all() as DbRow[])
+      .map((column) => textFromRow(column, "name"));
+
+    return columns.length === 1 && columns[0] === "opendota_team_id";
+  });
+}
+
+function rebuildTeamsTableWithoutOpenDotaTeamIdUnique(): void {
+  database.exec("PRAGMA foreign_keys = OFF;");
+  database.exec("BEGIN;");
+
+  try {
+    database.exec(`
+      DROP TABLE IF EXISTS teams_without_opendota_unique;
+
+      CREATE TABLE teams_without_opendota_unique (
+        id TEXT PRIMARY KEY,
+        opendota_team_id INTEGER,
+        name TEXT NOT NULL,
+        short_name TEXT NOT NULL,
+        logo_url TEXT,
+        color TEXT,
+        source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'opendota')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      INSERT INTO teams_without_opendota_unique (
+        id,
+        opendota_team_id,
+        name,
+        short_name,
+        logo_url,
+        color,
+        source,
+        created_at,
+        updated_at
+      )
+      SELECT
+        id,
+        opendota_team_id,
+        name,
+        short_name,
+        logo_url,
+        color,
+        COALESCE(source, 'manual'),
+        created_at,
+        updated_at
+      FROM teams;
+
+      DROP TABLE teams;
+      ALTER TABLE teams_without_opendota_unique RENAME TO teams;
+    `);
+    database.exec("COMMIT;");
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    database.exec("PRAGMA foreign_keys = ON;");
+  }
+
+  const foreignKeyViolations = database.prepare("PRAGMA foreign_key_check").all();
+
+  if (foreignKeyViolations.length > 0) {
+    throw new Error("teams table migration left foreign key violations");
+  }
+}
+
+function quotedIdentifier(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function textFromRow(row: DbRow, key: string): string {
+  const value = row[key];
+
+  return typeof value === "string" ? value : "";
+}
+
+function numberFromRow(row: DbRow, key: string): number {
+  const value = row[key];
+
+  return typeof value === "number" ? value : 0;
 }
 
 function ensureEntityTables(): void {

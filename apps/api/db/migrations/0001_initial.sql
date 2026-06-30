@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
 
 CREATE TABLE IF NOT EXISTS teams (
   id TEXT PRIMARY KEY,
-  opendota_team_id INTEGER UNIQUE,
+  opendota_team_id INTEGER,
   name TEXT NOT NULL,
   short_name TEXT NOT NULL,
   logo_url TEXT,
@@ -420,6 +420,7 @@ CREATE TABLE IF NOT EXISTS sync_tasks (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_tournaments_league ON tournaments(league_id);
+CREATE INDEX IF NOT EXISTS idx_teams_opendota_team_id ON teams(opendota_team_id);
 CREATE INDEX IF NOT EXISTS idx_tournament_players_team ON tournament_players(tournament_id, current_team_id);
 CREATE INDEX IF NOT EXISTS idx_stages_tournament ON stages(tournament_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_rounds_stage ON rounds(stage_id, round_number);

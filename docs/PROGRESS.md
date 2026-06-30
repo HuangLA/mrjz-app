@@ -1,6 +1,6 @@
 # 项目进度追踪
 
-最后更新：2026-06-29
+最后更新：2026-06-30
 
 ## 当前状态
 
@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- 后端放开 OpenDota `team_id` 的全局唯一限制：`teams.opendota_team_id` 改为普通索引，启动 / `db:init` 会自动迁移旧 SQLite 表；Admin 创建战队和 OpenDota 同步改为在当前届次内按 OpenDota team id 去重，允许同一支队伍参加第一届和第四届等多个届次。
 - 建立 Git 仓库。
 - 完成 PRD、技术方案、Web Admin 方案、H5 方案、开发计划。
 - 完成比赛详情参考分析和页面设计方向稿。
