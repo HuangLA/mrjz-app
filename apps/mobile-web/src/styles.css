@@ -4731,6 +4731,24 @@ button {
   font-size: 22px;
 }
 
+.profile-team-logo {
+  width: 42px;
+  height: 42px;
+  display: block;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, .06);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .12),
+    0 8px 18px rgba(0, 0, 0, .2);
+}
+
+.profile-team-logo.large {
+  width: 58px;
+  height: 58px;
+  border-radius: 10px;
+}
+
 .steam-avatar-shell {
   width: 42px;
   height: 42px;

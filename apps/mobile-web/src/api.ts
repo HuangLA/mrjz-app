@@ -1075,7 +1075,10 @@ function normalizeRecordHeroLineup(lineup: ApiMatchRecordHero[] | undefined): Ma
     .slice(0, 5);
 }
 
-function normalizeTeamBrief(team: ApiTeam | null | undefined): TeamDirectoryItem["members"][number]["currentTeam"] {
+function normalizeTeamBrief(
+  team: ApiTeam | null | undefined,
+  apiBaseUrl?: string,
+): TeamDirectoryItem["members"][number]["currentTeam"] {
   if (!team?.id) {
     return null;
   }
@@ -1084,7 +1087,7 @@ function normalizeTeamBrief(team: ApiTeam | null | undefined): TeamDirectoryItem
     id: team.id,
     name: team.name ?? team.shortName ?? team.short_name ?? "未命名队伍",
     shortName: team.shortName ?? team.short_name ?? team.name ?? "TEAM",
-    logoUrl: team.logoUrl ?? team.logo_url ?? null,
+    logoUrl: normalizeApiImageUrl(team.logoUrl ?? team.logo_url ?? null, apiBaseUrl),
     color: team.color ?? "#64748b",
   };
 }
@@ -1133,8 +1136,8 @@ function normalizePlayerDirectoryItem(player: ApiPlayerDirectoryItem, apiBaseUrl
       accountId !== null && apiBaseUrl !== undefined
         ? apiUrl(apiBaseUrl, `/assets/steam-avatars/${accountId}.jpg`)
         : player.avatarUrl ?? null,
-    currentTeam: normalizeTeamBrief(player.currentTeam),
-    teams: (player.teams ?? []).map(normalizeTeamBrief).filter(isDefined),
+    currentTeam: normalizeTeamBrief(player.currentTeam, apiBaseUrl),
+    teams: (player.teams ?? []).map((team) => normalizeTeamBrief(team, apiBaseUrl)).filter(isDefined),
     stats: normalizeProfileStats(player.stats),
   };
 }
@@ -1144,12 +1147,12 @@ function normalizeAcknowledgementItem(item: ApiAcknowledgementItem, apiBaseUrl: 
     id: item.id ?? "ack_unknown",
     category: item.category === "community" ? "community" : "sponsor",
     displayName: item.displayName ?? "未命名",
-    imageUrl: normalizeAcknowledgementImageUrl(item.imageUrl ?? null, apiBaseUrl),
+    imageUrl: normalizeApiImageUrl(item.imageUrl ?? null, apiBaseUrl),
     sortOrder: typeof item.sortOrder === "number" ? item.sortOrder : 0,
   };
 }
 
-function normalizeAcknowledgementImageUrl(imageUrl: string | null, apiBaseUrl: string): string | null {
+function normalizeApiImageUrl(imageUrl: string | null, apiBaseUrl?: string): string | null {
   if (imageUrl === null || imageUrl.trim().length === 0) {
     return null;
   }
@@ -1160,7 +1163,7 @@ function normalizeAcknowledgementImageUrl(imageUrl: string | null, apiBaseUrl: s
     return trimmed;
   }
 
-  if (trimmed.startsWith("/api/")) {
+  if (apiBaseUrl !== undefined && trimmed.startsWith("/api/")) {
     return apiUrl(apiBaseUrl, trimmed);
   }
 
@@ -1222,7 +1225,9 @@ function normalizeHeroLeaderboardCandidate(
     return null;
   }
 
-  const teams = (candidate.teams ?? []).map(normalizeTeamBrief).filter(isDefined);
+  const teams = (candidate.teams ?? [])
+    .map((team) => normalizeTeamBrief(team, apiBaseUrl))
+    .filter(isDefined);
   const player = normalizePlayerDirectoryItem(
     {
       ...candidate.player,
@@ -1255,7 +1260,7 @@ function normalizeTeamStats(stats: ApiTeamStatsSummary | undefined): TeamDirecto
 }
 
 function normalizeTeamDirectoryItem(team: ApiTeamDirectoryItem, apiBaseUrl?: string): TeamDirectoryItem {
-  const brief = normalizeTeamBrief(team);
+  const brief = normalizeTeamBrief(team, apiBaseUrl);
 
   return {
     id: brief?.id ?? "team_unknown",

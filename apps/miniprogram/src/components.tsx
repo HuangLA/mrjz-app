@@ -949,9 +949,17 @@ export function TeamDirectoryCard(props: { team: TeamListItem; onOpen: (teamId: 
         style={{ borderLeftColor: team.color ?? "#f0c36a" }}
         onClick={() => props.onOpen(team.id)}
       >
-        <View className="profile-avatar-fallback team">
-          {(team.shortName ?? teamName).slice(0, 2).toUpperCase()}
-        </View>
+        {team.logoUrl ? (
+          <Image
+            className="profile-avatar-fallback team team-directory-logo"
+            mode="aspectFill"
+            src={team.logoUrl}
+          />
+        ) : (
+          <View className="profile-avatar-fallback team">
+            {(team.shortName ?? teamName).slice(0, 2).toUpperCase()}
+          </View>
+        )}
         <View>
           <Text>{teamName}</Text>
           <Text>

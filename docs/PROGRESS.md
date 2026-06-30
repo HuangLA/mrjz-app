@@ -121,6 +121,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - Web Admin 队伍资料编辑补齐 OpenDota team id 回显：API 队伍模型返回 `opendotaTeamId`，后台队伍列表和资料编辑抽屉可按已有 OpenDota 队伍 ID 展示、搜索和继续编辑。
 - OpenDota 同步队伍归并继续收紧：当比赛结果中的 OpenDota team id 命中平台已有队伍时，后端会用 OpenDota 返回的队伍名覆盖平台队伍名和简称，避免手动占位名长期残留。
 - Web Admin 战队 Logo 支持上传图片：后台创建 / 编辑战队可选择 PNG、JPG 或 WebP，API 会落盘为 `/api/assets/team-logos/...` 并继续通过队伍 `logoUrl` 返回给 H5 和小程序。
+- H5 / 小程序战队 Logo 展示补齐：H5 队伍模型会将后端相对 `logoUrl` 补全为当前 API 地址，H5 队伍列表和队伍主页、小程序队伍列表和队伍主页在有 Logo 时优先展示上传图片。
 - 小程序浏览器式缓存重新启用并加固：页面快照按当前 API 地址和届次隔离，进入公开页时先展示本地 stale 数据并按页面类型静默刷新；比赛记录、选手、队伍、赛程、赛事阶段和英雄榜会保存并恢复滚动位置、筛选、排序、阶段 tab、积分榜分组和英雄榜展开项，详情页返回列表不再白屏重拉或回到顶部。
 - 小程序主导航切换改为首页常驻滑动容器：底部导航不再对首页、赛事阶段、赛程、比赛记录、英雄榜、选手、队伍和我的页面执行 `redirectTo`，而是在同一页面内用固定横向轨道切换并保活各主入口；底部导航新增滑动高亮条，主入口间切换不再黑屏 / 白屏重建。
 - 小程序主导航滑动容器修正 Taro page entry 限制：赛事阶段、赛程、比赛记录、英雄榜、选手、队伍和我的页面内容抽为非 page entry 的 `Content.tsx`，原 `index.tsx` 只负责注册各自 Page，首页常驻容器引用内容组件，避免 `pages/index/index.js` 注册多个 `Page()`。

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { loadTeamProfile, normalizeTeamProfile } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerHeroStrip, SectionTitle, StatGrid, SteamAvatar } from "../../components";
+import { SmartImage as Image } from "../../SmartImage";
 import type { TeamProfile } from "../../types";
 import { formatDate, formatInteger, formatPercent, navigate } from "../../utils";
 
@@ -74,7 +75,15 @@ export default function TeamDetailPage() {
         <>
           <View className="profile-hero team-profile">
             <View className="profile-hero-main">
-              <View className="profile-avatar-fallback team large">{(profile.shortName ?? profile.name).slice(0, 2).toUpperCase()}</View>
+              {profile.logoUrl ? (
+                <Image
+                  className="profile-avatar-fallback team large team-directory-logo"
+                  mode="aspectFill"
+                  src={profile.logoUrl}
+                />
+              ) : (
+                <View className="profile-avatar-fallback team large">{(profile.shortName ?? profile.name).slice(0, 2).toUpperCase()}</View>
+              )}
               <View>
                 <Text className="brand-title">{profile.name}</Text>
                 <Text className="brand-subtitle">{profile.memberCount} 名成员 · {profile.status} · {profile.stats.linkedMatches} 场</Text>

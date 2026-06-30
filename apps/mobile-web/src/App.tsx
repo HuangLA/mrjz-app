@@ -2198,7 +2198,7 @@ function TeamProfilePage({
       <TournamentScope data={data} onNavigate={onNavigate} />
       <section className="profile-hero team-profile" style={cssVars({ "--accent": profile.color })}>
         <div className="profile-hero-main">
-          <span className="profile-avatar-fallback large team">{profile.shortName.slice(0, 2).toUpperCase()}</span>
+          <TeamLogoMark team={profile} size="large" />
           <div>
             <h2>{profile.name}</h2>
             <p>
@@ -2715,7 +2715,7 @@ function TeamDirectoryCard({
   return (
     <article className="profile-list-card team-card" style={cssVars({ "--accent": team.color })}>
       <button type="button" onClick={() => onNavigate("team", { profileId: team.id })}>
-        <span className="profile-avatar-fallback team">{team.shortName.slice(0, 2).toUpperCase()}</span>
+        <TeamLogoMark team={team} />
         <div>
           <b>{team.name}</b>
           <small>
@@ -2728,6 +2728,39 @@ function TeamDirectoryCard({
         <strong>进入</strong>
       </button>
     </article>
+  );
+}
+
+function TeamLogoMark({
+  team,
+  size = "normal",
+}: {
+  team: Pick<TeamDirectoryItem, "name" | "shortName" | "logoUrl">;
+  size?: "normal" | "large";
+}) {
+  const [failed, setFailed] = useState(false);
+  const fallback = (
+    <span className={`profile-avatar-fallback team ${size === "large" ? "large" : ""}`} aria-hidden="true">
+      {team.shortName.slice(0, 2).toUpperCase() || team.name.slice(0, 1).toUpperCase()}
+    </span>
+  );
+
+  useEffect(() => {
+    setFailed(false);
+  }, [team.logoUrl]);
+
+  if (!team.logoUrl || failed) {
+    return fallback;
+  }
+
+  return (
+    <img
+      className={`profile-team-logo ${size === "large" ? "large" : ""}`}
+      src={team.logoUrl}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
   );
 }
 

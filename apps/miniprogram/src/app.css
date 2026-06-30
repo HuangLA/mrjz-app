@@ -3892,6 +3892,10 @@ button[disabled] {
   background: linear-gradient(135deg, rgba(240, 195, 106, 0.28), rgba(240, 195, 106, 0.12));
 }
 
+.team-directory-logo {
+  display: block;
+}
+
 .profile-avatar-fallback.large {
   width: 58px;
   height: 58px;
