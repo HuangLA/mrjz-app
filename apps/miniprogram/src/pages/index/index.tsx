@@ -20,6 +20,7 @@ import {
   useMainTabRefresh,
   useMainTabState,
 } from "../../components";
+import { mainTabShareConfig, useMiniProgramShare } from "../../share";
 import { SmartImage as Image } from "../../SmartImage";
 import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
 import { formatDate, formatInteger, labelStatus, switchTab } from "../../utils";
@@ -67,6 +68,8 @@ export default function MainTabsPage() {
   const mainTabTrackStyle = {
     transform: `translateX(${-activeIndex * MAIN_TAB_PAGE_WIDTH_PERCENT}%)`,
   };
+
+  useMiniProgramShare(() => mainTabShareConfig(activePage.key));
 
   const registerRefreshHandler = useCallback(
     (routeKey: MiniRouteKey, handler: () => Promise<void> | void) => {

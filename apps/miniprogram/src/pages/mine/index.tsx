@@ -1,3 +1,8 @@
 import { MineContent } from "./Content";
+import { mainTabShareConfig, useMiniProgramShare } from "../../share";
 
-export default MineContent;
+export default function MinePage() {
+  useMiniProgramShare(() => mainTabShareConfig("mine"));
+
+  return <MineContent />;
+}

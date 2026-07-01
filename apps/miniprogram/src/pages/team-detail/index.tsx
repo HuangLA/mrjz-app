@@ -4,6 +4,7 @@ import { useState } from "react";
 import { loadTeamProfile, normalizeTeamProfile } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { PageShell, PlayerHeroStrip, SectionTitle, StatGrid, SteamAvatar } from "../../components";
+import { miniProgramSharePath, useMiniProgramShare } from "../../share";
 import { SmartImage as Image } from "../../SmartImage";
 import type { TeamProfile } from "../../types";
 import { formatDate, formatInteger, formatPercent, navigate } from "../../utils";
@@ -22,6 +23,11 @@ export default function TeamDetailPage() {
   const [loading, setLoading] = useState(initialCache === null);
   const [error, setError] = useState("");
   const [profile, setProfile] = useState<TeamProfile | null>(() => initialCache);
+
+  useMiniProgramShare(() => ({
+    title: teamDetailShareTitle(profile),
+    path: miniProgramSharePath("/pages/team-detail/index", { tournamentId, teamId }),
+  }));
 
   useDidShow(() => {
     void refresh();
@@ -144,6 +150,10 @@ export default function TeamDetailPage() {
       ) : null}
     </PageShell>
   );
+}
+
+function teamDetailShareTitle(profile: TeamProfile | null): string {
+  return profile?.name ? `${profile.name}｜每日节奏杯队伍主页` : "每日节奏杯队伍主页";
 }
 
 function sanitizeTeamProfileCache(profile: TeamProfile | null): TeamProfile | null {

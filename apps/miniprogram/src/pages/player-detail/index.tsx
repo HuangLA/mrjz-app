@@ -25,6 +25,7 @@ import {
   TournamentScope,
 } from "../../components";
 import { heroIcon, heroLabel, heroPortrait } from "../../dota";
+import { miniProgramSharePath, useMiniProgramShare } from "../../share";
 import { SmartImage as Image } from "../../SmartImage";
 import type {
   AuthSession,
@@ -87,6 +88,15 @@ export default function PlayerDetailPage() {
     const storedSession = getStoredAuthSession();
     return storedSession ? getLocalLikedTagIds(storedSession.user.id) : new Set();
   });
+
+  useMiniProgramShare(() => ({
+    title: playerDetailShareTitle(profile),
+    path: miniProgramSharePath("/pages/player-detail/index", {
+      tournamentId,
+      playerId,
+      accountId,
+    }),
+  }));
 
   useDidShow(() => {
     setSession(getStoredAuthSession());
@@ -378,6 +388,12 @@ export default function PlayerDetailPage() {
       ) : null}
     </PageShell>
   );
+}
+
+function playerDetailShareTitle(profile: PlayerProfile | null): string {
+  return profile?.displayName
+    ? `${profile.displayName}｜每日节奏杯选手主页`
+    : "每日节奏杯选手主页";
 }
 
 function primaryPlayerTeam(profile: PlayerProfile) {

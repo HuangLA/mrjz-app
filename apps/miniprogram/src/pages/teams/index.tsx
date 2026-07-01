@@ -1,3 +1,8 @@
 import { TeamsContent } from "./Content";
+import { mainTabShareConfig, useMiniProgramShare } from "../../share";
 
-export default TeamsContent;
+export default function TeamsPage() {
+  useMiniProgramShare(() => mainTabShareConfig("teams"));
+
+  return <TeamsContent />;
+}

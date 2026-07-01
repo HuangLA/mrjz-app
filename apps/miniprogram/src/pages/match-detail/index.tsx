@@ -7,6 +7,7 @@ import { loadMatch } from "../../api";
 import { isPageCacheFresh, pageCacheKey, readPageCache, writePageCache } from "../../cache";
 import { aghanimIcon, dotaAssetUrl } from "../../dota";
 import { PageShell, SectionTitle } from "../../components";
+import { miniProgramSharePath, useMiniProgramShare } from "../../share";
 import { SmartImage as Image } from "../../SmartImage";
 import type { ChatLine, DraftStep, IconRef, MatchAward, MatchDetail, MatchDetailPlayer, TalentTreeNode, TeamSide, WardEvent } from "../../types";
 import { formatDateTime, formatInteger } from "../../utils";
@@ -41,6 +42,11 @@ export default function MatchDetailPage() {
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(() => (initialCache ? defaultExpandedPlayers(initialCache) : new Set()));
   const [wardSecond, setWardSecond] = useState(0);
   const [awardPopover, setAwardPopover] = useState<MatchAwardPopover | null>(null);
+
+  useMiniProgramShare(() => ({
+    title: matchDetailShareTitle(detail, matchId),
+    path: miniProgramSharePath("/pages/match-detail/index", { matchId }),
+  }));
 
   useDidShow(() => {
     void refresh();
@@ -183,6 +189,14 @@ export default function MatchDetailPage() {
       ) : null}
     </PageShell>
   );
+}
+
+function matchDetailShareTitle(detail: MatchDetail | null, matchId: string): string {
+  if (!detail) {
+    return matchId ? `每日节奏杯战报 ${matchId}` : "每日节奏杯战报";
+  }
+
+  return `${detail.score.radiantTeamName} ${detail.score.radiantScore}:${detail.score.direScore} ${detail.score.direTeamName}｜每日节奏杯战报`;
 }
 
 function MatchSummary(props: { detail: MatchDetail }) {
