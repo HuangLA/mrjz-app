@@ -11074,6 +11074,8 @@ function average(total: number, count: number): number | null {
 }
 
 const PLAYER_TAG_STATUSES: PlayerTagStatus[] = ["pending_review", "approved", "rejected", "hidden"];
+const PLAYER_TAG_MIN_LENGTH = 2;
+const PLAYER_TAG_MAX_LENGTH = 24;
 
 function countPlayerTags(tags: PlayerTagView[]): Record<PlayerTagStatus, number> {
   return tags.reduce(
@@ -11093,19 +11095,15 @@ function countPlayerTags(tags: PlayerTagView[]): Record<PlayerTagStatus, number>
 function normalizePlayerTagInput(value: string): { displayText: string; normalizedText: string } {
   const displayText = requiredString(value, "text").normalize("NFKC").replace(/\s+/g, " ").trim();
   const charCount = Array.from(displayText).length;
-  const isChineseOnly = /^[\p{Script=Han}]+$/u.test(displayText);
-  const maxLength = isChineseOnly ? 8 : 16;
 
-  if (charCount < 2 || charCount > maxLength) {
+  if (charCount < PLAYER_TAG_MIN_LENGTH || charCount > PLAYER_TAG_MAX_LENGTH) {
     throw new Error(
-      isChineseOnly
-        ? "tag text must be 2 to 8 Chinese characters"
-        : "tag text must be 2 to 16 characters",
+      `tag text must be ${PLAYER_TAG_MIN_LENGTH} to ${PLAYER_TAG_MAX_LENGTH} characters`,
     );
   }
 
-  if (!/^[\p{Script=Han}\p{Letter}\p{Number} _+#.-]+$/u.test(displayText)) {
-    throw new Error("tag text contains unsupported characters");
+  if (/[\p{Cc}\p{Cs}]/u.test(displayText)) {
+    throw new Error("tag text contains control characters");
   }
 
   const normalizedText = displayText.toLocaleLowerCase("zh-CN");

@@ -348,8 +348,8 @@ export default function PlayerDetailPage() {
                   <Input
                     className="tag-input"
                     value={draftTag}
-                    maxlength={16}
-                    placeholder="输入 2-16 字短标签"
+                    maxlength={24}
+                    placeholder="输入 2-24 字标签"
                     onInput={(event) => setDraftTag(String(event.detail.value))}
                   />
                   <Button
