@@ -324,7 +324,7 @@ export default function PlayerDetailPage() {
                       disabled={saving}
                       onClick={() => void handleToggleLike(tag)}
                     >
-                      {tag.text}
+                      <Text className="tag-pill-text">{tag.text}</Text>
                     </Button>
                   );
                 })}

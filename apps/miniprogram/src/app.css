@@ -1447,10 +1447,15 @@ button[disabled] {
 
 .profile-tag-panel-mini .tag-cloud {
   position: relative;
-  display: block;
-  height: 190px;
+  display: flex;
+  min-height: 132px;
   margin-top: 6px;
-  overflow: hidden;
+  padding: 14px 12px;
+  overflow: visible;
+  align-content: center;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background:
@@ -1463,27 +1468,38 @@ button[disabled] {
 }
 
 .profile-tag-panel-mini .tag-pill {
-  position: absolute;
+  position: relative;
   display: inline-flex;
+  flex: 0 1 auto;
   width: auto;
   min-width: 0;
-  max-width: calc(100% - 32px);
+  max-width: 100%;
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: 0;
-  overflow: hidden;
+  padding: 2px 3px;
+  overflow: visible;
   border: 0;
   background: transparent;
   color: #f76fbd;
   font-weight: 950;
-  line-height: 1.05;
+  line-height: 1.12;
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-all;
   text-shadow:
     0 0 12px rgba(246, 105, 183, 0.7),
     0 0 28px rgba(246, 105, 183, 0.36);
+}
+
+.profile-tag-panel-mini .tag-pill-text {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  line-height: inherit;
+  text-align: center;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .profile-tag-panel-mini .tag-pill-level-1 {
@@ -1509,19 +1525,17 @@ button[disabled] {
 }
 
 .profile-tag-panel-mini .tag-pill:nth-child(1) {
-  top: 24px;
-  left: 44px;
-}
-
-.profile-tag-panel-mini .tag-pill:nth-child(2) {
-  bottom: 18px;
-  left: 34px;
   color: #f76fbd;
 }
 
+.profile-tag-panel-mini .tag-pill:nth-child(2) {
+  color: #79d6ff;
+  text-shadow:
+    0 0 10px rgba(121, 214, 255, 0.72),
+    0 0 24px rgba(121, 214, 255, 0.32);
+}
+
 .profile-tag-panel-mini .tag-pill:nth-child(3) {
-  right: 30px;
-  bottom: 42px;
   color: #ffbe4c;
   text-shadow:
     0 0 10px rgba(255, 190, 76, 0.72),
@@ -1529,20 +1543,35 @@ button[disabled] {
 }
 
 .profile-tag-panel-mini .tag-pill:nth-child(4) {
-  top: 76px;
-  right: 48px;
   color: #ff6f9d;
 }
 
-.profile-tag-panel-mini .tag-pill:nth-child(5),
-.profile-tag-panel-mini .tag-pill:nth-child(6),
-.profile-tag-panel-mini .tag-pill:nth-child(7),
-.profile-tag-panel-mini .tag-pill:nth-child(8),
-.profile-tag-panel-mini .tag-pill:nth-child(9),
-.profile-tag-panel-mini .tag-pill:nth-child(10),
-.profile-tag-panel-mini .tag-pill:nth-child(11),
-.profile-tag-panel-mini .tag-pill:nth-child(12) {
-  display: none;
+.profile-tag-panel-mini .tag-pill:nth-child(4n + 1) {
+  color: #f76fbd;
+  text-shadow:
+    0 0 12px rgba(246, 105, 183, 0.7),
+    0 0 28px rgba(246, 105, 183, 0.36);
+}
+
+.profile-tag-panel-mini .tag-pill:nth-child(4n + 2) {
+  color: #79d6ff;
+  text-shadow:
+    0 0 10px rgba(121, 214, 255, 0.72),
+    0 0 24px rgba(121, 214, 255, 0.32);
+}
+
+.profile-tag-panel-mini .tag-pill:nth-child(4n + 3) {
+  color: #ffbe4c;
+  text-shadow:
+    0 0 10px rgba(255, 190, 76, 0.72),
+    0 0 22px rgba(255, 190, 76, 0.36);
+}
+
+.profile-tag-panel-mini .tag-pill:nth-child(4n) {
+  color: #ff6f9d;
+  text-shadow:
+    0 0 10px rgba(255, 111, 157, 0.7),
+    0 0 24px rgba(255, 111, 157, 0.32);
 }
 
 .profile-tag-empty {
