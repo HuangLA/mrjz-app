@@ -1467,42 +1467,62 @@ button[disabled] {
   display: inline-flex;
   width: auto;
   min-width: 0;
-  max-width: none;
+  max-width: calc(100% - 32px);
   align-items: center;
   justify-content: center;
   min-height: 0;
   padding: 0;
-  overflow: visible;
+  overflow: hidden;
   border: 0;
   background: transparent;
   color: #f76fbd;
   font-weight: 950;
   line-height: 1.05;
   text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
   text-shadow:
     0 0 12px rgba(246, 105, 183, 0.7),
     0 0 28px rgba(246, 105, 183, 0.36);
 }
 
+.profile-tag-panel-mini .tag-pill-level-1 {
+  font-size: 12px;
+  opacity: 0.84;
+}
+
+.profile-tag-panel-mini .tag-pill-level-2 {
+  font-size: 14px;
+  opacity: 0.92;
+}
+
+.profile-tag-panel-mini .tag-pill-level-3 {
+  font-size: 17px;
+}
+
+.profile-tag-panel-mini .tag-pill-level-4 {
+  font-size: 22px;
+}
+
+.profile-tag-panel-mini .tag-pill-level-5 {
+  font-size: 28px;
+}
+
 .profile-tag-panel-mini .tag-pill:nth-child(1) {
   top: 24px;
   left: 44px;
-  font-size: 34px;
 }
 
 .profile-tag-panel-mini .tag-pill:nth-child(2) {
   bottom: 18px;
   left: 34px;
   color: #f76fbd;
-  font-size: 25px;
 }
 
 .profile-tag-panel-mini .tag-pill:nth-child(3) {
   right: 30px;
   bottom: 42px;
   color: #ffbe4c;
-  font-size: 16px;
   text-shadow:
     0 0 10px rgba(255, 190, 76, 0.72),
     0 0 22px rgba(255, 190, 76, 0.36);
@@ -1512,7 +1532,6 @@ button[disabled] {
   top: 76px;
   right: 48px;
   color: #ff6f9d;
-  font-size: 14px;
 }
 
 .profile-tag-panel-mini .tag-pill:nth-child(5),

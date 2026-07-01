@@ -318,7 +318,9 @@ export default function PlayerDetailPage() {
                   return (
                     <Button
                       key={tag.id}
-                      className={`tag-pill ${liked ? "tag-pill-liked" : ""}`}
+                      className={`tag-pill tag-pill-level-${tagSizeLevel(tag.sizeLevel)} ${
+                        liked ? "tag-pill-liked" : ""
+                      }`}
                       disabled={saving}
                       onClick={() => void handleToggleLike(tag)}
                     >
@@ -739,6 +741,14 @@ function formatCompact(value: number | null | undefined): string {
   }
 
   return String(Math.round(value));
+}
+
+function tagSizeLevel(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(5, Math.max(1, Math.round(value)));
 }
 
 function profileAccentStyle(accent: string): CSSProperties {
