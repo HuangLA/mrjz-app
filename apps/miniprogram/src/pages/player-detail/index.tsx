@@ -313,12 +313,15 @@ export default function PlayerDetailPage() {
             </View>
             {tags.length > 0 ? (
               <View className="tag-cloud">
-                {tags.map((tag) => {
+                {tags.map((tag, index) => {
                   const liked = likedTagIds.has(tag.id);
+                  const sizeLevel = tagSizeLevel(tag.sizeLevel);
+                  const layoutIndex = tagLayoutIndex(tag, index);
+
                   return (
                     <Button
                       key={tag.id}
-                      className={`tag-pill tag-pill-level-${tagSizeLevel(tag.sizeLevel)} ${
+                      className={`tag-pill tag-pill-level-${sizeLevel} tag-pill-layout-${layoutIndex} ${
                         liked ? "tag-pill-liked" : ""
                       }`}
                       disabled={saving}
@@ -749,6 +752,17 @@ function tagSizeLevel(value: number): number {
   }
 
   return Math.min(5, Math.max(1, Math.round(value)));
+}
+
+function tagLayoutIndex(tag: PlayerTag, index: number): number {
+  const seed = `${tag.id}:${tag.text}:${index}`;
+  let hash = 0;
+
+  for (let charIndex = 0; charIndex < seed.length; charIndex += 1) {
+    hash = (hash * 31 + seed.charCodeAt(charIndex)) % 9973;
+  }
+
+  return (hash % 8) + 1;
 }
 
 function profileAccentStyle(accent: string): CSSProperties {
