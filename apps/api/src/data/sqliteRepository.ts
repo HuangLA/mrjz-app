@@ -3887,9 +3887,11 @@ export class SqliteTournamentRepository {
       startsAt: nullableText(row, "starts_at"),
       status: text(row, "status") as TournamentLifecycleStatus,
       isCurrent: tournamentId === currentTournamentId,
-      stats: parseJson<PlayerStatsSummary>(
-        nullableText(row, "summary_json") ?? "{}",
-        emptyPlayerStats(),
+      stats: normalizePlayerStatsSummary(
+        parseJson<Partial<PlayerStatsSummary>>(
+          nullableText(row, "summary_json") ?? "{}",
+          emptyPlayerStats(),
+        ),
       ),
       matches: this.hydrateProfileMatchSummaries(tournamentId, matches),
     };
@@ -7977,7 +7979,9 @@ export class SqliteTournamentRepository {
 
     return row === undefined
       ? emptyPlayerStats()
-      : parseJson<PlayerStatsSummary>(text(row, "summary_json"), emptyPlayerStats());
+      : normalizePlayerStatsSummary(
+          parseJson<Partial<PlayerStatsSummary>>(text(row, "summary_json"), emptyPlayerStats()),
+        );
   }
 
   private getPlayerMatchSnapshot(tournamentId: string, playerId: string): ProfileMatchSummary[] {
@@ -10916,6 +10920,38 @@ function emptyPlayerStats(): PlayerStatsSummary {
   };
 }
 
+function normalizePlayerStatsSummary(stats: Partial<PlayerStatsSummary>): PlayerStatsSummary {
+  return {
+    totalMatches: finiteStatNumber(stats.totalMatches),
+    wins: finiteStatNumber(stats.wins),
+    losses: finiteStatNumber(stats.losses),
+    winRate: finiteNullableStatNumber(stats.winRate),
+    avgKills: finiteNullableStatNumber(stats.avgKills),
+    avgDeaths: finiteNullableStatNumber(stats.avgDeaths),
+    avgAssists: finiteNullableStatNumber(stats.avgAssists),
+    kda: finiteNullableStatNumber(stats.kda),
+    avgGpm: finiteNullableStatNumber(stats.avgGpm),
+    avgXpm: finiteNullableStatNumber(stats.avgXpm),
+    avgNetWorth: finiteNullableStatNumber(stats.avgNetWorth),
+    avgHeroDamage: finiteNullableStatNumber(stats.avgHeroDamage),
+    avgTowerDamage: finiteNullableStatNumber(stats.avgTowerDamage),
+    avgDamageTaken: finiteNullableStatNumber(stats.avgDamageTaken),
+    topHeroes: Array.isArray(stats.topHeroes)
+      ? stats.topHeroes
+          .map(normalizeHeroPickSummary)
+          .filter((hero) => hero.heroId > 0 && hero.picks > 0)
+      : [],
+  };
+}
+
+function normalizeHeroPickSummary(hero: Partial<HeroPickSummary>): HeroPickSummary {
+  return {
+    heroId: finiteStatNumber(hero.heroId),
+    picks: finiteStatNumber(hero.picks),
+    wins: finiteStatNumber(hero.wins),
+  };
+}
+
 function aggregatePlayerTournamentStats(
   tournamentHistory: TournamentPlayerHistoryEntry[],
 ): PlayerStatsSummary {
@@ -10933,7 +10969,7 @@ function aggregatePlayerTournamentStats(
   const heroMap = new Map<number, HeroPickSummary>();
 
   for (const entry of tournamentHistory) {
-    const stats = entry.stats;
+    const stats = normalizePlayerStatsSummary(entry.stats);
     const matchCount = stats.totalMatches;
 
     if (matchCount <= 0) {
@@ -10990,6 +11026,14 @@ function aggregatePlayerTournamentStats(
 
 function weightedStat(value: number | null, count: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value * count : 0;
+}
+
+function finiteStatNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function finiteNullableStatNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function emptyTeamStats(): TeamStatsSummary {
