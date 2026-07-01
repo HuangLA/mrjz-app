@@ -27,6 +27,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 - 小程序转发能力接入：按微信官方 `onShareAppMessage` / `onShareTimeline` 要求打开 Taro 页面分享生命周期，页面显示时调用 `showShareMenu` 展示发送给朋友 / 分享到朋友圈入口；主 Tab、公共栏目、比赛详情、选手主页和队伍主页均返回可直达的分享标题与路径，“我的”页转发回公开首页。
 - 小程序“我的”页绑定账号后的比赛数据改为跨届总览：后端 `/me/stats` 顶部统计按全部参赛届次聚合总场次、胜率、KDA 和常用英雄，小程序届次列表不再截断前三条，并优先使用每届统计快照显示比赛场次。
+- 云端 API 已部署“我的”页跨届数据修复：部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-mine-stats-deploy-20260701-130449.sqlite`，同步后端 `dist` 并重启 `mrjz-api.service`；公网 `/health` 和 `/api/tournaments` 已验证正常返回。
 - 后端放开 OpenDota `team_id` 的全局唯一限制：`teams.opendota_team_id` 改为普通索引，启动 / `db:init` 会自动迁移旧 SQLite 表；Admin 创建战队和 OpenDota 同步改为在当前届次内按 OpenDota team id 去重，允许同一支队伍参加第一届和第四届等多个届次。
 - 云端 API 已部署跨届复用 OpenDota `team_id` 修复：上线前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-teamid-deploy-20260630-195342.sqlite`，重启 `mrjz-api.service` 后公网 `/health` 正常；生产库关键表行数保持不变，`teams.opendota_team_id` 索引已从唯一索引迁移为普通索引。
 - 建立 Git 仓库。
