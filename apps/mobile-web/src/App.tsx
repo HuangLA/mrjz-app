@@ -1083,6 +1083,7 @@ function StagePage({
                     members={standingMembersForRow(row, standingTeamMembers)}
                     expanded={expandedStandingTeamKeys.has(rowKey)}
                     onToggle={() => toggleStandingTeam(rowKey)}
+                    onOpenPlayer={(playerId) => onNavigate("player", { profileId: playerId })}
                   />
                 );
               })
@@ -3573,11 +3574,13 @@ function StandingRow({
   members,
   expanded,
   onToggle,
+  onOpenPlayer,
 }: {
   row: StageView["standings"][number];
   members: StandingTeamMember[];
   expanded: boolean;
   onToggle: () => void;
+  onOpenPlayer: (playerId: string) => void;
 }) {
   const visibleMembers = members.slice(0, 6);
 
@@ -3594,10 +3597,19 @@ function StandingRow({
         visibleMembers.length > 0 ? (
           <div className="standing-members" aria-label={`${row.team} 队员`}>
             {visibleMembers.map((member) => (
-              <div className="standing-member" key={member.id || member.displayName}>
+              <button
+                className="standing-member"
+                key={member.id || member.displayName}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenPlayer(member.id);
+                }}
+                aria-label={`查看 ${standingMemberDisplayId(member)} 选手主页`}
+              >
                 <StandingMemberAvatar member={member} />
                 <span className="standing-member-id">{standingMemberDisplayId(member)}</span>
-              </div>
+              </button>
             ))}
           </div>
         ) : (

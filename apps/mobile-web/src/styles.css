@@ -1165,10 +1165,30 @@ button {
 }
 
 .standing-member {
+  appearance: none;
   min-width: 0;
   display: grid;
   justify-items: center;
   gap: 3px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.standing-member:focus-visible {
+  outline: 0;
+}
+
+.standing-member:hover .standing-member-avatar,
+.standing-member:focus-visible .standing-member-avatar {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(241, 193, 95, .42),
+    0 8px 16px rgba(0, 0, 0, .28);
 }
 
 .standing-member-avatar {
@@ -1184,6 +1204,7 @@ button {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, .12),
     0 6px 14px rgba(0, 0, 0, .22);
+  transition: transform .16s ease, box-shadow .16s ease;
 }
 
 .standing-member-avatar img {

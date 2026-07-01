@@ -3112,7 +3112,16 @@ button[disabled] {
   display: grid;
   min-width: 0;
   gap: 3px;
+  color: inherit;
+  cursor: pointer;
   justify-items: center;
+}
+
+.standing-member:active .standing-member-avatar {
+  transform: scale(0.94);
+  box-shadow:
+    0 0 0 1px rgba(241, 193, 95, 0.42),
+    0 8px 16px rgba(0, 0, 0, 0.28);
 }
 
 .standing-member-avatar {
@@ -3128,6 +3137,7 @@ button[disabled] {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12),
     0 6px 14px rgba(0, 0, 0, 0.22);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
 .standing-member-avatar image {

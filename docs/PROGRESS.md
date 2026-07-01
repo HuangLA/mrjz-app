@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- H5 和小程序赛事阶段积分榜队员头像补齐详情入口：展开队伍后点击任一队员头像 / ID 可进入该选手详情页，并保持当前届次和来源队伍上下文。
 - 小程序转发能力接入：按微信官方 `onShareAppMessage` / `onShareTimeline` 要求打开 Taro 页面分享生命周期，页面显示时调用 `showShareMenu` 展示发送给朋友 / 分享到朋友圈入口；主 Tab、公共栏目、比赛详情、选手主页和队伍主页均返回可直达的分享标题与路径，“我的”页转发回公开首页。
 - 小程序“我的”页绑定账号后的比赛数据改为跨届总览：后端 `/me/stats` 顶部统计按全部参赛届次聚合总场次、胜率、KDA 和常用英雄，小程序届次列表不再截断前三条，并优先使用每届统计快照显示比赛场次。
 - 云端 API 已部署“我的”页跨届数据修复：部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-mine-stats-deploy-20260701-130449.sqlite`，同步后端 `dist` 并重启 `mrjz-api.service`；公网 `/health` 和 `/api/tournaments` 已验证正常返回。

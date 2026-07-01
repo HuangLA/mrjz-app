@@ -37,7 +37,7 @@ import type {
   TournamentDetail,
   TournamentOption,
 } from "../../types";
-import { isOfficialScheduleStage, labelStageType, labelStatus, teamName } from "../../utils";
+import { isOfficialScheduleStage, labelStageType, labelStatus, navigate, teamName } from "../../utils";
 
 const ungroupedStandingKey = "__all__";
 
@@ -429,6 +429,7 @@ export function StageContent() {
                         row={row}
                         members={standingMembersForRow(row, standingMemberLookup)}
                         expanded={expandedStandingTeamKeys.has(rowKey)}
+                        tournamentId={selectedTournamentId}
                         onToggle={() => toggleStandingTeam(rowKey)}
                       />
                     );
@@ -829,10 +830,23 @@ function StandingRowItem(props: {
   row: StandingRow;
   members: StandingTeamMember[];
   expanded: boolean;
+  tournamentId: string;
   onToggle: () => void;
 }) {
   const { row } = props;
   const visibleMembers = props.members.slice(0, 6);
+  const openMember = (member: StandingTeamMember) => {
+    if (!props.tournamentId || !member.id) {
+      return;
+    }
+
+    navigate(standingMemberDetailUrl({
+      tournamentId: props.tournamentId,
+      playerId: member.id,
+      accountId: member.accountId,
+      fromTeamId: row.teamId ?? "",
+    }));
+  };
 
   return (
     <View className={`standing-row-card ${props.expanded ? "is-expanded" : ""}`}>
@@ -849,7 +863,14 @@ function StandingRowItem(props: {
         visibleMembers.length > 0 ? (
           <View className="standing-members">
             {visibleMembers.map((member) => (
-              <View className="standing-member" key={member.id || member.displayName}>
+              <View
+                className="standing-member"
+                key={member.id || member.displayName}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openMember(member);
+                }}
+              >
                 <StandingMemberAvatar member={member} />
                 <Text className="standing-member-id">{standingMemberDisplayId(member)}</Text>
               </View>
@@ -960,4 +981,23 @@ function normalizeStandingLookupValue(value: string | null | undefined): string 
 
 function standingMemberDisplayId(member: StandingTeamMember): string {
   return member.displayName || (member.accountId === null ? "未登记" : String(member.accountId));
+}
+
+function standingMemberDetailUrl(input: {
+  tournamentId: string;
+  playerId: string;
+  accountId: number | null;
+  fromTeamId: string;
+}): string {
+  const query = [
+    `tournamentId=${encodeURIComponent(input.tournamentId)}`,
+    `playerId=${encodeURIComponent(input.playerId)}`,
+    `fromTeamId=${encodeURIComponent(input.fromTeamId)}`,
+  ];
+
+  if (input.accountId !== null) {
+    query.push(`accountId=${encodeURIComponent(String(input.accountId))}`);
+  }
+
+  return `/pages/player-detail/index?${query.join("&")}`;
 }
