@@ -296,7 +296,7 @@ export function MineContent() {
                   <Text className="stat-hint">KDA</Text>
                 </View>
               </View>
-              {myStats.tournamentHistory.slice(0, 3).map((entry) => {
+              {myStats.tournamentHistory.map((entry) => {
                 const status = getTournamentHistoryStatus(entry);
 
                 return (
@@ -308,7 +308,7 @@ export function MineContent() {
                     <View>
                       <Text className="state-title">{entry.tournamentName}</Text>
                       <Text className="state-text">
-                        {entry.matches.length} 场 · {formatPercent(entry.stats.winRate)} 胜率
+                        {tournamentHistoryMatchCount(entry)} 场 · {formatPercent(entry.stats.winRate)} 胜率
                       </Text>
                     </View>
                     <Text className={status.className}>{status.label}</Text>
@@ -335,6 +335,12 @@ export function MineContent() {
       </View>
     </PageShell>
   );
+}
+
+function tournamentHistoryMatchCount(
+  entry: AppUserStats["tournamentHistory"][number],
+): number {
+  return entry.stats.totalMatches || entry.matches.length;
 }
 
 function getTournamentHistoryStatus(entry: AppUserStats["tournamentHistory"][number]): {

@@ -3034,9 +3034,9 @@ export class SqliteTournamentRepository {
     }
 
     const currentTournamentId = tournamentIds[0] ?? "";
-    const stats = this.getPlayerStatsSnapshot(currentTournamentId, player.id);
     const matches = this.getPlayerMatchSnapshot(currentTournamentId, player.id);
     const tournamentHistory = this.listPlayerTournamentHistory(currentTournamentId, player.id);
+    const stats = aggregatePlayerTournamentStats(tournamentHistory);
     const hasData =
       matches.length > 0 ||
       stats.totalMatches > 0 ||
@@ -10914,6 +10914,82 @@ function emptyPlayerStats(): PlayerStatsSummary {
     avgDamageTaken: null,
     topHeroes: [],
   };
+}
+
+function aggregatePlayerTournamentStats(
+  tournamentHistory: TournamentPlayerHistoryEntry[],
+): PlayerStatsSummary {
+  let totalMatches = 0;
+  let wins = 0;
+  let kills = 0;
+  let deaths = 0;
+  let assists = 0;
+  let gpm = 0;
+  let xpm = 0;
+  let netWorth = 0;
+  let heroDamage = 0;
+  let towerDamage = 0;
+  let damageTaken = 0;
+  const heroMap = new Map<number, HeroPickSummary>();
+
+  for (const entry of tournamentHistory) {
+    const stats = entry.stats;
+    const matchCount = stats.totalMatches;
+
+    if (matchCount <= 0) {
+      continue;
+    }
+
+    totalMatches += matchCount;
+    wins += stats.wins;
+    kills += weightedStat(stats.avgKills, matchCount);
+    deaths += weightedStat(stats.avgDeaths, matchCount);
+    assists += weightedStat(stats.avgAssists, matchCount);
+    gpm += weightedStat(stats.avgGpm, matchCount);
+    xpm += weightedStat(stats.avgXpm, matchCount);
+    netWorth += weightedStat(stats.avgNetWorth, matchCount);
+    heroDamage += weightedStat(stats.avgHeroDamage, matchCount);
+    towerDamage += weightedStat(stats.avgTowerDamage, matchCount);
+    damageTaken += weightedStat(stats.avgDamageTaken, matchCount);
+
+    for (const hero of stats.topHeroes) {
+      const current = heroMap.get(hero.heroId) ?? { heroId: hero.heroId, picks: 0, wins: 0 };
+
+      current.picks += hero.picks;
+      current.wins += hero.wins;
+      heroMap.set(hero.heroId, current);
+    }
+  }
+
+  if (totalMatches === 0) {
+    return emptyPlayerStats();
+  }
+
+  const losses = totalMatches - wins;
+
+  return {
+    totalMatches,
+    wins,
+    losses,
+    winRate: round1((wins / totalMatches) * 100),
+    avgKills: average(kills, totalMatches),
+    avgDeaths: average(deaths, totalMatches),
+    avgAssists: average(assists, totalMatches),
+    kda: round2((kills + assists) / Math.max(1, deaths)),
+    avgGpm: average(gpm, totalMatches),
+    avgXpm: average(xpm, totalMatches),
+    avgNetWorth: average(netWorth, totalMatches),
+    avgHeroDamage: average(heroDamage, totalMatches),
+    avgTowerDamage: average(towerDamage, totalMatches),
+    avgDamageTaken: average(damageTaken, totalMatches),
+    topHeroes: [...heroMap.values()]
+      .sort((left, right) => right.picks - left.picks || right.wins - left.wins)
+      .slice(0, 5),
+  };
+}
+
+function weightedStat(value: number | null, count: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value * count : 0;
 }
 
 function emptyTeamStats(): TeamStatsSummary {
