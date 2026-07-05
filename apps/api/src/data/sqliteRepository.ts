@@ -1,6 +1,7 @@
 import { getSeedSlotOrder } from "@mrjz/shared/bracket-seeding";
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { openDatabase, parseJson, resolveDatabasePath } from "../db/client.js";
+import { isIgnoredOpenDotaMatch } from "../opendota/invalidMatches.js";
 import { normalizeOpenDotaMatchDetail } from "../opendota/normalizers/matchDetail.js";
 import { accountIdToSteamId64, steamId64ToAccountId } from "../opendota/steamClient.js";
 import type { OpenDotaMatchDetail, OpenDotaMatchPlayer } from "../opendota/types.js";
@@ -2449,7 +2450,7 @@ export class SqliteTournamentRepository {
 
     const rawMatch = parseJson<OpenDotaMatchDetail | null>(row.raw_json, null);
 
-    if (rawMatch === null) {
+    if (rawMatch === null || isIgnoredOpenDotaMatch(rawMatch, matchId)) {
       return undefined;
     }
 
@@ -2579,6 +2580,11 @@ export class SqliteTournamentRepository {
       .all(target.league.opendotaLeagueId);
 
     return rows
+      .filter((row) => {
+        const rawMatch = parseJson<OpenDotaMatchDetail | null>(text(row, "raw_json"), null);
+
+        return rawMatch !== null && !isIgnoredOpenDotaMatch(rawMatch, numberValue(row, "match_id"));
+      })
       .map((row) => this.mapOpenDotaMatchListItem(row, target))
       .sort((left, right) => dateSortValue(right.startTime) - dateSortValue(left.startTime))
       .slice(0, Math.max(1, limit));
@@ -8366,6 +8372,7 @@ export class SqliteTournamentRepository {
         raw: parseJson<OpenDotaMatchDetail | null>(text(row, "raw_json"), null),
       }))
       .filter((row): row is ParsedOpenDotaMatchRow => row.raw !== null)
+      .filter((row) => !isIgnoredOpenDotaMatch(row.raw, row.matchId))
       .sort((left, right) => (right.raw.start_time ?? 0) - (left.raw.start_time ?? 0));
 
     this.matchRowsCache.set(leagueId, rows);
@@ -9054,11 +9061,7 @@ export class SqliteTournamentRepository {
   }
 
   private countTournamentMatches(opendotaLeagueId: number): number {
-    const row = this.database
-      .prepare("SELECT COUNT(*) AS count FROM opendota_matches WHERE league_id = ?")
-      .get(opendotaLeagueId);
-
-    return numberValue(row ?? {}, "count");
+    return this.matchRowsForLeague(opendotaLeagueId).length;
   }
 
   private nextTournamentSeed(tournamentId: string): number {

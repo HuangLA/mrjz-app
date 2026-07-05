@@ -8,6 +8,7 @@ import {
   upsertOpenDotaMatch,
 } from "../data/repository.js";
 import { OpenDotaClient } from "./client.js";
+import { isIgnoredOpenDotaMatch, isIgnoredOpenDotaMatchId } from "./invalidMatches.js";
 import { cacheSteamAvatar } from "./steamAvatarCache.js";
 import { SteamDotaClient } from "./steamClient.js";
 import type {
@@ -27,6 +28,7 @@ export type OpenDotaLeagueSyncSummary = {
   discoveredMatches: number;
   fetchedMatches: number;
   skippedParsedMatches: number;
+  skippedInvalidMatches: number;
   skippedMismatchedMatches: number;
   parseRequests: number;
   failedMatches: number;
@@ -112,6 +114,7 @@ async function syncOpenDotaTargets(options: OpenDotaLeagueSyncOptions): Promise<
     discoveredMatches: 0,
     fetchedMatches: 0,
     skippedParsedMatches: 0,
+    skippedInvalidMatches: 0,
     skippedMismatchedMatches: 0,
     parseRequests: 0,
     failedMatches: 0,
@@ -137,7 +140,19 @@ async function syncOpenDotaTargets(options: OpenDotaLeagueSyncOptions): Promise<
     const matchIds = await discoverMatchIds(target, client, steamClient, options);
     summary.discoveredMatches += matchIds.length;
 
-    for (const matchId of matchIds.slice(0, matchLimit)) {
+    let processedMatches = 0;
+
+    for (const matchId of matchIds) {
+      if (isIgnoredOpenDotaMatchId(matchId)) {
+        summary.skippedInvalidMatches += 1;
+        continue;
+      }
+
+      if (processedMatches >= matchLimit) {
+        break;
+      }
+
+      processedMatches += 1;
       const cached = getOpenDotaMatchCache(matchId);
 
       if (cached?.parseStatus === "parsed") {
@@ -155,6 +170,11 @@ async function syncOpenDotaTargets(options: OpenDotaLeagueSyncOptions): Promise<
 
         if (actualLeagueId !== target.league.opendotaLeagueId) {
           summary.skippedMismatchedMatches += 1;
+          continue;
+        }
+
+        if (isIgnoredOpenDotaMatch(match, matchId)) {
+          summary.skippedInvalidMatches += 1;
           continue;
         }
 
