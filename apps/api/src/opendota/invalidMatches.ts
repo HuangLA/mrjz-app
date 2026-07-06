@@ -4,6 +4,7 @@ const IGNORED_OPENDOTA_MATCH_IDS = new Set([
   8882609976,
   8882633285,
   8882635063,
+  8884274627,
 ]);
 
 export function isIgnoredOpenDotaMatchId(matchId: number): boolean {

@@ -1,6 +1,6 @@
 # 项目进度追踪
 
-最后更新：2026-07-06
+最后更新：2026-07-07
 
 ## 当前状态
 
@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- 云端 API 已追加第四届训练赛 `8884274627` 到 OpenDota 忽略名单：该 match_id 因误挂联赛 ID 已被排除出第四届，后续增量同步会直接跳过，详情、比赛列表、比赛总数、排行榜、选手和队伍统计均不纳入；生产库已删除该比赛记录，并清理只由该训练赛沉淀进第四届的选手参赛关系，同时修正正式名单选手被该场写入的 `last_seen_match_id`。部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-ignore-training-8884274627-20260707-005947.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-ignore-training-8884274627-20260707-005947`，公网 API 已验证该详情返回 404 且第四届列表不显示该场。
 - 云端 API 已部署无效 0:0 OpenDota 比赛过滤：第四届 `19484` 的 `8882609976`、`8882633285`、`8882635063` 已从生产库删除，后端列表、详情、比赛总数和统计聚合统一过滤 `0:0` 战报，增量同步会跳过这些 match_id 且不再入库新的 0:0 异常；部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-invalid-zero-clean-20260706-011122.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-invalid-zero-clean-20260706-011122`。第四届统计快照已重算为 8 场有效比赛，公网 API 已验证比赛列表无 0:0、无效详情返回 404。同时已把 `693` / `199638912` 从 `也没那么难喝吧` 队伍成员和第四届参赛选手中移除，公网队伍成员数变为 6 且第四届选手列表不再显示该选手。
 
 - 云端 API 已部署选手标签字符限制放宽：部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-tag-limit-deploy-20260702-010729.sqlite`，同步后端 `dist` 并重启 `mrjz-api.service`；公网 `/health` 和 `/api/tournaments` 已验证正常返回，线上 dist 已包含 2-24 字与控制字符校验规则。
