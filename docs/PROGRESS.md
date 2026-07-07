@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- 云端 H5 / API 静态素材已部署配方图标修复：比赛详情物品图标解析把所有 `recipe_*` 统一指向通用 `recipe.png`，不再复用对应成品物品图标；H5 热修补丁生成 `/assets/index-BABnwuEk-recipe-bec61340.js` 并更新入口文件，备份旧 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-before-recipe-icon-20260708-030635`。公网已验证 `8885561348` 冥魂大帝背包物品 `248 = recipe_silver_edge`、H5 `/static/dota/items/recipe.png` 和 API `/api/assets/dota/items/recipe.png` 均可正常读取。
 - 云端 API 已追加第四届训练赛 `8884274627` 到 OpenDota 忽略名单：该 match_id 因误挂联赛 ID 已被排除出第四届，后续增量同步会直接跳过，详情、比赛列表、比赛总数、排行榜、选手和队伍统计均不纳入；生产库已删除该比赛记录，并清理只由该训练赛沉淀进第四届的选手参赛关系，同时修正正式名单选手被该场写入的 `last_seen_match_id`。部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-ignore-training-8884274627-20260707-005947.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-ignore-training-8884274627-20260707-005947`，公网 API 已验证该详情返回 404 且第四届列表不显示该场。
 - 云端 API 已部署无效 0:0 OpenDota 比赛过滤：第四届 `19484` 的 `8882609976`、`8882633285`、`8882635063` 已从生产库删除，后端列表、详情、比赛总数和统计聚合统一过滤 `0:0` 战报，增量同步会跳过这些 match_id 且不再入库新的 0:0 异常；部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-invalid-zero-clean-20260706-011122.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-invalid-zero-clean-20260706-011122`。第四届统计快照已重算为 8 场有效比赛，公网 API 已验证比赛列表无 0:0、无效详情返回 404。同时已把 `693` / `199638912` 从 `也没那么难喝吧` 队伍成员和第四届参赛选手中移除，公网队伍成员数变为 6 且第四届选手列表不再显示该选手。
 
@@ -96,7 +97,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序微信端 WXSS 兼容性修正：移除生成 `app.wxss` 中会触发开发者工具编译错误的通配子选择器，并替换 `fit-content`、`conic-gradient`、`filter` 和 `nth-child(n + 5)` 等高风险写法为微信端稳定 CSS。
 - 小程序真机排版反馈修正：自绘底部导航改为首页、赛事阶段、赛程、比赛记录、选手、队伍、我的 7 项并在首页和我的页常驻；淘汰赛对阵图改为按 bracket 分组和轮次横向滚动展示；比赛记录英雄缩略图收紧到稳定显示双方 5 个头像；比赛详情 MVP、比分、双方选手行整体降字号，聊天记录改为固定高度滚动区域；选手列表常用英雄图标和卡片高度同步缩小。
 - 小程序请求超时稳定性修正：API helper 显式设置 12 秒请求超时并把 `request:fail timeout` 转成页面可读错误；本地缓存的 tournamentId 会先和最新赛事列表校验，首页最近战绩改为顺序加载，减少微信请求层并发导致的偶发 timeout。
-- 小程序 / H5 比赛详情物品图标修正：`recipe_*` 配方类 item*id 统一映射到对应成品物品图标，缺少本地素材的特殊物品走空态，避免微信渲染层请求 `/assets/dota/items/recipe*\*.png` 报 500。
+- 小程序 / H5 比赛详情物品图标修正：`recipe_*` 配方类 item*id 统一映射到通用 `recipe.png` 配方图标，不再复用对应成品物品图标，缺少本地素材的特殊物品继续走空态。
 - 小程序选手详情页对齐 H5 参赛记录结构：常用英雄改用非像素风 portrait 并继续缩小展示；参赛记录复用比赛记录卡片，当前届次默认展开，往届按届次折叠并可展开查看含英雄阵容的比赛卡。
 - 小程序选手详情页比赛卡头像修正：profile 接口返回的原始 `heroId` 阵容会在页面转卡片时补齐本地 hero icon / portrait，保证参赛记录和比赛记录页使用同一套对阵头像资源。
 - 小程序选手详情页参赛记录对阵条继续收紧：仅在选手页比赛卡内缩小双方英雄头像和间距，并固定中间 `VS` 列宽，避免嵌套面板内头像挤压 VS 文案。

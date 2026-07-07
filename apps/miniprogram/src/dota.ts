@@ -736,7 +736,7 @@ function normalizeItemIconName(internalName: string | undefined): string | undef
   }
 
   if (internalName.startsWith("recipe_")) {
-    return internalName.slice("recipe_".length);
+    return "recipe";
   }
 
   return internalName;

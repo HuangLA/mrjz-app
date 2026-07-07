@@ -81,6 +81,12 @@ function collectAssets({ heroes, item_ids: itemIds, ability_ids: abilityIds }) {
     });
   }
 
+  addAsset(assetsByFile, {
+    type: "item",
+    url: `${steamCdnBaseUrl}/apps/dota2/images/dota_react/items/recipe.png`,
+    file: path.join(itemRoot, "recipe.png"),
+  });
+
   for (const abilityName of Object.values(abilityIds)) {
     if (!isAbilityImageName(abilityName)) {
       continue;
