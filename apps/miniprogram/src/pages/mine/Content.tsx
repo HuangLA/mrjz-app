@@ -243,9 +243,7 @@ export function MineContent() {
                 <Text className="state-title">{myStats.binding.displayName}</Text>
                 <Text className="state-text">account_id：{myStats.binding.accountId}</Text>
                 <Text className="state-text">SteamID64：{myStats.binding.steamId64}</Text>
-                <Text className="badge">
-                  {myStats.binding.verificationStatus === "verified" ? "已认证" : "未认证"}
-                </Text>
+                <Text className="badge">已绑定</Text>
               </View>
             ) : null}
             <View className="tag-input-row">

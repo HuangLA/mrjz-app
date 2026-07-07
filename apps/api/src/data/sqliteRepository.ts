@@ -1520,6 +1520,13 @@ export class SqliteTournamentRepository {
       "/api/assets/sponsors/razer-wordmark.svg",
       30,
     );
+    insert.run(
+      "ack_sponsor_huahuo",
+      "sponsor",
+      "HuaHuo esport",
+      "/api/assets/sponsors/huahuo-esport-lockup-large.png",
+      40,
+    );
 
     if (count > 0) {
       return;
@@ -6589,21 +6596,21 @@ export class SqliteTournamentRepository {
     const roundId = this.resolveRoundForStage(stageId, input.roundId, input.roundName);
     const boType = input.boType ?? "BO1";
     const scheduledAt = input.scheduledAt ?? matchStartTime(rawMatch) ?? new Date().toISOString();
-    const radiantScore = typeof rawMatch.radiant_score === "number" ? rawMatch.radiant_score : null;
-    const direScore = typeof rawMatch.dire_score === "number" ? rawMatch.dire_score : null;
-    const winnerTeamId =
-      typeof rawMatch.radiant_win === "boolean"
-        ? rawMatch.radiant_win
-          ? radiantTeamId
-          : direTeamId
-        : null;
     const existing = this.database
-      .prepare("SELECT series_id FROM series_games WHERE match_id = ?")
+      .prepare(
+        `
+          SELECT sg.series_id, s.stage_id
+          FROM series_games sg
+          JOIN series s ON s.id = sg.series_id
+          WHERE sg.match_id = ?
+        `,
+      )
       .get(matchId);
     const seriesId =
       existing === undefined
         ? uniqueId("series", `${roundId}-${matchId}`)
         : text(existing, "series_id");
+    const affectedStageId = existing === undefined ? stageId : text(existing, "stage_id");
 
     this.database.exec("BEGIN;");
 
@@ -6623,50 +6630,29 @@ export class SqliteTournamentRepository {
           .prepare(
             `
               INSERT INTO series_games (
-                id, series_id, game_index, match_id, radiant_score, dire_score, winner_team_id, parse_status
+                id, series_id, game_index, match_id, parse_status
               )
-              VALUES (?, ?, 1, ?, ?, ?, ?, 'parsed')
+              VALUES (?, ?, 1, ?, 'parsed')
             `,
           )
-          .run(`${seriesId}_g1`, seriesId, matchId, radiantScore, direScore, winnerTeamId);
+          .run(`${seriesId}_g1`, seriesId, matchId);
       } else {
-        this.database
-          .prepare(
-            `
-              UPDATE series
-              SET
-                round_id = ?,
-                stage_id = ?,
-                bo_type = ?,
-                scheduled_at = ?,
-                radiant_team_id = ?,
-                dire_team_id = ?,
-                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-              WHERE id = ?
-            `,
-          )
-          .run(roundId, stageId, boType, scheduledAt, radiantTeamId, direTeamId, seriesId);
         this.database
           .prepare(
             `
               UPDATE series_games
               SET
-                game_index = 1,
-                radiant_score = ?,
-                dire_score = ?,
-                winner_team_id = ?,
                 parse_status = 'parsed',
                 conflict_status = 'none',
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
               WHERE series_id = ? AND match_id = ?
             `,
           )
-          .run(radiantScore, direScore, winnerTeamId, seriesId, matchId);
+          .run(seriesId, matchId);
       }
 
-      this.upsertPlayersFromMatch(rawMatch, radiantTeamId, direTeamId);
-      this.recalculateSeriesScore(seriesId);
-      this.recalculateStageStandings(stageId);
+      this.ensureEntitiesFromOpenDotaMatch(rawMatch, target.league.opendotaLeagueId);
+      this.recalculateStageStandings(affectedStageId);
       this.database.exec("COMMIT;");
     } catch (error) {
       this.database.exec("ROLLBACK;");
@@ -8286,71 +8272,6 @@ export class SqliteTournamentRepository {
     };
   }
 
-  private upsertPlayersFromMatch(
-    rawMatch: OpenDotaMatchDetail,
-    radiantTeamId: string,
-    direTeamId: string,
-  ): void {
-    const players = rawMatch.players ?? [];
-    const now = new Date().toISOString();
-
-    for (const player of players) {
-      const accountId =
-        typeof player.account_id === "number" && player.account_id > 0 ? player.account_id : null;
-
-      if (accountId === null) {
-        continue;
-      }
-
-      const teamId = sideFromPlayer(player) === "radiant" ? radiantTeamId : direTeamId;
-      const displayName =
-        player.personaname?.trim() ||
-        player.name?.trim() ||
-        player.player_name?.trim() ||
-        `玩家 ${accountId}`;
-      const placeholderName = `玩家 ${accountId}`;
-      const steamId64 = accountIdToSteamId64(accountId);
-      const existing = this.database
-        .prepare("SELECT id FROM players WHERE account_id = ?")
-        .get(accountId);
-      const playerId =
-        existing === undefined
-          ? uniqueId("player", `${accountId}-${displayName}`)
-          : text(existing, "id");
-
-      if (existing === undefined) {
-        this.database
-          .prepare(
-            `
-              INSERT INTO players (id, account_id, steam_id64, display_name, current_team_id, avatar_url)
-              VALUES (?, ?, ?, ?, ?, NULL)
-            `,
-          )
-          .run(playerId, accountId, steamId64, displayName, teamId);
-      } else {
-        this.database
-          .prepare(
-            `
-              UPDATE players
-              SET
-                display_name = CASE WHEN display_name = '' OR display_name = ? THEN ? ELSE display_name END,
-                steam_id64 = COALESCE(steam_id64, ?),
-                current_team_id = ?,
-                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-              WHERE id = ?
-            `,
-          )
-          .run(placeholderName, displayName, steamId64, teamId, playerId);
-      }
-
-      this.database
-        .prepare(
-          "INSERT OR IGNORE INTO team_members (team_id, player_id, role, joined_at) VALUES (?, ?, 'player', ?)",
-        )
-        .run(teamId, playerId, now);
-    }
-  }
-
   private matchRowsForLeague(leagueId: number): ParsedOpenDotaMatchRow[] {
     const cachedRows = this.matchRowsCache.get(leagueId);
 
@@ -8878,25 +8799,13 @@ export class SqliteTournamentRepository {
             t.status AS tournament_status,
             l.id AS league_id,
             l.name AS league_name,
-            l.opendota_league_id,
-            rt.id AS radiant_team_id,
-            rt.name AS radiant_team_name,
-            rt.short_name AS radiant_team_short_name,
-            rt.logo_url AS radiant_team_logo_url,
-            rt.color AS radiant_team_color,
-            dt.id AS dire_team_id,
-            dt.name AS dire_team_name,
-            dt.short_name AS dire_team_short_name,
-            dt.logo_url AS dire_team_logo_url,
-            dt.color AS dire_team_color
+            l.opendota_league_id
           FROM series_games sg
           JOIN series s ON s.id = sg.series_id
           JOIN rounds r ON r.id = s.round_id
           JOIN stages st ON st.id = s.stage_id
           JOIN tournaments t ON t.id = st.tournament_id
           JOIN leagues l ON l.id = t.league_id
-          JOIN teams rt ON rt.id = s.radiant_team_id
-          JOIN teams dt ON dt.id = s.dire_team_id
           WHERE sg.match_id = ?
         `,
       )
@@ -8944,10 +8853,6 @@ export class SqliteTournamentRepository {
         scheduledAt: text(row, "scheduled_at"),
         gameIndex: numberValue(row, "game_index"),
       },
-      teams: {
-        radiant: teamFromPrefixedRow(row, "radiant"),
-        dire: teamFromPrefixedRow(row, "dire"),
-      } satisfies Record<TeamSide, TeamBrief>,
     };
   }
 

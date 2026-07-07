@@ -37,6 +37,7 @@ import {
   type PlayerTag,
   type PlayerTournamentHistoryEntry,
   type ProfileMatchSummary,
+  type ScheduleGroup,
   type ScheduleItem,
   type StageKey,
   type StageView,
@@ -758,7 +759,7 @@ function HomeHero({
   const communityAcknowledgements = acknowledgements.filter((item) => item.category === "community");
   const hasAcknowledgements = sponsorAcknowledgements.length > 0 || communityAcknowledgements.length > 0;
   const sponsorGridClassName =
-    sponsorAcknowledgements.length >= 3 ? "home-major-sponsors is-compact" : "home-major-sponsors";
+    sponsorAcknowledgements.length > 4 ? "home-major-sponsors is-compact" : "home-major-sponsors";
 
   return (
     <section className="home-hero">
@@ -1547,14 +1548,7 @@ function SchedulePage({
       }))
       .filter((group) => group.matches.length > 0);
 
-    if (scheduleOrder === "asc") {
-      return groups;
-    }
-
-    return groups
-      .slice()
-      .reverse()
-      .map((group) => ({ ...group, matches: group.matches.slice().reverse() }));
+    return sortScheduleGroups(groups, scheduleOrder);
   }, [data.scheduleGroups, scheduleOrder, statusFilter]);
   const filteredMatchCount = filteredScheduleGroups.reduce((sum, group) => sum + group.matches.length, 0);
 
@@ -1598,7 +1592,7 @@ function SchedulePage({
           </button>
         </div>
         <p className="schedule-summary">
-          当前显示 {filteredMatchCount}/{totalMatches} 场 · {scheduleOrder === "desc" ? "由晚到早" : "由早到晚"}
+          当前显示 {filteredMatchCount}/{totalMatches} 场 · 已定时间优先 · {scheduleOrder === "desc" ? "由晚到早" : "由早到晚"}
         </p>
       </section>
       {filteredScheduleGroups.length === 0 ? (
@@ -1622,6 +1616,26 @@ function SchedulePage({
       )}
     </>
   );
+}
+
+function sortScheduleGroups(groups: ScheduleGroup[], direction: SortDirection): ScheduleGroup[] {
+  const scheduledGroups = groups.filter((group) => !isTentativeScheduleGroup(group));
+  const tentativeGroups = groups.filter(isTentativeScheduleGroup);
+
+  if (direction === "asc") {
+    return [...scheduledGroups, ...tentativeGroups];
+  }
+
+  const reversedScheduledGroups = scheduledGroups
+    .slice()
+    .reverse()
+    .map((group) => ({ ...group, matches: group.matches.slice().reverse() }));
+
+  return [...reversedScheduledGroups, ...tentativeGroups];
+}
+
+function isTentativeScheduleGroup(group: ScheduleGroup): boolean {
+  return group.date === "待定日期" || group.matches.every((match) => match.time === "时间待定");
 }
 
 function RecordsPage({

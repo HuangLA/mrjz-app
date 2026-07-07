@@ -666,6 +666,13 @@ function ensureAcknowledgementTables(): void {
     VALUES (?, ?, ?, ?, ?, 'visible')
   `);
   insert.run("ack_sponsor_razer", "sponsor", "雷蛇", "/api/assets/sponsors/razer-wordmark.svg", 30);
+  insert.run(
+    "ack_sponsor_huahuo",
+    "sponsor",
+    "HuaHuo esport",
+    "/api/assets/sponsors/huahuo-esport-lockup-large.png",
+    40,
+  );
 
   if (acknowledgementCount > 0) {
     return;

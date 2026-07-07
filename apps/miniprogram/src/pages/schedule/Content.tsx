@@ -55,6 +55,12 @@ type ScheduleViewState = {
   statusFilter?: ScheduleFilter;
 };
 
+type VisibleSeriesItem = {
+  index: number;
+  round: StageRound;
+  series: StageRound["series"][number];
+};
+
 export function ScheduleContent() {
   const mainTabState = useMainTabState();
   const [initialStoredTournamentId] = useState(() => getSelectedTournamentId());
@@ -251,7 +257,9 @@ export function ScheduleContent() {
             ({ series }) => seriesScheduleStatusText(series.status) === statusFilter,
           );
 
-    return scheduleOrder === "asc" ? filtered : filtered.slice().reverse();
+    return filtered
+      .map((item, index) => ({ ...item, index }))
+      .sort((left, right) => compareVisibleSeries(left, right, scheduleOrder));
   }, [officialSchedule?.isPublished, rounds, scheduleOrder, statusFilter]);
   const totalSeries = officialSchedule?.isPublished
     ? rounds.reduce((sum, round) => sum + round.series.length, 0)
@@ -286,7 +294,7 @@ export function ScheduleContent() {
             </View>
             <Text className="schedule-summary">
               当前显示 {visibleSeries.length}/{totalSeries} 场 ·{" "}
-              {scheduleOrder === "desc" ? "由晚到早" : "由早到晚"}
+              已定时间优先 · {scheduleOrder === "desc" ? "由晚到早" : "由早到晚"}
             </Text>
           </View>
           {visibleSeries.length > 0 ? (
@@ -338,4 +346,32 @@ function isScheduleFilter(value: unknown): value is ScheduleFilter {
 
 function isScheduleOrder(value: unknown): value is ScheduleOrder {
   return value === "asc" || value === "desc";
+}
+
+function compareVisibleSeries(
+  left: VisibleSeriesItem,
+  right: VisibleSeriesItem,
+  order: ScheduleOrder,
+): number {
+  const leftTimestamp = scheduleTimestamp(left.series.scheduledAt);
+  const rightTimestamp = scheduleTimestamp(right.series.scheduledAt);
+
+  if (leftTimestamp !== null && rightTimestamp === null) return -1;
+  if (leftTimestamp === null && rightTimestamp !== null) return 1;
+
+  if (leftTimestamp !== null && rightTimestamp !== null && leftTimestamp !== rightTimestamp) {
+    return order === "asc" ? leftTimestamp - rightTimestamp : rightTimestamp - leftTimestamp;
+  }
+
+  return left.index - right.index;
+}
+
+function scheduleTimestamp(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = new Date(value).getTime();
+
+  return Number.isNaN(timestamp) ? null : timestamp;
 }

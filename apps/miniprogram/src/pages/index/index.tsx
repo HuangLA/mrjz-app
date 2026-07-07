@@ -487,7 +487,7 @@ function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }
   const sponsors = items.filter((item) => item.category === "sponsor");
   const supporters = items.filter((item) => item.category === "community");
   const sponsorGridClassName =
-    sponsors.length >= 3 ? "home-major-sponsors is-compact" : "home-major-sponsors";
+    sponsors.length > 4 ? "home-major-sponsors is-compact" : "home-major-sponsors";
 
   if (sponsors.length === 0 && supporters.length === 0) {
     return null;

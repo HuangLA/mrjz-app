@@ -29,7 +29,12 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 云端 H5 / API 静态素材已部署配方图标修复：比赛详情物品图标解析把所有 `recipe_*` 统一指向通用 `recipe.png`，不再复用对应成品物品图标；H5 热修补丁生成 `/assets/index-BABnwuEk-recipe-bec61340.js` 并更新入口文件，备份旧 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-before-recipe-icon-20260708-030635`。公网已验证 `8885561348` 冥魂大帝背包物品 `248 = recipe_silver_edge`、H5 `/static/dota/items/recipe.png` 和 API `/api/assets/dota/items/recipe.png` 均可正常读取。
 - 云端 API 已追加第四届训练赛 `8884274627` 到 OpenDota 忽略名单：该 match_id 因误挂联赛 ID 已被排除出第四届，后续增量同步会直接跳过，详情、比赛列表、比赛总数、排行榜、选手和队伍统计均不纳入；生产库已删除该比赛记录，并清理只由该训练赛沉淀进第四届的选手参赛关系，同时修正正式名单选手被该场写入的 `last_seen_match_id`。部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-ignore-training-8884274627-20260707-005947.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-ignore-training-8884274627-20260707-005947`，公网 API 已验证该详情返回 404 且第四届列表不显示该场。
 - 云端 API 已部署无效 0:0 OpenDota 比赛过滤：第四届 `19484` 的 `8882609976`、`8882633285`、`8882635063` 已从生产库删除，后端列表、详情、比赛总数和统计聚合统一过滤 `0:0` 战报，增量同步会跳过这些 match_id 且不再入库新的 0:0 异常；部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-invalid-zero-clean-20260706-011122.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-invalid-zero-clean-20260706-011122`。第四届统计快照已重算为 8 场有效比赛，公网 API 已验证比赛列表无 0:0、无效详情返回 404。同时已把 `693` / `199638912` 从 `也没那么难喝吧` 队伍成员和第四届参赛选手中移除，公网队伍成员数变为 6 且第四届选手列表不再显示该选手。
-
+- 云端 API 已部署 OpenDota 比赛详情与官方赛程 side 解耦：单场比赛详情的天辉 / 夜宴队伍、胜者、选手归属和比分严格来自 OpenDota raw JSON，官方 series 只提供赛事 / 阶段 / 轮次 / BO 上下文；旧 `link-series` 路径不再把 OpenDota 单局 side、击杀比分或胜者回写为官方赛程赛果，避免管理员手动赛程影响比赛库显示；服务器备份旧版 dist 到 `/opt/mrjz-api/apps/api/dist.before-opendota-side-decouple-20260703-151106`，公网 health 和第四届两场详情已验证。
+- 云端第四届 `S-ONE` vs `三角进攻` 官方赛程 side 已校正：OpenDota raw 显示两局均为 `三角进攻` 天辉、`S-ONE` 夜宴，生产库备份到 `/var/lib/mrjz-api/backups/mrjz-before-s4-side-fix-20260703-150055.sqlite` 后已修正 series、两条 `series_games` 和 standings；公网赛程、比赛列表和比赛详情已验证一致。
+- 云端 API 已部署 OpenDota 联赛发现修复：worker 现在优先读取 `/leagues/{league_id}/matchIds`，再用旧 `/matches` 列表补充，修复第四届 `19484` 在 `/matches` 返回空数组时无法发现比赛的问题；部署前备份生产库和后端 dist，重启 `mrjz-api.service` 后手动同步第四届，已拉取 2 场 parsed 比赛。
+- 云端 H5 已部署赛事阶段积分榜赛果口径修正版：阶段 standings 统一显示 `胜-平-负` 三段记录，和小程序阶段页保持一致；服务器备份旧版 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-20260703-223637` 后同步新版静态文件，公网首页已指向新 JS。
+- 云端 H5 已部署赛程排序修正版：本地重新构建 `apps/mobile-web` remote 产物，服务器备份旧版 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-20260703-034424` 后同步新版静态文件；`dota2mrjz.icu` / `www.dota2mrjz.icu` 首页均指向新 JS / CSS，静态资源和同域 `/api/health` 已验证正常。
+- H5 和小程序赛程页排序改为已定时间优先：有明确 `scheduledAt` 的场次按当前正序 / 倒序排列，时间待定的场次和待定日期组始终沉到底部；小程序“我的”页绑定账号徽标从未实现的“认证”口径改为“已绑定”。
 - 云端 API 已部署选手标签字符限制放宽：部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-tag-limit-deploy-20260702-010729.sqlite`，同步后端 `dist` 并重启 `mrjz-api.service`；公网 `/health` 和 `/api/tournaments` 已验证正常返回，线上 dist 已包含 2-24 字与控制字符校验规则。
 - 小程序选手应援标签云改为独立错落布局：每个标签按自身内容稳定分配高低和轻微倾角，避免整齐排队；字号仍完全由 `sizeLevel` / 点赞权重控制，并保留完整换行显示。
 - 小程序选手应援标签云修复完整显示：标签区域从固定高度绝对定位改为可换行流式布局，取消第 5 个以后隐藏和文字裁切，长中文 / 英文短标签会完整换行显示，同时继续按 `sizeLevel` 档位体现点赞权重。
@@ -110,7 +115,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序英雄榜主卡改为两行 flex 布局，候选前五改为稳定 flex 行，完整队名最多两行展示并固定头像 / 数据列宽度，避免微信端长队名挤压数据。
 - H5 英雄榜同步改为两行布局：第一行只展示称号，第二行展示获得者、场均数据和展开入口；后端选手列表、详情和英雄榜改为按 `tournament_players.current_team_id` 返回当前届次队伍，修复历史届次误显示最新队伍的问题。
 - H5 和小程序本轮完成比赛记录队伍筛选、比赛详情称号说明浮层、首页社区支持 6 列紧凑布局，并把英雄榜“搓澡师傅”改名为“技师”，新增“逛街按摩”和“PlayBoy”两个称号。
-- 首页赞助商鸣谢新增 Razer / 雷蛇：API 默认鸣谢数据会在缺少雷蛇项时补入，H5 和小程序首页赞助商区改为三列紧凑 logo rail，适配 ROG / 玩家国度、LiberNovo / 清闲人体工学椅和雷蛇三家并排展示。
+- 首页赞助商鸣谢新增 Razer / 雷蛇：API 默认鸣谢数据会在缺少雷蛇项时补入，H5 和小程序首页赞助商区改为三列紧凑 logo rail，适配 ROG / 玩家国度、LiberNovo / 清闲人体工学椅和雷蛇三家并排展示；后续补入 HuaHuo esport 后，四家赞助商改为 2x2 两行展示，HuaHuo 图标采用更大的左侧花形 H 标识 + 缩小字标的横向 lockup，避免移动端 logo 过小或只剩纯文字。
 - 英雄榜“逛街按摩”统计口径从场均 GPM 最低修正为场均 XPM 最低，避免和“喝茶散步”重复。
 - H5 和小程序比赛详情称号说明改为共享短规则文案兜底，后端同步返回简短称号说明；说明浮层改为页面最高层单行悬浮，只展示称号和规则，不改变选手卡片高度，并在页面点击、滚动或展开选手行时收起。
 - 英雄榜新增剑心犹在、郎朗、斯托克顿、暴虐成狂、老毒物、止痛药、化龙、老阴B 和 KS：后端按本届 raw JSON 聚合圣剑购买、APM、助攻、暴走、指定英雄选择和痛苦魔方击杀等口径；老毒物、止痛药、化龙、老阴B 和 KS 对 H5 / 小程序只暴露“触发条件隐藏”。
@@ -181,7 +186,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 完成后台补对阵冒烟：本地第三届 `8772653377` 已绑定 “富贵不能赢” vs “懂吗？？？”，并自动沉淀 10 名选手和两队统计。
 - H5 选手页升级为数据榜：展示完整战队名、胜率、KDA、GPM/XPM、击杀助攻、经济、伤害、建筑伤害、承伤和常用英雄，并支持按偏好切换排序；排序按钮在窄屏下可换行完整显示，常用英雄精简为 3 个小地图同款方形英雄头像，选手主页同步补齐战队标识和完整统计格，所有页面顶部栏统一为仅保留返回按钮，主导航改为底部悬浮栏并随滚动方向隐藏 / 显示。
 - H5 首页调整为赛事入口页：只展示各届比赛入口和必要识别信息，不再显示底部浮动导航；用户先选定届数，再进入赛事阶段、赛程、比赛记录、选手和队伍等次级页面，次级页面提供当前赛事上下文条和切换入口，保证后续数据范围明确。
-- 首页鸣谢名单改为后台统一管理：API 新增公开 / Admin 鸣谢接口和 2MB 图片上传限制，默认赞助商保留 ROG / 玩家国度、LiberNovo / 清闲人体工学椅与 Razer / 雷蛇；Web Admin 可维护头像、ID、显示状态和排序，H5 与小程序按赞助商 / 社区支持共用展示，社区支持者无数量上限且无数据时隐藏分组。
+- 首页鸣谢名单改为后台统一管理：API 新增公开 / Admin 鸣谢接口和 2MB 图片上传限制，默认赞助商保留 ROG / 玩家国度、LiberNovo / 清闲人体工学椅、Razer / 雷蛇与 HuaHuo esport；Web Admin 可维护头像、ID、显示状态和排序，H5 与小程序按赞助商 / 社区支持共用展示，社区支持者无数量上限且无数据时隐藏分组。
 - 鸣谢图片上传路径改为默认跟随 `MRJZ_DB_PATH` 所在数据目录（生产为 `/var/lib/mrjz-api/acknowledgements`），避免 systemd `ProtectSystem=full` 下写入 `/opt/mrjz-api/apps/api/var` 失败。
 - 默认赞助商历史迁移改为严格幂等：仅当 ROG / 清闲仍使用旧名称或旧静态路径时更新，避免服务重启无条件刷新线上鸣谢数据；雷蛇赞助商继续通过 `INSERT OR IGNORE` 补齐。
 - 小程序构建配置拆分 TypeScript 类型检查和 Taro 运行时解析：`tsconfig.json` 不再把 `react/jsx-runtime` 指向 `.d.ts`，避免微信开发者工具运行时报 `Cannot find module 'react/jsx-runtime'`；`tsconfig.typecheck.json` 仅在 typecheck 阶段锁定小程序本地 React 18 类型，避免根目录 React 19 类型和 Taro 组件类型混用。

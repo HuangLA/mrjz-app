@@ -20,6 +20,10 @@ export class OpenDotaClient {
     return this.getJson<OpenDotaLeagueMatch[]>(`/leagues/${leagueId}/matches`);
   }
 
+  getLeagueMatchIds(leagueId: number): Promise<number[]> {
+    return this.getJson<number[]>(`/leagues/${leagueId}/matchIds`);
+  }
+
   getPlayerMatches(accountId: number, limit: number): Promise<OpenDotaPlayerMatchSummary[]> {
     return this.getJson<OpenDotaPlayerMatchSummary[]>(`/players/${accountId}/matches?limit=${limit}`);
   }

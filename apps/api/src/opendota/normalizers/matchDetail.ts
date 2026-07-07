@@ -59,8 +59,8 @@ export function normalizeOpenDotaMatchDetail(
   now = new Date(),
 ): MatchDetailViewModel {
   const teams = {
-    radiant: context?.teams?.radiant ?? teamFromRaw("radiant", raw),
-    dire: context?.teams?.dire ?? teamFromRaw("dire", raw),
+    radiant: teamFromRaw("radiant", raw),
+    dire: teamFromRaw("dire", raw),
   };
   const radiantScore = numberOr(raw.radiant_score, 0);
   const direScore = numberOr(raw.dire_score, 0);

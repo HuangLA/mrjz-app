@@ -54,7 +54,6 @@ export type MatchDetailContext = {
   stage: StageBrief | null;
   round: RoundBrief | null;
   series: SeriesContext | null;
-  teams: Record<TeamSide, TeamBrief>;
 };
 
 export type MatchHeaderViewModel = {

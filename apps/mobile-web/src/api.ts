@@ -1534,7 +1534,7 @@ function normalizeStanding(row: ApiStanding): StandingRow {
     teamId: team?.id ?? row.team?.id ?? "",
     team: team?.name ?? fallbackTeamName,
     groupName: typeof row.groupName === "string" && row.groupName.trim().length > 0 ? row.groupName.trim() : null,
-    score: draws > 0 ? `${wins}-${draws}-${losses}` : `${wins}-${losses}`,
+    score: `${wins}-${draws}-${losses}`,
     points: `${row.points ?? 0} 分`,
     streak: `${row.gameWins ?? 0}-${row.gameLosses ?? 0}`,
     status: row.status === "advance" ? "晋级区" : row.status === "eliminated" ? "淘汰区" : "观察区",

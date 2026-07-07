@@ -390,6 +390,14 @@ async function discoverMatchIds(
   const leagueId = target.league.opendotaLeagueId;
 
   try {
+    for (const matchId of uniqueNumberIds(await client.getLeagueMatchIds(leagueId))) {
+      ids.add(matchId);
+    }
+  } catch (error) {
+    // Keep the older league matches and fallback discovery paths alive if matchIds is unavailable.
+  }
+
+  try {
     for (const matchId of uniqueMatchIds(await client.getLeagueMatches(leagueId))) {
       ids.add(matchId);
     }
@@ -441,6 +449,18 @@ async function discoverMatchIds(
   }
 
   return [...ids].sort((left, right) => right - left);
+}
+
+function uniqueNumberIds(matchIds: number[]): number[] {
+  const ids = new Set<number>();
+
+  for (const matchId of matchIds) {
+    if (typeof matchId === "number" && Number.isSafeInteger(matchId) && matchId > 0) {
+      ids.add(matchId);
+    }
+  }
+
+  return [...ids];
 }
 
 function uniqueMatchIds(matches: OpenDotaLeagueMatch[]): number[] {
