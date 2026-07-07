@@ -401,7 +401,9 @@ function normalizeChatMessage(
   message: OpenDotaChatMessage,
   playersBySlot: Map<number, MatchPlayerViewModel>,
 ): ChatMessageViewModel | null {
-  const text = message.key === undefined || message.key === null ? "" : String(message.key);
+  const type = message.type ?? "chat";
+  const text =
+    type === "chatwheel" ? "聊天轮盘" : message.key === undefined || message.key === null ? "" : String(message.key);
 
   if (text.trim().length === 0) {
     return null;
@@ -413,7 +415,7 @@ function normalizeChatMessage(
   return {
     time: numberOr(message.time, 0),
     timeText: formatClock(numberOr(message.time, 0)),
-    type: message.type ?? "chat",
+    type,
     side: player?.side ?? null,
     playerSlot,
     playerName: player?.name ?? null,

@@ -127,6 +127,7 @@ OpenDota 的 match detail 在解析完成后会包含更多高级字段。未解
 展示策略：
 
 - 默认只展示全局聊天和系统聊天。
+- `type = chatwheel` 的聊天轮盘不展示 OpenDota 的数字 `key`，统一展示为“聊天轮盘”。
 - 如果 OpenDota 数据无法区分频道，先用 `all`。
 - 空数组时不显示聊天模块。
 
