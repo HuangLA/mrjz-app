@@ -1,6 +1,6 @@
 # 项目进度追踪
 
-最后更新：2026-07-07
+最后更新：2026-07-08
 
 ## 当前状态
 
@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- 云端第四届 `S-ONE` vs `烈焰焚天` 未赛对局赛果已重置：保留 series `series_mqy0y2hd_ce2hc7_team_mrjz_s4_team_2_team_mrjz_s4_mqy0y2hd` 和两条 `series_games`，清空 winner / 单局比分并将 series 状态恢复为 `scheduled`；生产库先备份到 `/var/lib/mrjz-api/backups/mrjz-before-reset-sone-lieyan-result-20260708-125321.sqlite`，随后调用线上后端 standings 重算逻辑，公网 standings 和赛程接口已验证该对局仍显示但不再计入胜负积分。
 - 云端 API 比赛详情聊天轮盘显示修复：OpenDota `type = chatwheel` 的聊天事件不再把数字 `key` 当普通聊天正文返回，统一输出为“聊天轮盘”，避免 H5 / 小程序在 `8880810602` 等比赛聊天区显示裸数字 `71`；线上热补备份 `/opt/mrjz-api/apps/api/dist/opendota/normalizers/matchDetail.js.before-chatwheel-label-20260708-032122`，公网 health 和该场聊天详情已验证。
 - 云端 H5 / API 静态素材已部署配方图标修复：比赛详情物品图标解析把所有 `recipe_*` 统一指向通用 `recipe.png`，不再复用对应成品物品图标；H5 热修补丁生成 `/assets/index-BABnwuEk-recipe-bec61340.js` 并更新入口文件，备份旧 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-before-recipe-icon-20260708-030635`。公网已验证 `8885561348` 冥魂大帝背包物品 `248 = recipe_silver_edge`、H5 `/static/dota/items/recipe.png` 和 API `/api/assets/dota/items/recipe.png` 均可正常读取。
 - 云端 API 已追加第四届训练赛 `8884274627` 到 OpenDota 忽略名单：该 match_id 因误挂联赛 ID 已被排除出第四届，后续增量同步会直接跳过，详情、比赛列表、比赛总数、排行榜、选手和队伍统计均不纳入；生产库已删除该比赛记录，并清理只由该训练赛沉淀进第四届的选手参赛关系，同时修正正式名单选手被该场写入的 `last_seen_match_id`。部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-ignore-training-8884274627-20260707-005947.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-ignore-training-8884274627-20260707-005947`，公网 API 已验证该详情返回 404 且第四届列表不显示该场。
