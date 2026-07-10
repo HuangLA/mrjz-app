@@ -1650,7 +1650,8 @@ function RecordsPage({
   onOpenMatch: (matchId: string) => void;
 }) {
   const [teamFilter, setTeamFilter] = useState<RecordTeamFilter>(allRecordTeamFilter);
-  const teamFilters = useMemo(() => buildRecordTeamFilters(data.matchRecords), [data.matchRecords]);
+  const teamFilterOptions = useMemo(() => buildRecordTeamFilterOptions(data.matchRecords), [data.matchRecords]);
+  const teamFilters = useMemo(() => teamFilterOptions.map((option) => option.label), [teamFilterOptions]);
   const visibleRecords = useMemo(
     () =>
       teamFilter === allRecordTeamFilter
@@ -1679,9 +1680,9 @@ function RecordsPage({
             {visibleRecords.length === data.matchRecords.length ? "" : `/${data.matchRecords.length}`} 场
           </span>
         </div>
-        <FilterRow labels={teamFilters} value={teamFilter} onChange={setTeamFilter} />
+        <RecordTeamFilterRail options={teamFilterOptions} value={teamFilter} onChange={setTeamFilter} />
       </section>
-      <section className="records-list">
+      <section className="records-list" id="filtered-match-records">
         {visibleRecords.length > 0 ? (
           visibleRecords.map((record, index) => (
             <MatchRecordCard key={record.matchId} record={record} index={index} onOpenMatch={onOpenMatch} />
@@ -1691,6 +1692,58 @@ function RecordsPage({
         )}
       </section>
     </>
+  );
+}
+
+function RecordTeamFilterRail({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ label: RecordTeamFilter; count: number }>;
+  value: RecordTeamFilter;
+  onChange: (value: RecordTeamFilter) => void;
+}) {
+  const railRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const activeItem = railRef.current?.querySelector<HTMLElement>("[aria-selected='true']");
+    activeItem?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [value]);
+
+  return (
+    <div className="record-filter">
+      <div className="record-filter-heading">
+        <span>按战队浏览</span>
+        <small>左右滑动切换</small>
+      </div>
+      <div className="record-filter-frame">
+        <div aria-label="按战队筛选比赛记录" className="record-filter-rail" ref={railRef} role="tablist">
+          {options.map((option) => {
+            const isActive = option.label === value;
+
+            return (
+              <button
+                aria-controls="filtered-match-records"
+                aria-label={`${option.label}，${option.count} 场比赛`}
+                aria-selected={isActive}
+                className={`record-filter-item ${isActive ? "active" : ""}`}
+                key={option.label}
+                role="tab"
+                type="button"
+                onClick={(event) => {
+                  onChange(option.label);
+                  event.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                }}
+              >
+                <span>{option.label}</span>
+                <small>{option.count}</small>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2344,20 +2397,20 @@ function FilterRow(
   );
 }
 
-function buildRecordTeamFilters(records: MatchRecord[]): RecordTeamFilter[] {
-  const names = new Set<string>();
+function buildRecordTeamFilterOptions(records: MatchRecord[]): Array<{ label: RecordTeamFilter; count: number }> {
+  const counts = new Map<string, number>();
 
   records.forEach((record) => {
-    [record.radiantTeamName, record.direTeamName].forEach((name) => {
-      const normalized = cleanRecordTeamName(name);
-
-      if (normalized) {
-        names.add(normalized);
-      }
-    });
+    const names = new Set([record.radiantTeamName, record.direTeamName].map(cleanRecordTeamName).filter(Boolean));
+    names.forEach((name) => counts.set(name, (counts.get(name) ?? 0) + 1));
   });
 
-  return [allRecordTeamFilter, ...[...names].sort((left, right) => left.localeCompare(right, "zh-CN"))];
+  return [
+    { label: allRecordTeamFilter, count: records.length },
+    ...[...counts.entries()]
+      .sort(([left], [right]) => left.localeCompare(right, "zh-CN"))
+      .map(([label, count]) => ({ label, count })),
+  ];
 }
 
 function matchRecordHasTeam(record: MatchRecord, teamName: string): boolean {

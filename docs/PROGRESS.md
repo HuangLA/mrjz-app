@@ -1,6 +1,6 @@
 # 项目进度追踪
 
-最后更新：2026-07-08
+最后更新：2026-07-10
 
 ## 当前状态
 
@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- H5 比赛记录页战队筛选改为横向文字轨道：补齐移动端左右滑动、惯性滚动、边缘渐隐提示和选中项自动居中，筛选项同步显示对应场次，不再使用原有胶囊按钮排；H5 `dev:remote` 通过 Vite 同源代理读取云端 `https://api.dota2mrjz.icu/api`，`build:remote` 继续直接注入云端地址，避免本地预览意外回落到本机接口或被云端 CORS 拦截。
 - 云端第四届 `S-ONE` vs `烈焰焚天` 未赛对局赛果已重置：保留 series `series_mqy0y2hd_ce2hc7_team_mrjz_s4_team_2_team_mrjz_s4_mqy0y2hd` 和两条 `series_games`，清空 winner / 单局比分并将 series 状态恢复为 `scheduled`；生产库先备份到 `/var/lib/mrjz-api/backups/mrjz-before-reset-sone-lieyan-result-20260708-125321.sqlite`，随后调用线上后端 standings 重算逻辑，公网 standings 和赛程接口已验证该对局仍显示但不再计入胜负积分。
 - 云端 API 比赛详情聊天轮盘显示修复：OpenDota `type = chatwheel` 的聊天事件不再把数字 `key` 当普通聊天正文返回，统一输出为“聊天轮盘”，避免 H5 / 小程序在 `8880810602` 等比赛聊天区显示裸数字 `71`；线上热补备份 `/opt/mrjz-api/apps/api/dist/opendota/normalizers/matchDetail.js.before-chatwheel-label-20260708-032122`，公网 health 和该场聊天详情已验证。
 - 云端 H5 / API 静态素材已部署配方图标修复：比赛详情物品图标解析把所有 `recipe_*` 统一指向通用 `recipe.png`，不再复用对应成品物品图标；H5 热修补丁生成 `/assets/index-BABnwuEk-recipe-bec61340.js` 并更新入口文件，备份旧 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-before-recipe-icon-20260708-030635`。公网已验证 `8885561348` 冥魂大帝背包物品 `248 = recipe_silver_edge`、H5 `/static/dota/items/recipe.png` 和 API `/api/assets/dota/items/recipe.png` 均可正常读取。

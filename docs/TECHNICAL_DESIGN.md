@@ -617,7 +617,7 @@ api.example.com/api/*   -> Node.js API
 
 前端 API 地址切换约定：
 
-- H5 读取 `PUBLIC_API_BASE_URL` 或 `VITE_PUBLIC_API_BASE_URL` 作为构建期 API 地址；开发时可用 `npm run dev:mobile-web:local` 或设置 `MRJZ_REMOTE_API_BASE_URL` 后运行 `npm run dev:mobile-web:remote`。
+- H5 读取 `PUBLIC_API_BASE_URL` 或 `VITE_PUBLIC_API_BASE_URL` 作为构建期 API 地址；开发时可用 `npm run dev:mobile-web:local` 连接本机 API，或运行 `npm run dev:mobile-web:remote`，由 Vite 把同源 `/api` 请求代理到 `https://api.dota2mrjz.icu/api` 以规避云端对 localhost 的 CORS 限制；必要时可通过 `MRJZ_REMOTE_API_BASE_URL` 覆盖代理目标。
 - H5 支持运行期临时覆盖：访问 `?apiBaseUrl=https://api.example.com/api` 会写入浏览器 localStorage，`?apiBaseUrl=local` 切回本地，`?apiBaseUrl=reset` 清除覆盖。
 - 小程序读取 `MRJZ_MINIPROGRAM_API_BASE_URL` 作为构建期默认 API 地址，也兼容 `PUBLIC_API_BASE_URL` / `VITE_PUBLIC_API_BASE_URL`；默认 `dev:miniprogram` / workspace `build` 指向线上 `https://api.dota2mrjz.icu/api`，本地调试显式使用 `dev:miniprogram:local` / `build:miniprogram:local`。
 - 小程序不支持运行期手动切换 API 地址；提审、体验版和正式版必须通过构建期变量注入已配置微信 request 合法域名的 HTTPS API。默认 Dota 图片跟随 API 域名加载时，还需要把同一域名加入微信 downloadFile 合法域名。

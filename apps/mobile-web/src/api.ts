@@ -962,6 +962,10 @@ function resolveApiBaseUrl(): string {
     return runtimeOverride;
   }
 
+  if (env.VITE_USE_REMOTE_API_PROXY === "1") {
+    return envBaseUrl ?? defaultApiBaseUrl;
+  }
+
   if ((envBaseUrl === undefined || envBaseUrl === defaultApiBaseUrl) && isLocalViteHost()) {
     return localApiBaseUrl;
   }
