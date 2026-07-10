@@ -9,7 +9,7 @@
     "dev:remote": "VITE_USE_REMOTE_API_PROXY=1 VITE_PUBLIC_API_BASE_URL=/api vite --host 0.0.0.0 --port 5174",
     "build": "npm run build:local",
     "build:local": "VITE_PUBLIC_API_BASE_URL=http://127.0.0.1:3001/api tsc -p tsconfig.json && VITE_PUBLIC_API_BASE_URL=http://127.0.0.1:3001/api vite build",
-    "build:remote": "VITE_PUBLIC_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:-https://api.dota2mrjz.icu/api} tsc -p tsconfig.json && VITE_PUBLIC_API_BASE_URL=${MRJZ_REMOTE_API_BASE_URL:-https://api.dota2mrjz.icu/api} vite build",
+    "build:remote": "VITE_PUBLIC_API_BASE_URL=/api tsc -p tsconfig.json && VITE_PUBLIC_API_BASE_URL=/api vite build",
     "cache:dota-assets": "node scripts/cache-dota-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add mobile web lint\"",
