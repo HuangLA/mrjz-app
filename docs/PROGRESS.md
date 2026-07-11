@@ -1,6 +1,6 @@
 # 项目进度追踪
 
-最后更新：2026-07-11
+最后更新：2026-07-12
 
 ## 当前状态
 
@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- 云端 API 已将第四届异常比赛 `8891569781`、`8891659354`、`8891766016` 加入 OpenDota 永久忽略名单：生产库已删除两条完整战报和一条 `fetch failed` 失败占位，清理只由这两场战报产生的孤立选手，修正其余受影响选手的首次 / 最近参赛标记，并用剩余 31 场有效比赛重算第四届选手、队伍和英雄榜统计。部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-ignore-matches-8891569781-8891659354-8891766016-20260712-011848.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-ignore-matches-8891569781-8891659354-8891766016-20260712-011848`；数据库残留扫描和完整性检查通过，公网三场详情均返回 404，比赛列表、选手列表和英雄榜均不再包含相关数据，后续同步发现这三个 match_id 时会直接跳过。
 - 云端 H5 已部署比赛记录筛选横向滑动修复：上线前备份 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-before-record-filter-20260711-013919`，随后同步新静态产物；`dota2mrjz.icu` / `www.dota2mrjz.icu` 均已指向 `index-aaJY3AmJ.js` 与 `index-BbS1Fe-g.css`，线上 CSS / JS 已确认包含横向滚动规则和新版筛选文案，同域 `/api/health` 正常。
 - H5 比赛记录页战队筛选改为横向文字轨道：补齐移动端左右滑动、惯性滚动、边缘渐隐提示和选中项自动居中，筛选项同步显示对应场次，不再使用原有胶囊按钮排；H5 `dev:remote` 通过 Vite 同源代理读取云端 `https://api.dota2mrjz.icu/api`，`build:remote` 保持生产同域 `/api` 并由 Nginx 转发云端服务，避免本地预览意外回落到本机接口或被云端 CORS 拦截。
 - 云端第四届 `S-ONE` vs `烈焰焚天` 未赛对局赛果已重置：保留 series `series_mqy0y2hd_ce2hc7_team_mrjz_s4_team_2_team_mrjz_s4_mqy0y2hd` 和两条 `series_games`，清空 winner / 单局比分并将 series 状态恢复为 `scheduled`；生产库先备份到 `/var/lib/mrjz-api/backups/mrjz-before-reset-sone-lieyan-result-20260708-125321.sqlite`，随后调用线上后端 standings 重算逻辑，公网 standings 和赛程接口已验证该对局仍显示但不再计入胜负积分。
