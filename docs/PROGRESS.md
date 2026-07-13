@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- 云端 API 与 H5 已部署赛程单局胜方展示修正：生产数据库、旧 API dist 和旧 H5 分别备份到 `/var/lib/mrjz-api/backups/mrjz-before-game-winner-deploy-20260713-163507.sqlite`、`/opt/mrjz-api/apps/api/dist.before-game-winner-20260713-163507`、`/var/www/backups/mrjz-h5-before-game-winner-20260713-163507`；`mrjz-api.service` 重启后保持 active，公网赛程接口 37 场真实关联比赛均返回有效 `winnerTeamId`；H5 已切换到 `index-DJ1eR7oi.js` 与 `index-VMoy6X25.css`，主域名、www 域名、新静态资源和同域 `/api/health` 均返回 200，线上 JS 已确认不含旧“结果待同步”文案。
 - H5 和小程序赛程展开内容收口为单局胜方：每行只显示局次、“队名 胜”和详情箭头，不再展示 match_id、BO 总比分、局内人头比或“结果待同步”；API 从 OpenDota 单局 `radiant_win` 与双方 team_id 映射真实胜方，兼容单局天辉 / 夜魇位置和官方赛程左右位置相反的情况，并停止把管理员录入的 BO 总比分写进第 1 局字段。
 - 微信小程序当前 `dist` 已使用 `build:miniprogram:remote` 重新构建，运行时 API 固定为 `https://api.dota2mrjz.icu/api`，产物扫描确认不再包含 `http://127.0.0.1:3001/api`，云端 `/api/health` 返回 200；源码默认 `dev` / `build` 仍保持远端配置，本地联调仅通过显式 `dev:local` / `build:local` 启用。
 - 云端 H5 已部署赛程 BO 多局展开版本：使用生产同源 `/api` 参数重新构建并同步到 `/var/www/mrjz-h5`，上线前完整备份到 `/var/www/backups/mrjz-h5-before-schedule-multigame-20260713-142609`；`dota2mrjz.icu` / `www.dota2mrjz.icu` 已切换到 `index-B0rE83eE.js` 与 `index-DpwV0oQ5.css`，两个域名、新静态资源和同域 `/api/health` 均返回 200，线上资源已确认包含多局展开、单局赛果和逐局详情入口。
