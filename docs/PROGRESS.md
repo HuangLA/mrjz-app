@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- 微信小程序当前 `dist` 已使用 `build:miniprogram:remote` 重新构建，运行时 API 固定为 `https://api.dota2mrjz.icu/api`，产物扫描确认不再包含 `http://127.0.0.1:3001/api`，云端 `/api/health` 返回 200；源码默认 `dev` / `build` 仍保持远端配置，本地联调仅通过显式 `dev:local` / `build:local` 启用。
 - 云端 H5 已部署赛程 BO 多局展开版本：使用生产同源 `/api` 参数重新构建并同步到 `/var/www/mrjz-h5`，上线前完整备份到 `/var/www/backups/mrjz-h5-before-schedule-multigame-20260713-142609`；`dota2mrjz.icu` / `www.dota2mrjz.icu` 已切换到 `index-B0rE83eE.js` 与 `index-DpwV0oQ5.css`，两个域名、新静态资源和同域 `/api/health` 均返回 200，线上资源已确认包含多局展开、单局赛果和逐局详情入口。
 - H5 和小程序赛程页修复 BO 多局详情入口：小组赛卡片不再重复显示“第一轮”，任一单局关联 match_id 后可展开查看全部单局槽位、单局比分和关联状态，并从每个已关联单局分别进入对应比赛详情，不再整卡固定跳到第一局；两端共用浏览器安全的赛程展示规则及单元测试。
 - 云端 API 已将第四届异常比赛 `8891569781`、`8891659354`、`8891766016` 加入 OpenDota 永久忽略名单：生产库已删除两条完整战报和一条 `fetch failed` 失败占位，清理只由这两场战报产生的孤立选手，修正其余受影响选手的首次 / 最近参赛标记，并用剩余 31 场有效比赛重算第四届选手、队伍和英雄榜统计。部署前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-ignore-matches-8891569781-8891659354-8891766016-20260712-011848.sqlite`，备份旧 dist 到 `/opt/mrjz-api/apps/api/dist.before-ignore-matches-8891569781-8891659354-8891766016-20260712-011848`；数据库残留扫描和完整性检查通过，公网三场详情均返回 404，比赛列表、选手列表和英雄榜均不再包含相关数据，后续同步发现这三个 match_id 时会直接跳过。
