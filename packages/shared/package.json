@@ -24,12 +24,17 @@
       "types": "./src/match-awards.d.ts",
       "import": "./src/match-awards.js",
       "default": "./src/match-awards.js"
+    },
+    "./schedule": {
+      "types": "./src/schedule.d.ts",
+      "import": "./src/schedule.js",
+      "default": "./src/schedule.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add shared lint\"",
-    "test": "echo \"TODO: add shared tests\""
+    "test": "tsx --test src/*.test.ts"
   }
 }

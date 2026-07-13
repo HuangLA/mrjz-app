@@ -1619,6 +1619,12 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
   const date = hasScheduleTime ? formatDate(scheduledAt) : "待定日期";
   const time = hasScheduleTime ? formatTime(scheduledAt) : "时间待定";
   const firstGame = series.games?.find((game) => game.matchId !== null && game.matchId !== undefined);
+  const games = (series.games ?? []).map((game, index) => ({
+    gameIndex: game.gameIndex ?? index + 1,
+    matchId: game.matchId === null || game.matchId === undefined ? null : String(game.matchId),
+    radiantScore: game.radiantScore ?? null,
+    direScore: game.direScore ?? null,
+  })).sort((left, right) => left.gameIndex - right.gameIndex);
   const gameScore =
     firstGame?.radiantScore !== null && firstGame?.radiantScore !== undefined
       ? `${firstGame.radiantScore} : ${firstGame.direScore ?? 0}`
@@ -1629,12 +1635,14 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
     timeDate: date,
     sortValue: timestamp,
     stage: stage.name ?? stageNameFromId(series.stageId ?? round.stageId),
+    stageType: stage.type,
     round: [series.groupName, round.name ?? `R${round.roundNumber ?? "-"}`].filter(Boolean).join(" · "),
     kind: series.seriesKind ?? "regular",
     teamA: series.radiantTeam?.name ?? "待定",
     teamB: series.direTeam?.name ?? "待定",
     bo: series.boType ?? "BO1",
     status: seriesStatusText(series.status),
+    games,
   };
 
   if (series.status === "completed") {
@@ -1656,6 +1664,7 @@ function normalizeByeScheduleItem(stage: ApiStage, round: ApiRound, team: ApiTea
     timeDate: "待定日期",
     sortValue: Number.MAX_SAFE_INTEGER,
     stage: stage.name ?? stageNameFromId(round.stageId),
+    stageType: stage.type,
     round: round.name ?? `R${round.roundNumber ?? "-"}`,
     kind: "regular",
     teamA: team.name ?? "待定",

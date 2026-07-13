@@ -298,25 +298,25 @@ export function ScheduleContent() {
             </Text>
           </View>
           {visibleSeries.length > 0 ? (
-            visibleSeries.map(({ round, series }) => (
-              <View className="section-panel schedule-group" key={series.id}>
-                <View className="date-row">
-                  <Text>
-                    {labelStageType(
-                      detail?.stages.find((stage) => stage.id === round.stageId)?.type,
-                    )}
-                  </Text>
-                  <Text>{round.name}</Text>
+            visibleSeries.map(({ round, series }) => {
+              const stageType = detail?.stages.find((stage) => stage.id === round.stageId)?.type;
+
+              return (
+                <View className="section-panel schedule-group" key={series.id}>
+                  <View className="date-row">
+                    <Text>{labelStageType(stageType)}</Text>
+                    {stageType === "group" ? null : <Text>{round.name}</Text>}
+                  </View>
+                  <SeriesCard
+                    series={{ ...series, roundName: round.name }}
+                    stageType={stageType}
+                    onOpenMatch={(matchId) =>
+                      navigate(`/pages/match-detail/index?matchId=${matchId}`)
+                    }
+                  />
                 </View>
-                <SeriesCard
-                  series={{ ...series, roundName: round.name }}
-                  onOpen={() => {
-                    const matchId = series.games?.find((game) => game.matchId)?.matchId;
-                    if (matchId) navigate(`/pages/match-detail/index?matchId=${matchId}`);
-                  }}
-                />
-              </View>
-            ))
+              );
+            })
           ) : (
             <View className="section-panel">
               <Text className="muted">暂无符合条件的赛程</Text>

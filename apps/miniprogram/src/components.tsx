@@ -1,6 +1,7 @@
 import { Button, Picker, ScrollView, Text, View } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
-import { createContext, useContext, useEffect, useRef } from "react";
+import { formatSeriesGameResult, hasLinkedMatch } from "@mrjz/shared/schedule";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { dotaAssetUrl, heroIcon } from "./dota";
 import { SmartImage as Image } from "./SmartImage";
@@ -11,6 +12,7 @@ import type {
   TeamBrief,
   TeamListItem,
   TournamentOption,
+  StageType,
 } from "./types";
 import {
   formatDateTime,
@@ -660,21 +662,28 @@ export function TeamBadge(props: { team?: TeamBrief | null; align?: "left" | "ri
   );
 }
 
-export function SeriesCard(props: { series: SeriesSummary; onOpen?: () => void }) {
-  const firstMatchId = props.series.games?.find((game) => game.matchId)?.matchId;
+export function SeriesCard(props: {
+  series: SeriesSummary;
+  stageType?: StageType | undefined;
+  onOpenMatch?: (matchId: number) => void;
+}) {
+  const [gamesExpanded, setGamesExpanded] = useState(false);
+  const games = [...(props.series.games ?? [])].sort(
+    (left, right) => left.gameIndex - right.gameIndex,
+  );
+  const hasGameDetails = games.some(hasLinkedMatch);
   const isFinished = props.series.status === "completed";
   const statusText = seriesScheduleStatusText(props.series.status);
+  const contextLabel =
+    props.stageType === "group"
+      ? props.series.groupName || "小组赛"
+      : props.series.groupName || props.series.roundName || seriesTitle(props.series);
 
   return (
-    <View
-      className={`schedule-card series-card ${isFinished ? "finished" : ""}`}
-      onClick={() => props.onOpen?.()}
-    >
+    <View className={`schedule-card series-card ${isFinished ? "finished" : ""}`}>
       <View className="schedule-card-head series-meta-row">
         <Text className="schedule-time">{formatDateTime(props.series.scheduledAt)}</Text>
-        <Text className="muted">
-          {props.series.groupName || props.series.roundName || seriesTitle(props.series)}
-        </Text>
+        <Text className="muted">{contextLabel}</Text>
       </View>
       <View className="schedule-matchup series-vs">
         <Text className="schedule-team">{teamName(props.series.radiantTeam)}</Text>
@@ -685,14 +694,47 @@ export function SeriesCard(props: { series: SeriesSummary; onOpen?: () => void }
       </View>
       <View className="schedule-card-foot series-footer">
         <Text className={`status-tag ${seriesScheduleStatusClass(statusText)}`}>{statusText}</Text>
-        <Text className="match-id">
-          {firstMatchId
-            ? `match ${firstMatchId}`
-            : props.series.seriesKind === "tiebreaker"
-              ? "加赛"
-              : "--"}
-        </Text>
+        {hasGameDetails && props.onOpenMatch ? (
+          <Button
+            className="series-games-toggle"
+            onClick={() => setGamesExpanded((current) => !current)}
+          >
+            <Text>{games.length} 场比赛</Text>
+            <Text className={`series-games-chevron ${gamesExpanded ? "is-expanded" : ""}`}>⌄</Text>
+          </Button>
+        ) : (
+          <Text className="match-id">
+            {props.series.seriesKind === "tiebreaker" ? "加赛" : "--"}
+          </Text>
+        )}
       </View>
+      {hasGameDetails && props.onOpenMatch && gamesExpanded ? (
+        <View className="series-games-list">
+          {games.map((game) => {
+            const isLinked = hasLinkedMatch(game);
+
+            return (
+              <Button
+                className={`series-game-row ${isLinked ? "" : "is-disabled"}`}
+                disabled={!isLinked}
+                key={game.gameIndex}
+                onClick={() => {
+                  if (typeof game.matchId === "number") props.onOpenMatch?.(game.matchId);
+                }}
+              >
+                <Text className="series-game-index">第 {game.gameIndex} 局</Text>
+                <Text className="series-game-id">
+                  {isLinked ? `#${game.matchId}` : "比赛 ID 未关联"}
+                </Text>
+                <Text className="series-game-result">
+                  {isLinked ? formatSeriesGameResult(game) : "--"}
+                </Text>
+                <Text className="series-game-arrow">{isLinked ? "›" : ""}</Text>
+              </Button>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }

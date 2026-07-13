@@ -281,6 +281,7 @@ export interface ScheduleGroup {
 export interface ScheduleItem {
   time: string;
   stage: string;
+  stageType?: StageKey | undefined;
   round: string;
   kind: "regular" | "tiebreaker" | string;
   teamA: string;
@@ -289,6 +290,12 @@ export interface ScheduleItem {
   status: "未开始" | "待补录" | "已完赛" | "延期";
   score?: string;
   matchId?: string;
+  games?: Array<{
+    gameIndex: number;
+    matchId: string | null;
+    radiantScore: number | null;
+    direScore: number | null;
+  }>;
 }
 
 export interface OfficialScheduleStatus {

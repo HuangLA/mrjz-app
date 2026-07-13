@@ -1,4 +1,5 @@
 export * from "./match-detail";
+export * from "./schedule.js";
 export { getMatchAwardRuleDescription, matchAwardRuleDescriptions } from "./match-awards.js";
 export type { MatchAwardRuleCode } from "./match-awards.js";
 export { formatDotaGameMode } from "./dota-game-mode.js";

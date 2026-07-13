@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
+import { formatSeriesGameResult, hasLinkedMatch, scheduleRoundLabel } from "@mrjz/shared/schedule";
 import { createPortal } from "react-dom";
 import {
   loadMatchData,
@@ -2435,26 +2436,18 @@ function ScheduleCard({
   match,
   onOpenMatch,
 }: {
-  match: {
-    time: string;
-    stage: string;
-    round: string;
-    kind?: string;
-    teamA: string;
-    teamB: string;
-    bo: string;
-    status: string;
-    score?: string;
-    matchId?: string;
-  };
+  match: ScheduleItem;
   onOpenMatch: (matchId: string) => void;
 }) {
+  const [gamesExpanded, setGamesExpanded] = useState(false);
   const isFinished = match.status === "已完赛";
   const scoreText = match.score ?? match.bo;
   const parsedScore = parseScheduleScore(match.score);
   const teamAIsWinner = parsedScore !== null && parsedScore.left > parsedScore.right;
   const teamBIsWinner = parsedScore !== null && parsedScore.right > parsedScore.left;
-  const roundLabel = `${match.stage} · ${match.kind === "tiebreaker" ? `加赛 · ${match.round}` : match.round}`;
+  const games = match.games ?? [];
+  const hasGameDetails = games.some(hasLinkedMatch);
+  const roundLabel = scheduleRoundLabel({ stageType: match.stageType, stageName: match.stage, roundName: match.round, seriesKind: match.kind });
 
   return (
     <article className={`schedule-card ${isFinished ? "finished" : ""}`}>
@@ -2469,14 +2462,29 @@ function ScheduleCard({
       </div>
       <div className="schedule-card-foot">
         <span className={`status-tag ${statusClass(match.status)}`}>{match.status}</span>
-        {match.matchId ? (
-          <button className="link-button" type="button" onClick={() => onOpenMatch(match.matchId!)}>
-            打开战报
+        {hasGameDetails ? (
+          <button className="series-games-toggle" type="button" aria-expanded={gamesExpanded} onClick={() => setGamesExpanded((current) => !current)}>
+            <span>{games.length} 场比赛</span>
+            <span className={`series-games-chevron ${gamesExpanded ? "is-expanded" : ""}`}>⌄</span>
           </button>
         ) : (
           <small>--</small>
         )}
       </div>
+      {hasGameDetails && gamesExpanded ? (
+        <div className="series-games-list">
+          {games.map((game) => {
+            const isLinked = hasLinkedMatch(game);
+            const content = <><span className="series-game-index">第 {game.gameIndex} 局</span><span className="series-game-id">{isLinked ? `#${game.matchId}` : "比赛 ID 未关联"}</span><strong>{isLinked ? formatSeriesGameResult(game) : "--"}</strong><span className="series-game-arrow">{isLinked ? "›" : ""}</span></>;
+
+            return isLinked ? (
+              <button className="series-game-row" type="button" aria-label={`打开第 ${game.gameIndex} 局比赛详情`} key={game.gameIndex} onClick={() => onOpenMatch(String(game.matchId))}>{content}</button>
+            ) : (
+              <div className="series-game-row is-disabled" key={game.gameIndex}>{content}</div>
+            );
+          })}
+        </div>
+      ) : null}
     </article>
   );
 }
