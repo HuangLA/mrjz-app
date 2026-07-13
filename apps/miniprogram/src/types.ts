@@ -56,8 +56,7 @@ export type StageSummary = {
 export type SeriesGameSummary = {
   gameIndex: number;
   matchId?: number | null;
-  radiantScore?: number | null;
-  direScore?: number | null;
+  winnerTeamId?: string | null;
 };
 
 export type SeriesSummary = {

@@ -284,7 +284,9 @@ export interface ScheduleItem {
   stageType?: StageKey | undefined;
   round: string;
   kind: "regular" | "tiebreaker" | string;
+  teamAId: string;
   teamA: string;
+  teamBId: string;
   teamB: string;
   bo: string;
   status: "未开始" | "待补录" | "已完赛" | "延期";
@@ -293,8 +295,7 @@ export interface ScheduleItem {
   games?: Array<{
     gameIndex: number;
     matchId: string | null;
-    radiantScore: number | null;
-    direScore: number | null;
+    winnerTeamId: string | null;
   }>;
 }
 

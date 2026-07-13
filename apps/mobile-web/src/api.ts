@@ -285,6 +285,7 @@ type ApiSeries = {
   games?: Array<{
     gameIndex?: number;
     matchId?: number | string | null;
+    winnerTeamId?: string | null;
     radiantScore?: number | null;
     direScore?: number | null;
   }>;
@@ -1622,8 +1623,7 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
   const games = (series.games ?? []).map((game, index) => ({
     gameIndex: game.gameIndex ?? index + 1,
     matchId: game.matchId === null || game.matchId === undefined ? null : String(game.matchId),
-    radiantScore: game.radiantScore ?? null,
-    direScore: game.direScore ?? null,
+    winnerTeamId: game.winnerTeamId ?? null,
   })).sort((left, right) => left.gameIndex - right.gameIndex);
   const gameScore =
     firstGame?.radiantScore !== null && firstGame?.radiantScore !== undefined
@@ -1638,7 +1638,9 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
     stageType: stage.type,
     round: [series.groupName, round.name ?? `R${round.roundNumber ?? "-"}`].filter(Boolean).join(" · "),
     kind: series.seriesKind ?? "regular",
+    teamAId: series.radiantTeam?.id ?? "",
     teamA: series.radiantTeam?.name ?? "待定",
+    teamBId: series.direTeam?.id ?? "",
     teamB: series.direTeam?.name ?? "待定",
     bo: series.boType ?? "BO1",
     status: seriesStatusText(series.status),
@@ -1667,7 +1669,9 @@ function normalizeByeScheduleItem(stage: ApiStage, round: ApiRound, team: ApiTea
     stageType: stage.type,
     round: round.name ?? `R${round.roundNumber ?? "-"}`,
     kind: "regular",
+    teamAId: team.id ?? "",
     teamA: team.name ?? "待定",
+    teamBId: "",
     teamB: "轮空",
     bo: "BYE",
     status: "已完赛",

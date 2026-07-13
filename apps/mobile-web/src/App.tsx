@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
-import { formatSeriesGameResult, hasLinkedMatch, scheduleRoundLabel } from "@mrjz/shared/schedule";
+import { hasLinkedMatch, scheduleRoundLabel, seriesGameWinnerLabel } from "@mrjz/shared/schedule";
 import { createPortal } from "react-dom";
 import {
   loadMatchData,
@@ -2475,7 +2475,7 @@ function ScheduleCard({
         <div className="series-games-list">
           {games.map((game) => {
             const isLinked = hasLinkedMatch(game);
-            const content = <><span className="series-game-index">第 {game.gameIndex} 局</span><span className="series-game-id">{isLinked ? `#${game.matchId}` : "比赛 ID 未关联"}</span><strong>{isLinked ? formatSeriesGameResult(game) : "--"}</strong><span className="series-game-arrow">{isLinked ? "›" : ""}</span></>;
+            const content = <><span className="series-game-index">第 {game.gameIndex} 局</span><strong className="series-game-winner">{isLinked ? seriesGameWinnerLabel({ winnerTeamId: game.winnerTeamId, radiantTeam: { id: match.teamAId, name: match.teamA }, direTeam: { id: match.teamBId, name: match.teamB } }) : "比赛 ID 未关联"}</strong><span className="series-game-arrow">{isLinked ? "›" : ""}</span></>;
 
             return isLinked ? (
               <button className="series-game-row" type="button" aria-label={`打开第 ${game.gameIndex} 局比赛详情`} key={game.gameIndex} onClick={() => onOpenMatch(String(game.matchId))}>{content}</button>

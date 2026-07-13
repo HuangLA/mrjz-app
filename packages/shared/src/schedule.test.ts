@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatSeriesGameResult, hasLinkedMatch, scheduleRoundLabel } from "./schedule.js";
+import { hasLinkedMatch, scheduleRoundLabel, seriesGameWinnerLabel } from "./schedule.js";
 
 test("group schedules hide their redundant first round label", () => {
   assert.equal(
@@ -34,9 +34,23 @@ test("non-group schedules retain stage and round context", () => {
   );
 });
 
-test("linked games and their result text are normalized for public clients", () => {
+test("linked games and their winner text are normalized for public clients", () => {
   assert.equal(hasLinkedMatch({ matchId: 8123456789 }), true);
   assert.equal(hasLinkedMatch({ matchId: null }), false);
-  assert.equal(formatSeriesGameResult({ radiantScore: 31, direScore: 18 }), "31 : 18");
-  assert.equal(formatSeriesGameResult({ radiantScore: null, direScore: null }), "结果待同步");
+  assert.equal(
+    seriesGameWinnerLabel({
+      winnerTeamId: "team-b",
+      radiantTeam: { id: "team-a", name: "A 队" },
+      direTeam: { id: "team-b", name: "B 队" },
+    }),
+    "B 队 胜",
+  );
+  assert.equal(
+    seriesGameWinnerLabel({
+      winnerTeamId: null,
+      radiantTeam: { id: "team-a", name: "A 队" },
+      direTeam: { id: "team-b", name: "B 队" },
+    }),
+    "查看详情",
+  );
 });

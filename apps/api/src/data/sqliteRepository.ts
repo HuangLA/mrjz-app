@@ -5,6 +5,7 @@ import { isIgnoredOpenDotaMatch } from "../opendota/invalidMatches.js";
 import { normalizeOpenDotaMatchDetail } from "../opendota/normalizers/matchDetail.js";
 import { accountIdToSteamId64, steamId64ToAccountId } from "../opendota/steamClient.js";
 import type { OpenDotaMatchDetail, OpenDotaMatchPlayer } from "../opendota/types.js";
+import { resolveSeriesGameWinnerTeamId } from "./seriesGameWinner.js";
 import type {
   BracketNode,
   OfficialScheduleLogEntry,
@@ -5653,19 +5654,6 @@ export class SqliteTournamentRepository {
           `,
         )
         .run(radiantScore, direScore, winnerTeamId, seriesId);
-      this.database
-        .prepare(
-          `
-            UPDATE series_games
-            SET
-              radiant_score = CASE WHEN game_index = 1 THEN ? ELSE radiant_score END,
-              dire_score = CASE WHEN game_index = 1 THEN ? ELSE dire_score END,
-              winner_team_id = CASE WHEN game_index = 1 THEN ? ELSE winner_team_id END,
-              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-            WHERE series_id = ?
-          `,
-        )
-        .run(radiantScore, direScore, winnerTeamId, seriesId);
       this.recalculateStageStandings(series.stageId);
       this.database.exec("COMMIT;");
     } catch (error) {
@@ -9656,19 +9644,52 @@ export class SqliteTournamentRepository {
     return this.database
       .prepare(
         `
-          SELECT game_index, match_id, radiant_score, dire_score
-          FROM series_games
-          WHERE series_id = ?
-          ORDER BY game_index ASC
+          SELECT
+            sg.game_index,
+            sg.match_id,
+            sg.radiant_score,
+            sg.dire_score,
+            sg.winner_team_id,
+            s.radiant_team_id AS series_radiant_team_id,
+            s.dire_team_id AS series_dire_team_id,
+            rt.opendota_team_id AS series_radiant_opendota_team_id,
+            dt.opendota_team_id AS series_dire_opendota_team_id,
+            json_extract(om.raw_json, '$.radiant_win') AS raw_radiant_win,
+            json_extract(om.raw_json, '$.radiant_team_id') AS raw_radiant_team_id,
+            json_extract(om.raw_json, '$.dire_team_id') AS raw_dire_team_id
+          FROM series_games sg
+          JOIN series s ON s.id = sg.series_id
+          JOIN teams rt ON rt.id = s.radiant_team_id
+          JOIN teams dt ON dt.id = s.dire_team_id
+          LEFT JOIN opendota_matches om ON om.match_id = sg.match_id
+          WHERE sg.series_id = ?
+          ORDER BY sg.game_index ASC
         `,
       )
       .all(seriesId)
-      .map((row) => ({
-        gameIndex: numberValue(row, "game_index"),
-        matchId: nullableNumber(row, "match_id"),
-        radiantScore: nullableNumber(row, "radiant_score"),
-        direScore: nullableNumber(row, "dire_score"),
-      }));
+      .map((row) => {
+        const rawRadiantWin = nullableNumber(row, "raw_radiant_win");
+
+        return {
+          gameIndex: numberValue(row, "game_index"),
+          matchId: nullableNumber(row, "match_id"),
+          winnerTeamId: resolveSeriesGameWinnerTeamId({
+            storedWinnerTeamId: nullableText(row, "winner_team_id"),
+            rawRadiantWin: rawRadiantWin === null ? null : rawRadiantWin === 1,
+            rawRadiantTeamId: nullableNumber(row, "raw_radiant_team_id"),
+            rawDireTeamId: nullableNumber(row, "raw_dire_team_id"),
+            seriesRadiantTeamId: text(row, "series_radiant_team_id"),
+            seriesDireTeamId: text(row, "series_dire_team_id"),
+            seriesRadiantOpenDotaTeamId: nullableNumber(
+              row,
+              "series_radiant_opendota_team_id",
+            ),
+            seriesDireOpenDotaTeamId: nullableNumber(row, "series_dire_opendota_team_id"),
+          }),
+          radiantScore: nullableNumber(row, "radiant_score"),
+          direScore: nullableNumber(row, "dire_score"),
+        };
+      });
   }
 }
 

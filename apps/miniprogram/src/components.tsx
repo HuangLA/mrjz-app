@@ -1,6 +1,6 @@
 import { Button, Picker, ScrollView, Text, View } from "@tarojs/components";
 import Taro, { usePullDownRefresh } from "@tarojs/taro";
-import { formatSeriesGameResult, hasLinkedMatch } from "@mrjz/shared/schedule";
+import { hasLinkedMatch, seriesGameWinnerLabel } from "@mrjz/shared/schedule";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { dotaAssetUrl, heroIcon } from "./dota";
@@ -723,11 +723,14 @@ export function SeriesCard(props: {
                 }}
               >
                 <Text className="series-game-index">第 {game.gameIndex} 局</Text>
-                <Text className="series-game-id">
-                  {isLinked ? `#${game.matchId}` : "比赛 ID 未关联"}
-                </Text>
-                <Text className="series-game-result">
-                  {isLinked ? formatSeriesGameResult(game) : "--"}
+                <Text className="series-game-winner">
+                  {isLinked
+                    ? seriesGameWinnerLabel({
+                        winnerTeamId: game.winnerTeamId ?? null,
+                        radiantTeam: props.series.radiantTeam,
+                        direTeam: props.series.direTeam,
+                      })
+                    : "比赛 ID 未关联"}
                 </Text>
                 <Text className="series-game-arrow">{isLinked ? "›" : ""}</Text>
               </Button>

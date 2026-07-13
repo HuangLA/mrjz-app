@@ -1241,7 +1241,7 @@ button[disabled] {
 
 .series-game-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto 12px;
+  grid-template-columns: 48px minmax(0, 1fr) 12px;
   gap: 8px;
   align-items: center;
   width: 100%;
@@ -1266,25 +1266,23 @@ button[disabled] {
   opacity: 1;
 }
 
+.series-game-row.is-disabled .series-game-winner {
+  color: #657185;
+}
+
 .series-game-index {
   color: #9eabbc;
   font-size: 10px;
   font-weight: 800;
 }
 
-.series-game-id {
-  min-width: 0;
+.series-game-winner {
   overflow: hidden;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.series-game-result {
   color: #9be693;
   font-size: 11px;
-  font-variant-numeric: tabular-nums;
   font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .series-game-arrow {

@@ -1,12 +1,15 @@
 export type PublicSeriesGame = {
   gameIndex?: number | null;
   matchId?: number | string | null;
-  radiantScore?: number | null;
-  direScore?: number | null;
+  winnerTeamId?: string | null;
 };
 
 export declare function hasLinkedMatch(game: PublicSeriesGame): boolean;
-export declare function formatSeriesGameResult(game: PublicSeriesGame): string;
+export declare function seriesGameWinnerLabel(input: {
+  winnerTeamId?: string | null;
+  radiantTeam: { id: string; name: string };
+  direTeam: { id: string; name: string };
+}): string;
 export declare function scheduleRoundLabel(input: {
   stageType?: "group" | "swiss" | "knockout" | string | undefined;
   stageName: string;

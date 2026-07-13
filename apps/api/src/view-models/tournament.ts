@@ -71,6 +71,7 @@ export type SeriesSummary = {
   games: Array<{
     gameIndex: number;
     matchId: number | null;
+    winnerTeamId: string | null;
     radiantScore: number | null;
     direScore: number | null;
   }>;

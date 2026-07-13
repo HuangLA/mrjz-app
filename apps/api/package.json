@@ -16,7 +16,7 @@
     "sync:steam-profiles": "npm run build && node --no-warnings=ExperimentalWarning dist/opendota/syncSteamProfiles.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add API lint\"",
-    "test": "echo \"TODO: add API tests\""
+    "test": "tsx --test src/data/*.test.ts"
   },
   "dependencies": {
     "@mrjz/shared": "0.1.0"

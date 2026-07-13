@@ -6,16 +6,16 @@ export function hasLinkedMatch(game) {
   return typeof game.matchId === "string" && game.matchId.trim().length > 0;
 }
 
-export function formatSeriesGameResult(game) {
-  if (game.radiantScore === null || game.radiantScore === undefined) {
-    return "结果待同步";
+export function seriesGameWinnerLabel(input) {
+  if (input.winnerTeamId === input.radiantTeam.id) {
+    return `${input.radiantTeam.name} 胜`;
   }
 
-  if (game.direScore === null || game.direScore === undefined) {
-    return "结果待同步";
+  if (input.winnerTeamId === input.direTeam.id) {
+    return `${input.direTeam.name} 胜`;
   }
 
-  return `${game.radiantScore} : ${game.direScore}`;
+  return "查看详情";
 }
 
 export function scheduleRoundLabel(input) {
