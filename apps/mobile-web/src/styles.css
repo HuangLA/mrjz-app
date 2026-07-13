@@ -2708,6 +2708,7 @@ button {
 }
 
 .player-row.mvp-player {
+  overflow: hidden;
   border-color: rgba(240, 195, 106, .72);
   border-left-color: #f0c36a;
   background:
