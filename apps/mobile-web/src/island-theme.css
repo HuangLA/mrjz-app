@@ -542,3 +542,534 @@ html[data-theme="island"] .theme-toast {
     animation-duration: 1ms;
   }
 }
+
+/* Visual audit pass: keep texture on the page, not behind dense information. */
+html[data-theme="island"] {
+  --island-text: #554431;
+  --island-muted: #796e5f;
+  --island-faint: #968a78;
+  --island-border: #d9cfba;
+  --island-surface: #fffdf4;
+  --island-surface-soft: #f7f3df;
+  --island-mint: #e7f7f1;
+  --island-mint-strong: #0f9f92;
+  --island-mint-dark: #087b72;
+  --island-success: #397b35;
+  --island-danger: #bd4652;
+}
+
+html[data-theme="island"] .app-shell {
+  color: var(--island-text);
+  background:
+    radial-gradient(circle, rgba(25, 159, 146, .075) 1.2px, transparent 1.4px) 0 0 / 46px 46px,
+    #fbfaf2;
+}
+
+html[data-theme="island"] .app-shell :where(
+  .dense-section,
+  .section-panel,
+  .match-summary,
+  .metric-card,
+  .schedule-card,
+  .player-card,
+  .profile-card,
+  .hero-card,
+  .team-panel,
+  .battle-summary,
+  .mvp-card,
+  .trend-card,
+  .draft-card,
+  .agha-row,
+  .round-board > div,
+  .bracket-node
+) {
+  border-color: var(--island-border);
+  background: var(--island-surface);
+  color: var(--island-text);
+  box-shadow: none;
+}
+
+html[data-theme="island"] .app-shell :where(.eyebrow, .muted, .tiny-meta, small) {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell :where(.route-tab, .segmented button, .filter, .player-sort-bar button) {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell :where(
+  .route-tab.active,
+  .segmented button.active,
+  .filter.active,
+  .standing-tabs button.active
+) {
+  border-color: #087b72;
+  background: var(--island-mint-strong);
+  box-shadow: 0 3px 0 #087b72;
+  color: #fff;
+  text-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .floating-route-nav .route-tab.active {
+  color: #fff;
+}
+
+html[data-theme="island"] .app-shell .record-filter-frame::before {
+  background: linear-gradient(90deg, var(--island-surface) 18%, transparent);
+}
+
+html[data-theme="island"] .app-shell .record-filter-frame::after {
+  background: linear-gradient(270deg, var(--island-surface) 18%, transparent);
+}
+
+html[data-theme="island"] .app-shell .record-filter-item {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .record-filter-item.active {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .record-filter-item.active::after {
+  background: var(--island-mint-strong);
+}
+
+html[data-theme="island"] .app-shell .record-filter-item small,
+html[data-theme="island"] .app-shell .record-filter-item.active small {
+  color: var(--island-faint);
+}
+
+html[data-theme="island"] .app-shell .schedule-card,
+html[data-theme="island"] .app-shell .schedule-card.finished {
+  border-color: var(--island-border);
+  background: var(--island-surface);
+  color: var(--island-text);
+  box-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .schedule-card.finished {
+  border-color: #a9d5b9;
+  background: linear-gradient(100deg, #edf8ef, #fffdf4 62%);
+}
+
+html[data-theme="island"] .app-shell .schedule-card :where(.schedule-card-head b, .schedule-team, .series-game-row) {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .schedule-score.is-result {
+  border-color: #9bcaa1;
+  background: #e8f5e8;
+  color: var(--island-success);
+}
+
+html[data-theme="island"] .app-shell .schedule-score.is-bo {
+  border-color: #e8ce91;
+  background: #fff5d9;
+  color: #86651e;
+}
+
+html[data-theme="island"] .app-shell .record-card {
+  border-color: var(--island-border);
+  background: var(--island-surface);
+}
+
+html[data-theme="island"] .app-shell .record-score strong {
+  color: #b33f4d;
+}
+
+html[data-theme="island"] .app-shell .radiant-win .record-score strong {
+  color: var(--island-success);
+}
+
+html[data-theme="island"] .app-shell .dire-win .record-score strong {
+  color: var(--island-danger);
+}
+
+html[data-theme="island"] .app-shell :where(.status-tag.green, .sync-pill) {
+  background: #e3f1d7;
+  color: #397b35;
+}
+
+html[data-theme="island"] .app-shell .status-tag.red {
+  background: #f9dddd;
+  color: #a83d48;
+}
+
+html[data-theme="island"] .app-shell .status-tag.blue {
+  background: #e2f1f3;
+  color: #267080;
+}
+
+html[data-theme="island"] .app-shell .record-flags span.active {
+  background: #e3f1d7;
+  color: #397b35;
+}
+
+html[data-theme="island"] .app-shell .hero-leaderboard-card,
+html[data-theme="island"] .app-shell .hero-leaderboard-card.expanded {
+  border: 1.5px solid var(--island-border);
+  border-radius: 18px;
+  background: var(--island-surface);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .hero-leaderboard-card.expanded {
+  border-color: #8ccfc3;
+  background: var(--island-mint);
+}
+
+html[data-theme="island"] .app-shell .hero-leaderboard-main,
+html[data-theme="island"] .app-shell .hero-leaderboard-row {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .hero-leaderboard-row {
+  border-color: rgba(121, 110, 95, .20);
+  background: rgba(255, 253, 244, .78);
+}
+
+html[data-theme="island"] .app-shell :where(
+  .hero-leaderboard-title span,
+  .hero-leaderboard-winner b,
+  .hero-leaderboard-value b,
+  .hero-leaderboard-toggle,
+  .hero-leaderboard-name b,
+  .hero-leaderboard-row-value b,
+  .hero-leaderboard-rank
+) {
+  color: var(--island-text);
+  text-shadow: none;
+}
+
+html[data-theme="island"] .app-shell :where(
+  .hero-leaderboard-title small,
+  .hero-leaderboard-winner small,
+  .hero-leaderboard-value small,
+  .hero-leaderboard-name small,
+  .hero-leaderboard-row-value small
+) {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .leaderboard-avatar {
+  border-color: #c9bfa9;
+  background: #f3eedf;
+}
+
+html[data-theme="island"] .app-shell .leaderboard-avatar.placeholder {
+  background: #dcefe8;
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .player-sort-meta,
+html[data-theme="island"] .app-shell .player-sort-meta b {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .player-sort-bar button {
+  border-color: transparent;
+  background: transparent;
+  color: #75839a;
+}
+
+html[data-theme="island"] .app-shell .player-sort-bar button.active {
+  border-color: #87cbbf;
+  background: #e6f7f1;
+  box-shadow: none;
+  color: var(--island-mint-dark);
+}
+
+html[data-theme="island"] .app-shell .player-stat-card-main {
+  border-color: var(--island-border);
+  border-left-color: var(--accent);
+  border-radius: 18px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 10%, #fffdf4), #fffdf4 58%);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell :where(
+  .player-stat-name-row b,
+  .player-stat-primary strong,
+  .player-stat-grid b
+) {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell :where(
+  .player-stat-identity small,
+  .player-stat-primary span,
+  .player-stat-primary em,
+  .player-stat-grid small
+) {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .player-stat-primary span b {
+  color: var(--island-success);
+}
+
+html[data-theme="island"] .app-shell .player-stat-primary i {
+  background: linear-gradient(90deg, #55a95a 0 var(--rate), #ddd7c9 var(--rate) 100%);
+}
+
+html[data-theme="island"] .app-shell .player-stat-grid span,
+html[data-theme="island"] .app-shell .player-hero-strip span,
+html[data-theme="island"] .app-shell .player-hero-strip.empty {
+  border-color: rgba(121, 110, 95, .22);
+  background: rgba(255, 255, 255, .66);
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .team-mark {
+  border-color: color-mix(in srgb, var(--team) 42%, #b9ad98);
+  background: color-mix(in srgb, var(--team) 11%, #fffdf4);
+  color: color-mix(in srgb, var(--team) 48%, #463728);
+}
+
+html[data-theme="island"] .app-shell .profile-list-card button {
+  border-color: var(--island-border);
+  border-left-color: var(--accent);
+  border-radius: 16px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 11%, #fffdf4), #fffdf4 64%);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .profile-list-card b {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .profile-list-card small {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .profile-list-card span:not(.profile-avatar-fallback):not(.steam-avatar-shell) {
+  color: #667a73;
+}
+
+html[data-theme="island"] .app-shell .profile-list-card strong {
+  color: var(--island-mint-dark);
+}
+
+html[data-theme="island"] .app-shell .profile-avatar-fallback,
+html[data-theme="island"] .app-shell .profile-avatar-fallback.team {
+  background: color-mix(in srgb, var(--accent, #82d5bb) 16%, #f4efe2);
+  box-shadow: inset 0 0 0 1px rgba(121, 110, 95, .16);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .profile-hero {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--island-border));
+  border-radius: 20px;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--accent) 13%, #fffdf4), #fffdf4 66%);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .profile-hero :where(h2, p:not(.eyebrow)) {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .profile-winrate :where(span, small) {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .profile-winrate b {
+  color: color-mix(in srgb, var(--accent) 48%, #3f4a37);
+}
+
+html[data-theme="island"] .app-shell .profile-stat-grid article {
+  border-color: var(--island-border);
+  border-radius: 16px;
+  background: var(--island-surface);
+}
+
+html[data-theme="island"] .app-shell .profile-stat-grid span {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .profile-stat-grid b {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .floating-tag-field,
+html[data-theme="island"] .app-shell .floating-tag-field.is-bursting {
+  border-color: #b7d9cb;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, .76), transparent 26%),
+    linear-gradient(145deg, #e7f7f1, #fff7e6 58%, #f8eaf0);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .64);
+}
+
+html[data-theme="island"] .app-shell .floating-tag-field::before {
+  background:
+    linear-gradient(118deg, transparent 0 20%, rgba(25, 159, 146, .08) 31%, transparent 43% 100%),
+    linear-gradient(248deg, transparent 0 48%, rgba(202, 82, 135, .07) 62%, transparent 74% 100%);
+}
+
+html[data-theme="island"] .app-shell .floating-tag-text {
+  color: color-mix(in srgb, var(--tag-accent) 48%, #3e3029 52%);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .9), 0 2px 5px color-mix(in srgb, var(--tag-glow) 42%, transparent);
+  filter: none;
+}
+
+html[data-theme="island"] .app-shell .floating-tag::before {
+  height: 20%;
+  filter: blur(8px);
+  opacity: .2;
+}
+
+html[data-theme="island"] .app-shell :where(
+  .season-details,
+  .signature-heroes article,
+  .roster-list button,
+  .profile-match-list button
+) {
+  border-color: var(--island-border);
+  border-radius: 16px;
+  background: var(--island-surface);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell :where(
+  .signature-heroes b,
+  .roster-list b,
+  .profile-match-list b,
+  .profile-match-list strong
+) {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell :where(
+  .signature-heroes span,
+  .roster-list span,
+  .profile-match-list small
+) {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .match-ribbon-stat,
+html[data-theme="island"] .app-shell .match-meta-grid span,
+html[data-theme="island"] .app-shell .team-side {
+  border-color: var(--island-border);
+  background: var(--island-surface);
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .match-ribbon-stat b {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .kill-score {
+  border-color: #d6c7a9;
+  background: linear-gradient(90deg, #e8f5e8, #fff8df 50%, #fbe8e9);
+  box-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .kill-score small {
+  background: #fff3cf;
+  color: #7c6026;
+}
+
+html[data-theme="island"] .app-shell .kill-score .radiant-score {
+  color: var(--island-success);
+  text-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .kill-score .dire-score {
+  color: var(--island-danger);
+  text-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .kill-score em {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .mvp-card,
+html[data-theme="island"] .app-shell .mvp-card.dire {
+  border-color: #d9bd74;
+  border-radius: 20px;
+  background: linear-gradient(120deg, #fff3ce, #fffdf4 54%, #e9f4f8);
+  box-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .mvp-card::before,
+html[data-theme="island"] .app-shell .mvp-card::after {
+  opacity: .08;
+}
+
+html[data-theme="island"] .app-shell .mvp-copy h2,
+html[data-theme="island"] .app-shell .mvp-stats b {
+  color: var(--island-text);
+  text-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .mvp-copy p,
+html[data-theme="island"] .app-shell .mvp-stats span {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .mvp-stats span {
+  border-color: rgba(121, 110, 95, .18);
+  background: rgba(255, 255, 255, .56);
+}
+
+html[data-theme="island"] .app-shell .player-section {
+  background: transparent;
+}
+
+html[data-theme="island"] .app-shell .team-panel-head,
+html[data-theme="island"] .app-shell .team-panel.dire .team-panel-head {
+  border-color: var(--island-border);
+  background: var(--island-surface);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .player-row,
+html[data-theme="island"] .app-shell .player-row.expanded,
+html[data-theme="island"] .app-shell .player-row.dire,
+html[data-theme="island"] .app-shell .player-row.dire.expanded {
+  border-color: var(--island-border);
+  background: var(--island-surface);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .player-row.mvp-player {
+  border-color: #d9bd74;
+  background: linear-gradient(100deg, #fff2c9, #fffdf4 54%, #eef5fa);
+  box-shadow: inset 0 0 0 1px rgba(217, 189, 116, .18);
+}
+
+html[data-theme="island"] .app-shell .player-main,
+html[data-theme="island"] .app-shell .player-row.mvp-player .player-id b {
+  color: var(--island-text);
+  text-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .player-id span,
+html[data-theme="island"] .app-shell .player-mini-metrics small,
+html[data-theme="island"] .app-shell .player-kda span {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .player-award-title,
+html[data-theme="island"] .app-shell .player-awards .player-award-title {
+  background: color-mix(in srgb, var(--award-color, #d3ad56) 12%, #fffdf4);
+  text-shadow: none;
+  box-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .player-award-tooltip {
+  border-color: #d9bd74;
+  background: var(--island-surface);
+  box-shadow: 0 10px 24px rgba(85, 68, 49, .18);
+}
+
+html[data-theme="island"] .app-shell .player-award-tooltip small {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .home-major-sponsor img {
+  filter:
+    drop-shadow(0 0 1px rgba(85, 68, 49, .72))
+    drop-shadow(0 1px 1px rgba(85, 68, 49, .30));
+}

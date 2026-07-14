@@ -19,6 +19,7 @@ const viewportHeight = Number(process.env.MRJZ_VISUAL_PARITY_HEIGHT || 844);
 const diffThreshold = Number(process.env.MRJZ_VISUAL_PARITY_THRESHOLD || 0.08);
 const strictMode = process.env.MRJZ_VISUAL_PARITY_STRICT === "1";
 const skipBuild = process.env.MRJZ_VISUAL_PARITY_SKIP_BUILD === "1";
+const h5Theme = process.env.MRJZ_VISUAL_PARITY_H5_THEME || "classic";
 const artifactRoot = path.join(rootDir, "artifacts", "visual-parity");
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const runDir = path.join(artifactRoot, timestamp);
@@ -108,6 +109,7 @@ async function main() {
   const summary = {
     generatedAt: new Date().toISOString(),
     apiBaseUrl,
+    h5Theme,
     viewport: {
       width: viewportWidth,
       height: viewportHeight,
@@ -170,6 +172,7 @@ function buildPageSpecs(snapshot) {
     pageSpec("stage", "#stage", "/pages/stage/index"),
     pageSpec("schedule", "#schedule", "/pages/schedule/index"),
     pageSpec("records", "#records", "/pages/records/index"),
+    pageSpec("leaderboard", "#leaderboard", "/pages/hero-leaderboard/index"),
     pageSpec("players", "#players", "/pages/players/index"),
     pageSpec("teams", "#teams", "/pages/teams/index"),
   ];
@@ -242,10 +245,11 @@ async function capture(browser, url, outputPath, snapshot) {
   });
 
   await context.addInitScript(
-    ({ tournamentId }) => {
+    ({ tournamentId, h5Theme }) => {
       window.localStorage.setItem("mrjz.selectedTournamentId", tournamentId);
+      window.localStorage.setItem("mrjz-h5-theme", h5Theme);
     },
-    { tournamentId: snapshot.tournamentId },
+    { tournamentId: snapshot.tournamentId, h5Theme },
   );
 
   const page = await context.newPage();
