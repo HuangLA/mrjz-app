@@ -13,10 +13,11 @@
     "cache:dota-assets": "node scripts/cache-dota-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"TODO: add mobile web lint\"",
-    "test": "echo \"TODO: add mobile web tests\""
+    "test": "tsc -p tsconfig.test.json --noEmit && node --import tsx --test src/*.test.ts"
   },
   "dependencies": {
     "@mrjz/shared": "0.1.0",
+    "animal-island-ui": "1.2.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

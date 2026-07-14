@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- H5 新增可持久化的双主题能力：首页左上角 MRJZ 改为主题开关，可在经典深色与 Island 暖色主题间切换并跨刷新保留；Island 主题直接按需复用 `animal-island-ui@1.2.0` 的 React Button 与组件样式，以暖米色、薄荷青、点状墙纸纹理、20px 圆角和按压阴影覆盖 H5 页面，同时保留原赛事信息架构和 Dota 素材。H5 README 已按 CC BY-NC 4.0 补充作者、许可证、非商业用途与改编说明，未引入上游 demo / Nintendo 素材。
 - 云端 H5 已部署比赛详情 MVP 选手行光影边界修复：上线前完整备份 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-before-mvp-glow-20260714-010449`，生产入口已切换到 `index-DiA4wjl8.js` 与 `index-PjcgM1iy.css`；主域名、www 域名、新静态资源和同域 `/api/health` 均返回 200，真实比赛页面已验证 MVP 行计算样式为 `overflow: hidden` 且保留 7px 圆角。
 - H5 比赛详情 MVP 选手行将扫光、水印和徽章光晕裁切在本行圆角边界内，不再覆盖上下相邻选手格子；称号说明仍使用页面级浮层，不受卡片裁切影响。
 - 云端 API 与 H5 已部署赛程单局胜方展示修正：生产数据库、旧 API dist 和旧 H5 分别备份到 `/var/lib/mrjz-api/backups/mrjz-before-game-winner-deploy-20260713-163507.sqlite`、`/opt/mrjz-api/apps/api/dist.before-game-winner-20260713-163507`、`/var/www/backups/mrjz-h5-before-game-winner-20260713-163507`；`mrjz-api.service` 重启后保持 active，公网赛程接口 37 场真实关联比赛均返回有效 `winnerTeamId`；H5 已切换到 `index-DJ1eR7oi.js` 与 `index-VMoy6X25.css`，主域名、www 域名、新静态资源和同域 `/api/health` 均返回 200，线上 JS 已确认不含旧“结果待同步”文案。
@@ -687,6 +688,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
+| `pending` | Add switchable H5 Island UI theme             |
 | `pending` | Fix mini program home match total             |
 | `599466a` | Add mini program pull-down refresh            |
 | `c584dc9` | Refresh mini program home acknowledgements    |

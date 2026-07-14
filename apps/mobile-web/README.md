@@ -41,3 +41,9 @@ npm run assets:mobile-web
 ```
 
 The H5 app reads hero portraits, item icons, ability icons, and Dota constants from `public/static/dota` first, so match detail pages do not depend on per-icon external CDN requests at runtime.
+
+## UI themes
+
+The MRJZ mark in the top-left corner of the home page switches between the original dark theme and the Island theme. The selection is stored in browser local storage and stays active across page navigation and reloads.
+
+The Island theme uses the published [`animal-island-ui`](https://github.com/guokaigdg/animal-island-ui) React button implementation and design tokens under the project's [CC BY-NC 4.0 license](https://github.com/guokaigdg/animal-island-ui/blob/main/LICENSE). MRJZ is a non-commercial community project. Theme-specific layouts and backgrounds in this repository are original adaptations; no Nintendo or upstream demo-site artwork is bundled.

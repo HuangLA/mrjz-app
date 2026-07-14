@@ -11,6 +11,7 @@ import {
 import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
 import { hasLinkedMatch, scheduleRoundLabel, seriesGameWinnerLabel } from "@mrjz/shared/schedule";
 import { createPortal } from "react-dom";
+import { Button } from "animal-island-ui/es/components/Button/Button.js";
 import {
   loadMatchData,
   loadMobileData,
@@ -46,6 +47,7 @@ import {
   type TeamProfile,
   type TeamSide,
 } from "./data";
+import { nextTheme, readStoredTheme, storeTheme, type AppTheme } from "./theme";
 
 type PlayerSortKey =
   | "displayName"
@@ -177,6 +179,8 @@ export function App() {
   const [profileLoading, setProfileLoading] = useState<Record<string, boolean>>({});
   const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
   const [floatingNavHidden, setFloatingNavHidden] = useState(false);
+  const [theme, setTheme] = useState<AppTheme>(() => readStoredTheme(window.localStorage));
+  const [themeNoticeKey, setThemeNoticeKey] = useState(0);
 
   const routeHistoryRef = useRef<AppRouteSnapshot[]>([]);
   const loadingKeysRef = useRef(new Set<string>());
@@ -219,6 +223,15 @@ export function App() {
   useEffect(() => {
     document.title = `MRJZ H5 - ${routeLabel(route)}`;
   }, [route]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme === "island" ? "light" : "dark";
+    storeTheme(window.localStorage, theme);
+
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    themeColor?.setAttribute("content", theme === "island" ? "#7dc395" : "#07090c");
+  }, [theme]);
 
   useEffect(() => {
     const syncRouteFromHash = () => {
@@ -631,10 +644,20 @@ export function App() {
 
   const isHome = route === "home";
 
+  const toggleTheme = () => {
+    setTheme((current) => nextTheme(current));
+    setThemeNoticeKey((current) => current + 1);
+  };
+
   return (
-    <div className={`app-shell ${isHome ? "route-home" : "route-secondary"}`}>
+    <div className={`app-shell theme-${theme} ${isHome ? "route-home" : "route-secondary"}`}>
       {isHome ? <HomeBackgroundMarquee /> : null}
-      <AppBar isHome={isHome} onBack={goBack} />
+      <AppBar isHome={isHome} theme={theme} onBack={goBack} onToggleTheme={toggleTheme} />
+      {themeNoticeKey > 0 ? (
+        <div className="theme-toast" key={themeNoticeKey} role="status">
+          {theme === "island" ? "岛屿主题已开启" : "经典主题已恢复"}
+        </div>
+      ) : null}
       <main className="view" aria-live="polite">
         {routeView}
       </main>
@@ -662,12 +685,39 @@ function HomeBackgroundMarquee() {
   );
 }
 
-function AppBar({ isHome, onBack }: { isHome: boolean; onBack: () => void }) {
+function AppBar({
+  isHome,
+  theme,
+  onBack,
+  onToggleTheme,
+}: {
+  isHome: boolean;
+  theme: AppTheme;
+  onBack: () => void;
+  onToggleTheme: () => void;
+}) {
   return (
     <header className={`app-bar ${isHome ? "home-bar" : ""}`}>
       <div className="title-line top-only">
         {isHome ? (
-          <span className="brand-mark">MRJZ</span>
+          <Button
+            className="brand-mark"
+            type="primary"
+            size="small"
+            htmlType="button"
+            aria-label={`切换到${theme === "classic" ? "岛屿" : "经典"}主题`}
+            aria-pressed={theme === "island"}
+            title={`点击切换到${theme === "classic" ? "岛屿" : "经典"}主题`}
+            data-theme-control="animal-island-ui-button"
+            onClick={onToggleTheme}
+          >
+            <span className="brand-mark-content">
+              <span className="brand-mark-label">MRJZ</span>
+              <span className="brand-mark-theme" aria-hidden="true">
+                {theme === "island" ? "ISLAND" : "THEME"}
+              </span>
+            </span>
+          </Button>
         ) : (
           <button className="icon-button" type="button" aria-label="返回上一页" onClick={onBack}>
             ‹

@@ -1,6 +1,12 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./styles.css";
+import "./island-theme.css";
+import { readStoredTheme } from "./theme";
+
+const initialTheme = readStoredTheme(window.localStorage);
+document.documentElement.dataset.theme = initialTheme;
+document.documentElement.style.colorScheme = initialTheme === "island" ? "light" : "dark";
 
 const root = document.querySelector<HTMLDivElement>("#root");
 
