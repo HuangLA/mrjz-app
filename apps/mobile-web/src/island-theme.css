@@ -552,9 +552,9 @@ html[data-theme="island"] {
   --island-surface: #fffdf4;
   --island-surface-soft: #f7f3df;
   --island-mint: #e7f7f1;
-  --island-mint-strong: #0f9f92;
+  --island-mint-strong: #0a8178;
   --island-mint-dark: #087b72;
-  --island-success: #397b35;
+  --island-success: #356f31;
   --island-danger: #bd4652;
 }
 
@@ -687,7 +687,7 @@ html[data-theme="island"] .app-shell .dire-win .record-score strong {
 
 html[data-theme="island"] .app-shell :where(.status-tag.green, .sync-pill) {
   background: #e3f1d7;
-  color: #397b35;
+  color: #356f31;
 }
 
 html[data-theme="island"] .app-shell .status-tag.red {
@@ -702,7 +702,7 @@ html[data-theme="island"] .app-shell .status-tag.blue {
 
 html[data-theme="island"] .app-shell .record-flags span.active {
   background: #e3f1d7;
-  color: #397b35;
+  color: #356f31;
 }
 
 html[data-theme="island"] .app-shell .hero-leaderboard-card,
@@ -1072,4 +1072,219 @@ html[data-theme="island"] .app-shell .home-major-sponsor img {
   filter:
     drop-shadow(0 0 1px rgba(85, 68, 49, .72))
     drop-shadow(0 1px 1px rgba(85, 68, 49, .30));
+}
+
+/* Second visual audit: make every information surface readable on warm paper. */
+html[data-theme="island"] {
+  --island-text: #4d3d2d;
+  --island-muted: #695f52;
+  --island-faint: #786e60;
+  --island-border: #cfc4ac;
+}
+
+html[data-theme="island"] .app-shell :where(
+  .home-brand-sub,
+  .tournament-entry-action span,
+  .tournament-scope span,
+  .metric-card span,
+  .metric-card small,
+  .record-filter-heading,
+  .record-filter-heading small,
+  .record-head,
+  .record-meta,
+  .record-flags,
+  .schedule-card-foot,
+  .standing-members.empty,
+  .round-board span,
+  .round-board small,
+  .bracket-node-footer,
+  .advanced-grid small,
+  .vision-scale,
+  .vision-note,
+  .trend-player-legend small,
+  .trend-leaders small,
+  .comparison-row small,
+  .season-archive-title,
+  .season-record-header span,
+  .season-record-metrics small
+) {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell :where(
+  .route-tab.active,
+  .segmented button.active,
+  .filter.active,
+  .standing-tabs button.active
+) :where(span, small) {
+  color: #fff;
+}
+
+html[data-theme="island"] .app-shell .schedule-toolbar .filter-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 3px;
+  padding: 4px;
+  overflow: visible;
+  border: 1px solid #ddd4c1;
+  border-radius: 14px;
+  background: #f3efe3;
+}
+
+html[data-theme="island"] .app-shell .schedule-toolbar .filter {
+  min-width: 0;
+  padding: 7px 2px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: #655b4e;
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+}
+
+html[data-theme="island"] .app-shell .schedule-toolbar .filter.active {
+  border: 0;
+  background: var(--island-mint-strong);
+  box-shadow: inset 0 -2px 0 #087b72;
+  color: #fff;
+}
+
+html[data-theme="island"] .app-shell .schedule-order-button {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid #83c9bd;
+  border-radius: 11px;
+  background: #e7f7f1;
+  box-shadow: none;
+  color: var(--island-mint-dark);
+}
+
+html[data-theme="island"] .app-shell .schedule-summary {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .profile-stat-grid {
+  gap: 8px;
+}
+
+html[data-theme="island"] .app-shell .profile-stat-grid article {
+  border: 1.5px solid #c7bba2;
+  background: linear-gradient(145deg, #fffdf4, #f8f1df);
+  box-shadow: 0 2px 0 rgba(85, 68, 49, .10);
+}
+
+html[data-theme="island"] .app-shell .profile-stat-grid span {
+  color: #695f52;
+}
+
+html[data-theme="island"] .app-shell .profile-stat-grid b {
+  color: #4d3d2d;
+}
+
+html[data-theme="island"] .app-shell .draft-timeline::before {
+  width: 2px;
+  background: linear-gradient(180deg, #d98b91, #cdbb8c, #79b98a);
+}
+
+html[data-theme="island"] .app-shell .draft-order {
+  border: 1px solid #9bcfc5;
+  background: #fffdf4;
+  box-shadow: 0 0 0 2px #e7f7f1;
+  color: #37665f;
+}
+
+html[data-theme="island"] .app-shell .draft-step .draft-card,
+html[data-theme="island"] .app-shell .draft-step.pick .draft-card,
+html[data-theme="island"] .app-shell .draft-step.ban .draft-card {
+  border-color: #cfc4ac;
+  background: #fffdf4;
+  box-shadow: 0 1px 0 rgba(85, 68, 49, .08);
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .draft-step.pick .draft-card {
+  border-color: #9bcda7;
+  background: linear-gradient(90deg, #e5f4df, #fffdf4 70%);
+}
+
+html[data-theme="island"] .app-shell .draft-step.ban .draft-card {
+  border-color: #dfabb0;
+  background: linear-gradient(90deg, #f8e2e1, #fffdf4 70%);
+}
+
+html[data-theme="island"] .app-shell .draft-copy b {
+  color: var(--island-text);
+}
+
+html[data-theme="island"] .app-shell .draft-copy span {
+  color: var(--island-muted);
+}
+
+html[data-theme="island"] .app-shell .draft-copy em {
+  background: #eee8d9;
+  color: #625647;
+}
+
+html[data-theme="island"] .app-shell .draft-step.pick .draft-copy em {
+  background: #dcefd8;
+  color: #356f31;
+}
+
+html[data-theme="island"] .app-shell .draft-step.ban .draft-copy em {
+  background: #f4d7d8;
+  color: #a83d48;
+}
+
+html[data-theme="island"] .app-shell .talent-tree-mini,
+html[data-theme="island"] .app-shell .inventory-grid,
+html[data-theme="island"] .app-shell .backpack-grid,
+html[data-theme="island"] .app-shell .advanced-grid span {
+  border-color: #d5cbb8;
+  background: #f4efe3;
+  box-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .player-expanded {
+  border-color: #d5cbb8;
+}
+
+html[data-theme="island"] .app-shell .player-chips em {
+  background: #e3f1d7;
+  color: #356f31;
+}
+
+html[data-theme="island"] .app-shell .player-row.dire .player-chips em {
+  background: #f9dddd;
+  color: #a83d48;
+}
+
+html[data-theme="island"] .app-shell .player-award-title,
+html[data-theme="island"] .app-shell .player-awards .player-award-title {
+  border-color: color-mix(in srgb, var(--award-color, #a77d2c) 42%, #b9ad98);
+  color: color-mix(in srgb, var(--award-color, #a77d2c) 42%, #3e3029 58%);
+}
+
+html[data-theme="island"] .app-shell .season-entry {
+  border-color: #cfc4ac;
+  background: #fffdf4;
+}
+
+html[data-theme="island"] .app-shell .season-entry.active {
+  border-color: #a9cf9d;
+  background: #f1f8e9;
+}
+
+html[data-theme="island"] .app-shell .home-community-supporter > span:last-child,
+html[data-theme="island"] .app-shell .home-community-supporter.pending > span:last-child {
+  color: #695f52;
+}
+
+html[data-theme="island"] .app-shell .player-sort-bar button {
+  color: #5f6876;
+}
+
+html[data-theme="island"] .app-shell .player-sort-bar button.active {
+  color: var(--island-mint-dark);
 }

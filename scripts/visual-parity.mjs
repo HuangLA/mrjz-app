@@ -20,6 +20,14 @@ const diffThreshold = Number(process.env.MRJZ_VISUAL_PARITY_THRESHOLD || 0.08);
 const strictMode = process.env.MRJZ_VISUAL_PARITY_STRICT === "1";
 const skipBuild = process.env.MRJZ_VISUAL_PARITY_SKIP_BUILD === "1";
 const h5Theme = process.env.MRJZ_VISUAL_PARITY_H5_THEME || "classic";
+const fullPage = process.env.MRJZ_VISUAL_PARITY_FULL_PAGE === "1";
+const pageFilter = new Set(
+  (process.env.MRJZ_VISUAL_PARITY_PAGES || "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean),
+);
+const h5FocusSelector = process.env.MRJZ_VISUAL_PARITY_H5_FOCUS || "";
 const artifactRoot = path.join(rootDir, "artifacts", "visual-parity");
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const runDir = path.join(artifactRoot, timestamp);
@@ -84,7 +92,7 @@ async function main() {
   staticServers.push(await serveStatic(h5Root, h5Port));
   staticServers.push(await serveStatic(miniRoot, miniPort));
 
-  const pages = buildPageSpecs(snapshot);
+  const pages = buildPageSpecs(snapshot).filter((page) => pageFilter.size === 0 || pageFilter.has(page.name));
   const browser = await chromium.launch({
     executablePath: resolveChromeExecutable(),
     headless: true,
@@ -114,6 +122,7 @@ async function main() {
       width: viewportWidth,
       height: viewportHeight,
       deviceScaleFactor: 2,
+      fullPage,
     },
     sample: snapshot,
     threshold: diffThreshold,
@@ -160,7 +169,7 @@ async function loadApiSnapshot() {
   return {
     tournamentId,
     tournamentName: tournaments[0]?.name ?? "",
-    matchId: firstString(matches, "matchId"),
+    matchId: firstString(matches.filter((match) => match?.hasDraft), "matchId") || firstString(matches, "matchId"),
     playerId: firstString(players, "id"),
     teamId: firstString(teams, "id"),
   };
@@ -178,7 +187,14 @@ function buildPageSpecs(snapshot) {
   ];
 
   if (snapshot.matchId.length > 0) {
-    specs.push(pageSpec("match-detail", "#match", `/pages/match-detail/index?matchId=${encodeURIComponent(snapshot.matchId)}`));
+    specs.push(
+      pageSpec(
+        "match-detail",
+        "#records",
+        `/pages/match-detail/index?matchId=${encodeURIComponent(snapshot.matchId)}`,
+        snapshot.matchId,
+      ),
+    );
   }
 
   if (snapshot.tournamentId.length > 0 && snapshot.playerId.length > 0) {
@@ -204,11 +220,12 @@ function buildPageSpecs(snapshot) {
   return specs;
 }
 
-function pageSpec(name, h5Hash, miniPath) {
+function pageSpec(name, h5Hash, miniPath, h5MatchId = "") {
   return {
     name,
     h5Url: `http://127.0.0.1:${h5Port}/?apiBaseUrl=${encodeURIComponent(apiBaseUrl)}${h5Hash}`,
     miniUrl: `http://127.0.0.1:${miniPort}/#${miniPath}`,
+    h5MatchId,
   };
 }
 
@@ -217,7 +234,10 @@ async function captureAndCompare(browser, pageSpec, snapshot) {
   const miniPath = path.join(runDir, "miniprogram", `${pageSpec.name}.png`);
   const diffPath = path.join(runDir, "diff", `${pageSpec.name}.png`);
 
-  await capture(browser, pageSpec.h5Url, h5Path, snapshot);
+  await capture(browser, pageSpec.h5Url, h5Path, snapshot, {
+    matchId: pageSpec.h5MatchId,
+    focusSelector: h5FocusSelector,
+  });
   await capture(browser, pageSpec.miniUrl, miniPath, snapshot);
 
   const diff = comparePng(h5Path, miniPath, diffPath);
@@ -233,7 +253,7 @@ async function captureAndCompare(browser, pageSpec, snapshot) {
   };
 }
 
-async function capture(browser, url, outputPath, snapshot) {
+async function capture(browser, url, outputPath, snapshot, options = {}) {
   const context = await browser.newContext({
     viewport: { width: viewportWidth, height: viewportHeight },
     deviceScaleFactor: 2,
@@ -262,8 +282,16 @@ async function capture(browser, url, outputPath, snapshot) {
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
     await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    if (options.matchId) {
+      const recordCard = page.locator(".record-card").filter({ hasText: options.matchId }).first();
+      await recordCard.locator(".record-main").click({ timeout: 20_000 });
+      await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => undefined);
+    }
+    if (options.focusSelector) {
+      await page.locator(options.focusSelector).first().scrollIntoViewIfNeeded({ timeout: 20_000 });
+    }
     await page.waitForTimeout(1000);
-    await page.screenshot({ path: outputPath, animations: "disabled", caret: "hide" });
+    await page.screenshot({ path: outputPath, animations: "disabled", caret: "hide", fullPage, timeout: 120_000 });
   } finally {
     await context.close();
   }

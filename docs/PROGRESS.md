@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- H5 Island 主题完成第二轮对比度与细节收敛：赛程状态筛选改为统一五段选择条，比赛详情 Ban / Pick 顺序改为暖白底并用淡红 / 淡绿区分禁用与选择，选手 / 队伍详情统计恢复清晰边框；同时加深正文、次级信息、社区支持者昵称、排序项、战报徽章和状态标签颜色，清理装备 / 展开数据区域的暗色容器。视觉回归支持整页、指定页面、指定焦点元素截图，并会自动选择真实包含 BP 数据的比赛，10 条 H5 路径与 BP 专项截图均已复验。
 - H5 Island 主题完成全页面视觉复查：覆盖首页、赛事阶段、赛程、比赛记录、英雄榜、选手、队伍以及比赛 / 选手 / 队伍详情共 10 条路径；将旧主题残留的深色排行榜、选手统计、队伍列表、详情头图和比赛数据区统一替换为暖白信息面，收紧为深棕正文、薄荷青交互态及只用于赛果的红绿状态色，并增强完赛标签、战报标记、白色赞助商标识和应援文字的可读性。视觉比对脚本现支持通过 `MRJZ_VISUAL_PARITY_H5_THEME=island` 预置主题，并补入英雄榜页面。
 - H5 新增可持久化的双主题能力：首页左上角 MRJZ 改为主题开关，可在经典深色与 Island 暖色主题间切换并跨刷新保留；Island 主题直接按需复用 `animal-island-ui@1.2.0` 的 React Button 与组件样式，以暖米色、薄荷青、点状墙纸纹理、20px 圆角和按压阴影覆盖 H5 页面，同时保留原赛事信息架构和 Dota 素材。H5 README 已按 CC BY-NC 4.0 补充作者、许可证、非商业用途与改编说明，未引入上游 demo / Nintendo 素材。
 - 云端 H5 已部署比赛详情 MVP 选手行光影边界修复：上线前完整备份 `/var/www/mrjz-h5` 到 `/var/www/backups/mrjz-h5-before-mvp-glow-20260714-010449`，生产入口已切换到 `index-DiA4wjl8.js` 与 `index-PjcgM1iy.css`；主域名、www 域名、新静态资源和同域 `/api/health` 均返回 200，真实比赛页面已验证 MVP 行计算样式为 `overflow: hidden` 且保留 7px 圆角。
@@ -689,7 +690,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
-| `pending` | Refine H5 Island theme contrast               |
+| `pending` | Polish H5 Island detail contrast              |
+| `b576532` | Refine H5 Island theme contrast               |
 | `3450206` | Add switchable H5 Island UI theme             |
 | `pending` | Fix mini program home match total             |
 | `599466a` | Add mini program pull-down refresh            |
