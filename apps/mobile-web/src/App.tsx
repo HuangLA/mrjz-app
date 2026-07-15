@@ -12,11 +12,16 @@ import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
 import { hasLinkedMatch, scheduleRoundLabel, seriesGameWinnerLabel } from "@mrjz/shared/schedule";
 import { createPortal } from "react-dom";
 import { Button, Footer } from "animal-island-ui";
+import turquoiseFishUrl from "animal-island-ui/items/item-187.png";
 import pufferFishUrl from "animal-island-ui/items/item-188.png";
+import morayEelUrl from "animal-island-ui/items/item-193.png";
 import moonFishUrl from "animal-island-ui/items/item-198.png";
+import ribbonEelUrl from "animal-island-ui/items/item-199.png";
 import clownFishUrl from "animal-island-ui/items/item-202.png";
+import butterflyFishUrl from "animal-island-ui/items/item-204.png";
+import anglerFishUrl from "animal-island-ui/items/item-212.png";
+import tunaUrl from "animal-island-ui/items/item-217.png";
 import yellowButterflyUrl from "animal-island-ui/items/item-221.png";
-import blueButterflyUrl from "animal-island-ui/items/item-223.png";
 import {
   loadMatchData,
   loadMobileData,
@@ -73,7 +78,17 @@ type RecordTeamFilter = "全部" | string;
 type AppRouteSnapshot = { route: AppRoute; profileId: string | null };
 type NavigateOptions = { replace?: boolean; scroll?: boolean; profileId?: string | undefined };
 type MatchAwardPopover = { key: string; award: MatchAward; left: number; top: number };
-type IslandMascotKind = "puffer" | "moon-fish" | "clown-fish" | "yellow-butterfly" | "blue-butterfly";
+type IslandMascotKind =
+  | "turquoise-fish"
+  | "puffer"
+  | "moray-eel"
+  | "moon-fish"
+  | "ribbon-eel"
+  | "clown-fish"
+  | "butterfly-fish"
+  | "angler-fish"
+  | "tuna"
+  | "yellow-butterfly";
 
 const routeOptions: Array<{ key: AppRoute; label: string; kicker: string }> = [
   { key: "home", label: "首页", kicker: "入口" },
@@ -101,11 +116,16 @@ const awardPopoverEstimatedHeight = 58;
 const awardPopoverMargin = 10;
 
 const islandMascotUrls: Record<IslandMascotKind, string> = {
+  "turquoise-fish": turquoiseFishUrl,
   "puffer": pufferFishUrl,
+  "moray-eel": morayEelUrl,
   "moon-fish": moonFishUrl,
+  "ribbon-eel": ribbonEelUrl,
   "clown-fish": clownFishUrl,
+  "butterfly-fish": butterflyFishUrl,
+  "angler-fish": anglerFishUrl,
+  "tuna": tunaUrl,
   "yellow-butterfly": yellowButterflyUrl,
-  "blue-butterfly": blueButterflyUrl,
 };
 
 function getAwardPopoverPosition(rect: DOMRect): { left: number; top: number } {
@@ -706,7 +726,7 @@ function IslandCornerMascot({
     <img
       alt=""
       aria-hidden="true"
-      className={`island-corner-art island-corner-art-${placement}`}
+      className={`island-corner-art island-corner-art-${placement} island-corner-art-${kind}`}
       draggable={false}
       src={islandMascotUrls[kind]}
     />
@@ -1066,7 +1086,7 @@ function StagePage({
         <DataNotice data={data} loading={loading} />
         <TournamentScope data={data} onNavigate={onNavigate} />
         <section className="section-panel schedule-unpublished island-has-corner-art">
-          <IslandCornerMascot kind="blue-butterfly" />
+          <IslandCornerMascot kind="turquoise-fish" />
           <div className="section-title compact">
             <div>
               <h2>赛事阶段暂未发布</h2>
@@ -1085,7 +1105,7 @@ function StagePage({
         <DataNotice data={data} loading={loading} />
         <TournamentScope data={data} onNavigate={onNavigate} />
         <section className="section-panel schedule-unpublished island-has-corner-art">
-          <IslandCornerMascot kind="blue-butterfly" />
+          <IslandCornerMascot kind="turquoise-fish" />
           <div className="section-title compact">
             <div>
               <h2>暂无官方阶段</h2>
@@ -1111,7 +1131,7 @@ function StagePage({
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
       <section className="stage-switch section-panel island-has-corner-art">
-        <IslandCornerMascot kind="blue-butterfly" />
+        <IslandCornerMascot kind="turquoise-fish" />
         <div className="section-title compact">
           <div>
             <h2>赛事阶段</h2>
@@ -2028,7 +2048,7 @@ function HeroLeaderboardsPage({
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
       <section className="section-panel hero-leaderboard-panel island-has-corner-art">
-        <IslandCornerMascot kind="yellow-butterfly" />
+        <IslandCornerMascot kind="ribbon-eel" />
         <div className="section-title compact">
           <div>
             <h2>英雄榜</h2>
@@ -2167,7 +2187,7 @@ function PlayersPage({
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
       <section className="section-panel player-board-panel island-has-corner-art">
-        <IslandCornerMascot kind="blue-butterfly" />
+        <IslandCornerMascot kind="tuna" />
         <div className="section-title compact">
           <div>
             <h2>选手数据榜</h2>
@@ -2215,7 +2235,7 @@ function TeamsPage({
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
       <section className="section-panel team-directory-panel island-has-corner-art">
-        <IslandCornerMascot kind="puffer" />
+        <IslandCornerMascot kind="butterfly-fish" />
         <div className="section-title compact">
           <div>
             <h2>队伍主页</h2>
@@ -2394,7 +2414,7 @@ function TeamProfilePage({
       />
 
       <section className="section-panel team-roster-panel island-has-corner-art">
-        <IslandCornerMascot kind="clown-fish" />
+        <IslandCornerMascot kind="moray-eel" />
         <div className="section-title compact">
           <div>
             <h2>成员名单</h2>
@@ -3431,7 +3451,7 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
 
   return (
     <section className="section-panel profile-tag-panel island-has-corner-art" aria-labelledby="player-tag-heading">
-      <IslandCornerMascot kind="blue-butterfly" />
+      <IslandCornerMascot kind="angler-fish" />
       <div className="section-title compact">
         <div>
           <h2 id="player-tag-heading">选手应援标签</h2>

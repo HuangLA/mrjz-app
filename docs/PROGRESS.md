@@ -687,12 +687,14 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 - 小程序队伍详情进入选手详情链路修正：后端队伍成员按当前届次上下文化，选手详情兼容旧缓存中的 account_id / `player_account_*` 参数，小程序返回队伍页时验证本届队伍 ID，并提升详情缓存版本以清除历史错误参数。
 - 小程序选手详情跳转继续补强：详情页 query 会解码一次，队伍 / 选手 / 英雄榜入口统一编码中文届次 ID，队伍成员跳选手额外携带 accountId 并在 playerId 失效时按本届选手列表自愈；左上返回有历史栈时改回 `navigateBack`，避免队伍详情重复入栈。
 - H5 岛屿主题补齐真实字体和边角插画：接入上游 Nunito / Noto Sans SC、圆润中文标题字体、海洋页脚和精选动物素材；动物只放在首页、阶段、赛程、记录、比赛数据、榜单及详情大区块边角，不进入称号或按钮；比赛称号 portal 浮层同步改为暖色纸张样式并补齐 hover / focus 反馈。
+- H5 岛屿主题继续清理比赛详情旧配色：展开选手卡片的技能等级角标改为高对比暖色标签，小地图天辉 / 夜魇眼位数、当前时间和总眼位数改为浅色纸张胶囊；10 个公开页面的边角插画重新分配为互不重复的动物，只在首页保留一只蝴蝶，其余页面使用不同鱼类。
 
 ## 最近提交
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
-| `pending` | Add H5 Island fonts and corner artwork        |
+| `pending` | Refine H5 Island detail labels and mascots    |
+| `0425979` | Add H5 Island fonts and corner artwork        |
 | `58cfdaf` | Fix H5 Island stage button shadows            |
 | `1047f70` | Polish H5 Island detail contrast              |
 | `b576532` | Refine H5 Island theme contrast               |
