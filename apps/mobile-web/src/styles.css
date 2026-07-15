@@ -1430,17 +1430,19 @@ button {
 
 .bracket-mini-board {
   display: grid;
-  gap: 18px;
-  margin: 0 -10px;
+  gap: 16px;
+  margin: 0;
   overflow-x: auto;
-  padding: 2px 10px 10px;
+  padding: 4px 2px 12px;
   overscroll-behavior-x: contain;
+  scroll-padding-inline: 2px;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
 
 .bracket-scroll-copy {
-  font-size: 9px;
+  color: #9fb0c5;
+  font-size: 10px;
   letter-spacing: .01em;
 }
 
@@ -1463,12 +1465,13 @@ button {
   display: grid;
   grid-template-columns: repeat(var(--bracket-column-count), 188px);
   grid-template-rows: auto auto;
-  gap: 14px 34px;
+  gap: 18px 34px;
   align-items: center;
-  padding: 28px 8px 8px;
-  border: 1px solid rgba(255, 255, 255, .055);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, .018);
+  padding: 36px 12px 14px;
+  border: 1px solid rgba(140, 164, 194, .18);
+  border-radius: 14px;
+  background: rgba(12, 19, 31, .96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 8px 24px rgba(0, 0, 0, .18);
 }
 
 .bracket-unified-lane-label {
@@ -1476,30 +1479,33 @@ button {
   left: 8px;
   z-index: 5;
   width: fit-content;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 9px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  font-size: 10px;
   font-weight: 900;
+  letter-spacing: .03em;
 }
 
 .bracket-unified-lane-label.is-winner {
   grid-column: 1 / -1;
   grid-row: 1;
   align-self: start;
-  margin-top: -22px;
-  border: 1px solid rgba(240, 195, 106, .24);
-  background: rgba(240, 195, 106, .1);
-  color: #f5d891;
+  margin-top: -29px;
+  border: 1px solid rgba(113, 198, 255, .5);
+  background: #142a3d;
+  box-shadow: 0 2px 0 rgba(31, 119, 173, .24);
+  color: #a7dcff;
 }
 
 .bracket-unified-lane-label.is-loser {
   grid-column: 1 / -1;
   grid-row: 2;
   align-self: start;
-  margin-top: -22px;
-  border: 1px solid rgba(244, 136, 93, .2);
-  background: rgba(244, 136, 93, .08);
-  color: #f4b08f;
+  margin-top: -29px;
+  border: 1px solid rgba(244, 136, 93, .46);
+  background: #342019;
+  box-shadow: 0 2px 0 rgba(166, 75, 46, .22);
+  color: #ffc0a4;
 }
 
 .bracket-unified-column {
@@ -1523,16 +1529,16 @@ button {
 
 .bracket-final-connector-path {
   fill: none;
-  stroke: rgba(240, 195, 106, .58);
+  stroke: #71c6ff;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.5;
+  stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
 .bracket-final-connector-path.is-loser {
-  stroke: rgba(244, 136, 93, .54);
-  stroke-dasharray: 5 5;
+  stroke: #f4885d;
+  stroke-dasharray: 5 4;
 }
 
 .bracket-unified-extra {
@@ -1542,11 +1548,12 @@ button {
 .bracket-group-lane {
   min-width: max-content;
   display: grid;
-  gap: 10px;
-  padding: 8px;
-  border: 1px solid rgba(255, 255, 255, .055);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, .018);
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(140, 164, 194, .18);
+  border-radius: 14px;
+  background: rgba(12, 19, 31, .96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 8px 24px rgba(0, 0, 0, .18);
 }
 
 .bracket-group-title {
@@ -1554,12 +1561,15 @@ button {
   left: 10px;
   z-index: 4;
   width: fit-content;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(244, 247, 251, .08);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .08);
+  padding: 5px 10px;
+  border: 1px solid rgba(240, 195, 106, .46);
+  border-radius: 10px;
+  background: #302719;
+  box-shadow: 0 2px 0 rgba(168, 119, 39, .22);
   color: #f5d891;
   font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .03em;
 }
 
 .bracket-round-track {
@@ -1576,7 +1586,7 @@ button {
   position: relative;
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 9px;
+  gap: 10px;
   scroll-snap-align: start;
   z-index: 1;
 }
@@ -1584,8 +1594,8 @@ button {
 .bracket-column-body {
   position: relative;
   display: grid;
-  grid-template-rows: repeat(var(--bracket-row-count), 150px);
-  gap: 10px;
+  grid-template-rows: repeat(var(--bracket-row-count), 180px);
+  gap: 12px;
 }
 
 .bracket-connector-layer {
@@ -1599,54 +1609,77 @@ button {
 
 .bracket-connector-path {
   fill: none;
-  stroke: rgba(213, 166, 79, .56);
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  stroke-width: 1.5;
+  stroke: #71c6ff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
 .bracket-connector-path.is-loser {
-  stroke: rgba(244, 136, 93, .5);
-  stroke-dasharray: 4 4;
+  stroke: #f4885d;
+  stroke-dasharray: 5 4;
 }
 
 .bracket-column > strong {
   display: flex;
   align-items: center;
-  min-height: 18px;
-  color: #f4f7fb;
+  min-height: 22px;
+  padding: 0 4px;
+  color: #dfe7f1;
   font-size: 10px;
   font-weight: 900;
+  letter-spacing: .015em;
+}
+
+.bracket-unified-column.is-winner > strong {
+  color: #a7dcff;
+}
+
+.bracket-unified-column.is-loser > strong {
+  color: #ffc0a4;
+}
+
+.bracket-unified-column.is-grand_final > strong {
+  color: #f5d891;
 }
 
 .bracket-node {
   position: relative;
   display: grid;
   align-self: center;
-  gap: 7px;
-  min-height: 104px;
+  gap: 6px;
+  min-height: 0;
   padding: 8px;
-  border: 1px solid rgba(255, 255, 255, .08);
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(17, 24, 37, .96), rgba(11, 17, 28, .96));
-  box-shadow: 0 10px 22px rgba(0, 0, 0, .18);
+  border: 1px solid rgba(145, 166, 192, .24);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #121c2b, #0d1522);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 6px 16px rgba(0, 0, 0, .22);
+  color: #eef3f8;
   z-index: 1;
 }
 
 .bracket-node.is-completed {
-  border-color: rgba(116, 214, 108, .34);
-  background: linear-gradient(180deg, rgba(33, 74, 45, .86), rgba(11, 17, 28, .96));
+  border-color: rgba(116, 214, 108, .5);
+  background: linear-gradient(180deg, #182d20, #0d1720);
 }
 
 .bracket-node.is-ready {
-  border-color: rgba(101, 181, 255, .34);
-  background: linear-gradient(180deg, rgba(28, 57, 89, .88), rgba(11, 17, 28, .96));
+  border-color: rgba(101, 181, 255, .62);
+  background: linear-gradient(180deg, #172a40, #0d1624);
 }
 
 .bracket-node.is-pending {
+  border-color: rgba(145, 166, 192, .32);
   border-style: dashed;
-  opacity: .86;
+  background: #0f1724;
+  opacity: 1;
+}
+
+.bracket-unified-column.is-grand_final .bracket-node {
+  border-color: rgba(240, 195, 106, .62);
+  background: linear-gradient(180deg, #302719, #111825);
+  box-shadow: inset 0 1px 0 rgba(255, 230, 173, .08), 0 7px 18px rgba(0, 0, 0, .24);
 }
 
 .bracket-node-topline {
@@ -1657,15 +1690,32 @@ button {
 }
 
 .bracket-node-kicker {
-  color: #9ca8b8;
+  color: #aebccc;
   font-size: 9px;
   font-weight: 800;
 }
 
 .bracket-node-state {
-  color: #d7deea;
+  padding: 2px 6px;
+  border: 1px solid rgba(152, 170, 192, .24);
+  border-radius: 999px;
+  background: rgba(152, 170, 192, .12);
+  color: #d8e1ec;
   font-size: 9px;
   font-weight: 900;
+  line-height: 1.25;
+}
+
+.bracket-node.is-ready .bracket-node-state {
+  border-color: rgba(101, 181, 255, .48);
+  background: rgba(101, 181, 255, .14);
+  color: #b8e2ff;
+}
+
+.bracket-node.is-completed .bracket-node-state {
+  border-color: rgba(116, 214, 108, .44);
+  background: rgba(116, 214, 108, .14);
+  color: #c8ffc4;
 }
 
 .bracket-team {
@@ -1675,9 +1725,10 @@ button {
   gap: 6px;
   align-items: center;
   padding: 5px 6px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, .055);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .035);
+  border: 1px solid rgba(151, 169, 192, .16);
+  border-radius: 8px;
+  background: rgba(153, 172, 197, .08);
+  box-shadow: none;
 }
 
 .bracket-team span {
@@ -1686,16 +1737,17 @@ button {
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, .07);
-  color: #9ca8b8;
+  background: rgba(166, 185, 208, .1);
+  color: #b5c2d2;
   font-size: 9px;
   font-weight: 900;
 }
 
 .bracket-team.is-winner {
-  background: rgba(116, 214, 108, .18);
+  border-color: rgba(116, 214, 108, .34);
+  background: rgba(116, 214, 108, .16);
   color: #c8ffc4;
-  box-shadow: inset 0 0 0 1px rgba(116, 214, 108, .25);
+  box-shadow: none;
 }
 
 .bracket-team.is-winner span,
@@ -1728,19 +1780,31 @@ button {
 
 .bracket-node-footer {
   display: block;
-  color: #8e99ac;
+  padding: 1px 2px;
+  color: #b7c3d2;
   font-size: 9px;
   font-weight: 800;
 }
 
 .bracket-flow-row {
   display: grid;
-  gap: 3px;
-  padding-top: 2px;
-  color: #9ca8b8;
+  gap: 2px;
+  padding: 5px 6px;
+  border: 1px solid rgba(142, 160, 183, .14);
+  border-radius: 8px;
+  background: rgba(5, 10, 17, .36);
+  color: #aebccc;
   font-size: 9px;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.bracket-flow-row span:first-child {
+  color: #83cff9;
+}
+
+.bracket-flow-row span:last-child {
+  color: #f5a181;
 }
 
 .bracket-flow-row span {
