@@ -474,6 +474,7 @@ export function StageContent() {
               <View className="section-title compact">
                 <View>
                   <Text className="section-heading">淘汰赛对阵图</Text>
+                  <Text className="bracket-scroll-copy">左右滑动查看完整对阵</Text>
                 </View>
               </View>
               {bracket.length > 0 ? (
@@ -601,7 +602,7 @@ function BracketGroupLane(props: {
 
   return (
     <View
-      className={`bracket-group-lane ${props.extraClassName ?? ""}`.trim()}
+      className={`bracket-group-lane is-${group.key} ${props.extraClassName ?? ""}`.trim()}
       style={{ width: `${props.width}px` }}
     >
       <View className="bracket-group-title">
@@ -626,6 +627,11 @@ function BracketGroupLane(props: {
 
 function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, BracketNode> }) {
   const { node } = props;
+  const stateClass = node.status === "completed"
+    ? "is-completed"
+    : node.status === "scheduled" || node.status === "running" || node.status === "result_pending"
+      ? "is-ready"
+      : "is-pending";
   const radiantWinner = Boolean(node.winnerTeamId && node.radiantTeam?.id === node.winnerTeamId);
   const direWinner = Boolean(node.winnerTeamId && node.direTeam?.id === node.winnerTeamId);
   const winnerName = radiantWinner
@@ -649,10 +655,10 @@ function BracketNodeCard(props: { node: BracketNode; nodeLookup: Map<string, Bra
     : "淘汰";
 
   return (
-    <View className={`bracket-node ${node.status === "completed" ? "is-completed" : ""}`}>
+    <View className={`bracket-node ${stateClass}`}>
       <View className="bracket-node-topline">
         <Text className="bracket-node-kicker">#{node.position}</Text>
-        <Text className="bracket-node-state">{labelStatus(node.status)}</Text>
+        <Text className="bracket-node-state">{bracketNodeStatusLabel(node.status)}</Text>
       </View>
       <View className={`bracket-team ${radiantWinner ? "is-winner" : ""}`}>
         <Text>上</Text>
@@ -780,8 +786,15 @@ function bracketGroupSortValue(group: string): number {
   return 4;
 }
 
-const MINI_BRACKET_COLUMN_WIDTH = 150;
-const MINI_BRACKET_COLUMN_GAP = 14;
+function bracketNodeStatusLabel(status: string): string {
+  if (status === "completed") return "已完赛";
+  if (status === "scheduled") return "待开赛";
+  if (status === "draft" || status === "pending") return "待定";
+  return labelStatus(status);
+}
+
+const MINI_BRACKET_COLUMN_WIDTH = 164;
+const MINI_BRACKET_COLUMN_GAP = 16;
 
 function bracketTrackWidth(columnCount: number): number {
   return (
