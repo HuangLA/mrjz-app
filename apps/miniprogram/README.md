@@ -44,3 +44,5 @@ The returned token is an opaque MRJZ user session, not the user id. Authenticate
 The MRJZ mark in the top-left corner of the home page switches between the original dark theme and the Island theme. The selection is stored in mini-program storage and is reused by the main tabs and detail pages.
 
 The Island theme adapts the sea footer and selected animal item illustrations from [`animal-island-ui`](https://github.com/guokaigdg/animal-island-ui) under its [CC BY-NC 4.0 license](https://github.com/guokaigdg/animal-island-ui/blob/main/LICENSE). MRJZ is a non-commercial community project. The mini program keeps its Taro-native component and layout structure; upstream assets are resized and placed in new page compositions rather than copying the demo site.
+
+When the Island theme is enabled, the mini program loads the pinned upstream Noto Sans SC and Nunito font files on demand over HTTPS. System Chinese fonts remain as fallbacks if a device cannot load the remote font. Animal illustrations live in a dedicated footer scene after the page content so they do not cover titles, controls, badges, or match data.

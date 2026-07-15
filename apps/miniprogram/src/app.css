@@ -5645,7 +5645,8 @@ button[disabled] {
     radial-gradient(circle at 18px 18px, rgba(25, 200, 185, 0.1) 0 1.5px, transparent 1.7px) 0 0 / 28px 28px,
     radial-gradient(circle at 7px 7px, rgba(255, 255, 255, 0.34) 0 1px, transparent 1.2px) 0 0 / 14px 14px,
     #f8f8f0;
-  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: "MRJZ Island Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-weight: 500;
 }
 
 .app-shell.theme-island::before {
@@ -5664,6 +5665,8 @@ button[disabled] {
 .embedded-page-view.theme-island {
   position: relative;
   color: #4d3d2d;
+  font-family: "MRJZ Island Sans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-weight: 500;
 }
 
 .theme-island .app-bar {
@@ -6599,11 +6602,212 @@ button[disabled] {
   color: #9a5744;
 }
 
+/* Readability follow-up: remove light-on-light colors inherited from the classic theme. */
+.theme-island .brand-mark,
+.theme-island .brand-mark-label,
+.theme-island .brand-mark-theme,
+.theme-island .route-tab.active,
+.theme-island .filter.active,
+.theme-island .segmented button.active,
+.theme-island .standing-tabs button.active,
+.theme-island .player-sort-bar button.active,
+.theme-island .chip-button-active,
+.theme-island .primary-button {
+  color: #073f3b;
+}
+
+.theme-island .route-tab {
+  color: #5f5447;
+}
+
+.theme-island .tournament-entry-title,
+.theme-island .tournament-entry.active .tournament-entry-title {
+  color: #3f3429;
+}
+
+.theme-island .tournament-entry-meta,
+.theme-island .tournament-entry-action text:last-child {
+  color: #5f5447;
+}
+
+.theme-island .record-head,
+.theme-island .record-head text {
+  color: #5f5447;
+}
+
+.theme-island .status-tag {
+  border: 1px solid #d9cfba;
+  background: #f2eddf;
+  color: #5f5447;
+}
+
+.theme-island .status-tag.blue {
+  border-color: #79b8ae;
+  background: #e7f7f1;
+  color: #17675f;
+}
+
+.theme-island .bracket-scroll-copy,
+.theme-island .series-meta-row,
+.theme-island .series-meta-row text,
+.theme-island .series-games-toggle,
+.theme-island .series-games-toggle text,
+.theme-island .player-sort-meta,
+.theme-island .player-sort-meta text {
+  color: #5f5447;
+}
+
+.theme-island .series-games-chevron,
+.theme-island .series-games-chevron text,
+.theme-island .profile-list-card.team-card button > text:last-child {
+  color: #76561d;
+}
+
+.theme-island .hero-leaderboard-title,
+.theme-island .hero-leaderboard-title text:last-child,
+.theme-island .hero-leaderboard-value text:last-child,
+.theme-island .hero-leaderboard-row-value text:last-child {
+  color: #5f5447;
+}
+
+.theme-island .profile-id-link {
+  color: #315f68;
+}
+
+.theme-island .player-stat-primary text text {
+  color: #356f31;
+}
+
+.theme-island .profile-hero.player-profile {
+  border-color: #79b8ae;
+  color: #3f3429;
+}
+
+.theme-island .profile-name-row .brand-title,
+.theme-island .profile-hero.player-profile .brand-subtitle {
+  color: #3f3429;
+}
+
+.theme-island .profile-winrate text:first-child,
+.theme-island .profile-winrate text:last-child {
+  color: #5f5447;
+}
+
+.theme-island .profile-winrate text:nth-child(2) {
+  color: #a93443;
+}
+
+.theme-island .profile-tag-panel-mini .tag-cloud {
+  border-color: #d9cfba;
+  background:
+    radial-gradient(circle at 26% 25%, rgba(246, 105, 183, 0.09), transparent 58px),
+    radial-gradient(circle at 82% 62%, rgba(25, 200, 185, 0.09), transparent 62px),
+    #fffaf0;
+  box-shadow: inset 0 0 0 1px rgba(121, 79, 39, 0.04);
+}
+
+.theme-island .profile-tag-panel-mini .tag-pill {
+  border-radius: 7px;
+  text-shadow: none;
+}
+
+.theme-island .profile-tag-panel-mini .tag-pill:nth-child(4n + 1) {
+  color: #963762;
+  text-shadow: none;
+}
+
+.theme-island .profile-tag-panel-mini .tag-pill:nth-child(4n + 2) {
+  color: #246b82;
+  text-shadow: none;
+}
+
+.theme-island .profile-tag-panel-mini .tag-pill:nth-child(4n + 3) {
+  color: #805811;
+  text-shadow: none;
+}
+
+.theme-island .profile-tag-panel-mini .tag-pill:nth-child(4n) {
+  color: #9b3958;
+  text-shadow: none;
+}
+
+.theme-island .battle-summary .victory-label,
+.theme-island .match-detail-page .victory-label {
+  color: #76561d;
+}
+
+.theme-island .match-detail-page .score-core > text:first-child {
+  color: #356f31;
+}
+
+.theme-island .match-player-card.player-row.mvp-player .record-title {
+  color: #4d3d2d;
+}
+
+.theme-island .match-player-card.player-row .player-chips .lane-chip,
+.theme-island .match-player-card.player-row.dire .player-chips .lane-chip {
+  border: 1px solid #c8d9b9;
+  background: #e7f4d9;
+  color: #356f31;
+}
+
+.theme-island .match-player-card.player-row.dire .player-chips .lane-chip {
+  border-color: #e0b7ae;
+  background: #fbe3df;
+  color: #9b3d49;
+}
+
+.theme-island .match-player-card.player-row .player-mini-metrics text,
+.theme-island .match-ribbon-stat.duration text:last-child {
+  color: #5f5447;
+}
+
+/* Two real font faces: rounded Latin/numerals and a sturdy Chinese reading face. */
+.theme-island .brand-mark,
+.theme-island .home-brand-season,
+.theme-island .home-brand-sub,
+.theme-island .home-hero-stats text:last-child,
+.theme-island .stat-value,
+.theme-island .schedule-score,
+.theme-island .record-score,
+.theme-island .score-core-value,
+.theme-island .kill-score,
+.theme-island .player-stat-primary,
+.theme-island .profile-winrate text:nth-child(2),
+.theme-island .profile-stat-grid text:last-child,
+.theme-island .hero-leaderboard-value {
+  font-family: "MRJZ Island Rounded", "MRJZ Island Sans", "Noto Sans SC", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+.theme-island .home-brand-name,
+.theme-island .tournament-entry-title,
+.theme-island .section-heading,
+.theme-island .state-title,
+.theme-island .picker-title,
+.theme-island .schedule-team,
+.theme-island .record-title,
+.theme-island .team-name,
+.theme-island .player-name,
+.theme-island .profile-name-row .brand-title,
+.theme-island .victory-label,
+.theme-island .bracket-round-title {
+  font-family: "MRJZ Island Rounded", "MRJZ Island Sans", "Noto Sans SC", "PingFang SC", sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.theme-island button,
+.theme-island input {
+  font-family: inherit;
+}
+
 .theme-island .island-corner-art {
   position: absolute;
-  top: 48px;
-  right: 15px;
-  z-index: 5;
+  top: 0;
+  right: 18px;
+  z-index: 3;
   display: block;
   width: 48px;
   height: 48px;
@@ -6613,7 +6817,7 @@ button[disabled] {
 }
 
 .theme-island .island-corner-art-yellow-butterfly {
-  top: 18px;
+  top: 0;
   width: 44px;
   height: 44px;
 }
@@ -6642,13 +6846,25 @@ button[disabled] {
 }
 
 .theme-island .island-page-footer-wrap {
-  position: relative;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 2;
   display: block;
   height: 82px;
-  margin: 14px -10px 0;
+  margin: 0;
   overflow: hidden;
   opacity: 0.94;
+  pointer-events: none;
+}
+
+.theme-island .island-page-footer-scene {
+  position: relative;
+  display: block;
+  height: 108px;
+  margin-top: 14px;
+  overflow: hidden;
   pointer-events: none;
 }
 

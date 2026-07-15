@@ -27,6 +27,7 @@ import {
 import { heroIcon, heroLabel, heroPortrait } from "../../dota";
 import { miniProgramSharePath, useMiniProgramShare } from "../../share";
 import { SmartImage as Image } from "../../SmartImage";
+import { useMiniProgramTheme } from "../../ThemeProvider";
 import type {
   AuthSession,
   MatchRecord,
@@ -59,6 +60,7 @@ type PlayerDetailCache = {
 };
 
 export default function PlayerDetailPage() {
+  const themeState = useMiniProgramTheme();
   const router = useRouter();
   const tournamentId = decodeRouteParam(router.params.tournamentId);
   const playerId = decodeRouteParam(router.params.playerId);
@@ -283,7 +285,7 @@ export default function PlayerDetailPage() {
 
           <View
             className="profile-hero player-profile"
-            style={profileAccentStyle(team?.color ?? "#5eead4")}
+            style={profileAccentStyle(team?.color ?? "#5eead4", themeState.theme)}
           >
             <View className="profile-hero-main">
               <SteamAvatar player={profile} size="large" />
@@ -766,7 +768,17 @@ function tagLayoutIndex(tag: PlayerTag, index: number): number {
   return (hash % 8) + 1;
 }
 
-function profileAccentStyle(accent: string): CSSProperties {
+function profileAccentStyle(
+  accent: string,
+  theme: "classic" | "island",
+): CSSProperties {
+  if (theme === "island") {
+    return {
+      borderColor: hexToRgba(accent, 0.42),
+      background: `linear-gradient(135deg, ${hexToRgba(accent, 0.14)}, #fffdf4 58%)`,
+    };
+  }
+
   return {
     borderColor: hexToRgba(accent, 0.42),
     background: `linear-gradient(135deg, ${hexToRgba(accent, 0.18)}, rgba(12, 17, 26, 0.74)), rgba(17, 24, 37, 0.92)`,

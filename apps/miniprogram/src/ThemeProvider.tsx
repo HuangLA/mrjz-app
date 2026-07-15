@@ -25,6 +25,37 @@ const miniProgramThemeStorage = {
   },
 };
 
+const islandFontRoot =
+  "https://cdn.jsdelivr.net/npm/animal-island-ui@1.2.0/dist/files";
+let islandFontsStarted = false;
+
+function ensureIslandFonts(): void {
+  if (islandFontsStarted) {
+    return;
+  }
+
+  islandFontsStarted = true;
+  const global = Taro.getEnv() === Taro.ENV_TYPE.WEAPP;
+  const loads = [
+    Taro.loadFontFace({
+      ...(global ? { global: true } : {}),
+      family: "MRJZ Island Sans",
+      source: `url("${islandFontRoot}/noto-sans-sc-chinese-simplified-500-normal.d3553b6f.woff2")`,
+      desc: { style: "normal", weight: "500" },
+    }),
+    Taro.loadFontFace({
+      ...(global ? { global: true } : {}),
+      family: "MRJZ Island Rounded",
+      source: `url("${islandFontRoot}/nunito-latin-900-normal.8b5d13b8.woff2")`,
+      desc: { style: "normal", weight: "900" },
+    }),
+  ];
+
+  void Promise.all(loads).catch(() => {
+    islandFontsStarted = false;
+  });
+}
+
 export function MiniProgramThemeProvider(props: { children: ReactNode }) {
   const [theme, setTheme] = useState<MiniProgramTheme>(() =>
     readStoredMiniProgramTheme(miniProgramThemeStorage),
@@ -33,6 +64,10 @@ export function MiniProgramThemeProvider(props: { children: ReactNode }) {
 
   useEffect(() => {
     storeMiniProgramTheme(miniProgramThemeStorage, theme);
+
+    if (theme === "island") {
+      ensureIslandFonts();
+    }
 
     if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
       const backgroundColor = theme === "island" ? "#f8f8f0" : "#07090c";

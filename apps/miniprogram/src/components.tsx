@@ -250,9 +250,8 @@ export function PageShell(props: {
   if (shouldRenderEmbedded) {
     return (
       <View className={`embedded-page-view theme-${themeState.theme}`}>
-        <IslandPageMascot kind={mascotKind} />
         {body}
-        <IslandPageFooter />
+        <IslandPageFooterScene mascotKind={mascotKind} />
       </View>
     );
   }
@@ -275,10 +274,9 @@ export function PageShell(props: {
         </View>
       ) : null}
       <View className="view">
-        {!isMainTabHostShell ? <IslandPageMascot kind={mascotKind} /> : null}
         {body}
       </View>
-      {!isMainTabHostShell ? <IslandPageFooter /> : null}
+      {!isMainTabHostShell ? <IslandPageFooterScene mascotKind={mascotKind} /> : null}
       <FloatingRouteNav routeKey={routeKey} />
     </View>
   );
@@ -388,6 +386,15 @@ function IslandPageMascot(props: { kind: IslandMascotKind }) {
       mode="aspectFit"
       src={islandMascotAssetUrls[props.kind]}
     />
+  );
+}
+
+function IslandPageFooterScene(props: { mascotKind: IslandMascotKind }) {
+  return (
+    <View className="island-page-footer-scene">
+      <IslandPageMascot kind={props.mascotKind} />
+      <IslandPageFooter />
+    </View>
   );
 }
 
