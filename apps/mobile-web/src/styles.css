@@ -5406,12 +5406,15 @@ button {
   position: fixed;
   right: max(12px, calc((100vw - 430px) / 2 + 12px));
   bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 40;
   width: 34px;
   height: 34px;
   border: 1px solid rgba(255, 255, 255, .08);
   border-radius: 50%;
   background: rgba(20, 27, 39, .88);
   color: #edf4ff;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 @media (max-width: 360px) {

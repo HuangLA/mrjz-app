@@ -292,6 +292,7 @@ html[data-theme="island"] :where(.route-tab.active, .segmented button.active, .f
 }
 
 html[data-theme="island"] .floating-route-nav {
+  bottom: calc(88px + env(safe-area-inset-bottom));
   border-color: rgba(159, 146, 125, .28);
   border-radius: 24px;
   background: rgba(255, 253, 239, .94);
@@ -512,6 +513,7 @@ html[data-theme="island"] .api-notice {
 }
 
 html[data-theme="island"] .back-top {
+  bottom: calc(150px + env(safe-area-inset-bottom));
   border: 2px solid #11a89b;
   background: #19c8b9;
   box-shadow: 0 4px 0 #0d9287;
@@ -1002,6 +1004,26 @@ html[data-theme="island"] .app-shell .mvp-card::after {
   opacity: .08;
 }
 
+html[data-theme="island"] .app-shell .mvp-visual {
+  border-color: #d9bd74;
+  background: #f4efe3;
+  box-shadow: 0 3px 0 rgba(143, 107, 38, .18);
+}
+
+html[data-theme="island"] .app-shell .mvp-visual span {
+  z-index: 2;
+  padding: 3px 7px;
+  border: 2px solid #8f6b26;
+  background: #fff1b8;
+  box-shadow:
+    0 2px 0 rgba(92, 64, 27, .24),
+    0 4px 10px rgba(92, 64, 27, .16);
+  color: #5a3d21;
+  font-size: 9px;
+  letter-spacing: .04em;
+  text-shadow: none;
+}
+
 html[data-theme="island"] .app-shell .mvp-copy h2,
 html[data-theme="island"] .app-shell .mvp-stats b {
   color: var(--island-text);
@@ -1451,7 +1473,7 @@ html[data-theme="island"] .island-page-footer-wrap {
 }
 
 html[data-theme="island"] .app-shell.route-secondary .view {
-  padding-bottom: 20px;
+  padding-bottom: calc(160px + env(safe-area-inset-bottom));
 }
 
 html[data-theme="island"] .app-shell.route-home {
