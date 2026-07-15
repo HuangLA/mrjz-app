@@ -1,10 +1,15 @@
 /*
- * MRJZ Island is an original theme adaptation inspired by the visual language of
- * guokaigdg/animal-island-ui (CC BY-NC 4.0). No upstream assets or component
- * source are copied into this stylesheet. The published Button component is used
- * through the package dependency; no upstream demo-site or Nintendo assets are
- * bundled. Reference: https://github.com/guokaigdg/animal-island-ui
+ * MRJZ Island adapts the visual language of guokaigdg/animal-island-ui
+ * (CC BY-NC 4.0) for this non-commercial tournament UI. The published Button,
+ * Footer, font files, and selected item illustrations are loaded from the npm
+ * dependency. MRJZ changes their placement, scale, cropping, and surrounding
+ * layout; it does not copy the upstream demo-site source into this repository.
+ * Reference: https://github.com/guokaigdg/animal-island-ui
  */
+
+.island-corner-art {
+  display: none;
+}
 
 .app-shell,
 .app-bar,
@@ -1058,16 +1063,6 @@ html[data-theme="island"] .app-shell .player-awards .player-award-title {
   box-shadow: none;
 }
 
-html[data-theme="island"] .app-shell .player-award-tooltip {
-  border-color: #d9bd74;
-  background: var(--island-surface);
-  box-shadow: 0 10px 24px rgba(85, 68, 49, .18);
-}
-
-html[data-theme="island"] .app-shell .player-award-tooltip small {
-  color: var(--island-muted);
-}
-
 html[data-theme="island"] .app-shell .home-major-sponsor img {
   filter:
     drop-shadow(0 0 1px rgba(85, 68, 49, .72))
@@ -1292,4 +1287,186 @@ html[data-theme="island"] .app-shell .player-sort-bar button.active {
 html[data-theme="island"] .app-shell .stage-switch .segmented,
 html[data-theme="island"] .app-shell .standing-tabs {
   padding: 0 1px 4px;
+}
+
+/* Typography: a playful display face for large labels, with sturdy reading faces elsewhere. */
+html[data-theme="island"] .app-shell {
+  font-family: "Nunito", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  font-weight: 500;
+}
+
+html[data-theme="island"] .app-shell :where(
+  .home-brand-core strong,
+  .home-sponsor-heading,
+  .section-title h2,
+  .stage-head h2,
+  .profile-hero h2,
+  .victory-label
+) {
+  font-family: "ZCOOL KuaiLe", "Noto Sans SC", "PingFang SC", sans-serif;
+  font-weight: 400;
+  letter-spacing: .035em;
+}
+
+html[data-theme="island"] .app-shell :where(
+  .home-hero-stats b,
+  .tournament-scope b,
+  .schedule-score,
+  .record-score strong,
+  .score-core strong,
+  .player-kda b,
+  .profile-winrate b,
+  .profile-stat-grid b,
+  .hero-leaderboard-value b,
+  .player-stat-primary b
+) {
+  font-family: "Nunito", "Noto Sans SC", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+/* Large-section corner art only: never place these illustrations in badges or compact controls. */
+html[data-theme="island"] .app-shell .island-has-corner-art {
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-theme="island"] .app-shell .island-has-corner-art > :not(.island-corner-art) {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme="island"] .app-shell .island-has-corner-art > .section-title:first-of-type {
+  min-height: 44px;
+  padding-right: 64px;
+}
+
+html[data-theme="island"] .app-shell .island-corner-art {
+  position: absolute;
+  z-index: 0;
+  display: block;
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+  opacity: .9;
+  filter: drop-shadow(0 5px 0 rgba(121, 79, 39, .10)) drop-shadow(0 8px 10px rgba(71, 103, 72, .14));
+  pointer-events: none;
+  user-select: none;
+}
+
+html[data-theme="island"] .app-shell .island-corner-art-panel {
+  top: 3px;
+  right: 7px;
+  transform: rotate(5deg);
+}
+
+html[data-theme="island"] .app-shell .island-corner-art-home {
+  top: 7px;
+  right: -14px;
+  width: 88px;
+  height: 74px;
+  opacity: .82;
+  transform: rotate(8deg);
+}
+
+html[data-theme="island"] .island-page-footer-wrap {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
+  height: 78px;
+  overflow: hidden;
+  opacity: .92;
+  pointer-events: none;
+}
+
+html[data-theme="island"] .app-shell.route-secondary .view {
+  padding-bottom: 20px;
+}
+
+html[data-theme="island"] .app-shell.route-home {
+  padding-bottom: 84px;
+}
+
+html[data-theme="island"] .app-shell.route-home .view {
+  padding-bottom: 12px;
+}
+
+html[data-theme="island"] .island-page-footer {
+  position: absolute;
+  inset: 0;
+  height: 78px !important;
+  background-position: left bottom;
+}
+
+/* The award popover is portalled to body, so its theme selector must not depend on .app-shell. */
+html[data-theme="island"] .player-award-tooltip {
+  display: grid;
+  width: 176px;
+  gap: 4px;
+  padding: 9px 11px 10px;
+  border: 2px solid #d0b567;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 12px 12px, rgba(25, 200, 185, .09) 0 2px, transparent 2.5px) 0 0 / 24px 24px,
+    #fffaf0;
+  box-shadow:
+    0 4px 0 rgba(145, 112, 48, .16),
+    0 12px 24px rgba(85, 68, 49, .20);
+  color: #4d3d2d;
+  font-family: "Noto Sans SC", "PingFang SC", sans-serif;
+  white-space: normal;
+}
+
+html[data-theme="island"] .player-award-tooltip b {
+  color: #725126;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+html[data-theme="island"] .player-award-tooltip small {
+  color: #665c4f;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+html[data-theme="island"] .app-shell .player-award-title {
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+html[data-theme="island"] .app-shell .player-award-title:is(:hover, :focus-visible, .active) {
+  border-color: color-mix(in srgb, var(--award-color, #a77d2c) 62%, #8d7457);
+  background: color-mix(in srgb, var(--award-color, #d3ad56) 18%, #fffaf0);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--award-color, #a77d2c) 28%, rgba(85, 68, 49, .18));
+  color: color-mix(in srgb, var(--award-color, #8d6422) 58%, #34291f);
+  transform: translateY(-1px);
+}
+
+html[data-theme="island"] .app-shell .player-award-title:focus-visible {
+  outline: 2px solid rgba(10, 129, 120, .48);
+  outline-offset: 2px;
+}
+
+@media (max-width: 350px) {
+  html[data-theme="island"] .app-shell .island-has-corner-art > .section-title:first-of-type {
+    padding-right: 54px;
+  }
+
+  html[data-theme="island"] .app-shell .island-corner-art-panel {
+    right: 3px;
+    width: 54px;
+    height: 54px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="island"] .app-shell .player-award-title {
+    transition: none;
+  }
 }

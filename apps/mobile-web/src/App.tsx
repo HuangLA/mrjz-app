@@ -11,7 +11,12 @@ import {
 import { mapDotaMapCoordinatesToPercent } from "@mrjz/shared/dota-map";
 import { hasLinkedMatch, scheduleRoundLabel, seriesGameWinnerLabel } from "@mrjz/shared/schedule";
 import { createPortal } from "react-dom";
-import { Button } from "animal-island-ui/es/components/Button/Button.js";
+import { Button, Footer } from "animal-island-ui";
+import pufferFishUrl from "animal-island-ui/items/item-188.png";
+import moonFishUrl from "animal-island-ui/items/item-198.png";
+import clownFishUrl from "animal-island-ui/items/item-202.png";
+import yellowButterflyUrl from "animal-island-ui/items/item-221.png";
+import blueButterflyUrl from "animal-island-ui/items/item-223.png";
 import {
   loadMatchData,
   loadMobileData,
@@ -68,6 +73,7 @@ type RecordTeamFilter = "全部" | string;
 type AppRouteSnapshot = { route: AppRoute; profileId: string | null };
 type NavigateOptions = { replace?: boolean; scroll?: boolean; profileId?: string | undefined };
 type MatchAwardPopover = { key: string; award: MatchAward; left: number; top: number };
+type IslandMascotKind = "puffer" | "moon-fish" | "clown-fish" | "yellow-butterfly" | "blue-butterfly";
 
 const routeOptions: Array<{ key: AppRoute; label: string; kicker: string }> = [
   { key: "home", label: "首页", kicker: "入口" },
@@ -90,9 +96,17 @@ const stageOptions: Array<{ key: StageKey; label: string }> = [
 
 const scheduleFilters: ScheduleStatusFilter[] = ["全部", "未开始", "待补录", "已完赛", "延期"];
 const allRecordTeamFilter: RecordTeamFilter = "全部";
-const awardPopoverWidth = 156;
-const awardPopoverEstimatedHeight = 36;
+const awardPopoverWidth = 176;
+const awardPopoverEstimatedHeight = 58;
 const awardPopoverMargin = 10;
+
+const islandMascotUrls: Record<IslandMascotKind, string> = {
+  "puffer": pufferFishUrl,
+  "moon-fish": moonFishUrl,
+  "clown-fish": clownFishUrl,
+  "yellow-butterfly": yellowButterflyUrl,
+  "blue-butterfly": blueButterflyUrl,
+};
 
 function getAwardPopoverPosition(rect: DOMRect): { left: number; top: number } {
   const maxLeft = Math.max(awardPopoverMargin, window.innerWidth - awardPopoverWidth - awardPopoverMargin);
@@ -658,9 +672,14 @@ export function App() {
           {theme === "island" ? "岛屿主题已开启" : "经典主题已恢复"}
         </div>
       ) : null}
-      <main className="view" aria-live="polite">
+      <main className={`view route-${route}-view`} aria-live="polite">
         {routeView}
       </main>
+      {theme === "island" ? (
+        <div className="island-page-footer-wrap" aria-hidden="true">
+          <Footer className="island-page-footer" type="sea" seamless />
+        </div>
+      ) : null}
       {!isHome ? <FloatingRouteNav route={route} hidden={floatingNavHidden} onNavigate={navigateTo} /> : null}
       {!isHome ? (
         <button
@@ -673,6 +692,24 @@ export function App() {
         </button>
       ) : null}
     </div>
+  );
+}
+
+function IslandCornerMascot({
+  kind,
+  placement = "panel",
+}: {
+  kind: IslandMascotKind;
+  placement?: "home" | "panel";
+}) {
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className={`island-corner-art island-corner-art-${placement}`}
+      draggable={false}
+      src={islandMascotUrls[kind]}
+    />
   );
 }
 
@@ -813,7 +850,8 @@ function HomeHero({
     sponsorAcknowledgements.length > 4 ? "home-major-sponsors is-compact" : "home-major-sponsors";
 
   return (
-    <section className="home-hero">
+    <section className="home-hero island-has-corner-art">
+      <IslandCornerMascot kind="yellow-butterfly" placement="home" />
       <div className="home-hero-content">
         <div className="home-brand-core">
           <span className="home-brand-season">COMMUNITY LEAGUE</span>
@@ -1027,7 +1065,8 @@ function StagePage({
       <>
         <DataNotice data={data} loading={loading} />
         <TournamentScope data={data} onNavigate={onNavigate} />
-        <section className="section-panel schedule-unpublished">
+        <section className="section-panel schedule-unpublished island-has-corner-art">
+          <IslandCornerMascot kind="blue-butterfly" />
           <div className="section-title compact">
             <div>
               <h2>赛事阶段暂未发布</h2>
@@ -1045,7 +1084,8 @@ function StagePage({
       <>
         <DataNotice data={data} loading={loading} />
         <TournamentScope data={data} onNavigate={onNavigate} />
-        <section className="section-panel schedule-unpublished">
+        <section className="section-panel schedule-unpublished island-has-corner-art">
+          <IslandCornerMascot kind="blue-butterfly" />
           <div className="section-title compact">
             <div>
               <h2>暂无官方阶段</h2>
@@ -1070,7 +1110,8 @@ function StagePage({
     <>
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
-      <section className="stage-switch section-panel">
+      <section className="stage-switch section-panel island-has-corner-art">
+        <IslandCornerMascot kind="blue-butterfly" />
         <div className="section-title compact">
           <div>
             <h2>赛事阶段</h2>
@@ -1608,7 +1649,8 @@ function SchedulePage({
       <>
         <DataNotice data={data} loading={loading} />
         <TournamentScope data={data} onNavigate={onNavigate} />
-        <section className="section-panel schedule-unpublished">
+        <section className="section-panel schedule-unpublished island-has-corner-art">
+          <IslandCornerMascot kind="clown-fish" />
           <div className="section-title compact">
             <div>
               <h2>赛程暂未发布</h2>
@@ -1624,7 +1666,8 @@ function SchedulePage({
     <>
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
-      <section className="section-panel">
+      <section className="section-panel schedule-overview island-has-corner-art">
+        <IslandCornerMascot kind="clown-fish" />
         <div className="section-title compact">
           <div>
             <h2>赛程列表</h2>
@@ -1721,7 +1764,8 @@ function RecordsPage({
     <>
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
-      <section className="section-panel">
+      <section className="section-panel records-overview island-has-corner-art">
+        <IslandCornerMascot kind="moon-fish" />
         <div className="section-title compact">
           <div>
             <h2>比赛记录</h2>
@@ -1875,7 +1919,8 @@ function MatchDetailPage({
       {mvp ? <MvpCard player={mvp} match={match} /> : null}
       <MatchQuickStats match={match} />
 
-      <section className="section-panel player-section">
+      <section className="section-panel player-section island-has-corner-art">
+        <IslandCornerMascot kind="puffer" />
         <div className="section-title compact">
           <div>
             <h2>双方数据</h2>
@@ -1982,7 +2027,8 @@ function HeroLeaderboardsPage({
     <>
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
-      <section className="section-panel hero-leaderboard-panel">
+      <section className="section-panel hero-leaderboard-panel island-has-corner-art">
+        <IslandCornerMascot kind="yellow-butterfly" />
         <div className="section-title compact">
           <div>
             <h2>英雄榜</h2>
@@ -2120,7 +2166,8 @@ function PlayersPage({
     <>
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
-      <section className="section-panel player-board-panel">
+      <section className="section-panel player-board-panel island-has-corner-art">
+        <IslandCornerMascot kind="blue-butterfly" />
         <div className="section-title compact">
           <div>
             <h2>选手数据榜</h2>
@@ -2167,7 +2214,8 @@ function TeamsPage({
     <>
       <DataNotice data={data} loading={loading} />
       <TournamentScope data={data} onNavigate={onNavigate} />
-      <section className="section-panel">
+      <section className="section-panel team-directory-panel island-has-corner-art">
+        <IslandCornerMascot kind="puffer" />
         <div className="section-title compact">
           <div>
             <h2>队伍主页</h2>
@@ -2345,7 +2393,8 @@ function TeamProfilePage({
         ]}
       />
 
-      <section className="section-panel">
+      <section className="section-panel team-roster-panel island-has-corner-art">
+        <IslandCornerMascot kind="clown-fish" />
         <div className="section-title compact">
           <div>
             <h2>成员名单</h2>
@@ -3381,7 +3430,8 @@ function PlayerTagCloud({ tags }: { tags: PlayerTag[] }) {
   };
 
   return (
-    <section className="section-panel profile-tag-panel" aria-labelledby="player-tag-heading">
+    <section className="section-panel profile-tag-panel island-has-corner-art" aria-labelledby="player-tag-heading">
+      <IslandCornerMascot kind="blue-butterfly" />
       <div className="section-title compact">
         <div>
           <h2 id="player-tag-heading">选手应援标签</h2>

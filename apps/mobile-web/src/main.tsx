@@ -1,5 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import "@fontsource/zcool-kuaile/400.css";
+import "animal-island-ui/style";
 import "./styles.css";
 import "./island-theme.css";
 import { readStoredTheme } from "./theme";
