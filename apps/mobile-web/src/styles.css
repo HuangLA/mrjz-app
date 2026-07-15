@@ -1439,6 +1439,11 @@ button {
   scrollbar-width: none;
 }
 
+.bracket-scroll-copy {
+  font-size: 9px;
+  letter-spacing: .01em;
+}
+
 .bracket-mini-board::-webkit-scrollbar {
   display: none;
   width: 0;

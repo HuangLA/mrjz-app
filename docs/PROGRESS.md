@@ -26,6 +26,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 ## 已完成
 
 - 云端第四届已按退赛后的运营口径生成 8 队双败淘汰赛草稿：恐龙战队退赛，`S-ONE` 与“从你的全世界路过”淘汰，`Xikii Industry 2.0` 补入 B 组最后一个晋级位；对阵图配置为胜者组 4 队 + 初始败者组 4 队，保留现有 24 场小组赛赛果且不为退赛未赛对局虚构比分，管理员可在草稿对阵图中继续手动拖拽调整。操作前备份为 `/var/backups/mrjz-api/mrjz-before-s4-knockout-20260715-234511.sqlite`。
+- H5 Island 淘汰赛对阵图完成专项优化：双败淘汰赛统一为暖色纸张底，胜者组使用薄荷青、败者组使用珊瑚色、总决赛使用浅金色，强化分区标题、对阵状态、队伍行、晋级流向和连线的对比度；节点行高同步适配完整内容，并增加“左右滑动查看完整对阵”提示。已使用远端第四届真实双败数据复验 10 个节点，未出现卡片溢出或内容遮挡。
 - 云端 H5 已部署修正后的 Island 底部海景安全区：生产发布包位于 `/var/www/releases/mrjz-h5-footer-safe-area-corrected-20260715-201005`，切换前将旧站完整备份到 `/var/www/backups/mrjz-h5-before-footer-safe-area-corrected-20260715-201005`；线上悬浮导航恢复原底部位置，仅抬高海浪页脚、正文安全留白和回顶按钮，`dota2mrjz.icu` / `www.dota2mrjz.icu` 已指向 `index-CaEfrRh5.js` 与 `index-i-rPj6aQ.css`，主域名、www、两项静态资源和同域 `/api/health` 均返回 200，本地、服务器和公网 JS / CSS SHA-256 完全一致。
 - H5 Island 主题补齐底部海景安全区：仅在海岛主题下抬高海浪、帆船等页脚插画并增加滚动留白，悬浮导航和经典主题布局均保持原位；回到顶部按钮提升到稳定可点击层级并置于海景安全区上方，比赛详情 MVP 英雄头像角标改为浅金底、深棕字和高对比描边，并通过比赛记录长列表、主题切换和真实比赛详情完成视觉复验。
 - H5 Island 赛事阶段页修复分段按钮底部阴影裁切：阶段切换和积分榜分组切换的横向滚动容器增加 4px 内部空间，完整容纳 3px 选中态按压阴影，并通过阶段页截图复验。
@@ -697,7 +698,9 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
-| `pending` | Record corrected H5 Island deployment         |
+| `pending` | Refine H5 Island knockout bracket             |
+| `4680893` | Record S4 knockout draft setup                 |
+| `1dbec0d` | Record corrected H5 Island deployment         |
 | `bc1f122` | Correct H5 Island footer safe area            |
 | `4113f4c` | Record H5 Island safe area deployment         |
 | `ee9a3dc` | Fix H5 Island footer safe area and MVP badge  |

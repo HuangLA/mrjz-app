@@ -1232,6 +1232,7 @@ function StagePage({
           <div className="section-title compact">
             <div>
               <h2>淘汰赛对阵图</h2>
+              <p className="muted bracket-scroll-copy">左右滑动查看完整对阵</p>
             </div>
           </div>
           {currentStage.bracket.length > 0 ? (

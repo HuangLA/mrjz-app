@@ -1461,6 +1461,225 @@ html[data-theme="island"] .app-shell .island-corner-art-home {
   transform: rotate(8deg);
 }
 
+/* Knockout bracket: warm paper, readable lanes, and enough row height for every node. */
+html[data-theme="island"] .app-shell .bracket-mini-board {
+  gap: 16px;
+  margin: 0;
+  padding: 4px 2px 12px;
+  scroll-padding-inline: 2px;
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-map.is-combined,
+html[data-theme="island"] .app-shell .bracket-group-lane {
+  border-color: #d7ccb4;
+  border-radius: 16px;
+  background: #fffdf4;
+  box-shadow: 0 3px 0 rgba(121, 79, 39, .10);
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-map.is-combined {
+  gap: 18px 34px;
+  padding: 36px 12px 14px;
+}
+
+html[data-theme="island"] .app-shell .bracket-group-lane {
+  gap: 12px;
+  padding: 12px;
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-lane-label,
+html[data-theme="island"] .app-shell .bracket-group-title {
+  padding: 5px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .03em;
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-lane-label.is-winner {
+  margin-top: -29px;
+  border: 1px solid #79b8ae;
+  background: #dff5ef;
+  box-shadow: 0 2px 0 rgba(23, 122, 112, .16);
+  color: #276c65;
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-lane-label.is-loser {
+  margin-top: -29px;
+  border: 1px solid #d9a08d;
+  background: #fbe8df;
+  box-shadow: 0 2px 0 rgba(158, 82, 58, .14);
+  color: #914f3d;
+}
+
+html[data-theme="island"] .app-shell .bracket-group-title {
+  border: 1px solid #d0b567;
+  background: #fff3c9;
+  box-shadow: 0 2px 0 rgba(145, 112, 48, .14);
+  color: #76561d;
+}
+
+html[data-theme="island"] .app-shell .bracket-column {
+  gap: 10px;
+}
+
+html[data-theme="island"] .app-shell .bracket-column > strong {
+  min-height: 22px;
+  padding: 0 4px;
+  color: #564634;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .015em;
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-column.is-winner > strong {
+  color: #276c65;
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-column.is-loser > strong {
+  color: #914f3d;
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-column.is-grand_final > strong {
+  color: #76561d;
+}
+
+html[data-theme="island"] .app-shell .bracket-column-body {
+  grid-template-rows: repeat(var(--bracket-row-count), 180px);
+  gap: 12px;
+}
+
+html[data-theme="island"] .app-shell .bracket-node {
+  gap: 6px;
+  min-height: 0;
+  padding: 8px;
+  border: 1px solid #cfc4ac;
+  border-radius: 14px;
+  background: #fffdf4;
+  box-shadow: 0 2px 0 rgba(121, 79, 39, .10);
+  color: #4d3d2d;
+  opacity: 1;
+}
+
+html[data-theme="island"] .app-shell .bracket-node.is-ready {
+  border-color: #79b8ae;
+  background: #f7fffb;
+}
+
+html[data-theme="island"] .app-shell .bracket-node.is-pending {
+  border-color: #c9bea8;
+  background: #fbf8ef;
+}
+
+html[data-theme="island"] .app-shell .bracket-node.is-completed {
+  border-color: #93bd74;
+  background: #f5fbe9;
+}
+
+html[data-theme="island"] .app-shell .bracket-unified-column.is-grand_final .bracket-node {
+  border-color: #cdae55;
+  background: #fff8dc;
+  box-shadow: 0 3px 0 rgba(145, 112, 48, .14);
+}
+
+html[data-theme="island"] .app-shell .bracket-node-kicker {
+  color: #716653;
+}
+
+html[data-theme="island"] .app-shell .bracket-node-state {
+  padding: 2px 6px;
+  border: 1px solid #d8ceba;
+  border-radius: 999px;
+  background: #f1ecdf;
+  color: #615644;
+  line-height: 1.25;
+}
+
+html[data-theme="island"] .app-shell .bracket-node.is-ready .bracket-node-state {
+  border-color: #79b8ae;
+  background: #dff5ef;
+  color: #276c65;
+}
+
+html[data-theme="island"] .app-shell .bracket-node.is-completed .bracket-node-state {
+  border-color: #93bd74;
+  background: #e7f4d9;
+  color: #4f742f;
+}
+
+html[data-theme="island"] .app-shell .bracket-team {
+  min-height: 32px;
+  padding: 5px 6px;
+  border: 1px solid #ded5c0;
+  border-radius: 9px;
+  background: #f5f1e5;
+  box-shadow: none;
+}
+
+html[data-theme="island"] .app-shell .bracket-team span {
+  background: #e7dfcc;
+  color: #675b4b;
+}
+
+html[data-theme="island"] .app-shell .bracket-team b {
+  color: #4d3d2d;
+  font-weight: 700;
+}
+
+html[data-theme="island"] .app-shell .bracket-team.is-winner {
+  border-color: #93bd74;
+  background: #eaf6df;
+  box-shadow: none;
+  color: #466b2a;
+}
+
+html[data-theme="island"] .app-shell .bracket-team.is-winner span,
+html[data-theme="island"] .app-shell .bracket-team.is-winner em {
+  background: #d7edc5;
+  color: #466b2a;
+}
+
+html[data-theme="island"] .app-shell .bracket-team.is-winner b {
+  color: #36551f;
+}
+
+html[data-theme="island"] .app-shell .bracket-node-footer {
+  padding: 1px 2px;
+  color: #695f52;
+}
+
+html[data-theme="island"] .app-shell .bracket-flow-row {
+  gap: 2px;
+  padding: 5px 6px;
+  border: 1px solid #e5dcc8;
+  border-radius: 8px;
+  background: #faf7ec;
+  color: #695f52;
+  line-height: 1.35;
+}
+
+html[data-theme="island"] .app-shell .bracket-flow-row span:first-child {
+  color: #267b72;
+}
+
+html[data-theme="island"] .app-shell .bracket-flow-row span:last-child {
+  color: #9a5744;
+}
+
+html[data-theme="island"] .app-shell .bracket-connector-path,
+html[data-theme="island"] .app-shell .bracket-final-connector-path {
+  stroke: #3e988e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+html[data-theme="island"] .app-shell .bracket-connector-path.is-loser,
+html[data-theme="island"] .app-shell .bracket-final-connector-path.is-loser {
+  stroke: #cc7b64;
+  stroke-dasharray: 5 4;
+}
+
 html[data-theme="island"] .island-page-footer-wrap {
   position: absolute;
   inset: auto 0 0;
