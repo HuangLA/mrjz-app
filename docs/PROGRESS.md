@@ -26,7 +26,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 ## 已完成
 
 - 云端 H5 已部署 Island 底部海景安全区与 MVP 角标修复：生产发布包先上传到 `/var/www/releases/mrjz-h5-footer-safe-area-20260715-195431` 并完成入口、JS / CSS 和 Nginx 检查，旧站完整备份到 `/var/www/backups/mrjz-h5-before-footer-safe-area-20260715-195431` 后切换；`dota2mrjz.icu` / `www.dota2mrjz.icu` 已指向 `index-Df3gUaJQ.js` 与 `index-Dt4lhYQl.css`，主域名、www、两项静态资源和同域 `/api/health` 均返回 200，本地、服务器和公网 JS / CSS SHA-256 完全一致。
-- H5 Island 主题补齐底部海景安全区：仅在海岛主题下抬高子页面悬浮导航并增加滚动留白，使海浪、帆船等页脚插画不再被导航遮挡，经典主题布局保持原位；回到顶部按钮提升到稳定可点击层级，比赛详情 MVP 英雄头像角标改为浅金底、深棕字和高对比描边，并通过比赛记录长列表、主题切换和真实比赛详情完成视觉复验。
+- H5 Island 主题补齐底部海景安全区：仅在海岛主题下抬高海浪、帆船等页脚插画并增加滚动留白，悬浮导航和经典主题布局均保持原位；回到顶部按钮提升到稳定可点击层级并置于海景安全区上方，比赛详情 MVP 英雄头像角标改为浅金底、深棕字和高对比描边，并通过比赛记录长列表、主题切换和真实比赛详情完成视觉复验。
 - H5 Island 赛事阶段页修复分段按钮底部阴影裁切：阶段切换和积分榜分组切换的横向滚动容器增加 4px 内部空间，完整容纳 3px 选中态按压阴影，并通过阶段页截图复验。
 - H5 Island 主题完成第二轮对比度与细节收敛：赛程状态筛选改为统一五段选择条，比赛详情 Ban / Pick 顺序改为暖白底并用淡红 / 淡绿区分禁用与选择，选手 / 队伍详情统计恢复清晰边框；同时加深正文、次级信息、社区支持者昵称、排序项、战报徽章和状态标签颜色，清理装备 / 展开数据区域的暗色容器。视觉回归支持整页、指定页面、指定焦点元素截图，并会自动选择真实包含 BP 数据的比赛，10 条 H5 路径与 BP 专项截图均已复验。
 - H5 Island 主题完成全页面视觉复查：覆盖首页、赛事阶段、赛程、比赛记录、英雄榜、选手、队伍以及比赛 / 选手 / 队伍详情共 10 条路径；将旧主题残留的深色排行榜、选手统计、队伍列表、详情头图和比赛数据区统一替换为暖白信息面，收紧为深棕正文、薄荷青交互态及只用于赛果的红绿状态色，并增强完赛标签、战报标记、白色赞助商标识和应援文字的可读性。视觉比对脚本现支持通过 `MRJZ_VISUAL_PARITY_H5_THEME=island` 预置主题，并补入英雄榜页面。
@@ -696,7 +696,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
-| `pending` | Record H5 Island safe area deployment         |
+| `pending` | Correct H5 Island footer safe area            |
+| `4113f4c` | Record H5 Island safe area deployment         |
 | `ee9a3dc` | Fix H5 Island footer safe area and MVP badge  |
 | `5952b4f` | Record H5 Island cloud deployment             |
 | `d5101e2` | Refine H5 Island detail labels and mascots    |

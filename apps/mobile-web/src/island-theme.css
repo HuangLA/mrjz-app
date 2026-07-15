@@ -292,7 +292,6 @@ html[data-theme="island"] :where(.route-tab.active, .segmented button.active, .f
 }
 
 html[data-theme="island"] .floating-route-nav {
-  bottom: calc(88px + env(safe-area-inset-bottom));
   border-color: rgba(159, 146, 125, .28);
   border-radius: 24px;
   background: rgba(255, 253, 239, .94);
@@ -513,7 +512,7 @@ html[data-theme="island"] .api-notice {
 }
 
 html[data-theme="island"] .back-top {
-  bottom: calc(150px + env(safe-area-inset-bottom));
+  bottom: calc(max(10px, env(safe-area-inset-bottom)) + 144px);
   border: 2px solid #11a89b;
   background: #19c8b9;
   box-shadow: 0 4px 0 #0d9287;
@@ -1473,7 +1472,11 @@ html[data-theme="island"] .island-page-footer-wrap {
 }
 
 html[data-theme="island"] .app-shell.route-secondary .view {
-  padding-bottom: calc(160px + env(safe-area-inset-bottom));
+  padding-bottom: calc(max(10px, env(safe-area-inset-bottom)) + 150px);
+}
+
+html[data-theme="island"] .app-shell.route-secondary .island-page-footer-wrap {
+  bottom: calc(max(10px, env(safe-area-inset-bottom)) + 58px);
 }
 
 html[data-theme="island"] .app-shell.route-home {
