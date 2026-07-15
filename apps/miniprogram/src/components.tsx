@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { dotaAssetUrl, heroIcon } from "./dota";
 import { SmartImage as Image } from "./SmartImage";
+import { useMiniProgramTheme } from "./ThemeProvider";
 import type {
   MatchRecord,
   PlayerListItem,
@@ -14,6 +15,7 @@ import type {
   TournamentOption,
   StageType,
 } from "./types";
+import type { MiniProgramTheme } from "./theme";
 import {
   formatDateTime,
   formatDecimal,
@@ -226,11 +228,15 @@ export function PageShell(props: {
   backUrl?: string | undefined;
   className?: string;
   embedded?: boolean;
+  mascotKind?: IslandMascotKind;
 }) {
   const hostContext = useContext(MainTabHostContext);
+  const themeState = useMiniProgramTheme();
   const shouldRenderEmbedded = props.embedded ?? Boolean(hostContext?.embedded);
   const routeKey = props.routeKey ?? "stage";
   const isHome = routeKey === "home";
+  const isMainTabHostShell = props.className?.split(/\s+/).includes("main-tab-shell") ?? false;
+  const mascotKind = props.mascotKind ?? islandMascotForRoute(routeKey);
   const body = (
     <>
       {props.loading ? <StatePanel title="读取中" text="正在同步赛事数据" /> : null}
@@ -242,20 +248,37 @@ export function PageShell(props: {
   );
 
   if (shouldRenderEmbedded) {
-    return <View className="embedded-page-view">{body}</View>;
+    return (
+      <View className={`embedded-page-view theme-${themeState.theme}`}>
+        <IslandPageMascot kind={mascotKind} />
+        {body}
+        <IslandPageFooter />
+      </View>
+    );
   }
 
   return (
     <View
-      className={`app-shell ${isHome ? "route-home" : "route-secondary"} ${props.className ?? ""}`.trim()}
+      className={`app-shell theme-${themeState.theme} ${isHome ? "route-home" : "route-secondary"} ${props.className ?? ""}`.trim()}
     >
       {isHome ? <HomeBackgroundMarquee /> : null}
       <AppBar
         backUrl={props.backUrl}
         isHome={isHome}
         onBack={hostContext ? () => hostContext.switchRoute("/pages/index/index") : undefined}
+        onToggleTheme={themeState.toggleTheme}
+        theme={themeState.theme}
       />
-      <View className="view">{body}</View>
+      {isHome && themeState.noticeKey > 0 ? (
+        <View className="theme-toast" key={themeState.noticeKey}>
+          {themeState.theme === "island" ? "海岛主题已开启" : "经典主题已恢复"}
+        </View>
+      ) : null}
+      <View className="view">
+        {!isMainTabHostShell ? <IslandPageMascot kind={mascotKind} /> : null}
+        {body}
+      </View>
+      {!isMainTabHostShell ? <IslandPageFooter /> : null}
       <FloatingRouteNav routeKey={routeKey} />
     </View>
   );
@@ -265,6 +288,8 @@ function AppBar(props: {
   backUrl?: string | undefined;
   isHome: boolean;
   onBack?: (() => void) | undefined;
+  onToggleTheme: () => void;
+  theme: MiniProgramTheme;
 }) {
   const navMetrics = getMiniNavMetrics();
   const appBarStyle: CSSProperties = {
@@ -288,9 +313,17 @@ function AppBar(props: {
     <View className={`app-bar ${props.isHome ? "home-bar" : ""}`} style={appBarStyle}>
       <View className="title-line top-only" style={navRowStyle}>
         {props.isHome ? (
-          <Text className="brand-mark" style={navControlStyle}>
-            MRJZ
-          </Text>
+          <Button
+            aria-label={`切换到${props.theme === "classic" ? "海岛" : "经典"}主题`}
+            className="brand-mark"
+            style={navControlStyle}
+            onClick={props.onToggleTheme}
+          >
+            <Text className="brand-mark-label">MRJZ</Text>
+            <Text className="brand-mark-theme">
+              {props.theme === "island" ? "ISLAND" : "THEME"}
+            </Text>
+          </Button>
         ) : (
           <Button
             className="icon-button"
@@ -308,6 +341,64 @@ function AppBar(props: {
           </Button>
         )}
       </View>
+    </View>
+  );
+}
+
+type IslandMascotKind =
+  | "angler-fish"
+  | "butterfly-fish"
+  | "clown-fish"
+  | "moon-fish"
+  | "moray-eel"
+  | "puffer"
+  | "ribbon-eel"
+  | "tuna"
+  | "turquoise-fish"
+  | "yellow-butterfly";
+
+const islandMascotAssetUrls: Record<IslandMascotKind, string> = {
+  "angler-fish": "/assets/island/angler-fish.png",
+  "butterfly-fish": "/assets/island/butterfly-fish.png",
+  "clown-fish": "/assets/island/clown-fish.png",
+  "moon-fish": "/assets/island/moon-fish.png",
+  "moray-eel": "/assets/island/moray-eel.png",
+  puffer: "/assets/island/puffer.png",
+  "ribbon-eel": "/assets/island/ribbon-eel.png",
+  tuna: "/assets/island/tuna.png",
+  "turquoise-fish": "/assets/island/turquoise-fish.png",
+  "yellow-butterfly": "/assets/island/yellow-butterfly.png",
+};
+
+function islandMascotForRoute(routeKey: MiniRouteKey): IslandMascotKind {
+  if (routeKey === "home") return "yellow-butterfly";
+  if (routeKey === "stage") return "turquoise-fish";
+  if (routeKey === "schedule") return "clown-fish";
+  if (routeKey === "records") return "moon-fish";
+  if (routeKey === "leaderboard") return "ribbon-eel";
+  if (routeKey === "players") return "tuna";
+  if (routeKey === "teams") return "butterfly-fish";
+  return "puffer";
+}
+
+function IslandPageMascot(props: { kind: IslandMascotKind }) {
+  return (
+    <Image
+      className={`island-corner-art island-corner-art-${props.kind}`}
+      mode="aspectFit"
+      src={islandMascotAssetUrls[props.kind]}
+    />
+  );
+}
+
+function IslandPageFooter() {
+  return (
+    <View className="island-page-footer-wrap">
+      <Image
+        className="island-page-footer"
+        mode="aspectFill"
+        src="/assets/island/footer-sea.svg"
+      />
     </View>
   );
 }

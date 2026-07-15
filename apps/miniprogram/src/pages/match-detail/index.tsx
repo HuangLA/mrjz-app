@@ -141,7 +141,7 @@ export default function MatchDetailPage() {
   }
 
   return (
-    <PageShell loading={loading} error={error} routeKey="records">
+    <PageShell loading={loading} error={error} routeKey="records" mascotKind="puffer">
       {detail ? (
         <View className="match-detail-page" onClick={closeAwardPopover} onTouchMove={closeAwardPopover}>
           <MatchSummary detail={detail} />

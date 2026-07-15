@@ -26,13 +26,38 @@ function resolveDotaAssetBaseUrl(): string {
 }
 
 function assetCopyPatterns() {
-  const patterns = [{ from: "src/assets/svg", to: `${outputRoot}/assets/svg` }];
+  const patterns = [
+    { from: "src/assets/svg", to: `${outputRoot}/assets/svg` },
+    ...islandAssetCopyPatterns(),
+  ];
 
   if (useLocalDotaAssets) {
     patterns.push({ from: "src/assets/dota", to: `${outputRoot}/assets/dota` });
   }
 
   return patterns;
+}
+
+function islandAssetCopyPatterns() {
+  const itemRoot = "../../node_modules/animal-island-ui/dist/items";
+  const fileRoot = "../../node_modules/animal-island-ui/dist/files";
+
+  return [
+    { from: `${itemRoot}/item-187.png`, to: `${outputRoot}/assets/island/turquoise-fish.png` },
+    { from: `${itemRoot}/item-188.png`, to: `${outputRoot}/assets/island/puffer.png` },
+    { from: `${itemRoot}/item-193.png`, to: `${outputRoot}/assets/island/moray-eel.png` },
+    { from: `${itemRoot}/item-198.png`, to: `${outputRoot}/assets/island/moon-fish.png` },
+    { from: `${itemRoot}/item-199.png`, to: `${outputRoot}/assets/island/ribbon-eel.png` },
+    { from: `${itemRoot}/item-202.png`, to: `${outputRoot}/assets/island/clown-fish.png` },
+    { from: `${itemRoot}/item-204.png`, to: `${outputRoot}/assets/island/butterfly-fish.png` },
+    { from: `${itemRoot}/item-212.png`, to: `${outputRoot}/assets/island/angler-fish.png` },
+    { from: `${itemRoot}/item-217.png`, to: `${outputRoot}/assets/island/tuna.png` },
+    { from: `${itemRoot}/item-221.png`, to: `${outputRoot}/assets/island/yellow-butterfly.png` },
+    {
+      from: `${fileRoot}/footer-sea.42da0dab.svg`,
+      to: `${outputRoot}/assets/island/footer-sea.svg`,
+    },
+  ];
 }
 
 function isEnabled(value: string | undefined): boolean {

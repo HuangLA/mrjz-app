@@ -272,6 +272,7 @@ export default function PlayerDetailPage() {
       }
       loading={loading}
       error={error}
+      mascotKind="angler-fish"
       routeKey="players"
     >
       {profile ? (

@@ -38,3 +38,9 @@ Default `dev` and `build` use the cloud API at `https://api.dota2mrjz.icu/api`; 
 The mini program calls `POST /api/auth/wechat-login` with a real `wx.login` code. Release, preview, and production API services must configure `WECHAT_APP_ID` and `WECHAT_APP_SECRET` so the API resolves the code through WeChat `code2Session`. The mini program does not send development user IDs or local fake login codes.
 
 The returned token is an opaque MRJZ user session, not the user id. Authenticated requests use `Authorization: Bearer <token>`. The My page can bind a Dota `account_id` or SteamID64 through `POST /api/me/player-binding`; binding succeeds even when that account has no MRJZ match records yet, and `GET /api/me/stats` returns a stable empty state until future tournament data is synced.
+
+## UI themes
+
+The MRJZ mark in the top-left corner of the home page switches between the original dark theme and the Island theme. The selection is stored in mini-program storage and is reused by the main tabs and detail pages.
+
+The Island theme adapts the sea footer and selected animal item illustrations from [`animal-island-ui`](https://github.com/guokaigdg/animal-island-ui) under its [CC BY-NC 4.0 license](https://github.com/guokaigdg/animal-island-ui/blob/main/LICENSE). MRJZ is a non-commercial community project. The mini program keeps its Taro-native component and layout structure; upstream assets are resized and placed in new page compositions rather than copying the demo site.

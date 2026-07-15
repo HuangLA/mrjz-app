@@ -163,9 +163,10 @@ button[disabled] {
 }
 
 .brand-mark {
-  display: grid;
+  display: inline-flex;
+  width: auto;
   height: 28px;
-  place-items: center;
+  align-items: center;
   padding: 0 9px;
   border: 1px solid rgba(213, 166, 79, 0.3);
   border-radius: 7px;
@@ -174,6 +175,67 @@ button[disabled] {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
+}
+
+.brand-mark-label {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.brand-mark-theme {
+  margin-left: 5px;
+  color: inherit;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  opacity: 0.64;
+}
+
+.theme-toast {
+  position: fixed;
+  top: 58px;
+  left: 50%;
+  z-index: 30;
+  min-width: 132px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  background: rgba(16, 21, 29, 0.96);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  color: #f4f1e8;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+  pointer-events: none;
+  animation: theme-toast-pop 1600ms ease both;
+  transform: translateX(-50%);
+}
+
+@keyframes theme-toast-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -5px) scale(0.96);
+  }
+
+  12%,
+  72% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -4px) scale(0.98);
+  }
+}
+
+.island-corner-art,
+.island-page-footer-wrap {
+  display: none;
 }
 
 .icon-button {
@@ -4957,7 +5019,9 @@ button[disabled] {
   position: relative;
   display: grid;
   grid-template-rows: auto auto;
-  gap: 18px;
+  column-gap: 16px;
+  row-gap: 18px;
+  box-sizing: border-box;
   padding: 34px 10px 10px;
   border: 1px solid rgba(140, 164, 194, 0.18);
   border-radius: 8px;
@@ -4966,8 +5030,9 @@ button[disabled] {
 }
 
 .bracket-unified-lane-label {
-  width: fit-content;
+  width: auto;
   align-self: start;
+  justify-self: start;
   padding: 5px 9px;
   border-radius: 8px;
   font-size: 9px;
@@ -5566,4 +5631,1036 @@ button[disabled] {
 
 .player-expanded {
   margin: 0 6px 6px 42px;
+}
+
+/*
+ * MRJZ Island adapts animal-island-ui (CC BY-NC 4.0) for the non-commercial
+ * mini-program surface. Layout remains native to Taro/WeChat while the sea
+ * footer and selected animal item illustrations come from the upstream package.
+ */
+
+.app-shell.theme-island {
+  color: #4d3d2d;
+  background:
+    radial-gradient(circle at 18px 18px, rgba(25, 200, 185, 0.1) 0 1.5px, transparent 1.7px) 0 0 / 28px 28px,
+    radial-gradient(circle at 7px 7px, rgba(255, 255, 255, 0.34) 0 1px, transparent 1.2px) 0 0 / 14px 14px,
+    #f8f8f0;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+.app-shell.theme-island::before {
+  background:
+    radial-gradient(circle at 20% 9%, rgba(255, 255, 255, 0.58) 0 2px, transparent 2.5px) 0 0 / 70px 70px,
+    radial-gradient(circle at 86% 18%, rgba(25, 200, 185, 0.13) 0 4px, transparent 4.5px) 0 0 / 88px 88px;
+}
+
+.app-shell.theme-island::after {
+  height: 190px;
+  background:
+    radial-gradient(ellipse at 18% 100%, rgba(111, 186, 44, 0.17), transparent 52%),
+    radial-gradient(ellipse at 82% 100%, rgba(25, 200, 185, 0.15), transparent 52%);
+}
+
+.embedded-page-view.theme-island {
+  position: relative;
+  color: #4d3d2d;
+}
+
+.theme-island .app-bar {
+  border-bottom-color: rgba(159, 146, 125, 0.22);
+  background: rgba(248, 248, 240, 0.94);
+}
+
+.theme-island .app-bar.home-bar {
+  border-bottom-color: transparent;
+  background: linear-gradient(180deg, rgba(248, 248, 240, 0.96), rgba(248, 248, 240, 0.66));
+}
+
+.theme-island .brand-mark {
+  height: 29px;
+  padding: 0 12px;
+  border: 2px solid #11a89b;
+  border-radius: 50px;
+  background: #19c8b9;
+  box-shadow: 0 4px 0 #0d9287;
+  color: #ffffff;
+}
+
+.theme-island .brand-mark::before {
+  width: 7px;
+  height: 10px;
+  margin-right: 5px;
+  border-radius: 80% 20% 75% 25%;
+  background: #d1da49;
+  box-shadow: inset -1px -1px 0 rgba(61, 90, 26, 0.16);
+  content: "";
+  transform: rotate(-28deg);
+}
+
+.theme-island .brand-mark-label,
+.theme-island .brand-mark-theme {
+  color: #ffffff;
+}
+
+.theme-island .brand-mark:active {
+  box-shadow: 0 1px 0 #0d9287;
+  transform: translateY(2px);
+}
+
+.theme-island .icon-button {
+  border: 2px solid #c4b89e;
+  border-radius: 50%;
+  background: #fffdf2;
+  color: #725d42;
+}
+
+.theme-island .theme-toast {
+  border-color: #b8ad94;
+  background: #fffdf4;
+  box-shadow: 0 4px 0 rgba(116, 95, 62, 0.14), 0 10px 22px rgba(85, 68, 49, 0.18);
+  color: #4d3d2d;
+}
+
+.theme-island .home-background-marquee {
+  opacity: 0.14;
+}
+
+.theme-island .home-background-marquee::before {
+  background: linear-gradient(180deg, rgba(248, 248, 240, 0.32), rgba(248, 248, 240, 0.78));
+}
+
+.theme-island .floating-route-nav {
+  border-color: #cfc4ad;
+  background: rgba(255, 253, 244, 0.95);
+  box-shadow: 0 5px 0 rgba(100, 86, 62, 0.13), 0 14px 30px rgba(71, 93, 75, 0.18);
+}
+
+.theme-island .route-tab-indicator {
+  background: #19c8b9;
+  box-shadow: 0 3px 0 #0d9287;
+}
+
+.theme-island .route-tab {
+  background: #f2eddf;
+  color: #796e5f;
+}
+
+.theme-island .route-tab.active {
+  background: transparent;
+  color: #ffffff;
+}
+
+.theme-island .home-hero {
+  border-color: #d6c9ad;
+  background:
+    radial-gradient(circle at 8% 15%, rgba(255, 255, 255, 0.5) 0 2px, transparent 2.5px) 0 0 / 38px 38px,
+    linear-gradient(145deg, rgba(130, 213, 187, 0.84), rgba(248, 248, 240, 0.82) 50%, rgba(247, 205, 103, 0.66));
+  box-shadow: 0 5px 0 rgba(105, 85, 53, 0.12), 0 18px 34px rgba(78, 104, 83, 0.16);
+}
+
+.theme-island .home-hero::before {
+  background: radial-gradient(circle, rgba(25, 200, 185, 0.1), transparent 66%);
+}
+
+.theme-island .home-hero::after {
+  background: linear-gradient(180deg, transparent 54%, rgba(255, 253, 244, 0.38));
+}
+
+.theme-island .home-brand-core {
+  border: 2px solid rgba(159, 146, 125, 0.3);
+  background:
+    radial-gradient(circle, rgba(247, 205, 103, 0.2) 1.5px, transparent 1.5px) 0 0 / 28px 28px,
+    #fffdf2;
+  box-shadow: 0 7px 0 rgba(159, 146, 125, 0.2);
+}
+
+.theme-island .home-brand-core::before,
+.theme-island .home-brand-core::after {
+  background: linear-gradient(90deg, transparent, #19c8b9);
+}
+
+.theme-island .home-brand-season {
+  color: #6fba2c;
+}
+
+.theme-island .home-brand-name {
+  color: #794f27;
+}
+
+.theme-island .home-brand-sub {
+  color: #786e60;
+}
+
+.theme-island .home-hero-stats view {
+  border: 1px solid rgba(159, 146, 125, 0.28);
+  background: rgba(255, 253, 239, 0.88);
+}
+
+.theme-island .home-hero-stats text:first-child {
+  color: #786e60;
+}
+
+.theme-island .home-hero-stats text:last-child {
+  color: #4d3d2d;
+}
+
+.theme-island .home-sponsor-panel {
+  border-color: rgba(229, 146, 102, 0.42);
+  background:
+    radial-gradient(circle, rgba(229, 146, 102, 0.14) 1.5px, transparent 1.5px) 0 0 / 28px 28px,
+    #f9e4d2;
+  box-shadow: none;
+}
+
+.theme-island .home-sponsor-heading,
+.theme-island .home-sponsor-section-title,
+.theme-island .home-sponsor-section-title text:last-child {
+  color: #8a5a40;
+}
+
+.theme-island .home-major-sponsors {
+  border-color: rgba(159, 146, 125, 0.26);
+  background: rgba(255, 253, 239, 0.76);
+}
+
+.theme-island .home-major-sponsor {
+  border-color: rgba(159, 146, 125, 0.2);
+}
+
+.theme-island .home-major-sponsor image {
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 10px;
+  background: rgba(48, 84, 80, 0.78);
+}
+
+.theme-island .home-major-sponsor text,
+.theme-island .home-community-supporter > text:last-child {
+  color: #725d42;
+}
+
+.theme-island .home-community-avatar {
+  background: linear-gradient(135deg, #82d5bb, #f7cd67);
+  box-shadow: inset 0 0 0 2px #fffdf2, 0 3px 0 rgba(121, 79, 39, 0.14);
+  color: #725d42;
+}
+
+.theme-island .home-hero-kicker,
+.theme-island .home-brand-season,
+.theme-island .kicker,
+.theme-island .badge,
+.theme-island .match-id {
+  color: #087b72;
+}
+
+.theme-island .brand-title,
+.theme-island .home-brand-core text,
+.theme-island .home-brand-core strong,
+.theme-island .section-heading,
+.theme-island .state-title,
+.theme-island .picker-title,
+.theme-island .schedule-team,
+.theme-island .record-title,
+.theme-island .team-name,
+.theme-island .player-name,
+.theme-island .tournament-scope text:first-child,
+.theme-island .profile-stat-grid text:last-child,
+.theme-island .signature-hero text:first-child {
+  color: #4d3d2d;
+}
+
+.theme-island .brand-subtitle,
+.theme-island .muted,
+.theme-island .state-text,
+.theme-island .team-short,
+.theme-island .player-team,
+.theme-island .series-footer,
+.theme-island .record-meta,
+.theme-island .history-text,
+.theme-island .stat-label,
+.theme-island .stat-hint,
+.theme-island .schedule-summary,
+.theme-island .date-row,
+.theme-island .tournament-scope text:last-child,
+.theme-island .profile-stat-grid text:first-child,
+.theme-island .signature-hero text:last-child {
+  color: #695f52;
+}
+
+.theme-island .content-panel,
+.theme-island .state-panel,
+.theme-island .section-panel,
+.theme-island .match-summary,
+.theme-island .metric-card,
+.theme-island .schedule-card,
+.theme-island .player-row,
+.theme-island .team-row,
+.theme-island .tag-editor,
+.theme-island .match-record-card,
+.theme-island .hero-panel,
+.theme-island .profile-card,
+.theme-island .battle-summary {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  box-shadow: 0 3px 0 rgba(105, 85, 53, 0.1), 0 12px 26px rgba(78, 104, 83, 0.11);
+  color: #4d3d2d;
+}
+
+.theme-island .hero-panel {
+  background: linear-gradient(135deg, rgba(25, 200, 185, 0.11), transparent 48%), #fffdf4;
+}
+
+.theme-island .tournament-picker,
+.theme-island .tournament-scope,
+.theme-island .standing-row-card,
+.theme-island .series-games-list,
+.theme-island .profile-stat-grid > view,
+.theme-island .signature-hero,
+.theme-island .binding-card {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  color: #4d3d2d;
+}
+
+.theme-island .tournament-entry {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  box-shadow: 0 3px 0 rgba(105, 85, 53, 0.1);
+}
+
+.theme-island .tournament-entry.active {
+  border-color: #69b9ac;
+  background: #e7f7f1;
+}
+
+.theme-island .tournament-entry-action text:first-child,
+.theme-island .status-tag.blue,
+.theme-island .link-button,
+.theme-island .schedule-order-button,
+.theme-island .secondary-button,
+.theme-island .text-button {
+  border-color: #79b8ae;
+  background: #e7f7f1;
+  color: #087b72;
+}
+
+.theme-island .status-tag.green,
+.theme-island .sync-pill,
+.theme-island .status-text,
+.theme-island .schedule-score.is-result,
+.theme-island .record-flag.active {
+  background: #e7f4d9;
+  color: #356f31;
+}
+
+.theme-island .status-tag.red {
+  background: #fbe3df;
+  color: #bd4652;
+}
+
+.theme-island .metric-card,
+.theme-island .stat-cell {
+  border: 1px solid #ded5c0;
+  background: #f7f3e7;
+}
+
+.theme-island .stat-value {
+  color: #4d3d2d;
+}
+
+.theme-island .filter,
+.theme-island .segmented button,
+.theme-island .standing-tabs button,
+.theme-island .player-sort-bar button,
+.theme-island .quick-button,
+.theme-island .chip-button,
+.theme-island .tag-pill {
+  border-color: #d9cfba;
+  background: #f2eddf;
+  color: #695f52;
+}
+
+.theme-island .filter.active,
+.theme-island .segmented button.active,
+.theme-island .standing-tabs button.active,
+.theme-island .player-sort-bar button.active,
+.theme-island .chip-button-active,
+.theme-island .primary-button {
+  border-color: #0f998f;
+  background: #19c8b9;
+  box-shadow: 0 3px 0 #0d9287;
+  color: #ffffff;
+}
+
+.theme-island .schedule-card,
+.theme-island .schedule-card.finished,
+.theme-island .series-card {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  box-shadow: 0 3px 0 rgba(105, 85, 53, 0.1);
+}
+
+.theme-island .schedule-card.finished {
+  border-left: 3px solid #93bd74;
+}
+
+.theme-island .schedule-time,
+.theme-island .schedule-card-head text:first-child,
+.theme-island .series-game-row,
+.theme-island .series-game-winner {
+  color: #4d3d2d;
+}
+
+.theme-island .schedule-card-head .muted,
+.theme-island .series-meta-row .muted,
+.theme-island .schedule-card-foot,
+.theme-island .series-footer {
+  color: #695f52;
+}
+
+.theme-island .schedule-score,
+.theme-island .score-text {
+  border-color: #d9cfba;
+  background: #f2eddf;
+  color: #4d3d2d;
+}
+
+.theme-island .schedule-score.is-bo {
+  border-color: #d0b567;
+  background: #fff3c9;
+  color: #76561d;
+}
+
+.theme-island .series-games-list,
+.theme-island .series-game-row {
+  border-color: #e5dcc8;
+}
+
+.theme-island .record-card {
+  border-color: #d9cfba;
+  background:
+    linear-gradient(135deg, rgba(111, 186, 44, 0.08), transparent 34%),
+    linear-gradient(225deg, rgba(224, 90, 90, 0.08), transparent 36%),
+    #fffdf4;
+  box-shadow: 0 3px 0 rgba(105, 85, 53, 0.1);
+}
+
+.theme-island .record-score text,
+.theme-island .record-score text:nth-child(2) {
+  color: #4d3d2d;
+}
+
+.theme-island .radiant-win .record-score text:nth-child(2) {
+  color: #356f31;
+}
+
+.theme-island .dire-win .record-score text:nth-child(2) {
+  color: #bd4652;
+}
+
+.theme-island .record-versus view {
+  background: #cfc4ad;
+}
+
+.theme-island .record-versus text,
+.theme-island .record-flags text,
+.theme-island .record-flag,
+.theme-island .mini-stat {
+  border-color: #d9cfba;
+  background: #f2eddf;
+  color: #695f52;
+}
+
+.theme-island .record-flags text.active {
+  background: #e7f4d9;
+  color: #356f31;
+}
+
+.theme-island .hero-leaderboard-card,
+.theme-island .hero-leaderboard-card.expanded {
+  border-color: #d9cfba;
+  background: #fffdf4;
+}
+
+.theme-island .hero-leaderboard-card.expanded {
+  border-color: #79b8ae;
+  background: #e7f7f1;
+}
+
+.theme-island .hero-leaderboard-main,
+.theme-island .hero-leaderboard-row,
+.theme-island .hero-leaderboard-player-name,
+.theme-island .hero-leaderboard-row-value text:first-child {
+  color: #4d3d2d;
+}
+
+.theme-island .hero-leaderboard-title text:first-child,
+.theme-island .hero-leaderboard-value text:first-child,
+.theme-island .hero-leaderboard-rank,
+.theme-island .hero-leaderboard-toggle,
+.theme-island .hero-leaderboard-toggle text:first-child {
+  color: #76561d;
+}
+
+.theme-island .hero-leaderboard-title text:last-child,
+.theme-island .hero-leaderboard-team-name,
+.theme-island .hero-leaderboard-row-value text:last-child {
+  color: #695f52;
+}
+
+.theme-island .hero-leaderboard-row {
+  border-color: #ded5c0;
+  background: #f7f3e7;
+}
+
+.theme-island .player-stat-card-main,
+.theme-island .profile-list-card button {
+  border-color: #d9cfba;
+  border-left-color: #19c8b9;
+  background: linear-gradient(90deg, #e7f7f1, #fffdf4 48%);
+  color: #4d3d2d;
+}
+
+.theme-island .profile-list-card button {
+  border-left-color: #d0b567;
+  background: linear-gradient(90deg, #fff3c9, #fffdf4 48%);
+}
+
+.theme-island .player-stat-name-row > text:first-child,
+.theme-island .player-stat-primary > text:nth-child(3),
+.theme-island .player-stat-grid text:last-child,
+.theme-island .profile-list-card button > view:nth-child(2) text:first-child,
+.theme-island .profile-list-card button > view:nth-child(2) text:nth-child(2) {
+  color: #4d3d2d;
+}
+
+.theme-island .player-stat-subline,
+.theme-island .player-stat-primary > text:first-child,
+.theme-island .player-stat-primary > text:last-child,
+.theme-island .player-stat-grid text:first-child,
+.theme-island .profile-list-card button > view:nth-child(2) text:last-child {
+  color: #695f52;
+}
+
+.theme-island .player-stat-grid view,
+.theme-island .player-hero-strip view,
+.theme-island .player-hero-strip.empty {
+  border-color: #ded5c0;
+  background: #f7f3e7;
+  color: #695f52;
+}
+
+.theme-island .team-mark {
+  border-color: #d0b567;
+  background: #fff3c9;
+  color: #76561d;
+}
+
+.theme-island .profile-avatar-fallback,
+.theme-island .profile-avatar-fallback.team {
+  background: #e7f7f1;
+  box-shadow: inset 0 0 0 1px #c9ddcf;
+  color: #4d3d2d;
+}
+
+.theme-island .profile-hero,
+.theme-island .profile-hero.team-profile {
+  border-color: #79b8ae;
+  background: linear-gradient(135deg, #e7f7f1, #fffdf4 58%);
+  color: #4d3d2d;
+}
+
+.theme-island .profile-winrate text:first-child,
+.theme-island .profile-winrate text:last-child {
+  color: #695f52;
+}
+
+.theme-island .profile-winrate text:nth-child(2) {
+  color: #bd4652;
+}
+
+.theme-island .player-season-current,
+.theme-island .profile-tag-panel-mini,
+.theme-island .profile-tag-empty {
+  border-color: #c9ddcf;
+  background: #e7f7f1;
+  color: #4d3d2d;
+}
+
+.theme-island .tag-input,
+.theme-island .search-input,
+.theme-island .account-input {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  color: #4d3d2d;
+}
+
+.theme-island .battle-summary {
+  background: radial-gradient(circle at 50% 0, rgba(25, 200, 185, 0.12), transparent 52%), #fffdf4;
+}
+
+.theme-island .match-detail-page .summary-meta,
+.theme-island .match-detail-page .score-core text:last-child,
+.theme-island .match-detail-page .team-side text:first-child,
+.theme-island .match-detail-page .team-side text:last-child {
+  color: #695f52;
+}
+
+.theme-island .match-detail-page .team-side,
+.theme-island .match-ribbon-stat,
+.theme-island .mvp-metric-row view {
+  border-color: #d9cfba;
+  background: #f7f3e7;
+  color: #695f52;
+}
+
+.theme-island .match-detail-page .team-side text:nth-child(2),
+.theme-island .match-detail-page .score-core-value,
+.theme-island .match-ribbon-stat.duration text:first-child,
+.theme-island .mvp-metric-row text:first-child {
+  color: #4d3d2d;
+}
+
+.theme-island .mvp-card-mini,
+.theme-island .mvp-card-mini.dire {
+  border-color: #d0b567;
+  background: radial-gradient(circle at 85% 16%, rgba(25, 200, 185, 0.12), transparent 34%), #fff8dc;
+  box-shadow: 0 3px 0 rgba(145, 112, 48, 0.14);
+}
+
+.theme-island .mvp-card-mini::before,
+.theme-island .mvp-card-mini::after {
+  opacity: 0.28;
+}
+
+.theme-island .mvp-card-mini .section-heading,
+.theme-island .mvp-card-copy text,
+.theme-island .mvp-metric-row text:first-child {
+  color: #4d3d2d;
+}
+
+.theme-island .mvp-metric-row text:last-child {
+  color: #695f52;
+}
+
+.theme-island .mvp-portrait-wrap {
+  border-color: #79b8ae;
+  background: #e7f7f1;
+}
+
+.theme-island .mvp-portrait-wrap text {
+  border: 1px solid #d0b567;
+  background: #fff3c9;
+  color: #76561d;
+}
+
+.theme-island .kill-score {
+  border-color: #d0b567;
+  background: #fff8dc;
+  box-shadow: 0 3px 0 rgba(145, 112, 48, 0.12);
+}
+
+.theme-island .kill-score > text,
+.theme-island .kill-score > view text {
+  background: #fff3c9;
+  color: #76561d;
+}
+
+.theme-island .kill-score > view .radiant-score {
+  color: #356f31;
+}
+
+.theme-island .kill-score > view .dire-score {
+  color: #bd4652;
+}
+
+.theme-island .team-panel-head,
+.theme-island .team-panel.dire .team-panel-head {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  color: #4d3d2d;
+}
+
+.theme-island .team-panel-head text:first-child,
+.theme-island .team-kill-count {
+  color: #695f52;
+}
+
+.theme-island .team-panel-head text:last-child,
+.theme-island .team-panel-name {
+  color: #4d3d2d;
+}
+
+.theme-island .match-player-card,
+.theme-island .match-player-card.player-row,
+.theme-island .match-player-card.player-row.dire,
+.theme-island .match-player-card.player-row.expanded,
+.theme-island .match-player-card.player-row.dire.expanded {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  color: #4d3d2d;
+}
+
+.theme-island .match-player-card.player-row.mvp-player {
+  border-color: #d0b567;
+  background: #fff8dc;
+}
+
+.theme-island .match-player-card .record-title,
+.theme-island .player-kda text:first-child,
+.theme-island .advanced-grid text:first-child {
+  color: #4d3d2d;
+}
+
+.theme-island .match-player-card .history-text,
+.theme-island .player-kda text:last-child,
+.theme-island .advanced-grid text:last-child {
+  color: #695f52;
+}
+
+.theme-island .hero-avatar-shell,
+.theme-island .player-chips text,
+.theme-island .talent-tree-mini,
+.theme-island .advanced-grid view,
+.theme-island .ability-step {
+  border-color: #ded5c0;
+  background: #f2eddf;
+  color: #4d3d2d;
+}
+
+.theme-island .hero-avatar-shell text,
+.theme-island .ability-step > text:last-child {
+  background: #fff3c9;
+  color: #76561d;
+}
+
+.theme-island .inventory-grid,
+.theme-island .backpack-grid {
+  border-color: #d9cfba;
+  background: #eee8d9;
+}
+
+.theme-island .item-slot.empty {
+  border-color: #d9cfba;
+  background: #f7f3e7;
+}
+
+.theme-island .player-award-title,
+.theme-island .match-player-card.player-row .player-award-title {
+  border-color: #d0b567;
+  background: #fff3c9;
+  box-shadow: 0 2px 0 rgba(145, 112, 48, 0.12);
+  color: #76561d;
+}
+
+.theme-island .draft-timeline::before {
+  background: linear-gradient(180deg, transparent, #cbbfa8 10%, #cbbfa8 90%, transparent);
+}
+
+.theme-island .draft-order {
+  border: 1px solid #cfc4ad;
+  background: #f2eddf;
+  color: #4d3d2d;
+}
+
+.theme-island .draft-card,
+.theme-island .draft-step.pick .draft-card,
+.theme-island .draft-step.ban .draft-card {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  color: #4d3d2d;
+}
+
+.theme-island .draft-step.radiant .draft-card {
+  border-left-color: #7cad5e;
+}
+
+.theme-island .draft-step.dire .draft-card {
+  border-left-color: #d87676;
+}
+
+.theme-island .draft-step.ban .draft-card {
+  background: #fbe8df;
+}
+
+.theme-island .draft-step.pick .draft-card {
+  background: #edf7e5;
+}
+
+.theme-island .draft-copy view text:first-child {
+  color: #4d3d2d;
+}
+
+.theme-island .draft-copy view text:last-child {
+  color: #695f52;
+}
+
+.theme-island .draft-copy > text,
+.theme-island .draft-step.ban .draft-copy > text,
+.theme-island .draft-step.pick .draft-copy > text {
+  background: #f2eddf;
+  color: #695f52;
+}
+
+.theme-island .draft-step.ban .draft-copy > text {
+  background: #f5d9d5;
+  color: #a44149;
+}
+
+.theme-island .draft-step.pick .draft-copy > text {
+  background: #dfeecf;
+  color: #356f31;
+}
+
+.theme-island .vision-board,
+.theme-island .trend-card,
+.theme-island .comparison-bars,
+.theme-island .chat-list,
+.theme-island .ward-event,
+.theme-island .chat-line,
+.theme-island .trend-player-legend view {
+  border-color: #d9cfba;
+  background: #fffdf4;
+  color: #4d3d2d;
+}
+
+.theme-island .vision-map {
+  border-color: #c6b99f;
+  background: #e7e3d6;
+}
+
+.theme-island .vision-chip,
+.theme-island .vision-clock,
+.theme-island .vision-scale text:nth-child(2),
+.theme-island .trend-legend > text {
+  border-color: #cfc4ad;
+  background: #fffdf4;
+  color: #4d3d2d;
+}
+
+.theme-island .vision-chip.radiant {
+  color: #356f31;
+}
+
+.theme-island .vision-chip.dire {
+  color: #bd4652;
+}
+
+.theme-island .vision-clock {
+  color: #76561d;
+}
+
+.theme-island .trend-card-head,
+.theme-island .trend-card-head text:last-child,
+.theme-island .trend-scale,
+.theme-island .comparison-row > text:last-child,
+.theme-island .chat-line text {
+  color: #695f52;
+}
+
+.theme-island .trend-card-head text:first-child,
+.theme-island .comparison-row > text:first-child,
+.theme-island .chat-line text:last-child {
+  color: #4d3d2d;
+}
+
+.theme-island .comparison-row > view {
+  background: #e5dcc8;
+}
+
+.theme-island .bracket-unified-map.is-combined,
+.theme-island .bracket-group-lane {
+  border-color: #d0c5ae;
+  background:
+    radial-gradient(circle at 16px 16px, rgba(25, 200, 185, 0.08) 0 1.5px, transparent 1.7px) 0 0 / 30px 30px,
+    #f7f3df;
+  box-shadow: inset 0 1px 0 #ffffff, 0 5px 0 rgba(105, 85, 53, 0.1);
+}
+
+.theme-island .bracket-unified-lane-label.is-winner {
+  border-color: #79b8ae;
+  background: #dff5ef;
+  box-shadow: 0 2px 0 rgba(39, 108, 101, 0.14);
+  color: #276c65;
+}
+
+.theme-island .bracket-unified-lane-label.is-loser {
+  border-color: #d79c87;
+  background: #fbe8df;
+  box-shadow: 0 2px 0 rgba(145, 79, 61, 0.12);
+  color: #914f3d;
+}
+
+.theme-island .bracket-group-title {
+  border-color: #d0b567;
+  background: #fff3c9;
+  box-shadow: 0 2px 0 rgba(145, 112, 48, 0.14);
+}
+
+.theme-island .bracket-group-title text:first-child,
+.theme-island .bracket-unified-column.is-grand_final .bracket-round-title {
+  color: #76561d;
+}
+
+.theme-island .bracket-group-title text:last-child,
+.theme-island .bracket-node-kicker,
+.theme-island .bracket-node-footer {
+  color: #695f52;
+}
+
+.theme-island .bracket-unified-column.is-winner .bracket-round-title {
+  color: #276c65;
+}
+
+.theme-island .bracket-unified-column.is-loser .bracket-round-title {
+  color: #914f3d;
+}
+
+.theme-island .bracket-node,
+.theme-island .bracket-node.is-pending {
+  border-color: #cfc4ac;
+  background: #fffdf4;
+  box-shadow: 0 2px 0 rgba(121, 79, 39, 0.1);
+  color: #4d3d2d;
+}
+
+.theme-island .bracket-node.is-ready {
+  border-color: #79b8ae;
+  background: #f7fffb;
+}
+
+.theme-island .bracket-node.is-completed {
+  border-color: #93bd74;
+  background: #f5fbe9;
+}
+
+.theme-island .bracket-unified-column.is-grand_final .bracket-node {
+  border-color: #cdae55;
+  background: #fff8dc;
+  box-shadow: 0 3px 0 rgba(145, 112, 48, 0.14);
+}
+
+.theme-island .bracket-node-state {
+  border-color: #d8ceba;
+  background: #f1ecdf;
+  color: #615644;
+}
+
+.theme-island .bracket-node.is-ready .bracket-node-state {
+  border-color: #79b8ae;
+  background: #dff5ef;
+  color: #276c65;
+}
+
+.theme-island .bracket-node.is-completed .bracket-node-state {
+  border-color: #93bd74;
+  background: #e7f4d9;
+  color: #4f742f;
+}
+
+.theme-island .bracket-team {
+  border-color: #ded5c0;
+  background: #f5f1e5;
+}
+
+.theme-island .bracket-team text:first-child {
+  background: #e7dfcc;
+  color: #675b4b;
+}
+
+.theme-island .bracket-team text:last-child {
+  color: #4d3d2d;
+}
+
+.theme-island .bracket-team.is-winner {
+  border-color: #93bd74;
+  background: #eaf6df;
+}
+
+.theme-island .bracket-team.is-winner text:first-child {
+  background: #d7edc5;
+  color: #466b2a;
+}
+
+.theme-island .bracket-team.is-winner text:last-child {
+  color: #36551f;
+}
+
+.theme-island .bracket-flow-row {
+  border-color: #e5dcc8;
+  background: #faf7ec;
+}
+
+.theme-island .bracket-flow-row text:first-child {
+  color: #267b72;
+}
+
+.theme-island .bracket-flow-row text:last-child {
+  color: #9a5744;
+}
+
+.theme-island .island-corner-art {
+  position: absolute;
+  top: 48px;
+  right: 15px;
+  z-index: 5;
+  display: block;
+  width: 48px;
+  height: 48px;
+  opacity: 0.82;
+  pointer-events: none;
+  animation: island-mascot-float 4.8s ease-in-out infinite;
+}
+
+.theme-island .island-corner-art-yellow-butterfly {
+  top: 18px;
+  width: 44px;
+  height: 44px;
+}
+
+.theme-island .island-corner-art-moray-eel,
+.theme-island .island-corner-art-ribbon-eel {
+  width: 58px;
+  height: 52px;
+}
+
+.theme-island .island-corner-art-puffer,
+.theme-island .island-corner-art-angler-fish {
+  width: 52px;
+  height: 52px;
+}
+
+@keyframes island-mascot-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+
+  50% {
+    transform: translateY(-4px) rotate(2deg);
+  }
+}
+
+.theme-island .island-page-footer-wrap {
+  position: relative;
+  z-index: 2;
+  display: block;
+  height: 82px;
+  margin: 14px -10px 0;
+  overflow: hidden;
+  opacity: 0.94;
+  pointer-events: none;
+}
+
+.theme-island .island-page-footer {
+  width: 100%;
+  height: 82px;
+}
+
+.theme-island .main-tab-pane {
+  padding-bottom: 112px;
+}
+
+.theme-island .embedded-page-view {
+  padding-bottom: 4px;
 }

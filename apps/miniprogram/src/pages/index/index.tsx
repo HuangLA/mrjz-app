@@ -20,6 +20,7 @@ import {
   useMainTabRefresh,
   useMainTabState,
 } from "../../components";
+import { useMiniProgramTheme } from "../../ThemeProvider";
 import { mainTabShareConfig, useMiniProgramShare } from "../../share";
 import { SmartImage as Image } from "../../SmartImage";
 import type { AcknowledgementItem, MatchRecord, TournamentOption } from "../../types";
@@ -53,6 +54,7 @@ const MAIN_TAB_PAGE_WIDTH_PERCENT = 100 / mainTabPages.length;
 
 export default function MainTabsPage() {
   const router = useRouter();
+  const themeState = useMiniProgramTheme();
   const [activeIndex, setActiveIndex] = useState(() =>
     routeIndexFromKey(routeKeyFromParam(router.params.tab)),
   );
@@ -203,8 +205,8 @@ export default function MainTabsPage() {
                 <ScrollView
                   className="main-tab-scroll"
                   enhanced
-                  refresherBackground="#07090c"
-                  refresherDefaultStyle="white"
+                  refresherBackground={themeState.theme === "island" ? "#f8f8f0" : "#07090c"}
+                  refresherDefaultStyle={themeState.theme === "island" ? "black" : "white"}
                   refresherEnabled
                   refresherTriggered={refreshingRouteKey === page.key}
                   scrollY

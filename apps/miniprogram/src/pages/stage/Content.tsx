@@ -766,7 +766,9 @@ function buildUnifiedMiniBracketLayout(groups: BracketGroupLayout[], nodes: Brac
   return {
     columns,
     columnCount,
-    width: bracketTrackWidth(columnCount) + 20,
+    width:
+      bracketTrackWidth(columnCount) +
+      (MINI_BRACKET_PANEL_HORIZONTAL_PADDING + MINI_BRACKET_PANEL_BORDER_WIDTH) * 2,
   };
 }
 
@@ -795,6 +797,8 @@ function bracketNodeStatusLabel(status: string): string {
 
 const MINI_BRACKET_COLUMN_WIDTH = 164;
 const MINI_BRACKET_COLUMN_GAP = 16;
+const MINI_BRACKET_PANEL_HORIZONTAL_PADDING = 10;
+const MINI_BRACKET_PANEL_BORDER_WIDTH = 1;
 
 function bracketTrackWidth(columnCount: number): number {
   return (

@@ -76,7 +76,7 @@ export default function TeamDetailPage() {
   }
 
   return (
-    <PageShell loading={loading} error={error} routeKey="teams">
+    <PageShell loading={loading} error={error} routeKey="teams" mascotKind="moray-eel">
       {profile ? (
         <>
           <View className="profile-hero team-profile">
