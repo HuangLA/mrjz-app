@@ -1288,3 +1288,8 @@ html[data-theme="island"] .app-shell .player-sort-bar button {
 html[data-theme="island"] .app-shell .player-sort-bar button.active {
   color: var(--island-mint-dark);
 }
+
+html[data-theme="island"] .app-shell .stage-switch .segmented,
+html[data-theme="island"] .app-shell .standing-tabs {
+  padding: 0 1px 4px;
+}
