@@ -251,7 +251,7 @@ export function PageShell(props: {
     return (
       <View className={`embedded-page-view theme-${themeState.theme}`}>
         {body}
-        <IslandPageFooterScene mascotKind={mascotKind} />
+        <IslandPageFooterScene mascotKind={mascotKind} showMascot={!isHome} />
       </View>
     );
   }
@@ -276,7 +276,9 @@ export function PageShell(props: {
       <View className="view">
         {body}
       </View>
-      {!isMainTabHostShell ? <IslandPageFooterScene mascotKind={mascotKind} /> : null}
+      {!isMainTabHostShell ? (
+        <IslandPageFooterScene mascotKind={mascotKind} showMascot={!isHome} />
+      ) : null}
       <FloatingRouteNav routeKey={routeKey} />
     </View>
   );
@@ -389,10 +391,13 @@ function IslandPageMascot(props: { kind: IslandMascotKind }) {
   );
 }
 
-function IslandPageFooterScene(props: { mascotKind: IslandMascotKind }) {
+function IslandPageFooterScene(props: {
+  mascotKind: IslandMascotKind;
+  showMascot?: boolean;
+}) {
   return (
     <View className="island-page-footer-scene">
-      <IslandPageMascot kind={props.mascotKind} />
+      {props.showMascot !== false ? <IslandPageMascot kind={props.mascotKind} /> : null}
       <IslandPageFooter />
     </View>
   );

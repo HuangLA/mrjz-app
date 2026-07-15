@@ -234,6 +234,7 @@ button[disabled] {
 }
 
 .island-corner-art,
+.island-home-butterfly,
 .island-page-footer-wrap {
   display: none;
 }
@@ -5828,13 +5829,23 @@ button[disabled] {
 
 .theme-island .home-major-sponsor {
   border-color: rgba(159, 146, 125, 0.2);
+  background: rgba(255, 253, 244, 0.82);
 }
 
 .theme-island .home-major-sponsor image {
-  box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 10px;
-  background: rgba(48, 84, 80, 0.78);
+  border: 0;
+  background: transparent;
+  filter: drop-shadow(0 2px 2px rgba(105, 85, 53, 0.12));
+}
+
+.theme-island .home-major-sponsor image.is-light-logo {
+  opacity: 0.76;
+  filter: brightness(0) saturate(100%);
+}
+
+.theme-island .home-major-sponsor image.is-outline-logo {
+  filter: saturate(1.55) contrast(1.35) brightness(0.88)
+    drop-shadow(0 2px 2px rgba(145, 79, 61, 0.16));
 }
 
 .theme-island .home-major-sponsor text,
@@ -6072,6 +6083,34 @@ button[disabled] {
   border-color: #d9cfba;
   background: #f2eddf;
   color: #695f52;
+}
+
+.theme-island .record-lineup {
+  border-color: #d9cfba;
+  background:
+    linear-gradient(90deg, rgba(111, 186, 44, 0.14), transparent 44%),
+    linear-gradient(270deg, rgba(224, 90, 90, 0.12), transparent 44%),
+    #f7f3e7;
+}
+
+.theme-island .record-lineup::after {
+  background: linear-gradient(180deg, transparent, #b8aa8f, transparent);
+}
+
+.theme-island .record-hero {
+  border-color: #cbbfa8;
+  background: #fffdf4;
+  box-shadow: 0 2px 0 rgba(105, 85, 53, 0.12);
+}
+
+.theme-island .record-hero-strip.radiant .record-hero {
+  border-color: #9dc6aa;
+  background: #e7f4d9;
+}
+
+.theme-island .record-hero-strip.dire .record-hero {
+  border-color: #d6aaa2;
+  background: #fbe3df;
 }
 
 .theme-island .record-flags text.active {
@@ -6801,6 +6840,20 @@ button[disabled] {
 .theme-island button,
 .theme-island input {
   font-family: inherit;
+}
+
+.theme-island .island-home-butterfly {
+  position: absolute;
+  top: 2px;
+  right: 18px;
+  z-index: 3;
+  display: block;
+  width: 42px;
+  height: 42px;
+  opacity: 0.9;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 3px rgba(75, 112, 84, 0.16));
+  animation: island-mascot-float 4.8s ease-in-out infinite;
 }
 
 .theme-island .island-corner-art {

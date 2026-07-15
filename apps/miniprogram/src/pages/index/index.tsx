@@ -395,6 +395,11 @@ function HomePage() {
   return (
     <PageShell loading={loading} error={error} routeKey="home">
       <View className="home-hero">
+        <Image
+          className="island-home-butterfly"
+          mode="aspectFit"
+          src="/assets/island/yellow-butterfly.png"
+        />
         <View className="home-hero-content">
           <View className="home-brand-core">
             <Text className="home-brand-season">COMMUNITY LEAGUE</Text>
@@ -485,6 +490,18 @@ function routeKeyFromParam(value: unknown): MiniRouteKey {
   return routeNavItems.find((item) => item.key === value)?.key ?? "home";
 }
 
+function sponsorLogoClassName(imageUrl: string): string {
+  if (imageUrl.includes("libernovo-white")) {
+    return "home-major-sponsor-logo is-light-logo";
+  }
+
+  if (imageUrl.includes("huahuo-esport")) {
+    return "home-major-sponsor-logo is-outline-logo";
+  }
+
+  return "home-major-sponsor-logo";
+}
+
 function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }) {
   const sponsors = items.filter((item) => item.category === "sponsor");
   const supporters = items.filter((item) => item.category === "community");
@@ -509,7 +526,13 @@ function AcknowledgementsPanel({ items = [] }: { items?: AcknowledgementItem[] }
           <View className={sponsorGridClassName}>
             {sponsors.map((sponsor) => (
               <View className="home-major-sponsor" key={sponsor.id}>
-                {sponsor.imageUrl ? <Image src={sponsor.imageUrl} mode="aspectFit" /> : null}
+                {sponsor.imageUrl ? (
+                  <Image
+                    className={sponsorLogoClassName(sponsor.imageUrl)}
+                    src={sponsor.imageUrl}
+                    mode="aspectFit"
+                  />
+                ) : null}
                 <Text>{sponsor.displayName}</Text>
               </View>
             ))}
