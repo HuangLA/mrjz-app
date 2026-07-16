@@ -25,7 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
-- 云端第四届双败淘汰赛已按运营要求交换败者组第二轮半区：`马车` / `Xikii Industry 2.0` 的胜者改为对阵 `尼尼孩孩major冠军` / `三角进攻` 的败者，`也没那么难喝吧` / `燃烧的远征军` 的胜者改为对阵 `烈焰焚天` / `芽忒岚大裂鹰` 的败者；本次仅调整两条败者组第 1 轮晋级连线，首轮队伍、系列赛和赛果均未改动。操作前备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-loser-bracket-crossover-20260716-113500.sqlite`，主库与备份库完整性检查、公网 bracket 接口和 API health 均已验证通过。
+- 云端第四届双败淘汰赛已按运营要求交换败者组第二轮半区：败者组第 1 轮上半区现为 `也没那么难喝吧` / `燃烧的远征军`，其胜者对阵 `烈焰焚天` / `芽忒岚大裂鹰` 的败者；下半区现为 `马车` / `Xikii Industry 2.0`，其胜者对阵 `尼尼孩孩major冠军` / `三角进攻` 的败者。第一次仅交叉晋级连线后，因三端统一对阵图未绘制败者组中间连线，前端视觉仍像未换半区；现已同步交换两张败者组首轮卡片及其 series 关联，使 H5、Admin 和小程序的上下位置与实际晋级关系一致，未改动任何赛果。两次操作前分别备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-loser-bracket-crossover-20260716-113500.sqlite` 和 `/var/lib/mrjz-api/backups/mrjz-before-loser-bracket-visual-half-swap-20260716-114608.sqlite`，主库与备份库完整性检查、公网 bracket 接口和 API health 均已验证通过。
 - 云端 H5 已部署淘汰赛对阵图双主题优化：生产发布包位于 `/var/www/releases/mrjz-h5-knockout-themes-20260716-113302`，切换前完整备份旧站到 `/var/www/backups/mrjz-h5-before-knockout-themes-20260716-113302`；`dota2mrjz.icu` / `www.dota2mrjz.icu` 已切换到 `index-Cb8kFw9-.js` 与 `index-w6qc-AyD.css`，主域名、www、两项新静态资源和同域 `/api/health` 均返回 200，本地、服务器 release 与公网 HTML / JS / CSS SHA-256 完全一致。
 - 小程序 Island 首页与比赛记录完成视觉细节修正：赞助商 Logo 展示面由深色底改为暖白纸面，并针对白色 LiberNovo 与浅色 HuaHuo 素材分别做深色化和轮廓增强；比赛记录的英雄阵容改为天辉薄荷绿、夜魇柔珊瑚的浅色头像框和暖白阵容底。黄色蝴蝶恢复到首页头图右上方并与品牌标题保持安全间距，首页页脚不再重复出现蝴蝶，其他页面动物仍只出现在正文结束后的海景页脚。已在 390px Taro H5 预览中使用远端真实赞助商和比赛数据完成首页、比赛记录页复验。
 - 小程序 Island 主题完成字体、对比度与装饰布局专项修正：切换海岛主题时通过 `Taro.loadFontFace` 按需加载上游固定版本的 Noto Sans SC 与 Nunito，并保留系统字体回退；首页、赛事阶段、赛程、选手 / 队伍及比赛详情中继承自经典主题的浅色文字已逐项加深，按钮、状态、胜率、MVP、路线标签和应援标签恢复清晰对比；所有动物插画从正文角落移到内容结束后的独立海景页脚，不再遮挡标题、徽章和数据。已在 390px Taro H5 预览中使用第四届真实球队、选手和比赛数据完成字体加载、首屏无遮挡及长页页尾复验。
