@@ -2161,26 +2161,34 @@ button.dash-list-row:hover {
 
 .ward-marker {
   position: absolute;
-  width: 15px;
-  height: 15px;
-  margin: -7.5px 0 0 -7.5px;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
   border-radius: 50%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  opacity: 0.3;
-  filter: grayscale(0.7);
+  background: transparent;
+  border: 2px solid var(--text-3);
+  opacity: 0.35;
+  filter: grayscale(0.8);
   transition:
     opacity 0.2s,
     filter 0.2s;
 }
 
-.ward-marker.observer {
-  background-image: url("/static/dota/wards/minimap/observer_mapicon.svg");
+.ward-marker.radiant {
+  border-color: var(--radiant);
+}
+
+.ward-marker.dire {
+  border-color: var(--dire);
 }
 
 .ward-marker.sentry {
-  background-image: url("/static/dota/wards/minimap/sentry_mapicon.svg");
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 2px;
+  border-width: 2.5px;
+  transform: rotate(45deg);
 }
 
 .ward-marker.active {
@@ -2189,11 +2197,25 @@ button.dash-list-row:hover {
 }
 
 .ward-marker.radiant.active {
-  box-shadow: 0 0 0 2px var(--radiant);
+  color: var(--radiant);
+  box-shadow:
+    0 0 0 2px rgba(6, 8, 11, 0.85),
+    0 0 10px var(--radiant);
 }
 
 .ward-marker.dire.active {
-  box-shadow: 0 0 0 2px var(--dire);
+  color: var(--dire);
+  box-shadow:
+    0 0 0 2px rgba(6, 8, 11, 0.85),
+    0 0 10px var(--dire);
+}
+
+.ward-marker.observer.active {
+  background: currentColor;
+}
+
+.ward-marker.sentry.active {
+  background: rgba(6, 8, 11, 0.9);
 }
 
 .vision-hud {
@@ -2279,27 +2301,38 @@ button.dash-list-row:hover {
 }
 
 .vision-legend-dot {
-  width: 13px;
-  height: 13px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background-size: contain;
-  background-repeat: no-repeat;
-}
-
-.vision-legend-dot.observer {
-  background-image: url("/static/dota/wards/minimap/observer_mapicon.svg");
-}
-
-.vision-legend-dot.sentry {
-  background-image: url("/static/dota/wards/minimap/sentry_mapicon.svg");
+  border: 2px solid var(--text-3);
 }
 
 .vision-legend-dot.radiant {
-  box-shadow: 0 0 0 2px var(--radiant);
+  border-color: var(--radiant);
 }
 
 .vision-legend-dot.dire {
-  box-shadow: 0 0 0 2px var(--dire);
+  border-color: var(--dire);
+}
+
+.vision-legend-dot.observer {
+  background: currentColor;
+}
+
+.vision-legend-dot.observer.radiant {
+  color: var(--radiant);
+}
+
+.vision-legend-dot.observer.dire {
+  color: var(--dire);
+}
+
+.vision-legend-dot.sentry {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border-width: 2.5px;
+  transform: rotate(45deg);
 }
 
 .vision-scrubber {
