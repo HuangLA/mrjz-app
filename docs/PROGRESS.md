@@ -1,6 +1,6 @@
 # 项目进度追踪
 
-最后更新：2026-07-16
+最后更新：2026-07-19
 
 ## 当前状态
 
@@ -24,6 +24,8 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 | M7 上线准备           | 进行中 | API、H5 和 Web Admin 已部署到云服务器并完成第一轮安全加固；真机、审核、合规继续推进                                                                               |
 
 ## 已完成
+
+- 新建 `apps/desktop-web` 桌面端指挥中心（`feat/desktop-web` 分支）：完整复刻 H5 全部公开功能并做桌面端重构——左侧可折叠常驻导航 + 顶栏返回 / API 状态指示取代浮动导航；首页品牌 hero、双侧英雄立绘滚动轨、数字滚动统计、赞助商 / 社区鸣谢和赛事入口网格；赛事阶段页积分表（小组 tab、展开队员跳选手主页）、当前轮赛程卡和双败淘汰赛对阵图（胜者组 / 败者组 / 总决赛统一布局 + SVG 连线绘入动画 + 总决赛汇聚贝塞尔连线实测定位）；赛程页状态筛选带场数、正倒序切换、BO 多局展开进详情；比赛记录页战队筛选轨道 + 英雄阵容卡片；比赛详情页双队面板并列、选手行展开进阶数据与加点序列、称号徽章悬浮弹层、天赋树 SVG、装备 / 背包 / 中立 / 神杖魔晶栏、Ban/Pick 网格、眼位小地图 + 可拖动时间轴（键盘 15s / Shift 60s 步进）、经济经验差与十人经济曲线绘入动画、对比条和双列聊天；英雄榜前五展开跳选手；选手页改为桌面可排序数据表（10 个排序键、行跳详情）；队伍页卡片网格；选手主页含悬浮物理感动效标签云（点击爆发 +1）、参赛记录本届 / 往届折叠；队伍主页含成员名单与比赛记录。路由升级为 `#match/:id` 可刷新直达，保留 `#player/:id` / `#team/:id` 与返回栈；数据层直接复用 H5 `api.ts`（仅改存储键与本地端口 5175），静态资产经 `publicDir` 指向 `apps/mobile-web/public` 不重复入库；新增根脚本 `dev:desktop-web(:local/:remote)` 与 `build:desktop-web(:local/:remote)`。视觉为全新深色电竞 HUD 风：环境光斑 + 网格背景、玻璃拟态面板、卡片入场级联、连线 / 曲线描边动画、MVP 扫光、眼位脉冲，遵循 `prefers-reduced-motion`。已用 Playwright 对 10 条路由真实远端数据截图复验，`typecheck` 与 `build:remote` 通过；经典 / Island 双主题切换为 H5 专属能力，桌面端以单一新主题替代，点赞写操作仍属小程序端职责。
 
 - 云端第四届双败淘汰赛已按运营要求交换败者组第二轮半区：败者组第 1 轮上半区现为 `也没那么难喝吧` / `燃烧的远征军`，其胜者对阵 `烈焰焚天` / `芽忒岚大裂鹰` 的败者；下半区现为 `马车` / `Xikii Industry 2.0`，其胜者对阵 `尼尼孩孩major冠军` / `三角进攻` 的败者。第一次仅交叉晋级连线后，因三端统一对阵图未绘制败者组中间连线，前端视觉仍像未换半区；现已同步交换两张败者组首轮卡片及其 series 关联，使 H5、Admin 和小程序的上下位置与实际晋级关系一致，未改动任何赛果。两次操作前分别备份生产库到 `/var/lib/mrjz-api/backups/mrjz-before-loser-bracket-crossover-20260716-113500.sqlite` 和 `/var/lib/mrjz-api/backups/mrjz-before-loser-bracket-visual-half-swap-20260716-114608.sqlite`，主库与备份库完整性检查、公网 bracket 接口和 API health 均已验证通过。
 - 云端 H5 已部署淘汰赛对阵图双主题优化：生产发布包位于 `/var/www/releases/mrjz-h5-knockout-themes-20260716-113302`，切换前完整备份旧站到 `/var/www/backups/mrjz-h5-before-knockout-themes-20260716-113302`；`dota2mrjz.icu` / `www.dota2mrjz.icu` 已切换到 `index-Cb8kFw9-.js` 与 `index-w6qc-AyD.css`，主域名、www、两项新静态资源和同域 `/api/health` 均返回 200，本地、服务器 release 与公网 HTML / JS / CSS SHA-256 完全一致。
