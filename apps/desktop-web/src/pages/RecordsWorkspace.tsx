@@ -231,7 +231,15 @@ function MatchListRow({
       aria-current={selected}
     >
       <span className="mdr-teams">
-        {record.radiantTeamName} vs {record.direTeamName}
+        <span className={record.radiantWin === true ? "is-winner is-radiant" : record.radiantWin === false ? "is-loser" : ""}>
+          {record.radiantTeamName}
+          {record.radiantWin === true ? <em>胜</em> : null}
+        </span>
+        <i className="mdr-teams-sep">vs</i>
+        <span className={record.radiantWin === false ? "is-winner is-dire" : record.radiantWin === true ? "is-loser" : ""}>
+          {record.direTeamName}
+          {record.radiantWin === false ? <em>胜</em> : null}
+        </span>
       </span>
       <span className="mdr-score">{score}</span>
       <span className="mdr-meta">

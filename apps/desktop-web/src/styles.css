@@ -1058,6 +1058,20 @@ button.dash-list-row:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.dash-list-row .dl-winner.is-radiant {
+  color: var(--radiant);
+  font-weight: 650;
+}
+
+.dash-list-row .dl-winner.is-dire {
+  color: var(--dire);
+  font-weight: 650;
+}
+
+.dash-list-row .dl-loser {
+  color: var(--text-3);
+}
+
 .dash-sponsors {
   display: flex;
   align-items: center;
@@ -1231,6 +1245,51 @@ button.dash-list-row:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.md-row .mdr-teams > span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.md-row .mdr-teams .mdr-teams-sep {
+  flex: none;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-3);
+}
+
+.md-row .mdr-teams .is-winner.is-radiant {
+  color: var(--radiant);
+}
+
+.md-row .mdr-teams .is-winner.is-dire {
+  color: var(--dire);
+}
+
+.md-row .mdr-teams .is-loser {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.md-row .mdr-teams em {
+  flex: none;
+  font-style: normal;
+  font-size: 9px;
+  padding: 0 5px;
+  border-radius: 4px;
+  color: #171207;
+  background: var(--accent);
 }
 
 .md-row .mdr-score {

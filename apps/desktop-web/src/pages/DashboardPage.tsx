@@ -141,7 +141,13 @@ export function DashboardPage({
                   onClick={() => onOpenMatch(record.matchId)}
                 >
                   <span className="dl-main">
-                    {record.radiantTeamName} vs {record.direTeamName}
+                    <span className={record.radiantWin === true ? "dl-winner is-radiant" : record.radiantWin === false ? "dl-loser" : ""}>
+                      {record.radiantTeamName}
+                    </span>
+                    {" vs "}
+                    <span className={record.radiantWin === false ? "dl-winner is-dire" : record.radiantWin === true ? "dl-loser" : ""}>
+                      {record.direTeamName}
+                    </span>
                   </span>
                   <span className="dl-score">
                     {record.radiantScore === null || record.direScore === null
