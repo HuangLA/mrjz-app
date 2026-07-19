@@ -9,21 +9,19 @@ import {
   type MobileData,
 } from "./api";
 import type { AppRoute, MatchData, PlayerProfile, StageKey, TeamProfile } from "./data";
-import { HomePage } from "./pages/HomePage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { StagePage } from "./pages/StagePage";
 import { SchedulePage } from "./pages/SchedulePage";
-import { RecordsPage } from "./pages/RecordsPage";
-import { MatchDetailPage } from "./pages/MatchDetailPage";
+import { RecordsWorkspace } from "./pages/RecordsWorkspace";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { PlayersPage } from "./pages/PlayersPage";
 import { TeamsPage } from "./pages/TeamsPage";
-import { PlayerProfilePage, TeamProfilePage } from "./pages/ProfilePages";
-import { EmptyState } from "./components/common";
-import { MatchRecordCard } from "./components/MatchRecordCard";
+import { PlayerProfileContent, TeamProfileContent } from "./pages/ProfilePages";
+import { CommandPalette, type PaletteTarget } from "./components/CommandPalette";
 import {
   activePrimaryNavRoute,
   emptyMobileData,
-  primaryNavRoutes,
+  lifecycleLabel,
   readProfileIdFromHash,
   readRouteFromHash,
   routeLabel,
@@ -35,6 +33,124 @@ import {
 
 type AppRouteSnapshot = { route: AppRoute; profileId: string | null };
 type NavigateOptions = { replace?: boolean; scroll?: boolean; profileId?: string | undefined };
+
+const railItems: Array<{ key: AppRoute; label: string; icon: React.ReactNode }> = [
+  {
+    key: "home",
+    label: "驾驶舱",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      >
+        <rect x="3" y="3" width="8" height="8" rx="1.5" />
+        <rect x="13" y="3" width="8" height="5" rx="1.5" />
+        <rect x="13" y="10" width="8" height="11" rx="1.5" />
+        <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      </svg>
+    ),
+  },
+  {
+    key: "stage",
+    label: "赛事阶段",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      >
+        <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+        <path d="m3 13 9 5 9-5" />
+      </svg>
+    ),
+  },
+  {
+    key: "schedule",
+    label: "赛程",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3.5 2" />
+      </svg>
+    ),
+  },
+  {
+    key: "records",
+    label: "战报工作台",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      >
+        <path d="M4 4h7v16H4zM13 4h7v16h-7z" />
+        <path d="M7 8h1M7 12h1M16 8h1M16 12h1" />
+      </svg>
+    ),
+  },
+  {
+    key: "leaderboard",
+    label: "英雄榜",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      >
+        <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+        <path d="M7 6H4a2 2 0 0 0 2 4h1M17 6h3a2 2 0 0 1-2 4h-1" />
+      </svg>
+    ),
+  },
+  {
+    key: "players",
+    label: "选手",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      >
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5" />
+      </svg>
+    ),
+  },
+  {
+    key: "teams",
+    label: "队伍",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      >
+        <circle cx="8" cy="9" r="3" />
+        <circle cx="16.5" cy="10.5" r="2.5" />
+        <path d="M2.5 20c1-3 3-4.5 5.5-4.5s4.5 1.5 5.5 4.5M14 20c.7-2.3 2.3-3.5 4.5-3.5 1 0 2 .2 2.9.8" />
+      </svg>
+    ),
+  },
+];
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(() => readRouteFromHash());
@@ -52,7 +168,8 @@ export function App() {
   const [matchCache, setMatchCache] = useState<Record<string, MatchData>>({});
   const [profileLoading, setProfileLoading] = useState<Record<string, boolean>>({});
   const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [tournamentMenuOpen, setTournamentMenuOpen] = useState(false);
 
   const routeHistoryRef = useRef<AppRouteSnapshot[]>([]);
   const loadingKeysRef = useRef(new Set<string>());
@@ -90,7 +207,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    document.title = `MRJZ 桌面 - ${routeLabel(route)}`;
+    document.title = `MRJZ Console - ${routeLabel(route)}`;
   }, [route]);
 
   useEffect(() => {
@@ -108,6 +225,29 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleGlobalKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((current) => !current);
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+
+      if (!typing && event.key === "/") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, []);
+
   const navigateTo = useCallback(
     (nextRoute: AppRoute, options: NavigateOptions = {}) => {
       const carriesId = nextRoute === "player" || nextRoute === "team" || nextRoute === "match";
@@ -122,6 +262,7 @@ export function App() {
 
       setRoute(nextRoute);
       setProfileId(nextProfileId);
+      setTournamentMenuOpen(false);
 
       if (options.replace) {
         window.history.replaceState(null, "", nextHash);
@@ -130,7 +271,7 @@ export function App() {
       }
 
       if (options.scroll !== false) {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        document.querySelector(".workspace")?.scrollTo({ top: 0, behavior: "smooth" });
       }
     },
     [profileId, route],
@@ -168,13 +309,13 @@ export function App() {
   }, [navigateTo, route]);
 
   const selectTournament = useCallback(
-    async (tournamentId: string, targetRoute: AppRoute = "stage") => {
+    async (tournamentId: string, targetRoute?: AppRoute) => {
       setSelectedTournamentId(tournamentId);
       resetProfiles();
-      navigateTo(targetRoute, { scroll: true });
+      navigateTo(targetRoute ?? (route === "match" ? "records" : route), { scroll: true });
       await refreshData(tournamentId);
     },
-    [navigateTo, refreshData, resetProfiles],
+    [navigateTo, refreshData, resetProfiles, route],
   );
 
   const ensureMatchLoaded = useCallback(
@@ -344,21 +485,21 @@ export function App() {
   );
 
   useEffect(() => {
-    if (route === "players" || (route === "player" && !profileId)) {
+    if (route === "home" || route === "players" || route === "player") {
       void ensurePlayersLoaded();
     }
 
-    if (route === "teams" || (route === "team" && !profileId)) {
+    if (route === "home" || route === "teams" || route === "team") {
       void ensureTeamsLoaded();
     }
 
-    const playerId = route === "player" ? (profileId ?? viewData.players[0]?.id ?? null) : null;
+    const playerId = route === "player" ? profileId : null;
 
     if (route === "player" && playerId) {
       void ensurePlayerProfileLoaded(playerId);
     }
 
-    const teamId = route === "team" ? (profileId ?? viewData.teams[0]?.id ?? null) : null;
+    const teamId = route === "team" ? profileId : null;
 
     if (route === "team" && teamId) {
       void ensureTeamProfileLoaded(teamId);
@@ -366,8 +507,6 @@ export function App() {
   }, [
     route,
     profileId,
-    viewData.players,
-    viewData.teams,
     ensurePlayerProfileLoaded,
     ensurePlayersLoaded,
     ensureTeamProfileLoaded,
@@ -417,17 +556,55 @@ export function App() {
     [ensurePlayerProfileLoaded, ensureTeamProfileLoaded],
   );
 
+  const handlePaletteSelect = useCallback(
+    (target: PaletteTarget) => {
+      setPaletteOpen(false);
+
+      switch (target.kind) {
+        case "route":
+          navigateTo(target.route);
+          break;
+        case "tournament":
+          void selectTournament(target.tournamentId, "stage");
+          break;
+        case "player":
+          navigateTo("player", { profileId: target.playerId });
+          break;
+        case "team":
+          navigateTo("team", { profileId: target.teamId });
+          break;
+        case "match":
+          navigateTo("match", { profileId: target.matchId });
+          break;
+      }
+    },
+    [navigateTo, selectTournament],
+  );
+
   const sortedPlayers = sortTournamentPlayers(viewData.players, playerSortKey, playerSortDirection);
-  const activeMatch = route === "match" && profileId ? (matchCache[profileId] ?? null) : null;
-  const matchError =
-    route === "match" && profileId ? profileErrors[`match:${profileId}`] : undefined;
   const activeNav = activePrimaryNavRoute(route);
 
+  const workspaceRoute =
+    route === "match"
+      ? "records"
+      : route === "player"
+        ? "players"
+        : route === "team"
+          ? "teams"
+          : route;
+  const drawerType =
+    route === "player" && profileId ? "player" : route === "team" && profileId ? "team" : null;
+
   let routeView: React.ReactNode;
-  switch (route) {
+  switch (workspaceRoute) {
     case "home":
       routeView = (
-        <HomePage data={viewData} onSelectTournament={(id) => void selectTournament(id, "stage")} />
+        <DashboardPage
+          data={viewData}
+          onNavigate={(next) => navigateTo(next)}
+          onOpenMatch={openMatch}
+          onSelectTournament={(id) => void selectTournament(id)}
+        />
       );
       break;
     case "stage":
@@ -454,33 +631,20 @@ export function App() {
       break;
     case "records":
       routeView = (
-        <RecordsPage
+        <RecordsWorkspace
           data={viewData}
           loading={loading}
-          onNavigate={navigateTo}
-          onOpenMatch={openMatch}
-        />
-      );
-      break;
-    case "match":
-      routeView = activeMatch ? (
-        <MatchDetailPage
-          data={viewData}
-          loading={loading}
-          match={activeMatch}
+          selectedMatchId={route === "match" ? profileId : null}
+          matchCache={matchCache}
+          profileErrors={profileErrors}
+          profileLoading={profileLoading}
           expandedPlayers={expandedPlayers}
           wardScrubberSeconds={wardScrubberSeconds}
+          onSelectMatch={openMatch}
+          onEnsureMatch={(matchId) => void ensureMatchLoaded(matchId)}
           onPlayerToggle={handlePlayerToggle}
           onWardSecondChange={handleWardSecondChange}
-        />
-      ) : (
-        <MatchPicker
-          data={viewData}
-          loading={loading || Boolean(profileId && profileLoading[`match:${profileId}`])}
-          error={matchError ?? null}
-          matchId={profileId}
-          onOpenMatch={openMatch}
-          onRetry={ensureMatchLoaded}
+          onRetryMatch={(matchId) => void ensureMatchLoaded(matchId)}
         />
       );
       break;
@@ -513,186 +677,209 @@ export function App() {
         />
       );
       break;
-    case "player":
-      routeView = (
-        <PlayerProfilePage
-          data={viewData}
-          loading={loading}
-          profileId={profileId}
-          profiles={playerProfiles}
-          profileErrors={profileErrors}
-          onNavigate={navigateTo}
-          onOpenMatch={openMatch}
-          onRetry={handleRetryProfile}
-        />
-      );
-      break;
-    case "team":
-      routeView = (
-        <TeamProfilePage
-          data={viewData}
-          loading={loading}
-          profileId={profileId}
-          profiles={teamProfiles}
-          profileErrors={profileErrors}
-          onNavigate={navigateTo}
-          onOpenMatch={openMatch}
-          onRetry={handleRetryProfile}
-        />
-      );
-      break;
     default:
       routeView = (
-        <HomePage data={viewData} onSelectTournament={(id) => void selectTournament(id, "stage")} />
+        <DashboardPage
+          data={viewData}
+          onNavigate={(next) => navigateTo(next)}
+          onOpenMatch={openMatch}
+          onSelectTournament={(id) => void selectTournament(id)}
+        />
       );
   }
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? "is-collapsed" : ""}`}>
-      <div className="ambient-bg" aria-hidden="true">
-        <i className="ambient-orb orb-one" />
-        <i className="ambient-orb orb-two" />
-        <i className="ambient-orb orb-three" />
-        <i className="ambient-grid" />
-      </div>
-      <aside className="sidebar">
-        <button className="sidebar-brand" type="button" onClick={() => navigateTo("home")}>
-          <span className="sidebar-logo">M</span>
-          <span className="sidebar-brand-text">
-            <b>MRJZ</b>
-            <small>指挥中心</small>
-          </span>
+    <div className="app-shell">
+      <header className="topbar">
+        <button
+          className="topbar-brand"
+          type="button"
+          onClick={() => navigateTo("home")}
+          aria-label="回到驾驶舱"
+        >
+          <span className="topbar-logo">M</span>
         </button>
-        <nav className="sidebar-nav" aria-label="主导航">
-          {primaryNavRoutes.map((item, index) => (
-            <button
-              key={item.key}
-              type="button"
-              className={`sidebar-nav-item ${activeNav === item.key ? "active" : ""}`}
-              onClick={() => navigateTo(item.key)}
-              aria-current={activeNav === item.key ? "page" : undefined}
-            >
-              <span className="sidebar-nav-index">{String(index + 1).padStart(2, "0")}</span>
-              <span className="sidebar-nav-label">{item.label}</span>
-              <small className="sidebar-nav-kicker">{item.kicker}</small>
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-foot">
-          <div className="sidebar-tournament">
-            <span>当前赛事</span>
-            <b>{viewData.selectedTournamentName}</b>
-            <small>
-              League {viewData.selectedTournamentMeta.leagueId} ·{" "}
-              {viewData.selectedTournamentMeta.statusText}
-            </small>
-          </div>
-          <button
-            className="sidebar-collapse"
-            type="button"
-            aria-pressed={sidebarCollapsed}
-            onClick={() => setSidebarCollapsed((current) => !current)}
-          >
-            {sidebarCollapsed ? "»" : "«"}
-          </button>
+        <button
+          className="topbar-tournament"
+          type="button"
+          onClick={() => setTournamentMenuOpen((current) => !current)}
+          aria-expanded={tournamentMenuOpen}
+        >
+          <span className="tt-kicker">赛事</span>
+          <span className="tt-name">{viewData.selectedTournamentName}</span>
+          <span className="tt-meta">
+            League {viewData.selectedTournamentMeta.leagueId} ·{" "}
+            {viewData.selectedTournamentMeta.statusText}
+          </span>
+          <span
+            className={`chevron tt-caret ${tournamentMenuOpen ? "is-expanded" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+        <div className="topbar-crumb">
+          <span>MRJZ /</span>
+          <b>{routeLabel(route)}</b>
         </div>
-      </aside>
-      <div className="main-column">
-        <header className="topbar">
+        <div className="topbar-actions">
+          <button className="palette-trigger" type="button" onClick={() => setPaletteOpen(true)}>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <span>搜索或跳转…</span>
+            <kbd>⌘K</kbd>
+          </button>
+          <span
+            className={`topbar-status ${loading ? "is-loading" : viewData.source === "api" ? "" : "is-offline"}`}
+          >
+            <i aria-hidden="true" />
+            {loading ? "同步中" : viewData.source === "api" ? "API 在线" : "离线"}
+          </span>
           <button
-            className="topbar-back"
+            className="ghost-button"
             type="button"
             onClick={goBack}
             disabled={route === "home"}
           >
-            ‹ 返回
+            返回
           </button>
-          <div className="topbar-title">
-            <span className="topbar-crumb">MRJZ / {routeLabel(route)}</span>
-            <h1>{routeLabel(route)}</h1>
-          </div>
-          <div className="topbar-actions">
-            <span className={`topbar-status ${loading ? "is-loading" : ""}`}>
-              <i aria-hidden="true" />
-              {loading ? "同步中" : viewData.source === "api" ? "API 在线" : "离线"}
-            </span>
-          </div>
-        </header>
-        <main className="view" key={`${route}:${profileId ?? ""}`}>
+        </div>
+      </header>
+
+      <nav className="rail" aria-label="主导航">
+        {railItems.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={`rail-item ${activeNav === item.key ? "active" : ""}`}
+            onClick={() => navigateTo(item.key)}
+            aria-current={activeNav === item.key ? "page" : undefined}
+            aria-label={item.label}
+          >
+            {item.icon}
+            <span className="rail-tip">{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <main className="workspace">
+        <div
+          className="view"
+          key={`${workspaceRoute}:${workspaceRoute === "records" ? "" : (profileId ?? "")}`}
+        >
           {routeView}
-        </main>
-      </div>
+        </div>
+      </main>
+
+      {tournamentMenuOpen ? (
+        <>
+          <div
+            className="drawer-overlay"
+            style={{ background: "transparent" }}
+            onClick={() => setTournamentMenuOpen(false)}
+          />
+          <div className="tournament-menu panel">
+            {viewData.tournamentOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`tournament-menu-item ${viewData.selectedTournamentId === option.id ? "is-active" : ""}`}
+                onClick={() => void selectTournament(option.id)}
+              >
+                <span className="pi-main">
+                  <b>{option.name}</b>
+                  <small>
+                    League {option.leagueId} · {lifecycleLabel(option.status)} · {option.matchCount}{" "}
+                    场
+                  </small>
+                </span>
+                {viewData.selectedTournamentId === option.id ? (
+                  <span className="status-tag green">当前</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {paletteOpen ? (
+        <CommandPalette
+          data={viewData}
+          onSelect={handlePaletteSelect}
+          onClose={() => setPaletteOpen(false)}
+        />
+      ) : null}
+
+      {drawerType === "player" && profileId ? (
+        <ProfileDrawer title="选手档案" onClose={() => navigateTo("players", { replace: true })}>
+          <PlayerProfileContent
+            data={viewData}
+            profileId={profileId}
+            profiles={playerProfiles}
+            profileErrors={profileErrors}
+            onOpenMatch={openMatch}
+            onRetry={handleRetryProfile}
+          />
+        </ProfileDrawer>
+      ) : null}
+
+      {drawerType === "team" && profileId ? (
+        <ProfileDrawer title="队伍档案" onClose={() => navigateTo("teams", { replace: true })}>
+          <TeamProfileContent
+            data={viewData}
+            profileId={profileId}
+            profiles={teamProfiles}
+            profileErrors={profileErrors}
+            onNavigate={navigateTo}
+            onOpenMatch={openMatch}
+            onRetry={handleRetryProfile}
+          />
+        </ProfileDrawer>
+      ) : null}
     </div>
   );
 }
 
-function MatchPicker({
-  data,
-  loading,
-  error,
-  matchId,
-  onOpenMatch,
-  onRetry,
+function ProfileDrawer({
+  title,
+  onClose,
+  children,
 }: {
-  data: MobileData;
-  loading: boolean;
-  error: string | null;
-  matchId: string | null;
-  onOpenMatch: (matchId: string) => void;
-  onRetry: (matchId: string) => Promise<void>;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
 }) {
-  if (error && matchId) {
-    return (
-      <div className="page-stack">
-        <section className="panel profile-loading profile-error">
-          <h2>读取失败</h2>
-          <small>{error}</small>
-          <button type="button" className="ghost-button" onClick={() => void onRetry(matchId)}>
-            再试一次
-          </button>
-        </section>
-      </div>
-    );
-  }
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
 
-  if (loading && matchId) {
-    return (
-      <div className="page-stack">
-        <section className="panel profile-loading">
-          <span className="data-notice-pulse" aria-hidden="true" />
-          <h2>战报读取中</h2>
-        </section>
-      </div>
-    );
-  }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
-    <div className="page-stack">
-      <section className="panel reveal">
-        <header className="panel-head">
-          <div className="panel-title">
-            <h2>选择一场比赛</h2>
-            <p>从最近入库的战报中选择要查看的比赛详情</p>
-          </div>
-          <span className="pill">{data.matchRecords.length} 场</span>
-        </header>
-        <div className="records-grid">
-          {data.matchRecords.length > 0 ? (
-            data.matchRecords
-              .slice(0, 12)
-              .map((record, index) => (
-                <MatchRecordCard
-                  key={record.matchId}
-                  record={record}
-                  index={index}
-                  onOpenMatch={onOpenMatch}
-                />
-              ))
-          ) : (
-            <EmptyState text={loading ? "读取中" : "暂无"} />
-          )}
+    <>
+      <div className="drawer-overlay" onClick={onClose} />
+      <aside className="drawer" role="dialog" aria-label={title}>
+        <div className="drawer-head">
+          <span className="kicker">{title}</span>
+          <button className="drawer-close" type="button" onClick={onClose} aria-label="关闭">
+            ×
+          </button>
         </div>
-      </section>
-    </div>
+        <div className="drawer-body">{children}</div>
+      </aside>
+    </>
   );
 }

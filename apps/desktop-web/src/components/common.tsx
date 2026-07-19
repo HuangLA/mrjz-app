@@ -79,7 +79,7 @@ export function SectionPanel({
           {aside ? <div className="panel-aside">{aside}</div> : null}
         </header>
       ) : null}
-      {children}
+      <div className="panel-body">{children}</div>
     </section>
   );
 }

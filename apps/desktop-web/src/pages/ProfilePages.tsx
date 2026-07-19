@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { MobileData } from "../api";
 import type {
+  AppRoute,
   MatchRecord,
   PlayerProfile,
   PlayerTournamentHistoryEntry,
@@ -10,44 +11,32 @@ import type {
 import { MatchRecordCard } from "../components/MatchRecordCard";
 import { PlayerTagCloud } from "../components/TagCloud";
 import {
-  DataNotice,
   EmptyState,
   ImageWithFallback,
   PlayerTeamBadge,
-  SectionPanel,
   SteamAvatar,
   TeamLogoMark,
-  TournamentScope,
 } from "../components/common";
 import { cssVars, formatHeroWinRate, profileMatchToRecord } from "../utils";
-import type { NavigateFn } from "./StagePage";
 
-export function PlayerProfilePage({
+type NavigateFn = (route: AppRoute, options?: { profileId?: string }) => void;
+
+export function PlayerProfileContent({
   data,
-  loading,
   profileId,
   profiles,
   profileErrors,
-  onNavigate,
   onOpenMatch,
   onRetry,
 }: {
   data: MobileData;
-  loading: boolean;
-  profileId: string | null;
+  profileId: string;
   profiles: Record<string, PlayerProfile>;
   profileErrors: Record<string, string>;
-  onNavigate: NavigateFn;
   onOpenMatch: (matchId: string) => void;
   onRetry: (type: "player" | "team", id: string) => void;
 }) {
-  const playerId = profileId ?? data.players[0]?.id ?? null;
-
-  if (playerId === null) {
-    return <EmptyState text="暂无" />;
-  }
-
-  const error = profileErrors[`player:${playerId}`];
+  const error = profileErrors[`player:${profileId}`];
 
   if (error) {
     return (
@@ -55,28 +44,23 @@ export function PlayerProfilePage({
         title="读取失败"
         message={error}
         type="player"
-        profileId={playerId}
+        profileId={profileId}
         onRetry={onRetry}
       />
     );
   }
 
-  const profile = profiles[playerId];
+  const profile = profiles[profileId];
 
   if (!profile) {
-    return <ProfileLoading text="读取中" />;
+    return <ProfileLoading text="档案读取中" />;
   }
 
   const team = profile.currentTeam ?? profile.teams[0] ?? null;
 
   return (
-    <div className="page-stack">
-      <DataNotice loading={loading} />
-      <TournamentScope data={data} onSwitch={() => onNavigate("home")} />
-      <section
-        className="profile-hero reveal"
-        style={cssVars({ "--accent": team?.color ?? "#5eead4" })}
-      >
+    <>
+      <section className="profile-hero" style={cssVars({ "--accent": team?.color ?? "#d4af6e" })}>
         <div className="profile-hero-main">
           <SteamAvatar player={profile} size="large" />
           <div>
@@ -100,32 +84,39 @@ export function PlayerProfilePage({
 
       <PlayerTagCloud tags={profile.tags} />
 
-      <SectionPanel title="本届数据">
-        <div className="profile-stat-grid">
-          {(
-            [
-              ["场次", String(profile.stats.totalMatches)],
-              ["胜率", profile.stats.winRate],
-              ["KDA", profile.stats.kda],
+      <section className="panel">
+        <header className="panel-head">
+          <div className="panel-title">
+            <h2>本届数据</h2>
+          </div>
+        </header>
+        <div className="panel-body">
+          <div className="profile-stat-grid">
+            {(
               [
-                "场均K/D/A",
-                `${profile.stats.avgKills}/${profile.stats.avgDeaths}/${profile.stats.avgAssists}`,
-              ],
-              ["GPM", profile.stats.avgGpm],
-              ["XPM", profile.stats.avgXpm],
-              ["场均经济", profile.stats.avgNetWorth],
-              ["场均伤害", profile.stats.avgHeroDamage],
-              ["建筑伤害", profile.stats.avgTowerDamage],
-              ["场均承伤", profile.stats.avgDamageTaken],
-            ] as Array<[string, string]>
-          ).map(([label, value]) => (
-            <article key={label}>
-              <span>{label}</span>
-              <b>{value}</b>
-            </article>
-          ))}
+                ["场次", String(profile.stats.totalMatches)],
+                ["胜率", profile.stats.winRate],
+                ["KDA", profile.stats.kda],
+                [
+                  "场均K/D/A",
+                  `${profile.stats.avgKills}/${profile.stats.avgDeaths}/${profile.stats.avgAssists}`,
+                ],
+                ["GPM", profile.stats.avgGpm],
+                ["XPM", profile.stats.avgXpm],
+                ["场均经济", profile.stats.avgNetWorth],
+                ["场均伤害", profile.stats.avgHeroDamage],
+                ["建筑伤害", profile.stats.avgTowerDamage],
+                ["场均承伤", profile.stats.avgDamageTaken],
+              ] as Array<[string, string]>
+            ).map(([label, value]) => (
+              <article key={label}>
+                <span>{label}</span>
+                <b>{value}</b>
+              </article>
+            ))}
+          </div>
         </div>
-      </SectionPanel>
+      </section>
 
       <SignatureHeroes heroes={profile.stats.topHeroes} />
       <PlayerTournamentHistory
@@ -133,13 +124,12 @@ export function PlayerProfilePage({
         records={data.matchRecords}
         onOpenMatch={onOpenMatch}
       />
-    </div>
+    </>
   );
 }
 
-export function TeamProfilePage({
+export function TeamProfileContent({
   data,
-  loading,
   profileId,
   profiles,
   profileErrors,
@@ -148,21 +138,14 @@ export function TeamProfilePage({
   onRetry,
 }: {
   data: MobileData;
-  loading: boolean;
-  profileId: string | null;
+  profileId: string;
   profiles: Record<string, TeamProfile>;
   profileErrors: Record<string, string>;
   onNavigate: NavigateFn;
   onOpenMatch: (matchId: string) => void;
   onRetry: (type: "player" | "team", id: string) => void;
 }) {
-  const teamId = profileId ?? data.teams[0]?.id ?? null;
-
-  if (teamId === null) {
-    return <EmptyState text="暂无" />;
-  }
-
-  const error = profileErrors[`team:${teamId}`];
+  const error = profileErrors[`team:${profileId}`];
 
   if (error) {
     return (
@@ -170,23 +153,21 @@ export function TeamProfilePage({
         title="读取失败"
         message={error}
         type="team"
-        profileId={teamId}
+        profileId={profileId}
         onRetry={onRetry}
       />
     );
   }
 
-  const profile = profiles[teamId];
+  const profile = profiles[profileId];
 
   if (!profile) {
-    return <ProfileLoading text="读取中" />;
+    return <ProfileLoading text="档案读取中" />;
   }
 
   return (
-    <div className="page-stack">
-      <DataNotice loading={loading} />
-      <TournamentScope data={data} onSwitch={() => onNavigate("home")} />
-      <section className="profile-hero reveal" style={cssVars({ "--accent": profile.color })}>
+    <>
+      <section className="profile-hero" style={cssVars({ "--accent": profile.color })}>
         <div className="profile-hero-main">
           <TeamLogoMark team={profile} size="large" />
           <div>
@@ -205,45 +186,60 @@ export function TeamProfilePage({
         </div>
       </section>
 
-      <SectionPanel title="本届数据">
-        <div className="profile-stat-grid">
-          {(
-            [
-              ["比赛", String(profile.stats.seriesPlayed)],
-              ["胜场", String(profile.stats.seriesWins)],
-              ["负场", String(profile.stats.seriesLosses)],
-              ["成员", String(profile.memberCount)],
-              ["入库比赛", String(profile.stats.linkedMatches)],
-              ["状态", profile.status],
-            ] as Array<[string, string]>
-          ).map(([label, value]) => (
-            <article key={label}>
-              <span>{label}</span>
-              <b>{value}</b>
-            </article>
-          ))}
+      <section className="panel">
+        <header className="panel-head">
+          <div className="panel-title">
+            <h2>本届数据</h2>
+          </div>
+        </header>
+        <div className="panel-body">
+          <div className="profile-stat-grid">
+            {(
+              [
+                ["比赛", String(profile.stats.seriesPlayed)],
+                ["胜场", String(profile.stats.seriesWins)],
+                ["负场", String(profile.stats.seriesLosses)],
+                ["成员", String(profile.memberCount)],
+                ["入库比赛", String(profile.stats.linkedMatches)],
+                ["状态", profile.status],
+              ] as Array<[string, string]>
+            ).map(([label, value]) => (
+              <article key={label}>
+                <span>{label}</span>
+                <b>{value}</b>
+              </article>
+            ))}
+          </div>
         </div>
-      </SectionPanel>
+      </section>
 
-      <SectionPanel title="成员名单">
-        <div className="roster-grid">
-          {profile.members.length > 0 ? (
-            profile.members.map((player) => (
-              <button
-                key={player.id}
-                type="button"
-                onClick={() => onNavigate("player", { profileId: player.id })}
-              >
-                <SteamAvatar player={player} size="small" />
-                <b>{player.displayName}</b>
-                <span>ID {player.accountId ?? player.id}</span>
-              </button>
-            ))
-          ) : (
-            <EmptyState text="暂无" />
-          )}
+      <section className="panel">
+        <header className="panel-head">
+          <div className="panel-title">
+            <h2>成员名单</h2>
+          </div>
+          <span className="pill">{profile.members.length} 人</span>
+        </header>
+        <div className="panel-body">
+          <div className="roster-grid">
+            {profile.members.length > 0 ? (
+              profile.members.map((player) => (
+                <button
+                  key={player.id}
+                  type="button"
+                  onClick={() => onNavigate("player", { profileId: player.id })}
+                >
+                  <SteamAvatar player={player} size="small" />
+                  <b>{player.displayName}</b>
+                  <span>ID {player.accountId ?? player.id}</span>
+                </button>
+              ))
+            ) : (
+              <EmptyState text="暂无" />
+            )}
+          </div>
         </div>
-      </SectionPanel>
+      </section>
 
       <SignatureHeroes heroes={profile.stats.topHeroes} />
       <ProfileMatches
@@ -252,18 +248,16 @@ export function TeamProfilePage({
         records={data.matchRecords}
         onOpenMatch={onOpenMatch}
       />
-    </div>
+    </>
   );
 }
 
 function ProfileLoading({ text }: { text: string }) {
   return (
-    <div className="page-stack">
-      <section className="panel profile-loading">
-        <span className="data-notice-pulse" aria-hidden="true" />
-        <h2>{text}</h2>
-      </section>
-    </div>
+    <section className="panel profile-loading">
+      <span className="data-notice-pulse" aria-hidden="true" />
+      <h2>{text}</h2>
+    </section>
   );
 }
 
@@ -281,15 +275,13 @@ function ProfileError({
   onRetry: (type: "player" | "team", id: string) => void;
 }) {
   return (
-    <div className="page-stack">
-      <section className="panel profile-loading profile-error">
-        <h2>{title}</h2>
-        <small>{message}</small>
-        <button type="button" className="ghost-button" onClick={() => onRetry(type, profileId)}>
-          再试一次
-        </button>
-      </section>
-    </div>
+    <section className="panel profile-loading profile-error">
+      <h2>{title}</h2>
+      <small>{message}</small>
+      <button type="button" className="ghost-button" onClick={() => onRetry(type, profileId)}>
+        再试一次
+      </button>
+    </section>
   );
 }
 
@@ -299,30 +291,37 @@ function SignatureHeroes({
   heroes: Array<{ hero: string; portrait: string; picks: number; wins: number }>;
 }) {
   return (
-    <SectionPanel title="常用英雄">
-      <div className="signature-heroes">
-        {heroes.length > 0 ? (
-          heroes.map((hero) => (
-            <article key={hero.hero}>
-              <ImageWithFallback
-                src={hero.portrait}
-                fallback="/static/dota/heroes/unknown.svg"
-                alt={hero.hero}
-                loading="lazy"
-              />
-              <div>
-                <b>{hero.hero}</b>
-                <span>
-                  {hero.picks} 场 · {hero.wins} 胜 · {formatHeroWinRate(hero.wins, hero.picks)}
-                </span>
-              </div>
-            </article>
-          ))
-        ) : (
-          <EmptyState text="暂无" />
-        )}
+    <section className="panel">
+      <header className="panel-head">
+        <div className="panel-title">
+          <h2>常用英雄</h2>
+        </div>
+      </header>
+      <div className="panel-body">
+        <div className="signature-heroes">
+          {heroes.length > 0 ? (
+            heroes.map((hero) => (
+              <article key={hero.hero}>
+                <ImageWithFallback
+                  src={hero.portrait}
+                  fallback="/static/dota/heroes/unknown.svg"
+                  alt={hero.hero}
+                  loading="lazy"
+                />
+                <div>
+                  <b>{hero.hero}</b>
+                  <span>
+                    {hero.picks} 场 · {hero.wins} 胜 · {formatHeroWinRate(hero.wins, hero.picks)}
+                  </span>
+                </div>
+              </article>
+            ))
+          ) : (
+            <EmptyState text="暂无" />
+          )}
+        </div>
       </div>
-    </SectionPanel>
+    </section>
   );
 }
 
@@ -343,22 +342,30 @@ function ProfileMatches({
   );
 
   return (
-    <SectionPanel title={title} aside={<span className="pill">{matches.length} 场</span>}>
-      <div className="records-grid">
-        {matches.length > 0 ? (
-          matches.map((match, index) => (
-            <MatchRecordCard
-              key={match.matchId}
-              record={recordsByMatchId.get(match.matchId) ?? profileMatchToRecord(match)}
-              index={index}
-              onOpenMatch={onOpenMatch}
-            />
-          ))
-        ) : (
-          <EmptyState text="暂无" />
-        )}
+    <section className="panel">
+      <header className="panel-head">
+        <div className="panel-title">
+          <h2>{title}</h2>
+        </div>
+        <span className="pill">{matches.length} 场</span>
+      </header>
+      <div className="panel-body">
+        <div className="records-grid">
+          {matches.length > 0 ? (
+            matches.map((match, index) => (
+              <MatchRecordCard
+                key={match.matchId}
+                record={recordsByMatchId.get(match.matchId) ?? profileMatchToRecord(match)}
+                index={index}
+                onOpenMatch={onOpenMatch}
+              />
+            ))
+          ) : (
+            <EmptyState text="暂无" />
+          )}
+        </div>
       </div>
-    </SectionPanel>
+    </section>
   );
 }
 
@@ -392,39 +399,47 @@ function PlayerTournamentHistory({
     profile.matches.length;
 
   return (
-    <SectionPanel title="参赛记录" aside={<span className="pill">{totalMatches} 场</span>}>
-      <div className="player-season-current">
-        <SeasonRecordHeader entry={currentEntry} label="本届" />
-        <ProfileMatchCards
-          matches={currentEntry.matches}
-          recordsByMatchId={recordsByMatchId}
-          tournamentName={currentEntry.tournamentName}
-          onOpenMatch={onOpenMatch}
-        />
-      </div>
-
-      {previousEntries.length > 0 ? (
-        <div className="player-season-archive">
-          <div className="season-archive-title">
-            <span>往届参赛</span>
-            <small>{previousEntries.length} 届</small>
-          </div>
-          {previousEntries.map((entry) => (
-            <details className="season-details" key={entry.tournamentId}>
-              <summary>
-                <SeasonRecordHeader entry={entry} />
-              </summary>
-              <ProfileMatchCards
-                matches={entry.matches}
-                recordsByMatchId={recordsByMatchId}
-                tournamentName={entry.tournamentName}
-                onOpenMatch={onOpenMatch}
-              />
-            </details>
-          ))}
+    <section className="panel">
+      <header className="panel-head">
+        <div className="panel-title">
+          <h2>参赛记录</h2>
         </div>
-      ) : null}
-    </SectionPanel>
+        <span className="pill">{totalMatches} 场</span>
+      </header>
+      <div className="panel-body">
+        <div className="player-season-current">
+          <SeasonRecordHeader entry={currentEntry} label="本届" />
+          <ProfileMatchCards
+            matches={currentEntry.matches}
+            recordsByMatchId={recordsByMatchId}
+            tournamentName={currentEntry.tournamentName}
+            onOpenMatch={onOpenMatch}
+          />
+        </div>
+
+        {previousEntries.length > 0 ? (
+          <div className="player-season-archive">
+            <div className="season-archive-title">
+              <span>往届参赛</span>
+              <small>{previousEntries.length} 届</small>
+            </div>
+            {previousEntries.map((entry) => (
+              <details className="season-details" key={entry.tournamentId}>
+                <summary>
+                  <SeasonRecordHeader entry={entry} />
+                </summary>
+                <ProfileMatchCards
+                  matches={entry.matches}
+                  recordsByMatchId={recordsByMatchId}
+                  tournamentName={entry.tournamentName}
+                  onOpenMatch={onOpenMatch}
+                />
+              </details>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

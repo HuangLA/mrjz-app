@@ -49,6 +49,7 @@ export function MatchDetailPage({
   wardScrubberSeconds,
   onPlayerToggle,
   onWardSecondChange,
+  embedded = false,
 }: {
   data: MobileData;
   loading: boolean;
@@ -57,6 +58,7 @@ export function MatchDetailPage({
   wardScrubberSeconds: Record<string, number>;
   onPlayerToggle: (playerId: string) => void;
   onWardSecondChange: (matchId: string, seconds: number) => void;
+  embedded?: boolean;
 }) {
   const mvp = match.players.find((player) => player.id === match.mvpPlayerId);
   const radiantPlayers = match.players.filter((player) => player.side === "radiant");
@@ -111,9 +113,9 @@ export function MatchDetailPage({
     };
   }, [awardPopover, closeAwardPopover]);
 
-  return (
-    <div className="page-stack match-page">
-      <DataNotice loading={loading} />
+  const content = (
+    <>
+      {loading ? <DataNotice loading={loading} /> : null}
       {data.notice ? <div className="data-notice is-warning">{data.notice}</div> : null}
       <MatchSummary match={match} />
       {mvp ? <MvpCard player={mvp} match={match} /> : null}
@@ -186,8 +188,14 @@ export function MatchDetailPage({
         </div>
       </SectionPanel>
       <MatchAwardFloatingPopover popover={awardPopover} />
-    </div>
+    </>
   );
+
+  if (embedded) {
+    return content;
+  }
+
+  return <div className="page-stack match-page">{content}</div>;
 }
 
 function MatchSummary({ match }: { match: MatchData }) {
