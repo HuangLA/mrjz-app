@@ -658,59 +658,24 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     return emptyMobileData(apiBaseUrl, "后端暂无真实赛事数据，请先初始化数据库并同步 OpenDota。", tournamentList);
   }
 
-  const tournamentPromise = fetchApi<ApiTournament>(apiBaseUrl, `/tournaments/${selectedTournamentId}`).catch(() => null);
-  const officialSchedulePromise = fetchApi<ApiOfficialScheduleStatus>(apiBaseUrl, `/tournaments/${selectedTournamentId}/official-schedule`).catch(() => null);
-  const matchRecordsPromise = fetchApi<ApiMatchRecord[]>(
-    apiBaseUrl,
-    `/tournaments/${selectedTournamentId}/matches?limit=80`,
-  ).catch(() => []);
-  const heroLeaderboardsPromise = fetchApi<ApiHeroLeaderboardsView>(
-    apiBaseUrl,
-    `/tournaments/${encodeURIComponent(selectedTournamentId)}/hero-leaderboards`,
-  ).catch(() => null);
-  const playersPromise = loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []);
-  const teamsPromise = loadTournamentTeams(apiBaseUrl, selectedTournamentId).catch(() => []);
   const acknowledgementsPromise = loadAcknowledgements(apiBaseUrl).catch(() => []);
-  const otherRecentRecordsPromise = loadOtherTournamentRecentRecords(apiBaseUrl, tournamentList, selectedTournamentId);
+  const bundle = await loadHomeBundle(apiBaseUrl, selectedTournamentId, tournamentList);
 
-  const tournament = await tournamentPromise;
-
-  if (tournament === null) {
+  if (bundle === null) {
     return emptyMobileData(apiBaseUrl, "无法读取该赛事的真实数据。", tournamentList, selectedTournamentId);
   }
 
-  const stages = tournament.stages?.length ? tournament.stages : [tournament.currentStage].filter(isDefined);
-  const stagePayloadsPromise = Promise.all(
-    stages.map(async (stage) => {
-      const [standings, rounds, bracket] = await Promise.all([
-        fetchApi<ApiStanding[]>(apiBaseUrl, `/stages/${stage.id}/standings`).catch(() => null),
-        fetchApi<ApiRound[]>(apiBaseUrl, `/stages/${stage.id}/rounds`).catch(() => null),
-        fetchApi<ApiBracketNode[]>(apiBaseUrl, `/stages/${stage.id}/bracket`).catch(() => null),
-      ]);
-
-      return { stage, standings, rounds, bracket };
-    }),
-  );
-
-  const [
+  const {
+    tournament,
     stagePayloads,
     officialScheduleRaw,
     matchRecords,
     heroLeaderboardsRaw,
     players,
     teams,
-    acknowledgements,
     otherRecentRecords,
-  ] = await Promise.all([
-    stagePayloadsPromise,
-    officialSchedulePromise,
-    matchRecordsPromise,
-    heroLeaderboardsPromise,
-    playersPromise,
-    teamsPromise,
-    acknowledgementsPromise,
-    otherRecentRecordsPromise,
-  ]);
+  } = bundle;
+  const acknowledgements = await acknowledgementsPromise;
 
   const officialSchedule = normalizeOfficialScheduleStatus(officialScheduleRaw);
   const officialStagePayloads = officialSchedule.isPublished
@@ -750,6 +715,143 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     teams,
     featuredMatch: match,
     notice: null,
+  };
+}
+
+type StagePayload = {
+  stage: ApiStage;
+  standings: ApiStanding[] | null;
+  rounds: ApiRound[] | null;
+  bracket: ApiBracketNode[] | null;
+};
+
+type HomeBundle = {
+  tournament: ApiTournament;
+  stagePayloads: StagePayload[];
+  officialScheduleRaw: ApiOfficialScheduleStatus | null;
+  matchRecords: ApiMatchRecord[];
+  heroLeaderboardsRaw: ApiHeroLeaderboardsView | null;
+  players: PlayerDirectoryItem[];
+  teams: TeamDirectoryItem[];
+  otherRecentRecords: Record<string, ApiMatchRecord[]>;
+};
+
+type ApiTournamentOverview = {
+  tournament?: ApiTournament;
+  officialSchedule?: ApiOfficialScheduleStatus | null;
+  matches?: ApiMatchRecord[];
+  heroLeaderboards?: ApiHeroLeaderboardsView | null;
+  players?: ApiPlayerDirectoryItem[];
+  teams?: ApiTeamDirectoryItem[];
+  stages?: Array<{
+    stage?: ApiStage;
+    standings?: ApiStanding[] | null;
+    rounds?: ApiRound[] | null;
+    bracket?: ApiBracketNode[] | null;
+  }>;
+  recentRecords?: Record<string, ApiMatchRecord[]>;
+};
+
+async function loadHomeBundle(
+  apiBaseUrl: string,
+  selectedTournamentId: string,
+  tournamentList: ApiTournament[],
+): Promise<HomeBundle | null> {
+  const overview = await fetchApi<ApiTournamentOverview>(
+    apiBaseUrl,
+    `/tournaments/${encodeURIComponent(selectedTournamentId)}/overview?limit=80`,
+  ).catch(() => null);
+
+  if (overview?.tournament) {
+    const [, players, teams] = await Promise.all([
+      loadDotaConstants(),
+      Promise.resolve(
+        (overview.players ?? []).map((player) => normalizePlayerDirectoryItem(player, apiBaseUrl)),
+      ),
+      Promise.resolve(
+        (overview.teams ?? []).map((team) => normalizeTeamDirectoryItem(team, apiBaseUrl)),
+      ),
+    ]);
+
+    return {
+      tournament: overview.tournament,
+      stagePayloads: (overview.stages ?? [])
+        .filter((payload): payload is typeof payload & { stage: ApiStage } => payload.stage !== undefined)
+        .map((payload) => ({
+          stage: payload.stage,
+          standings: payload.standings ?? null,
+          rounds: payload.rounds ?? null,
+          bracket: payload.bracket ?? null,
+        })),
+      officialScheduleRaw: overview.officialSchedule ?? null,
+      matchRecords: overview.matches ?? [],
+      heroLeaderboardsRaw: overview.heroLeaderboards ?? null,
+      players,
+      teams,
+      otherRecentRecords: overview.recentRecords ?? {},
+    };
+  }
+
+  const tournamentPromise = fetchApi<ApiTournament>(apiBaseUrl, `/tournaments/${selectedTournamentId}`).catch(() => null);
+  const officialSchedulePromise = fetchApi<ApiOfficialScheduleStatus>(apiBaseUrl, `/tournaments/${selectedTournamentId}/official-schedule`).catch(() => null);
+  const matchRecordsPromise = fetchApi<ApiMatchRecord[]>(
+    apiBaseUrl,
+    `/tournaments/${selectedTournamentId}/matches?limit=80`,
+  ).catch(() => []);
+  const heroLeaderboardsPromise = fetchApi<ApiHeroLeaderboardsView>(
+    apiBaseUrl,
+    `/tournaments/${encodeURIComponent(selectedTournamentId)}/hero-leaderboards`,
+  ).catch(() => null);
+  const playersPromise = loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []);
+  const teamsPromise = loadTournamentTeams(apiBaseUrl, selectedTournamentId).catch(() => []);
+  const otherRecentRecordsPromise = loadOtherTournamentRecentRecords(apiBaseUrl, tournamentList, selectedTournamentId);
+
+  const tournament = await tournamentPromise;
+
+  if (tournament === null) {
+    return null;
+  }
+
+  const stages = tournament.stages?.length ? tournament.stages : [tournament.currentStage].filter(isDefined);
+  const stagePayloadsPromise = Promise.all(
+    stages.map(async (stage) => {
+      const [standings, rounds, bracket] = await Promise.all([
+        fetchApi<ApiStanding[]>(apiBaseUrl, `/stages/${stage.id}/standings`).catch(() => null),
+        fetchApi<ApiRound[]>(apiBaseUrl, `/stages/${stage.id}/rounds`).catch(() => null),
+        fetchApi<ApiBracketNode[]>(apiBaseUrl, `/stages/${stage.id}/bracket`).catch(() => null),
+      ]);
+
+      return { stage, standings, rounds, bracket };
+    }),
+  );
+
+  const [
+    stagePayloads,
+    officialScheduleRaw,
+    matchRecords,
+    heroLeaderboardsRaw,
+    players,
+    teams,
+    otherRecentRecords,
+  ] = await Promise.all([
+    stagePayloadsPromise,
+    officialSchedulePromise,
+    matchRecordsPromise,
+    heroLeaderboardsPromise,
+    playersPromise,
+    teamsPromise,
+    otherRecentRecordsPromise,
+  ]);
+
+  return {
+    tournament,
+    stagePayloads,
+    officialScheduleRaw,
+    matchRecords,
+    heroLeaderboardsRaw,
+    players,
+    teams,
+    otherRecentRecords,
   };
 }
 

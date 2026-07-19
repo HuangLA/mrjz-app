@@ -35,7 +35,10 @@ const allowedOrigins = parseAllowedOrigins();
 export class Router {
   private readonly routes: Route[] = [];
 
-  constructor(private readonly guard?: RouteGuard) {}
+  constructor(
+    private readonly guard?: RouteGuard,
+    private readonly onMutation?: () => void,
+  ) {}
 
   get(pattern: string, handler: RouteHandler): void {
     this.addRoute("GET", pattern, handler);
@@ -100,6 +103,11 @@ export class Router {
         url,
         params: route.params,
       });
+
+      if (route.route.method !== "GET" && result.status < 400) {
+        this.onMutation?.();
+      }
+
       send(request, response, result);
     } catch (error) {
       console.error("Unhandled API error", error);
