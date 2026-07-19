@@ -180,8 +180,8 @@ function PlayerTableRow({
           {stats.topHeroes.slice(0, 3).map((hero) => (
             <span key={hero.heroId} title={`${hero.hero} ${hero.picks} 场 ${hero.wins} 胜`}>
               <ImageWithFallback
-                src={hero.icon}
-                fallback={hero.portrait}
+                src={hero.portrait}
+                fallback={hero.icon}
                 alt={hero.hero}
                 loading="lazy"
               />

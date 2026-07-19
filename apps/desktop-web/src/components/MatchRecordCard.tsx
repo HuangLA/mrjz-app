@@ -116,7 +116,7 @@ function RecordHero({
       style={cssVars({ "--hero-delay": `${index * 40}ms` })}
       title={title}
     >
-      <ImageWithFallback src={hero.icon} fallback={hero.portrait} alt={hero.hero} loading="lazy" />
+      <ImageWithFallback src={hero.portrait} fallback={hero.icon} alt={hero.hero} loading="lazy" />
     </span>
   );
 }
