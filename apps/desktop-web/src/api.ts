@@ -670,10 +670,32 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     );
   }
 
-  const tournament = await fetchApi<ApiTournament>(
+  const tournamentPromise = fetchApi<ApiTournament>(
     apiBaseUrl,
     `/tournaments/${selectedTournamentId}`,
   ).catch(() => null);
+  const officialSchedulePromise = fetchApi<ApiOfficialScheduleStatus>(
+    apiBaseUrl,
+    `/tournaments/${selectedTournamentId}/official-schedule`,
+  ).catch(() => null);
+  const matchRecordsPromise = fetchApi<ApiMatchRecord[]>(
+    apiBaseUrl,
+    `/tournaments/${selectedTournamentId}/matches?limit=80`,
+  ).catch(() => []);
+  const heroLeaderboardsPromise = fetchApi<ApiHeroLeaderboardsView>(
+    apiBaseUrl,
+    `/tournaments/${encodeURIComponent(selectedTournamentId)}/hero-leaderboards`,
+  ).catch(() => null);
+  const playersPromise = loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []);
+  const teamsPromise = loadTournamentTeams(apiBaseUrl, selectedTournamentId).catch(() => []);
+  const acknowledgementsPromise = loadAcknowledgements(apiBaseUrl).catch(() => []);
+  const otherRecentRecordsPromise = loadOtherTournamentRecentRecords(
+    apiBaseUrl,
+    tournamentList,
+    selectedTournamentId,
+  );
+
+  const tournament = await tournamentPromise;
 
   if (tournament === null) {
     return emptyMobileData(
@@ -687,7 +709,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
   const stages = tournament.stages?.length
     ? tournament.stages
     : [tournament.currentStage].filter(isDefined);
-  const stagePayloads = await Promise.all(
+  const stagePayloadsPromise = Promise.all(
     stages.map(async (stage) => {
       const [standings, rounds, bracket] = await Promise.all([
         fetchApi<ApiStanding[]>(apiBaseUrl, `/stages/${stage.id}/standings`).catch(() => null),
@@ -699,12 +721,27 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     }),
   );
 
-  const officialSchedule = normalizeOfficialScheduleStatus(
-    await fetchApi<ApiOfficialScheduleStatus>(
-      apiBaseUrl,
-      `/tournaments/${selectedTournamentId}/official-schedule`,
-    ).catch(() => null),
-  );
+  const [
+    stagePayloads,
+    officialScheduleRaw,
+    matchRecords,
+    heroLeaderboardsRaw,
+    players,
+    teams,
+    acknowledgements,
+    otherRecentRecords,
+  ] = await Promise.all([
+    stagePayloadsPromise,
+    officialSchedulePromise,
+    matchRecordsPromise,
+    heroLeaderboardsPromise,
+    playersPromise,
+    teamsPromise,
+    acknowledgementsPromise,
+    otherRecentRecordsPromise,
+  ]);
+
+  const officialSchedule = normalizeOfficialScheduleStatus(officialScheduleRaw);
   const officialStagePayloads = officialSchedule.isPublished
     ? stagePayloads.filter(isOfficialScheduleStagePayload)
     : [];
@@ -712,32 +749,20 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
   const scheduleGroups = officialSchedule.isPublished
     ? normalizeScheduleGroups(officialStagePayloads)
     : [];
-  const matchRecords = await fetchApi<ApiMatchRecord[]>(
-    apiBaseUrl,
-    `/tournaments/${selectedTournamentId}/matches?limit=80`,
-  ).catch(() => []);
+  await constantsPromise;
   const heroLeaderboards = normalizeHeroLeaderboards(
-    await fetchApi<ApiHeroLeaderboardsView>(
-      apiBaseUrl,
-      `/tournaments/${encodeURIComponent(selectedTournamentId)}/hero-leaderboards`,
-    ).catch(() => null),
+    heroLeaderboardsRaw,
     selectedTournamentId,
     tournament.name,
     apiBaseUrl,
   );
-  const [players, teams, acknowledgements] = await Promise.all([
-    loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []),
-    loadTournamentTeams(apiBaseUrl, selectedTournamentId).catch(() => []),
-    loadAcknowledgements(apiBaseUrl).catch(() => []),
-  ]);
-  await constantsPromise;
   const normalizedRecords = matchRecords.map(normalizeMatchRecord);
-  const tournamentRecentRecords = await loadTournamentRecentRecords(
-    apiBaseUrl,
-    tournamentList,
-    selectedTournamentId,
-    normalizedRecords,
-  );
+  const tournamentRecentRecords: Record<string, MatchRecord[]> = {
+    [selectedTournamentId]: normalizedRecords.slice(0, 3),
+  };
+  for (const [id, records] of Object.entries(otherRecentRecords)) {
+    tournamentRecentRecords[id] = records.map(normalizeMatchRecord);
+  }
   const matchId = findFeaturedMatchId(tournament, scheduleGroups, normalizedRecords);
   const match = emptyMatchData(matchId ?? normalizedRecords[0]?.matchId ?? "-");
 
@@ -889,25 +914,22 @@ function emptyMobileData(
   };
 }
 
-async function loadTournamentRecentRecords(
+async function loadOtherTournamentRecentRecords(
   apiBaseUrl: string,
   tournaments: ApiTournament[],
   selectedTournamentId: string,
-  selectedRecords: MatchRecord[],
-): Promise<Record<string, MatchRecord[]>> {
+): Promise<Record<string, ApiMatchRecord[]>> {
   const entries = await Promise.all(
-    tournaments.map(async (tournament) => {
-      if (tournament.id === selectedTournamentId) {
-        return [tournament.id, selectedRecords.slice(0, 3)] as const;
-      }
+    tournaments
+      .filter((tournament) => tournament.id !== selectedTournamentId)
+      .map(async (tournament) => {
+        const records = await fetchApi<ApiMatchRecord[]>(
+          apiBaseUrl,
+          `/tournaments/${encodeURIComponent(tournament.id)}/matches?limit=3`,
+        ).catch(() => []);
 
-      const records = await fetchApi<ApiMatchRecord[]>(
-        apiBaseUrl,
-        `/tournaments/${encodeURIComponent(tournament.id)}/matches?limit=3`,
-      ).catch(() => []);
-
-      return [tournament.id, records.map(normalizeMatchRecord)] as const;
-    }),
+        return [tournament.id, records] as const;
+      }),
   );
 
   return Object.fromEntries(entries);
