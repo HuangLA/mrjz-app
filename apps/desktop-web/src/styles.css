@@ -2534,39 +2534,6 @@ button.dash-list-row:hover {
   opacity: 0.75;
 }
 
-.trend-end-tags {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 64px;
-  pointer-events: none;
-}
-
-.trend-end-tag {
-  position: absolute;
-  right: 2px;
-  top: var(--end-y);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transform: translateY(-50%);
-}
-
-.trend-end-tag img {
-  width: 26px;
-  height: 18px;
-  border-radius: 3px;
-  object-fit: cover;
-  border: 1px solid var(--trend-color);
-}
-
-.trend-end-tag b {
-  font-size: 9.5px;
-  font-family: var(--font-mono);
-  color: var(--trend-color);
-}
-
 .trend-card {
   padding: 12px 14px;
   border-radius: var(--r-m);

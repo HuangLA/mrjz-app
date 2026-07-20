@@ -208,43 +208,6 @@ function PlayerGoldTrendGraph({ match }: { match: MatchData }) {
       .sort((left, right) => right.value - left.value);
   }, [hover, trends]);
 
-  const endTags = useMemo(() => {
-    const tags = trends
-      .map((trend, index) => {
-        const finalValue = trend.values[trend.values.length - 1] ?? 0;
-        const ratio = clampNumber(finalValue / maxGold, 0, 1);
-
-        return {
-          trend,
-          index,
-          finalValue,
-          y: (1 - ratio) * 82 + 6,
-        };
-      })
-      .sort((left, right) => left.y - right.y);
-
-    const minGap = 7;
-
-    for (let index = 1; index < tags.length; index += 1) {
-      const previous = tags[index - 1]!;
-      const current = tags[index]!;
-
-      if (current.y - previous.y < minGap) {
-        current.y = previous.y + minGap;
-      }
-    }
-
-    const overflow = (tags[tags.length - 1]?.y ?? 0) - 92;
-
-    if (overflow > 0) {
-      for (const tag of tags) {
-        tag.y -= overflow;
-      }
-    }
-
-    return tags;
-  }, [trends, maxGold]);
-
   if (trends.length === 0) {
     return null;
   }
@@ -283,25 +246,6 @@ function PlayerGoldTrendGraph({ match }: { match: MatchData }) {
             />
           ) : null}
         </svg>
-        <div className="trend-end-tags" aria-hidden="true">
-          {endTags.map(({ trend, index, finalValue, y }) => {
-            const meta = portraitBySlot.get(String(trend.playerSlot));
-
-            return (
-              <span
-                key={`end:${trend.playerSlot}`}
-                className="trend-end-tag"
-                style={cssVars({ "--end-y": `${y}%`, "--trend-color": playerTrendColor(index, trend.side) })}
-                title={`${playerTrendHeroName(match, trend)} ${formatThousands(finalValue)}`}
-              >
-                {meta ? (
-                  <ImageWithFallback src={meta.portrait} fallback="/static/dota/heroes/unknown.svg" alt="" loading="lazy" />
-                ) : null}
-                <b>{compactNumber(finalValue)}</b>
-              </span>
-            );
-          })}
-        </div>
         {hover ? (
           <>
             <span className="trend-time-badge" style={cssVars({ "--hover-x": `${hover.ratio * 100}%` })}>
