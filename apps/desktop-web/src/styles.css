@@ -2392,6 +2392,181 @@ button.dash-list-row:hover {
   margin-bottom: 12px;
 }
 
+.trend-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.trend-card-large {
+  padding: 16px 18px;
+}
+
+.trend-frame {
+  position: relative;
+  cursor: crosshair;
+}
+
+.trend-frame svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.trend-crosshair {
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.trend-time-badge {
+  position: absolute;
+  top: -6px;
+  left: clamp(24px, var(--hover-x), calc(100% - 24px));
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text);
+  background: var(--bg-panel);
+  border: 1px solid var(--line-2);
+  pointer-events: none;
+}
+
+.trend-tooltip {
+  position: absolute;
+  top: 14px;
+  min-width: 170px;
+  padding: 8px 10px;
+  border-radius: var(--r-s);
+  border: 1px solid var(--line-2);
+  background: rgba(10, 12, 17, 0.94);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.trend-tooltip.is-advantage {
+  left: clamp(90px, var(--hover-x), calc(100% - 90px));
+  transform: translateX(-50%);
+  top: 18px;
+}
+
+.trend-tooltip.is-ranking {
+  left: clamp(120px, var(--hover-x), calc(100% - 120px));
+  transform: translateX(-50%);
+  top: 18px;
+  min-width: 240px;
+}
+
+.trend-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.trend-tooltip-row b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.trend-tooltip-row b.is-positive {
+  color: var(--radiant);
+}
+
+.trend-tooltip-row b.is-negative {
+  color: var(--dire);
+}
+
+.trend-tooltip-row.is-player img {
+  width: 26px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.trend-tooltip-row .trend-rank {
+  width: 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+  text-align: right;
+}
+
+.trend-tooltip-row .trend-color-strip {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.trend-tooltip-row .trend-player-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trend-side-tag {
+  position: absolute;
+  left: 12px;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.trend-side-tag.is-top {
+  top: 8px;
+  color: var(--radiant);
+  opacity: 0.75;
+}
+
+.trend-side-tag.is-bottom {
+  bottom: 8px;
+  color: var(--dire);
+  opacity: 0.75;
+}
+
+.trend-end-tags {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 64px;
+  pointer-events: none;
+}
+
+.trend-end-tag {
+  position: absolute;
+  right: 2px;
+  top: var(--end-y);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transform: translateY(-50%);
+}
+
+.trend-end-tag img {
+  width: 26px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+  border: 1px solid var(--trend-color);
+}
+
+.trend-end-tag b {
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  color: var(--trend-color);
+}
+
 .trend-card {
   padding: 12px 14px;
   border-radius: var(--r-m);
