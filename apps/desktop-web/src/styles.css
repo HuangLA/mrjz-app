@@ -2776,8 +2776,8 @@ button.dash-list-row:hover {
 
 /* ---------- chat ---------- */
 .chat-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 

@@ -69,10 +69,7 @@ export function RecordsWorkspace({
     }
   }, [teamFilter, teamFilters]);
 
-  const resolvedSelectedId =
-    selectedMatchId && visibleRecords.some((record) => record.matchId === selectedMatchId)
-      ? selectedMatchId
-      : (visibleRecords[0]?.matchId ?? null);
+  const resolvedSelectedId = selectedMatchId ?? visibleRecords[0]?.matchId ?? null;
 
   useEffect(() => {
     if (resolvedSelectedId) {
