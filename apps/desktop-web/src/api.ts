@@ -443,7 +443,12 @@ type ApiMatchPlayer = {
     neutral?: { itemId?: number | null } | null;
   };
   abilityBuild?: { hasData?: boolean; order?: Array<{ level?: number; abilityId?: number }> };
-  aghanim?: { hasScepter?: boolean; hasShard?: boolean; scepterIconState?: string; shardIconState?: string };
+  aghanim?: {
+    hasScepter?: boolean;
+    hasShard?: boolean;
+    scepterIconState?: string;
+    shardIconState?: string;
+  };
 };
 
 type ApiDraft = {
@@ -498,9 +503,10 @@ type ApiComparisonMetric = {
 
 const defaultApiBaseUrl = "/api";
 const localApiBaseUrl = "http://127.0.0.1:3001/api";
-const h5ApiBaseStorageKey = "mrjz.h5ApiBaseUrl";
+const desktopApiBaseStorageKey = "mrjz.desktopApiBaseUrl";
 const localDotaConstantsBaseUrl = "/static/dota/constants";
-const remoteDotaConstantsBaseUrl = "https://raw.githubusercontent.com/odota/dotaconstants/master/build";
+const remoteDotaConstantsBaseUrl =
+  "https://raw.githubusercontent.com/odota/dotaconstants/master/build";
 const localDotaAssetBaseUrl = "/static/dota";
 const dotaConstantsFetchTimeoutMs = 2500;
 const SCHINESE_HERO_NAMES_BY_ID: Record<number, string> = {
@@ -651,18 +657,29 @@ let dotaConstantsPromise: Promise<DotaConstants> | null = null;
 export async function loadMobileData(tournamentId?: string): Promise<MobileData> {
   const apiBaseUrl = resolveApiBaseUrl();
   const constantsPromise = loadDotaConstants();
-  const tournamentList = await fetchApi<ApiTournament[]>(apiBaseUrl, "/tournaments").catch(() => []);
+  const tournamentList = await fetchApi<ApiTournament[]>(apiBaseUrl, "/tournaments").catch(
+    () => [],
+  );
   const selectedTournamentId = tournamentId ?? tournamentList[0]?.id ?? "";
 
   if (selectedTournamentId.length === 0) {
-    return emptyMobileData(apiBaseUrl, "后端暂无真实赛事数据，请先初始化数据库并同步 OpenDota。", tournamentList);
+    return emptyMobileData(
+      apiBaseUrl,
+      "后端暂无真实赛事数据，请先初始化数据库并同步 OpenDota。",
+      tournamentList,
+    );
   }
 
   const acknowledgementsPromise = loadAcknowledgements(apiBaseUrl).catch(() => []);
   const bundle = await loadHomeBundle(apiBaseUrl, selectedTournamentId, tournamentList);
 
   if (bundle === null) {
-    return emptyMobileData(apiBaseUrl, "无法读取该赛事的真实数据。", tournamentList, selectedTournamentId);
+    return emptyMobileData(
+      apiBaseUrl,
+      "无法读取该赛事的真实数据。",
+      tournamentList,
+      selectedTournamentId,
+    );
   }
 
   const {
@@ -682,9 +699,16 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     ? stagePayloads.filter(isOfficialScheduleStagePayload)
     : [];
   const officialStageKeys = normalizeOfficialStageKeys(officialStagePayloads);
-  const scheduleGroups = officialSchedule.isPublished ? normalizeScheduleGroups(officialStagePayloads) : [];
+  const scheduleGroups = officialSchedule.isPublished
+    ? normalizeScheduleGroups(officialStagePayloads)
+    : [];
   await constantsPromise;
-  const heroLeaderboards = normalizeHeroLeaderboards(heroLeaderboardsRaw, selectedTournamentId, tournament.name, apiBaseUrl);
+  const heroLeaderboards = normalizeHeroLeaderboards(
+    heroLeaderboardsRaw,
+    selectedTournamentId,
+    tournament.name,
+    apiBaseUrl,
+  );
   const normalizedRecords = matchRecords.map(normalizeMatchRecord);
   const tournamentRecentRecords: Record<string, MatchRecord[]> = {
     [selectedTournamentId]: normalizedRecords.slice(0, 3),
@@ -792,8 +816,14 @@ async function loadHomeBundle(
     };
   }
 
-  const tournamentPromise = fetchApi<ApiTournament>(apiBaseUrl, `/tournaments/${selectedTournamentId}`).catch(() => null);
-  const officialSchedulePromise = fetchApi<ApiOfficialScheduleStatus>(apiBaseUrl, `/tournaments/${selectedTournamentId}/official-schedule`).catch(() => null);
+  const tournamentPromise = fetchApi<ApiTournament>(
+    apiBaseUrl,
+    `/tournaments/${selectedTournamentId}`,
+  ).catch(() => null);
+  const officialSchedulePromise = fetchApi<ApiOfficialScheduleStatus>(
+    apiBaseUrl,
+    `/tournaments/${selectedTournamentId}/official-schedule`,
+  ).catch(() => null);
   const matchRecordsPromise = fetchApi<ApiMatchRecord[]>(
     apiBaseUrl,
     `/tournaments/${selectedTournamentId}/matches?limit=80`,
@@ -804,7 +834,11 @@ async function loadHomeBundle(
   ).catch(() => null);
   const playersPromise = loadTournamentPlayers(apiBaseUrl, selectedTournamentId).catch(() => []);
   const teamsPromise = loadTournamentTeams(apiBaseUrl, selectedTournamentId).catch(() => []);
-  const otherRecentRecordsPromise = loadOtherTournamentRecentRecords(apiBaseUrl, tournamentList, selectedTournamentId);
+  const otherRecentRecordsPromise = loadOtherTournamentRecentRecords(
+    apiBaseUrl,
+    tournamentList,
+    selectedTournamentId,
+  );
 
   const tournament = await tournamentPromise;
 
@@ -812,7 +846,9 @@ async function loadHomeBundle(
     return null;
   }
 
-  const stages = tournament.stages?.length ? tournament.stages : [tournament.currentStage].filter(isDefined);
+  const stages = tournament.stages?.length
+    ? tournament.stages
+    : [tournament.currentStage].filter(isDefined);
   const stagePayloadsPromise = Promise.all(
     stages.map(async (stage) => {
       const [standings, rounds, bracket] = await Promise.all([
@@ -855,18 +891,30 @@ async function loadHomeBundle(
   };
 }
 
-export async function loadTournamentPlayers(apiBaseUrl: string, tournamentId: string): Promise<PlayerDirectoryItem[]> {
+export async function loadTournamentPlayers(
+  apiBaseUrl: string,
+  tournamentId: string,
+): Promise<PlayerDirectoryItem[]> {
   const [players] = await Promise.all([
-    fetchApi<ApiPlayerDirectoryItem[]>(apiBaseUrl, `/tournaments/${encodeURIComponent(tournamentId)}/players`),
+    fetchApi<ApiPlayerDirectoryItem[]>(
+      apiBaseUrl,
+      `/tournaments/${encodeURIComponent(tournamentId)}/players`,
+    ),
     loadDotaConstants(),
   ]);
 
   return players.map((player) => normalizePlayerDirectoryItem(player, apiBaseUrl));
 }
 
-export async function loadTournamentTeams(apiBaseUrl: string, tournamentId: string): Promise<TeamDirectoryItem[]> {
+export async function loadTournamentTeams(
+  apiBaseUrl: string,
+  tournamentId: string,
+): Promise<TeamDirectoryItem[]> {
   const [teams] = await Promise.all([
-    fetchApi<ApiTeamDirectoryItem[]>(apiBaseUrl, `/tournaments/${encodeURIComponent(tournamentId)}/teams`),
+    fetchApi<ApiTeamDirectoryItem[]>(
+      apiBaseUrl,
+      `/tournaments/${encodeURIComponent(tournamentId)}/teams`,
+    ),
     loadDotaConstants(),
   ]);
 
@@ -874,7 +922,10 @@ export async function loadTournamentTeams(apiBaseUrl: string, tournamentId: stri
 }
 
 export async function loadAcknowledgements(apiBaseUrl: string): Promise<AcknowledgementItem[]> {
-  const acknowledgements = await fetchApi<ApiAcknowledgementItem[]>(apiBaseUrl, "/acknowledgements");
+  const acknowledgements = await fetchApi<ApiAcknowledgementItem[]>(
+    apiBaseUrl,
+    "/acknowledgements",
+  );
 
   return acknowledgements.map((item) => normalizeAcknowledgementItem(item, apiBaseUrl));
 }
@@ -908,7 +959,11 @@ export async function loadPlayerProfile(
   return normalizePlayerProfile(profile, tags, apiBaseUrl);
 }
 
-export async function loadTeamProfile(apiBaseUrl: string, tournamentId: string, teamId: string): Promise<TeamProfile> {
+export async function loadTeamProfile(
+  apiBaseUrl: string,
+  tournamentId: string,
+  teamId: string,
+): Promise<TeamProfile> {
   const [profile] = await Promise.all([
     fetchApi<ApiTeamProfile>(
       apiBaseUrl,
@@ -983,7 +1038,9 @@ async function loadOtherTournamentRecentRecords(
 }
 
 async function fetchApi<T>(apiBaseUrl: string, path: string): Promise<T> {
-  const response = await fetch(apiUrl(apiBaseUrl, path), { headers: { Accept: "application/json" } });
+  const response = await fetch(apiUrl(apiBaseUrl, path), {
+    headers: { Accept: "application/json" },
+  });
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -1010,8 +1067,12 @@ async function loadDotaConstants(): Promise<DotaConstants> {
   dotaConstantsPromise = Promise.all([
     fetchOpenDotaConstant<DotaConstants["heroes"]>("heroes").catch(() => dotaConstants.heroes),
     fetchOpenDotaConstant<DotaConstants["itemIds"]>("item_ids").catch(() => dotaConstants.itemIds),
-    fetchOpenDotaConstant<DotaConstants["abilityIds"]>("ability_ids").catch(() => dotaConstants.abilityIds),
-    fetchOpenDotaConstant<DotaConstants["heroAbilities"]>("hero_abilities").catch(() => dotaConstants.heroAbilities),
+    fetchOpenDotaConstant<DotaConstants["abilityIds"]>("ability_ids").catch(
+      () => dotaConstants.abilityIds,
+    ),
+    fetchOpenDotaConstant<DotaConstants["heroAbilities"]>("hero_abilities").catch(
+      () => dotaConstants.heroAbilities,
+    ),
   ])
     .then(([heroes, itemIds, abilityIds, heroAbilities]) => {
       dotaConstants = { heroes, itemIds, abilityIds, heroAbilities };
@@ -1029,9 +1090,10 @@ async function loadDotaConstants(): Promise<DotaConstants> {
 }
 
 async function fetchOpenDotaConstant<T>(path: string): Promise<T> {
-  const localResponse = await fetchWithTimeout(`${localDotaConstantsBaseUrl}/${path}.json`, dotaConstantsFetchTimeoutMs).catch(
-    () => null,
-  );
+  const localResponse = await fetchWithTimeout(
+    `${localDotaConstantsBaseUrl}/${path}.json`,
+    dotaConstantsFetchTimeoutMs,
+  ).catch(() => null);
 
   if (localResponse?.ok) {
     return (await localResponse.json()) as T;
@@ -1042,7 +1104,10 @@ async function fetchOpenDotaConstant<T>(path: string): Promise<T> {
     throw new Error(`Local Dota constants missing: ${path}`);
   }
 
-  const response = await fetchWithTimeout(`${remoteDotaConstantsBaseUrl}/${path}.json`, dotaConstantsFetchTimeoutMs);
+  const response = await fetchWithTimeout(
+    `${remoteDotaConstantsBaseUrl}/${path}.json`,
+    dotaConstantsFetchTimeoutMs,
+  );
 
   if (!response.ok) {
     throw new Error(`OpenDota constants HTTP ${response.status}`);
@@ -1069,7 +1134,8 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
 function apiUrl(apiBaseUrl: string, path: string): string {
   const base = apiBaseUrl.replace(/\/+$/, "");
   const cleanPath = path.replace(/^\/+/, "");
-  const normalizedPath = base.endsWith("/api") && cleanPath.startsWith("api/") ? cleanPath.slice(4) : cleanPath;
+  const normalizedPath =
+    base.endsWith("/api") && cleanPath.startsWith("api/") ? cleanPath.slice(4) : cleanPath;
 
   return `${base}/${normalizedPath}`;
 }
@@ -1103,16 +1169,16 @@ function resolveRuntimeApiBaseUrl(): string | undefined {
       const trimmed = rawOverride.trim();
 
       if (trimmed === "reset" || trimmed === "default") {
-        window.localStorage.removeItem(h5ApiBaseStorageKey);
+        window.localStorage.removeItem(desktopApiBaseStorageKey);
         return undefined;
       }
 
       const nextValue = normalizeApiBaseUrlOverride(trimmed);
-      window.localStorage.setItem(h5ApiBaseStorageKey, nextValue);
+      window.localStorage.setItem(desktopApiBaseStorageKey, nextValue);
       return nextValue;
     }
 
-    const stored = window.localStorage.getItem(h5ApiBaseStorageKey)?.trim();
+    const stored = window.localStorage.getItem(desktopApiBaseStorageKey)?.trim();
     return stored && stored.length > 0 ? normalizeApiBaseUrlOverride(stored) : undefined;
   } catch {
     return undefined;
@@ -1125,7 +1191,7 @@ function normalizeApiBaseUrlOverride(value: string): string {
 
 function isLocalViteHost(): boolean {
   try {
-    return ["localhost:5174", "127.0.0.1:5174"].includes(window.location.host);
+    return ["localhost:5175", "127.0.0.1:5175"].includes(window.location.host);
   } catch {
     return false;
   }
@@ -1142,14 +1208,28 @@ function normalizeTournamentStats(
     (sum, group) => sum + group.matches.filter((item) => item.status === "已完赛").length,
     0,
   );
-  const nextMatch = groups.flatMap((group) => group.matches).find((item) => item.status !== "已完赛");
+  const nextMatch = groups
+    .flatMap((group) => group.matches)
+    .find((item) => item.status !== "已完赛");
 
   return [
     { label: "当前赛事", value: tournament.name, hint: lifecycleText(tournament) },
-    { label: "队伍数", value: String(tournament.teamCount ?? "-"), hint: tournament.league?.name ?? "MRJZ 联赛" },
-    { label: "比赛库", value: String(matchRecords.length || "-"), hint: `已落库 ${matchRecords.length} 场` },
+    {
+      label: "队伍数",
+      value: String(tournament.teamCount ?? "-"),
+      hint: tournament.league?.name ?? "MRJZ 联赛",
+    },
+    {
+      label: "比赛库",
+      value: String(matchRecords.length || "-"),
+      hint: `已落库 ${matchRecords.length} 场`,
+    },
     { label: "赛程", value: String(totalSeries || "-"), hint: `已完赛 ${completedSeries} 场` },
-    { label: "最新比赛", value: match.id, hint: nextMatch ? `${nextMatch.time} ${nextMatch.round}` : "暂无下一场" },
+    {
+      label: "最新比赛",
+      value: match.id,
+      hint: nextMatch ? `${nextMatch.time} ${nextMatch.round}` : "暂无下一场",
+    },
   ];
 }
 
@@ -1250,7 +1330,10 @@ function normalizeProfileStats(stats: ApiPlayerStatsSummary | undefined): Profil
   };
 }
 
-function normalizePlayerDirectoryItem(player: ApiPlayerDirectoryItem, apiBaseUrl?: string): PlayerDirectoryItem {
+function normalizePlayerDirectoryItem(
+  player: ApiPlayerDirectoryItem,
+  apiBaseUrl?: string,
+): PlayerDirectoryItem {
   const accountId = player.accountId ?? null;
 
   return {
@@ -1260,14 +1343,19 @@ function normalizePlayerDirectoryItem(player: ApiPlayerDirectoryItem, apiBaseUrl
     avatarUrl:
       accountId !== null && apiBaseUrl !== undefined
         ? apiUrl(apiBaseUrl, `/assets/steam-avatars/${accountId}.jpg`)
-        : player.avatarUrl ?? null,
+        : (player.avatarUrl ?? null),
     currentTeam: normalizeTeamBrief(player.currentTeam, apiBaseUrl),
-    teams: (player.teams ?? []).map((team) => normalizeTeamBrief(team, apiBaseUrl)).filter(isDefined),
+    teams: (player.teams ?? [])
+      .map((team) => normalizeTeamBrief(team, apiBaseUrl))
+      .filter(isDefined),
     stats: normalizeProfileStats(player.stats),
   };
 }
 
-function normalizeAcknowledgementItem(item: ApiAcknowledgementItem, apiBaseUrl: string): AcknowledgementItem {
+function normalizeAcknowledgementItem(
+  item: ApiAcknowledgementItem,
+  apiBaseUrl: string,
+): AcknowledgementItem {
   return {
     id: item.id ?? "ack_unknown",
     category: item.category === "community" ? "community" : "sponsor",
@@ -1337,7 +1425,9 @@ function normalizeHeroLeaderboardItem(
     unit: item.unit ?? "",
     precision: item.precision ?? 1,
     minMatches: item.minMatches ?? minMatches,
-    winner: item.winner ? normalizeHeroLeaderboardCandidate(item.winner, apiBaseUrl) : candidates[0] ?? null,
+    winner: item.winner
+      ? normalizeHeroLeaderboardCandidate(item.winner, apiBaseUrl)
+      : (candidates[0] ?? null),
     candidates,
   };
 }
@@ -1384,7 +1474,10 @@ function normalizeTeamStats(stats: ApiTeamStatsSummary | undefined): TeamDirecto
   };
 }
 
-function normalizeTeamDirectoryItem(team: ApiTeamDirectoryItem, apiBaseUrl?: string): TeamDirectoryItem {
+function normalizeTeamDirectoryItem(
+  team: ApiTeamDirectoryItem,
+  apiBaseUrl?: string,
+): TeamDirectoryItem {
   const brief = normalizeTeamBrief(team, apiBaseUrl);
 
   return {
@@ -1403,12 +1496,20 @@ function normalizeTeamDirectoryItem(team: ApiTeamDirectoryItem, apiBaseUrl?: str
 
 function normalizeProfileMatch(match: ApiProfileMatchSummary): ProfileMatchSummary {
   const score =
-    match.radiantScore === null || match.radiantScore === undefined || match.direScore === null || match.direScore === undefined
+    match.radiantScore === null ||
+    match.radiantScore === undefined ||
+    match.direScore === null ||
+    match.direScore === undefined
       ? "-:-"
       : `${match.radiantScore}:${match.direScore}`;
   const heroId = match.heroId ?? null;
   const kda =
-    match.kills === null || match.kills === undefined || match.deaths === null || match.deaths === undefined || match.assists === null || match.assists === undefined
+    match.kills === null ||
+    match.kills === undefined ||
+    match.deaths === null ||
+    match.deaths === undefined ||
+    match.assists === null ||
+    match.assists === undefined
       ? null
       : `${match.kills}/${match.deaths}/${match.assists}`;
 
@@ -1438,7 +1539,11 @@ function normalizeProfileMatch(match: ApiProfileMatchSummary): ProfileMatchSumma
   };
 }
 
-function normalizePlayerProfile(profile: ApiPlayerProfile, tags: ApiPlayerTag[] = [], apiBaseUrl?: string): PlayerProfile {
+function normalizePlayerProfile(
+  profile: ApiPlayerProfile,
+  tags: ApiPlayerTag[] = [],
+  apiBaseUrl?: string,
+): PlayerProfile {
   const tournamentId = profile.tournamentId ?? "";
   const matches = (profile.matches ?? []).map(normalizeProfileMatch);
   const tournamentHistory = (profile.tournamentHistory ?? [])
@@ -1513,12 +1618,19 @@ function normalizeTournamentMeta(tournament: ApiTournament): TournamentMeta {
     statusText: lifecycleText(tournament),
     startsAt: shortDateTime(tournament.startsAt),
     endsAt: shortDateTime(tournament.endsAt),
-    leagueId: tournament.league?.opendotaLeagueId ? String(tournament.league.opendotaLeagueId) : "-",
+    leagueId: tournament.league?.opendotaLeagueId
+      ? String(tournament.league.opendotaLeagueId)
+      : "-",
   };
 }
 
 function normalizeStageViews(
-  payloads: Array<{ stage: ApiStage; standings: ApiStanding[] | null; rounds: ApiRound[] | null; bracket: ApiBracketNode[] | null }>,
+  payloads: Array<{
+    stage: ApiStage;
+    standings: ApiStanding[] | null;
+    rounds: ApiRound[] | null;
+    bracket: ApiBracketNode[] | null;
+  }>,
   officialSchedule: OfficialScheduleStatus,
 ): Record<StageKey, StageView> {
   if (!officialSchedule.isPublished) {
@@ -1534,7 +1646,10 @@ function normalizeStageViews(
       continue;
     }
 
-    const activeRound = payload.stage.activeRound ?? payload.rounds?.find((round) => round.status !== "completed") ?? null;
+    const activeRound =
+      payload.stage.activeRound ??
+      payload.rounds?.find((round) => round.status !== "completed") ??
+      null;
 
     next[stageKey] = {
       key: stageKey,
@@ -1574,8 +1689,9 @@ function isOfficialScheduleStagePayload(payload: { stage: ApiStage }): boolean {
 
 function isOfficialScheduleStage(stage: ApiStage): boolean {
   const config = stage.config ?? {};
-  const hasExplicitScheduleFlag = Object.prototype.hasOwnProperty.call(config, "officialSchedule")
-    || Object.prototype.hasOwnProperty.call(config, "scheduleManagement");
+  const hasExplicitScheduleFlag =
+    Object.prototype.hasOwnProperty.call(config, "officialSchedule") ||
+    Object.prototype.hasOwnProperty.call(config, "scheduleManagement");
 
   if (hasExplicitScheduleFlag) {
     return config.officialSchedule === true || config.scheduleManagement === true;
@@ -1627,7 +1743,9 @@ function emptyStageViews(): Record<StageKey, StageView> {
   };
 }
 
-function normalizeOfficialScheduleStatus(status: ApiOfficialScheduleStatus | null): OfficialScheduleStatus {
+function normalizeOfficialScheduleStatus(
+  status: ApiOfficialScheduleStatus | null,
+): OfficialScheduleStatus {
   return {
     status: status?.status ?? "unconfigured",
     isPublished: status?.isPublished === true,
@@ -1652,13 +1770,17 @@ function normalizeStanding(row: ApiStanding): StandingRow {
   const draws = row.seriesDraws ?? 0;
   const losses = row.seriesLosses ?? 0;
   const team = normalizeTeamBrief(row.team);
-  const fallbackTeamName = row.team?.name ?? row.team?.shortName ?? row.team?.short_name ?? "待定队伍";
+  const fallbackTeamName =
+    row.team?.name ?? row.team?.shortName ?? row.team?.short_name ?? "待定队伍";
 
   return {
     rank: row.rank ?? 0,
     teamId: team?.id ?? row.team?.id ?? "",
     team: team?.name ?? fallbackTeamName,
-    groupName: typeof row.groupName === "string" && row.groupName.trim().length > 0 ? row.groupName.trim() : null,
+    groupName:
+      typeof row.groupName === "string" && row.groupName.trim().length > 0
+        ? row.groupName.trim()
+        : null,
     score: `${wins}-${draws}-${losses}`,
     points: `${row.points ?? 0} 分`,
     streak: `${row.gameWins ?? 0}-${row.gameLosses ?? 0}`,
@@ -1672,13 +1794,14 @@ function normalizeBracketNode(node: ApiBracketNode): BracketPreviewNode {
   const winnerId = node.winnerTeamId ?? null;
   const winner =
     winnerId === topTeam?.id
-      ? topTeam.name ?? "待定"
+      ? (topTeam.name ?? "待定")
       : winnerId === bottomTeam?.id
-        ? bottomTeam.name ?? "待定"
+        ? (bottomTeam.name ?? "待定")
         : "待定";
 
   return {
-    id: node.id ?? `${node.bracketGroup ?? "single"}:${node.roundNumber ?? 0}:${node.position ?? 0}`,
+    id:
+      node.id ?? `${node.bracketGroup ?? "single"}:${node.roundNumber ?? 0}:${node.position ?? 0}`,
     bracketGroup: node.bracketGroup ?? "single",
     roundName: node.roundName ?? `第 ${node.roundNumber ?? "-"} 轮`,
     roundNumber: node.roundNumber ?? 0,
@@ -1703,12 +1826,23 @@ type NormalizedScheduleItem = ScheduleItem & { timeDate: string; sortValue: numb
 function normalizeScheduleGroups(
   payloads: Array<{ stage: ApiStage; rounds: ApiRound[] | null }>,
 ): ScheduleGroup[] {
-  const items = payloads.flatMap((payload) =>
-    (payload.rounds ?? []).flatMap((round) => [
-      ...(round.series ?? []).map((series) => normalizeScheduleItem(payload.stage, round, series)),
-      ...(round.byes ?? []).map((team) => normalizeByeScheduleItem(payload.stage, round, team)),
-    ].filter(isDefined)),
-  ).sort((a, b) => a.sortValue - b.sortValue || a.stage.localeCompare(b.stage) || a.round.localeCompare(b.round));
+  const items = payloads
+    .flatMap((payload) =>
+      (payload.rounds ?? []).flatMap((round) =>
+        [
+          ...(round.series ?? []).map((series) =>
+            normalizeScheduleItem(payload.stage, round, series),
+          ),
+          ...(round.byes ?? []).map((team) => normalizeByeScheduleItem(payload.stage, round, team)),
+        ].filter(isDefined),
+      ),
+    )
+    .sort(
+      (a, b) =>
+        a.sortValue - b.sortValue ||
+        a.stage.localeCompare(b.stage) ||
+        a.round.localeCompare(b.round),
+    );
   const byDate = new Map<string, { matches: ScheduleItem[]; sortValue: number }>();
 
   for (const item of items) {
@@ -1733,18 +1867,26 @@ function normalizeScheduleGroups(
     }));
 }
 
-function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeries): NormalizedScheduleItem | null {
+function normalizeScheduleItem(
+  stage: ApiStage,
+  round: ApiRound,
+  series: ApiSeries,
+): NormalizedScheduleItem | null {
   const scheduledAt = series.scheduledAt ? new Date(series.scheduledAt) : null;
   const hasScheduleTime = scheduledAt !== null && !Number.isNaN(scheduledAt.getTime());
   const timestamp = hasScheduleTime ? scheduledAt.getTime() : Number.MAX_SAFE_INTEGER;
   const date = hasScheduleTime ? formatDate(scheduledAt) : "待定日期";
   const time = hasScheduleTime ? formatTime(scheduledAt) : "时间待定";
-  const firstGame = series.games?.find((game) => game.matchId !== null && game.matchId !== undefined);
-  const games = (series.games ?? []).map((game, index) => ({
-    gameIndex: game.gameIndex ?? index + 1,
-    matchId: game.matchId === null || game.matchId === undefined ? null : String(game.matchId),
-    winnerTeamId: game.winnerTeamId ?? null,
-  })).sort((left, right) => left.gameIndex - right.gameIndex);
+  const firstGame = series.games?.find(
+    (game) => game.matchId !== null && game.matchId !== undefined,
+  );
+  const games = (series.games ?? [])
+    .map((game, index) => ({
+      gameIndex: game.gameIndex ?? index + 1,
+      matchId: game.matchId === null || game.matchId === undefined ? null : String(game.matchId),
+      winnerTeamId: game.winnerTeamId ?? null,
+    }))
+    .sort((left, right) => left.gameIndex - right.gameIndex);
   const gameScore =
     firstGame?.radiantScore !== null && firstGame?.radiantScore !== undefined
       ? `${firstGame.radiantScore} : ${firstGame.direScore ?? 0}`
@@ -1756,7 +1898,9 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
     sortValue: timestamp,
     stage: stage.name ?? stageNameFromId(series.stageId ?? round.stageId),
     stageType: stage.type,
-    round: [series.groupName, round.name ?? `R${round.roundNumber ?? "-"}`].filter(Boolean).join(" · "),
+    round: [series.groupName, round.name ?? `R${round.roundNumber ?? "-"}`]
+      .filter(Boolean)
+      .join(" · "),
     kind: series.seriesKind ?? "regular",
     teamAId: series.radiantTeam?.id ?? "",
     teamA: series.radiantTeam?.name ?? "待定",
@@ -1780,7 +1924,11 @@ function normalizeScheduleItem(stage: ApiStage, round: ApiRound, series: ApiSeri
   return item;
 }
 
-function normalizeByeScheduleItem(stage: ApiStage, round: ApiRound, team: ApiTeam): NormalizedScheduleItem {
+function normalizeByeScheduleItem(
+  stage: ApiStage,
+  round: ApiRound,
+  team: ApiTeam,
+): NormalizedScheduleItem {
   return {
     time: "时间待定",
     timeDate: "待定日期",
@@ -1801,14 +1949,21 @@ function normalizeByeScheduleItem(stage: ApiStage, round: ApiRound, team: ApiTea
 
 function normalizeMatchDetail(detail: ApiMatchDetail): MatchData {
   const matchId = String(detail.match?.matchId ?? "-");
-  const players = [...(detail.players?.radiant ?? []), ...(detail.players?.dire ?? detail.players?.all ?? [])];
+  const players = [
+    ...(detail.players?.radiant ?? []),
+    ...(detail.players?.dire ?? detail.players?.all ?? []),
+  ];
   const normalizedPlayers = players.map(normalizePlayer);
   const mvpId = findMvpPlayerId(detail, normalizedPlayers);
 
   return {
     id: matchId,
     league: detail.match?.tournamentName ?? detail.match?.leagueName ?? "真实比赛",
-    series: [detail.match?.stageName, detail.match?.roundName, detail.series?.gameIndex ? `G${detail.series.gameIndex}` : ""]
+    series: [
+      detail.match?.stageName,
+      detail.match?.roundName,
+      detail.series?.gameIndex ? `G${detail.series.gameIndex}` : "",
+    ]
       .filter(Boolean)
       .join(" · "),
     mode: detail.series?.boType ?? modeText(detail.match?.gameMode) ?? "未知模式",
@@ -1816,7 +1971,10 @@ function normalizeMatchDetail(detail: ApiMatchDetail): MatchData {
     duration: detail.match?.durationText ?? "--:--",
     radiantScore: detail.score?.radiantScore ?? 0,
     direScore: detail.score?.direScore ?? 0,
-    winner: detail.score?.winnerSide ?? detail.match?.winnerSide ?? (detail.match?.radiantWin ? "radiant" : "dire"),
+    winner:
+      detail.score?.winnerSide ??
+      detail.match?.winnerSide ??
+      (detail.match?.radiantWin ? "radiant" : "dire"),
     radiant: normalizeTeam("radiant", detail.teams?.radiant, "天辉"),
     dire: normalizeTeam("dire", detail.teams?.dire, "夜魇"),
     mvpPlayerId: mvpId,
@@ -1859,10 +2017,9 @@ function normalizeMatchAward(award: ApiMatchAward): MatchAward | null {
 
 function normalizePlayer(player: ApiMatchPlayer): PlayerStats {
   const heroName = heroLabel(player.heroId);
-  const abilityOrder =
-    player.abilityBuild?.order?.map((item, index) => abilityIcon(item.abilityId, item.level ?? index + 1)) ?? [
-      emptyIcon("待解析"),
-    ];
+  const abilityOrder = player.abilityBuild?.order?.map((item, index) =>
+    abilityIcon(item.abilityId, item.level ?? index + 1),
+  ) ?? [emptyIcon("待解析")];
 
   return {
     id: String(player.playerSlot),
@@ -1905,7 +2062,8 @@ function normalizeInventoryItems(
   const slots = Array.from({ length: size }, () => emptyIcon("-"));
 
   for (const [index, item] of (items ?? []).entries()) {
-    const slot = typeof item.slot === "number" && item.slot >= 0 && item.slot < size ? item.slot : index;
+    const slot =
+      typeof item.slot === "number" && item.slot >= 0 && item.slot < size ? item.slot : index;
 
     if (slot < size) {
       slots[slot] = itemIcon(item.itemId);
@@ -2005,7 +2163,10 @@ function normalizeWard(ward: ApiWard): MatchData["wardTimeline"][number] | null 
     timeSeconds: normalizeWardTimeSeconds(ward),
     side: ward.side,
     type: ward.type === "sentry" ? "岗哨守卫" : "观察守卫",
-    lane: ward.x !== null && ward.x !== undefined && ward.y !== null && ward.y !== undefined ? `${ward.x}, ${ward.y}` : "地图",
+    lane:
+      ward.x !== null && ward.x !== undefined && ward.y !== null && ward.y !== undefined
+        ? `${ward.x}, ${ward.y}`
+        : "地图",
     note: ward.playerName ?? "视野事件",
     x: ward.x ?? null,
     y: ward.y ?? null,
@@ -2155,7 +2316,9 @@ function tournamentOptions(tournaments: ApiTournament[]): TournamentOption[] {
       : (tournament.season?.name ?? tournament.status ?? "API 赛事"),
     status: normalizeTournamentStatus(tournament.status),
     startsAt: shortDateTime(tournament.startsAt),
-    leagueId: tournament.league?.opendotaLeagueId ? String(tournament.league.opendotaLeagueId) : "-",
+    leagueId: tournament.league?.opendotaLeagueId
+      ? String(tournament.league.opendotaLeagueId)
+      : "-",
     matchCount: tournament.matchCount ?? 0,
     source: "api" as const,
   }));
@@ -2175,14 +2338,19 @@ function normalizeTournamentStatus(status: string | undefined): TournamentMeta["
   return "unknown";
 }
 
-function findFeaturedMatchId(tournament: ApiTournament, groups: ScheduleGroup[], records: MatchRecord[]): string | null {
+function findFeaturedMatchId(
+  tournament: ApiTournament,
+  groups: ScheduleGroup[],
+  records: MatchRecord[],
+): string | null {
   if (records.length > 0) {
     return records[0]!.matchId;
   }
 
-  const fromTournament = [...(tournament.latestResult?.games ?? []), ...(tournament.nextSeries?.games ?? [])].find(
-    (game) => game.matchId !== null && game.matchId !== undefined,
-  )?.matchId;
+  const fromTournament = [
+    ...(tournament.latestResult?.games ?? []),
+    ...(tournament.nextSeries?.games ?? []),
+  ].find((game) => game.matchId !== null && game.matchId !== undefined)?.matchId;
 
   if (fromTournament !== null && fromTournament !== undefined) {
     return String(fromTournament);
@@ -2421,7 +2589,9 @@ function emptyIcon(label: string): IconRef {
   return { label, imageUrl: "", kind: "empty" };
 }
 
-function abilityKind(internalName: string | undefined): "ability" | "talent" | "attribute" | "empty" {
+function abilityKind(
+  internalName: string | undefined,
+): "ability" | "talent" | "attribute" | "empty" {
   if (!internalName) {
     return "empty";
   }
@@ -2471,7 +2641,9 @@ function heroLabelFromUnit(unit: string | null | undefined): string {
     return heroId ? heroLabel(heroId) : "未知英雄";
   }
 
-  const heroByEnglishName = Object.entries(dotaConstants.heroes).find(([, hero]) => hero.localized_name === unit);
+  const heroByEnglishName = Object.entries(dotaConstants.heroes).find(
+    ([, hero]) => hero.localized_name === unit,
+  );
   const heroId = heroByEnglishName ? Number(heroByEnglishName[0]) : undefined;
 
   return heroId ? heroLabel(heroId) : "聊天";
@@ -2544,14 +2716,15 @@ function formatMaybeDateTime(value: string | null | undefined): string | null {
     return value;
   }
 
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(
-    2,
-    "0",
-  )} ${formatTime(date)}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")} ${formatTime(date)}`;
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value))
+    : fallback;
 }
 
 function isApiResult<T>(value: ApiResult<T> | T): value is ApiResult<T> {

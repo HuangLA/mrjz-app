@@ -1,0 +1,27 @@
+{
+  "name": "@mrjz/desktop-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run dev:remote",
+    "dev:local": "VITE_PUBLIC_API_BASE_URL=http://127.0.0.1:3001/api vite --host 0.0.0.0 --port 5175",
+    "dev:remote": "VITE_USE_REMOTE_API_PROXY=1 VITE_PUBLIC_API_BASE_URL=/api vite --host 0.0.0.0 --port 5175",
+    "build": "npm run build:remote",
+    "build:local": "VITE_PUBLIC_API_BASE_URL=http://127.0.0.1:3001/api tsc -p tsconfig.json && VITE_PUBLIC_API_BASE_URL=http://127.0.0.1:3001/api vite build",
+    "build:remote": "VITE_PUBLIC_API_BASE_URL=/api tsc -p tsconfig.json && VITE_PUBLIC_API_BASE_URL=/api vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"TODO: add desktop web lint\"",
+    "test": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/zcool-kuaile": "^5.2.8",
+    "@mrjz/shared": "0.1.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3"
+  }
+}

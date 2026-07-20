@@ -92,8 +92,24 @@ import { resolvePlayerProfileBySteamId } from "../opendota/playerProfiles.js";
 import { runOpenDotaBackfillSync } from "../opendota/syncWorker.js";
 import { cacheSteamAvatar, readSteamAvatarCache } from "../opendota/steamAvatarCache.js";
 import { readJsonBody } from "./body.js";
+import { cached, invalidateReadCache } from "./readCache.js";
 import { binary, json, ok, fail } from "./responses.js";
 import { Router, type RouteGuardContext } from "./router.js";
+
+const READ_CACHE_TTL = {
+  overview: 20_000,
+  tournamentList: 30_000,
+  tournamentDetail: 30_000,
+  matches: 20_000,
+  teams: 60_000,
+  players: 60_000,
+  heroLeaderboards: 120_000,
+  officialSchedule: 20_000,
+  stage: 20_000,
+  matchDetail: 120_000,
+  profileDetail: 60_000,
+  acknowledgements: 120_000,
+} as const;
 
 const apiRouterDirectory = path.dirname(fileURLToPath(import.meta.url));
 const dotaAssetRoot = path.resolve(apiRouterDirectory, "../../../mobile-web/public/static/dota");
@@ -177,7 +193,7 @@ export type HealthStatus = {
 };
 
 export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
-  const router = new Router(adminRouteGuard);
+  const router = new Router(adminRouteGuard, invalidateReadCache);
 
   router.get("/health", () => json(200, getHealthStatus()));
   router.get("/api/health", () => json(200, getHealthStatus()));
@@ -384,9 +400,11 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     serveTeamLogoAsset(params),
   );
 
-  router.get("/api/acknowledgements", () => ok(listAcknowledgements()));
+  router.get("/api/acknowledgements", () =>
+    ok(cached("acknowledgements", READ_CACHE_TTL.acknowledgements, () => listAcknowledgements())),
+  );
 
-  router.get("/api/tournaments", () => ok(listTournaments()));
+  router.get("/api/tournaments", () => ok(cached("tournaments", READ_CACHE_TTL.tournamentList, () => listTournaments())));
 
   router.post("/api/tournaments", async ({ request }) => {
     try {
@@ -402,7 +420,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   router.get("/api/sync-tasks", () => ok(listSyncTasks()));
 
   router.get("/api/tournaments/:id", ({ params }) => {
-    const tournament = getTournamentDetail(params.id ?? "");
+    const tournament = cached(`tournament:${params.id ?? ""}`, READ_CACHE_TTL.tournamentDetail, () =>
+      getTournamentDetail(params.id ?? ""),
+    );
 
     if (tournament === undefined) {
       return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
@@ -411,9 +431,62 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     return ok(tournament);
   });
 
+  router.get("/api/tournaments/:id/overview", ({ params, url }) => {
+    const tournamentId = params.id ?? "";
+    const limit = positiveIntegerQuery(url, "limit", 80);
+    const payload = cached(`overview:${tournamentId}:${limit}`, READ_CACHE_TTL.overview, () => {
+      const tournament = getTournamentDetail(tournamentId);
+
+      if (tournament === undefined) {
+        return null;
+      }
+
+      const stageInputs =
+        Array.isArray(tournament.stages) && tournament.stages.length > 0
+          ? tournament.stages
+          : [tournament.currentStage].filter(
+              (stage): stage is NonNullable<typeof stage> => stage !== undefined && stage !== null,
+            );
+      const stages = stageInputs.map((stage) => ({
+        stage,
+        standings: getStageStandings(stage.id) ?? null,
+        rounds: getStageRounds(stage.id) ?? null,
+        bracket: getStageBracket(stage.id) ?? null,
+      }));
+      const recentRecords: Record<string, unknown> = {};
+
+      for (const entry of listTournaments() ?? []) {
+        if (entry.id === tournamentId) {
+          continue;
+        }
+
+        recentRecords[entry.id] = listTournamentOpenDotaMatches(entry.id, 3) ?? [];
+      }
+
+      return {
+        tournament,
+        officialSchedule: getOfficialSchedulePublicStatus(tournamentId) ?? null,
+        matches: listTournamentOpenDotaMatches(tournamentId, limit) ?? [],
+        heroLeaderboards: listTournamentHeroLeaderboards(tournamentId) ?? null,
+        players: listTournamentPlayers(tournamentId) ?? [],
+        teams: listTournamentTeams(tournamentId) ?? [],
+        stages,
+        recentRecords,
+      };
+    });
+
+    if (payload === null) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(payload);
+  });
+
   router.get("/api/tournaments/:id/matches", ({ params, url }) => {
     const limit = positiveIntegerQuery(url, "limit", 100);
-    const matches = listTournamentOpenDotaMatches(params.id ?? "", limit);
+    const matches = cached(`matches:${params.id ?? ""}:${limit}`, READ_CACHE_TTL.matches, () =>
+      listTournamentOpenDotaMatches(params.id ?? "", limit),
+    );
 
     if (matches === undefined) {
       return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
@@ -439,7 +512,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/tournaments/:id/teams", ({ params }) => {
-    const teams = listTournamentTeams(params.id ?? "");
+    const teams = cached(`teams:${params.id ?? ""}`, READ_CACHE_TTL.teams, () =>
+      listTournamentTeams(params.id ?? ""),
+    );
 
     if (teams === undefined) {
       return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
@@ -449,7 +524,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/tournaments/:id/players", ({ params }) => {
-    const players = listTournamentPlayers(params.id ?? "");
+    const players = cached(`players:${params.id ?? ""}`, READ_CACHE_TTL.players, () =>
+      listTournamentPlayers(params.id ?? ""),
+    );
 
     if (players === undefined) {
       return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
@@ -459,7 +536,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/tournaments/:id/hero-leaderboards", ({ params }) => {
-    const leaderboards = listTournamentHeroLeaderboards(params.id ?? "");
+    const leaderboards = cached(`hero-leaderboards:${params.id ?? ""}`, READ_CACHE_TTL.heroLeaderboards, () =>
+      listTournamentHeroLeaderboards(params.id ?? ""),
+    );
 
     if (leaderboards === undefined) {
       return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
@@ -469,7 +548,11 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/tournaments/:id/players/:playerId", ({ params }) => {
-    const player = getTournamentPlayerDetail(params.id ?? "", params.playerId ?? "");
+    const player = cached(
+      `player-detail:${params.id ?? ""}:${params.playerId ?? ""}`,
+      READ_CACHE_TTL.profileDetail,
+      () => getTournamentPlayerDetail(params.id ?? "", params.playerId ?? ""),
+    );
 
     if (player === undefined) {
       return fail(404, "PLAYER_NOT_FOUND", "Player not found for this tournament");
@@ -546,7 +629,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/tournaments/:id/teams/:teamId", ({ params }) => {
-    const team = getTournamentTeamDetail(params.id ?? "", params.teamId ?? "");
+    const team = cached(`team-detail:${params.id ?? ""}:${params.teamId ?? ""}`, READ_CACHE_TTL.profileDetail, () =>
+      getTournamentTeamDetail(params.id ?? "", params.teamId ?? ""),
+    );
 
     if (team === undefined) {
       return fail(404, "TEAM_NOT_FOUND", "Team not found for this tournament");
@@ -556,7 +641,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/tournaments/:id/official-schedule", ({ params }) => {
-    const schedule = getOfficialSchedulePublicStatus(params.id ?? "");
+    const schedule = cached(`official-schedule:${params.id ?? ""}`, READ_CACHE_TTL.officialSchedule, () =>
+      getOfficialSchedulePublicStatus(params.id ?? ""),
+    );
 
     if (schedule === undefined) {
       return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
@@ -761,7 +848,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/stages/:stageId/standings", ({ params }) => {
-    const standings = getStageStandings(params.stageId ?? "");
+    const standings = cached(`stage-standings:${params.stageId ?? ""}`, READ_CACHE_TTL.stage, () =>
+      getStageStandings(params.stageId ?? ""),
+    );
 
     if (standings === undefined) {
       return fail(404, "STAGE_NOT_FOUND", "Stage standings not found");
@@ -771,7 +860,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/stages/:stageId/rounds", ({ params }) => {
-    const rounds = getStageRounds(params.stageId ?? "");
+    const rounds = cached(`stage-rounds:${params.stageId ?? ""}`, READ_CACHE_TTL.stage, () =>
+      getStageRounds(params.stageId ?? ""),
+    );
 
     if (rounds === undefined) {
       return fail(404, "STAGE_NOT_FOUND", "Stage rounds not found");
@@ -781,7 +872,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/stages/:stageId/bracket", ({ params }) => {
-    const bracket = getStageBracket(params.stageId ?? "");
+    const bracket = cached(`stage-bracket:${params.stageId ?? ""}`, READ_CACHE_TTL.stage, () =>
+      getStageBracket(params.stageId ?? ""),
+    );
 
     if (bracket === undefined) {
       return fail(404, "STAGE_NOT_FOUND", "Stage bracket not found");
@@ -863,7 +956,9 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
   });
 
   router.get("/api/matches/:matchId", ({ params }) => {
-    const match = getMatchDetail(params.matchId ?? "");
+    const match = cached(`match-detail:${params.matchId ?? ""}`, READ_CACHE_TTL.matchDetail, () =>
+      getMatchDetail(params.matchId ?? ""),
+    );
 
     if (match === undefined) {
       return fail(404, "MATCH_NOT_FOUND", "Match not found");
@@ -1274,6 +1369,7 @@ const PUBLIC_GET_PATTERNS = new Set([
   "/api/tournaments",
   "/api/tournaments/:id",
   "/api/tournaments/:id/matches",
+  "/api/tournaments/:id/overview",
   "/api/tournaments/:id/teams",
   "/api/tournaments/:id/teams/:teamId",
   "/api/tournaments/:id/players",
