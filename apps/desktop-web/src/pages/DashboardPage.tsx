@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MobileData } from "../api";
-import type { AppRoute, MatchRecord } from "../data";
+import type { AcknowledgementItem, AppRoute, MatchRecord } from "../data";
 import {
   CountUp,
   EmptyState,
@@ -26,6 +26,7 @@ export function DashboardPage({
   onOpenMatch: (matchId: string) => void;
   onSelectTournament: (tournamentId: string) => void;
 }) {
+  const [communityOpen, setCommunityOpen] = useState(false);
   const meta = data.selectedTournamentMeta;
   const recordTotal = data.tournamentOptions.reduce((sum, option) => sum + option.matchCount, 0);
   const stageKey = officialStageOptions(data)[0]?.key ?? "group";
@@ -336,15 +337,18 @@ export function DashboardPage({
             <div className="dash-sponsors">
               <span className="kicker">鸣谢</span>
               {sponsors.map((sponsor) => (
-                <span className="dash-sponsor" key={sponsor.id}>
+                <span className="dash-sponsor" key={sponsor.id} title={sponsor.displayName}>
                   {sponsor.imageUrl !== null ? (
                     <img src={sponsor.imageUrl} alt={sponsor.displayName} loading="lazy" />
                   ) : null}
-                  <span>{sponsor.displayName}</span>
                 </span>
               ))}
               {community.length > 0 ? (
-                <span className="dash-sponsor">
+                <button
+                  className="dash-sponsor dash-community-trigger"
+                  type="button"
+                  onClick={() => setCommunityOpen(true)}
+                >
                   <span className="dash-community">
                     {community.slice(0, 10).map((supporter) => (
                       <span
@@ -366,11 +370,71 @@ export function DashboardPage({
                     ))}
                   </span>
                   <span>社区支持 {community.length} 人</span>
-                </span>
+                </button>
               ) : null}
             </div>
           </section>
         ) : null}
+      </div>
+      {communityOpen ? (
+        <CommunitySupportersModal supporters={community} onClose={() => setCommunityOpen(false)} />
+      ) : null}
+    </div>
+  );
+}
+
+function CommunitySupportersModal({
+  supporters,
+  onClose,
+}: {
+  supporters: AcknowledgementItem[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="palette-overlay" onPointerDown={onClose}>
+      <div
+        className="palette community-modal"
+        role="dialog"
+        aria-label="社区支持名单"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <div className="drawer-head">
+          <span className="kicker">社区支持 · 感谢有你</span>
+          <button className="drawer-close" type="button" onClick={onClose} aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <p className="community-modal-thanks">
+          感谢以下 {supporters.length} 位社区伙伴对每日节奏杯的支持，正是因为你们，比赛才能一届届办下去。
+        </p>
+        <div className="community-modal-grid">
+          {supporters.map((supporter) => (
+            <div className="community-modal-item" key={supporter.id}>
+              {supporter.imageUrl ? (
+                <ImageWithFallback
+                  src={supporter.imageUrl}
+                  fallback=""
+                  alt={supporter.displayName}
+                  loading="lazy"
+                />
+              ) : (
+                <span className="community-modal-fallback">{supporter.displayName.slice(0, 1)}</span>
+              )}
+              <span>{supporter.displayName}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

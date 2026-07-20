@@ -879,9 +879,8 @@ export function measureStageFinalConnectorOverlay(
       const sourceRect = sourceElement.getBoundingClientRect();
       const sourceX = sourceRect.right - containerRect.left;
       const sourceY = sourceRect.top - containerRect.top + sourceRect.height / 2;
-      const distance = Math.max(1, targetX - sourceX);
-      const midX = sourceX + Math.max(24, distance * 0.62);
-      const d = `M ${sourceX} ${sourceY} H ${midX} C ${midX + 18} ${sourceY} ${midX + 18} ${targetY} ${targetX} ${targetY}`;
+      const midX = sourceX + Math.max(24, (targetX - sourceX) / 2);
+      const d = `M ${sourceX} ${sourceY} H ${midX} V ${targetY} H ${targetX}`;
 
       return { id: node.id, kind: node.bracketGroup as "winner" | "loser", d };
     })

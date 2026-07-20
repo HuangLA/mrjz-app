@@ -270,7 +270,18 @@ export function App() {
         window.history.pushState(null, "", nextHash);
       }
 
-      if (options.scroll !== false) {
+      const currentSection =
+        route === "match" ? "records" : route === "player" ? "players" : route === "team" ? "teams" : route;
+      const nextSection =
+        nextRoute === "match"
+          ? "records"
+          : nextRoute === "player"
+            ? "players"
+            : nextRoute === "team"
+              ? "teams"
+              : nextRoute;
+
+      if (options.scroll !== false && nextSection !== currentSection) {
         document.querySelector(".workspace")?.scrollTo({ top: 0, behavior: "smooth" });
       }
     },
@@ -771,10 +782,7 @@ export function App() {
       </nav>
 
       <main className="workspace">
-        <div
-          className="view"
-          key={`${workspaceRoute}:${workspaceRoute === "records" ? "" : (profileId ?? "")}`}
-        >
+        <div className="view" key={workspaceRoute}>
           {routeView}
         </div>
       </main>
