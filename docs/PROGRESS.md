@@ -711,7 +711,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 | Commit    | 内容                                          |
 | --------- | --------------------------------------------- |
-| `pending` | Add desktop web Island skin toggle            |
+| `73ad288` | Add desktop web Island skin + HuangShen easter egg |
 | `pending` | Add mini program Island theme                 |
 | `14038a3` | Refine mini program knockout bracket          |
 | `081188d` | Refine H5 classic knockout bracket            |
