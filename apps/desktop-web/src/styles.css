@@ -1309,6 +1309,56 @@ button.dash-list-row:hover {
   animation: hs-bag-bounce 0.6s ease-in-out 0.15s;
 }
 
+/* YeGou KS easter egg: flying poop */
+.ks-reward {
+  position: relative;
+}
+
+.ks-poop-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.ks-poop {
+  position: absolute;
+  left: 50%;
+  top: 96px;
+  font-size: 24px;
+  line-height: 1;
+  opacity: 0;
+  animation: ks-poop-fly 2.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation-delay: var(--ks-delay, 0s);
+}
+
+@keyframes ks-poop-fly {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.4) rotate(0deg);
+  }
+  10% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--ks-x, 0px) * 0.7), var(--ks-y, -140px)) scale(1)
+      rotate(280deg);
+  }
+  72% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--ks-x, 0px)), 150px) scale(1) rotate(380deg);
+  }
+  82% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--ks-x, 0px)), 154px) scale(1.3, 0.55) rotate(380deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--ks-x, 0px)), 154px) scale(1.35, 0.5) rotate(380deg);
+  }
+}
+
 @keyframes hs-bag-bounce {
   0% {
     transform: translateY(0) rotate(0deg);
