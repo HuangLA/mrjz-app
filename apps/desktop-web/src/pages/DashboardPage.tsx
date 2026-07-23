@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MobileData } from "../api";
 import type { AcknowledgementItem, AppRoute, MatchRecord } from "../data";
 import {
@@ -390,6 +390,14 @@ function CommunitySupportersModal({
   supporters: AcknowledgementItem[];
   onClose: () => void;
 }) {
+  const [huangClicks, setHuangClicks] = useState(0);
+  const [rewardOpen, setRewardOpen] = useState(false);
+  const [bursts, setBursts] = useState<
+    Array<{ id: number; x: number; y: number; color: string; drift: number }>
+  >([]);
+  const burstSequenceRef = useRef(0);
+  const burstTimersRef = useRef<number[]>([]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -400,6 +408,43 @@ function CommunitySupportersModal({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  useEffect(
+    () => () => {
+      for (const timer of burstTimersRef.current) {
+        window.clearTimeout(timer);
+      }
+      burstTimersRef.current = [];
+    },
+    [],
+  );
+
+  const handleHuangShenClick = (event: React.MouseEvent<HTMLElement>) => {
+    const nextClicks = huangClicks + 1;
+    setHuangClicks(nextClicks);
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const color = huangShenPalette[nextClicks % huangShenPalette.length]!;
+    const burst = {
+      id: ++burstSequenceRef.current,
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+      color,
+      drift: ((burstSequenceRef.current * 37) % 41) - 20,
+    };
+    setBursts((current) => [...current.slice(-7), burst]);
+    const timer = window.setTimeout(() => {
+      setBursts((current) => current.filter((item) => item.id !== burst.id));
+    }, 720);
+    burstTimersRef.current.push(timer);
+
+    if (nextClicks >= HUANGSHEN_CLICKS_REQUIRED) {
+      setRewardOpen(true);
+    }
+  };
+
+  const huangColor =
+    huangClicks === 0 ? null : huangShenPalette[huangClicks % huangShenPalette.length]!;
 
   return (
     <div className="palette-overlay" onPointerDown={onClose}>
@@ -419,22 +464,160 @@ function CommunitySupportersModal({
           感谢以下 {supporters.length} 位社区伙伴对每日节奏杯的支持，正是因为你们，比赛才能一届届办下去。
         </p>
         <div className="community-modal-grid">
-          {supporters.map((supporter) => (
-            <div className="community-modal-item" key={supporter.id}>
-              {supporter.imageUrl ? (
-                <ImageWithFallback
-                  src={supporter.imageUrl}
-                  fallback=""
-                  alt={supporter.displayName}
-                  loading="lazy"
-                />
-              ) : (
-                <span className="community-modal-fallback">{supporter.displayName.slice(0, 1)}</span>
-              )}
-              <span>{supporter.displayName}</span>
-            </div>
-          ))}
+          {supporters.map((supporter) => {
+            const isHuangShen = supporter.displayName.includes("黄神");
+
+            if (isHuangShen) {
+              return (
+                <div
+                  className="community-modal-item huangshen-item"
+                  key={supporter.id}
+                  style={
+                    huangColor === null
+                      ? undefined
+                      : ({ "--hs-color": huangColor } as React.CSSProperties)
+                  }
+                  onClick={handleHuangShenClick}
+                >
+                  {supporter.imageUrl ? (
+                    <ImageWithFallback
+                      src={supporter.imageUrl}
+                      fallback=""
+                      alt={supporter.displayName}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="community-modal-fallback">
+                      {supporter.displayName.slice(0, 1)}
+                    </span>
+                  )}
+                  <span
+                    className={`huangshen-name${huangClicks > 0 ? " hs-animated" : ""}`}
+                    key={huangClicks}
+                  >
+                    {supporter.displayName}
+                  </span>
+                  {bursts.map((burst) => (
+                    <span
+                      key={burst.id}
+                      className="huangshen-burst"
+                      style={
+                        {
+                          left: burst.x,
+                          top: burst.y,
+                          color: burst.color,
+                          "--hs-drift": `${burst.drift}px`,
+                        } as React.CSSProperties
+                      }
+                      aria-hidden="true"
+                    >
+                    ✦
+                  </span>
+                  ))}
+                </div>
+              );
+            }
+
+            return (
+              <div className="community-modal-item" key={supporter.id}>
+                {supporter.imageUrl ? (
+                  <ImageWithFallback
+                    src={supporter.imageUrl}
+                    fallback=""
+                    alt={supporter.displayName}
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="community-modal-fallback">
+                    {supporter.displayName.slice(0, 1)}
+                  </span>
+                )}
+                <span>{supporter.displayName}</span>
+              </div>
+            );
+          })}
         </div>
+      </div>
+      {rewardOpen ? (
+        <HuangShenRewardModal
+          imageUrl={
+            supporters.find((supporter) => supporter.displayName.includes("黄神"))?.imageUrl ??
+            null
+          }
+          onClose={() => setRewardOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+const HUANGSHEN_CLICKS_REQUIRED = 10;
+
+const huangShenPalette = [
+  "#19c8b9",
+  "#f8a6b2",
+  "#b77dee",
+  "#889df0",
+  "#f7cd67",
+  "#e59266",
+  "#8ac68a",
+  "#fc736d",
+  "#d1da49",
+  "#e18c6f",
+];
+
+function HuangShenRewardModal({
+  imageUrl,
+  onClose,
+}: {
+  imageUrl: string | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [onClose]);
+
+  return (
+    <div
+      className="huangshen-reward-overlay"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        onClose();
+      }}
+    >
+      <svg style={{ position: "absolute", width: 0, height: 0 }} aria-hidden="true">
+        <defs>
+          <clipPath id="animal-modal-clip" clipPathUnits="objectBoundingBox">
+            <path d="M0.501,0.005 L0.501,0.005 L0.523,0.005 L0.549,0.006 C0.704,0.01,0.796,0.017,0.825,0.027 L0.827,0.028 C0.872,0.045,0.939,0.044,0.978,0.17 C1,0.254,1,0.365,0.99,0.505 L0.988,0.513 C0.979,0.558,0.971,0.598,0.965,0.633 C0.956,0.689,0.979,0.77,0.964,0.865 C0.953,0.928,0.921,0.966,0.869,0.979 C0.821,0.986,0.773,0.992,0.726,0.995 L0.712,0.996 L0.694,0.997 C0.648,1,0.586,1,0.507,1 L0.501,1 L0.464,1 C0.385,1,0.325,0.998,0.283,0.995 C0.234,0.992,0.184,0.987,0.133,0.979 C0.081,0.966,0.05,0.928,0.039,0.865 C0.023,0.77,0.047,0.689,0.037,0.633 C0.031,0.595,0.023,0.552,0.013,0.505 C-0.006,0.365,-0.002,0.254,0.024,0.17 C0.064,0.045,0.13,0.045,0.174,0.028 L0.175,0.028 C0.204,0.017,0.303,0.009,0.474,0.005 L0.501,0.005" />
+          </clipPath>
+        </defs>
+      </svg>
+      <div
+        className="huangshen-reward"
+        role="dialog"
+        aria-label="伟大的黄神彩蛋"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {imageUrl ? (
+          <img className="huangshen-reward-avatar" src={imageUrl} alt="伟大的黄神" />
+        ) : (
+          <span className="huangshen-reward-bag" aria-hidden="true" />
+        )}
+        <h3 className="huangshen-reward-title">伟大的黄神已现身！</h3>
+        <p className="huangshen-reward-text">
+          恭喜你，寻找到了伟大的黄神，请立即联系黄神领取他赐予你的奖励
+        </p>
+        <button className="huangshen-reward-btn" type="button" onClick={onClose}>
+          太棒了！
+        </button>
       </div>
     </div>
   );

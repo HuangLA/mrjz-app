@@ -1,0 +1,516 @@
+/* ============================================================
+   Island theme — animal-island-ui inspired skin (v1.2.0 palette)
+   Mint teal + warm parchment + polka-dot island vibe.
+   Activated by <html data-theme="island"> via the topbar toggle.
+   ============================================================ */
+
+:root[data-theme="island"] {
+  --bg: #f8f8f0;
+  --bg-raise: #fdfbf3;
+  --bg-panel: rgb(247, 243, 223);
+  --bg-hover: #f0ead8;
+  --line: rgba(159, 146, 125, 0.3);
+  --line-2: rgba(159, 146, 125, 0.5);
+  --text: #725d42;
+  --text-2: #6f5f49;
+  --text-3: #857659;
+  --accent: #19c8b9;
+  --accent-dim: rgba(25, 200, 185, 0.14);
+  --radiant: #6fba2c;
+  --radiant-dim: rgba(111, 186, 44, 0.14);
+  --dire: #e05a5a;
+  --dire-dim: rgba(224, 90, 90, 0.12);
+  --info: #889df0;
+  --font-display: "Nunito", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body: "Nunito", "Noto Sans SC", "PingFang SC", "HarmonyOS Sans SC", system-ui,
+    sans-serif;
+  --r-l: 20px;
+  --r-m: 16px;
+  --r-s: 12px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="island"] body {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+[data-theme="island"] ::selection {
+  background: rgba(25, 200, 185, 0.28);
+}
+
+[data-theme="island"] ::-webkit-scrollbar-thumb {
+  background: rgba(159, 146, 125, 0.45);
+  border-color: var(--bg);
+}
+
+[data-theme="island"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(159, 146, 125, 0.65);
+}
+
+/* Hard-coded dark surfaces that need a warm island replacement */
+[data-theme="island"] .drawer-overlay {
+  background: rgba(40, 30, 20, 0.45);
+}
+
+[data-theme="island"] .trend-tooltip,
+[data-theme="island"] .vision-chip,
+[data-theme="island"] .vision-clock {
+  background: rgba(61, 44, 24, 0.9);
+}
+
+[data-theme="island"] .filter-chip.active {
+  color: #fff9e3;
+}
+
+[data-theme="island"] .filter-chip.active small {
+  color: rgba(255, 249, 227, 0.75);
+}
+
+/* Workspace: warm hairline grid + soft island polka dots on parchment */
+[data-theme="island"] .workspace {
+  background:
+    linear-gradient(rgba(159, 146, 125, 0.06) 1px, transparent 1px) 0 0 / 100% 28px,
+    radial-gradient(circle, rgba(25, 200, 185, 0.06) 1.5px, transparent 1.5px) 0 0 / 28px 28px,
+    var(--bg);
+}
+
+/* Panels keep the parchment card look with a slightly stronger hairline */
+[data-theme="island"] .panel,
+[data-theme="island"] .drawer,
+[data-theme="island"] .tournament-menu {
+  border-color: var(--line-2);
+}
+
+/* ============================================================
+   Cute island elements — beyond a simple recolor
+   ============================================================ */
+
+/* Signature polka-dot wallpaper on panels (Card pattern look) */
+[data-theme="island"] .panel {
+  border-width: 2px;
+  background:
+    radial-gradient(circle, rgba(196, 184, 158, 0.16) 1.5px, transparent 1.5px) 0 0 / 28px 28px,
+    radial-gradient(circle, rgba(216, 208, 195, 0.14) 1px, transparent 1px) 7px 7px / 14px 14px,
+    var(--bg-panel);
+  transition: transform 0.3s var(--ease);
+}
+
+/* Panel headers get the brown stitched divider line from the island divider set */
+[data-theme="island"] .panel-head {
+  border-bottom: none;
+  background: url("./assets/island/divider-line-brown.svg") left bottom / auto 8px repeat-x;
+  padding-bottom: 16px;
+}
+
+/* Little sprout before each panel kicker (real island leaf asset) */
+[data-theme="island"] .panel-head .kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #11a89b;
+  font-weight: 700;
+}
+
+[data-theme="island"] .panel-head .kicker::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background: url("./assets/island/icon-leaf.png") center / contain no-repeat;
+}
+
+/* Stitched divider lines from the island divider set */
+[data-theme="island"] .drawer-head {
+  border-bottom: none;
+  background: url("./assets/island/divider-line-teal.svg") left bottom / auto 8px repeat-x;
+  padding-bottom: 14px;
+}
+
+/* Hero title gets the yellow wave underline */
+[data-theme="island"] .dash-hero h1 {
+  display: inline-block;
+  padding-bottom: 12px;
+  background: url("./assets/island/wave-yellow.svg") left bottom / 160px 8px no-repeat;
+}
+
+/* Game-yellow focus rings — never cold blue */
+[data-theme="island"] :focus-visible {
+  outline: 2px solid #ffcc00;
+  outline-offset: 2px;
+}
+
+/* Capsule status tags (Tag component look) */
+[data-theme="island"] .status-tag {
+  border-radius: 999px;
+  border-width: 1.5px;
+  font-weight: 600;
+}
+
+[data-theme="island"] .pill {
+  border-width: 1.5px;
+  font-weight: 600;
+}
+
+/* Active rail item becomes a solid teal capsule with a wiggling leaf */
+[data-theme="island"] .rail-item {
+  border-radius: 50px;
+  transition:
+    color 0.25s var(--ease),
+    background 0.25s var(--ease),
+    transform 0.25s var(--ease);
+}
+
+[data-theme="island"] .rail-item:hover {
+  transform: translateY(-1px);
+}
+
+[data-theme="island"] .rail-item.active {
+  color: #fff9e3;
+  background: #0cc0b5;
+}
+
+[data-theme="island"] .rail-item.active::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  width: 17px;
+  height: 17px;
+  background: url("./assets/island/icon-leaf.png") center / contain no-repeat;
+  animation: island-leaf-wiggle 2s ease-in-out infinite;
+}
+
+[data-theme="island"] .rail-tip {
+  border-radius: 16px;
+  font-weight: 600;
+}
+
+@keyframes island-leaf-wiggle {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+}
+
+/* Brand tile: teal pixel-stack block with the island leaf instead of the M */
+[data-theme="island"] .topbar-logo {
+  color: transparent;
+  border-radius: 12px;
+  box-shadow: 0 3px 0 0 #11a89b;
+  background:
+    url("./assets/island/icon-leaf.png") center / 18px no-repeat,
+    var(--accent);
+}
+
+/* Status pill: capsule; syncing state gets the teal loading stripes */
+[data-theme="island"] .topbar-status {
+  border-radius: 50px;
+  border-width: 1.5px;
+  font-weight: 600;
+}
+
+[data-theme="island"] .topbar-status.is-loading {
+  background: #0ec4b6;
+  background-image: repeating-linear-gradient(-45deg, #0ec4b6 0 10px, #01b0a7 10px 20px);
+  background-size: 28.28px 28.28px;
+  border-color: #4de2da;
+  color: #fff;
+  animation: island-stripe-scroll 1s linear infinite;
+}
+
+[data-theme="island"] .topbar-status.is-loading i {
+  background: #fff;
+  animation: none;
+}
+
+@keyframes island-stripe-scroll {
+  to {
+    background-position: -28.28px 0;
+  }
+}
+
+/* Command-palette trigger: pill input with soft elevation */
+[data-theme="island"] .palette-trigger {
+  border-radius: 50px;
+  border-width: 2px;
+  border-color: #c4b89e;
+  background: rgb(247, 243, 223);
+  transition:
+    border-color 0.25s var(--ease),
+    box-shadow 0.25s var(--ease),
+    transform 0.25s var(--ease);
+}
+
+[data-theme="island"] .palette-trigger:hover {
+  border-color: #a89878;
+  box-shadow: 0 3px 0 0 #d4c9b4;
+  transform: translateY(-1px);
+}
+
+/* Ghost buttons: soft elevation + hover lift (default-type button rules) */
+[data-theme="island"] .ghost-button {
+  border-width: 2px;
+  border-color: #9f927d;
+  border-radius: 50px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 4px 0 rgba(61, 52, 40, 0.06);
+  transition:
+    color 0.25s var(--ease),
+    border-color 0.25s var(--ease),
+    background 0.25s var(--ease),
+    box-shadow 0.25s var(--ease),
+    transform 0.25s var(--ease);
+}
+
+[data-theme="island"] .ghost-button:hover {
+  color: #19c8b9;
+  border-color: #19c8b9;
+  background: transparent;
+  box-shadow: 0 3px 10px 0 rgba(61, 52, 40, 0.1);
+  transform: translateY(-1px);
+}
+
+[data-theme="island"] .ghost-button:active {
+  color: #11a89b;
+  border-color: #11a89b;
+  transform: translateY(0);
+  box-shadow: 0 2px 4px 0 rgba(61, 52, 40, 0.06);
+}
+
+/* Segmented control: island tabs — active tab is solid teal with pixel shadow */
+[data-theme="island"] .segmented {
+  border-width: 2px;
+  border-color: #9f927d;
+  border-radius: 24px;
+  background: rgb(247, 243, 223);
+}
+
+[data-theme="island"] .segmented button {
+  border-radius: 24px;
+  font-weight: 500;
+}
+
+[data-theme="island"] .segmented button:hover {
+  background: rgba(25, 200, 185, 0.1);
+}
+
+[data-theme="island"] .segmented button.active {
+  background: #0cc0b5;
+  color: #fff9e3;
+  font-weight: 600;
+  box-shadow: 0 3px 0 0 #d4c9b4;
+}
+
+[data-theme="island"] .segmented button.active small {
+  color: rgba(255, 249, 227, 0.75);
+}
+
+/* Filter chips: capsule tags; active chip is a solid teal capsule */
+[data-theme="island"] .filter-chip {
+  border-radius: 999px;
+  border-width: 1.5px;
+  font-weight: 600;
+  transition:
+    color 0.25s var(--ease),
+    border-color 0.25s var(--ease),
+    background 0.25s var(--ease),
+    transform 0.25s var(--ease);
+}
+
+[data-theme="island"] .filter-chip:hover {
+  transform: translateY(-1px);
+  border-color: #19c8b9;
+  color: #11a89b;
+}
+
+[data-theme="island"] .filter-chip.active {
+  background: #0cc0b5;
+  border-color: #11a89b;
+  box-shadow: 0 3px 0 0 #bdaea0;
+}
+
+/* Drawer: rounded content-facing corners + warm floating shadow */
+[data-theme="island"] .drawer {
+  border-radius: 20px 0 0 20px;
+  border-width: 2px;
+  box-shadow: -12px 0 32px rgba(61, 52, 40, 0.18);
+}
+
+/* Tournament menu: banana-yellow-free parchment dropdown with polka dots */
+[data-theme="island"] .tournament-menu {
+  border-width: 2px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle, rgba(196, 184, 158, 0.16) 1.5px, transparent 1.5px) 0 0 / 28px 28px,
+    var(--bg-panel);
+  box-shadow: 0 6px 18px rgba(61, 52, 40, 0.14);
+}
+
+/* Ocean footer across the full page width (footer-sea.svg seamless repeat mode) */
+[data-theme="island"] .view::after {
+  content: "";
+  display: block;
+  height: 80px;
+  margin-top: 32px;
+  background: url("./assets/island/footer-sea.svg") left bottom / auto 80px repeat-x;
+  pointer-events: none;
+}
+
+/* Island cursor — leaf pointer everywhere (Cursor force mode) */
+[data-theme="island"] body,
+[data-theme="island"] body * {
+  cursor:
+    url("./assets/island/cursor-icon.png") 4 0,
+    auto !important;
+}
+
+/* Gold MVP / award accents map to island yellow */
+[data-theme="island"] .dash-hero {
+  background:
+    radial-gradient(900px 300px at 110% -40%, rgba(25, 200, 185, 0.08), transparent 60%),
+    var(--bg-panel);
+}
+
+[data-theme="island"] .data-notice,
+[data-theme="island"] .player-row.mvp-player,
+[data-theme="island"] .player-award-tooltip,
+[data-theme="island"] .item-slot.neutral,
+[data-theme="island"] .talent-branch.picked,
+[data-theme="island"] .schedule-score.is-result,
+[data-theme="island"] .leaderboard-card.expanded {
+  border-color: rgba(245, 195, 28, 0.55);
+}
+
+[data-theme="island"] .player-row.mvp-player {
+  background:
+    linear-gradient(90deg, rgba(245, 195, 28, 0.1), transparent 45%),
+    var(--bg-panel);
+}
+
+[data-theme="island"] .player-award-title:hover,
+[data-theme="island"] .player-award-title.active {
+  background: rgba(245, 195, 28, 0.22);
+}
+
+[data-theme="island"] .player-award-tooltip {
+  box-shadow: 0 6px 18px rgba(61, 52, 40, 0.14);
+}
+
+[data-theme="island"] .talent-branch.picked {
+  filter: drop-shadow(0 0 2px rgba(245, 195, 28, 0.55));
+}
+
+/* Ward scrubber: teal island progress on sandy track */
+[data-theme="island"] .vision-range {
+  background:
+    linear-gradient(90deg, rgba(25, 200, 185, 0.5), rgba(17, 168, 155, 0.8)) 0 0 /
+      var(--ward-progress, 0%) 100% no-repeat,
+    var(--bg);
+  border: 2px solid #e8dcc8;
+  box-shadow: inset 0 2px 4px rgba(114, 93, 66, 0.08);
+}
+
+/* Command palette: warm overlay + parchment card */
+[data-theme="island"] .palette-overlay {
+  background: rgba(40, 30, 20, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+[data-theme="island"] .palette {
+  border-width: 2px;
+  border-radius: 24px;
+  box-shadow: 0 6px 18px rgba(61, 52, 40, 0.18);
+}
+
+/* SVG chart / glyph strokes that were white-on-dark become warm brown */
+[data-theme="island"] .ability-fallback-svg {
+  stroke: rgba(114, 93, 66, 0.45);
+}
+
+[data-theme="island"] .attribute-glyph circle:first-child {
+  fill: rgba(114, 93, 66, 0.12);
+}
+
+[data-theme="island"] .trend-grid-line {
+  stroke: rgba(159, 146, 125, 0.28);
+}
+
+/* Cloud tags: pastel accents darkened for readability on cream */
+[data-theme="island"] .cloud-tag {
+  color: color-mix(in srgb, var(--tag-accent, var(--accent)) 55%, #3d2e1e);
+  border-width: 1.5px;
+  background: color-mix(in srgb, var(--tag-accent, var(--accent)) 14%, #fffdf4);
+  font-weight: 600;
+}
+
+[data-theme="island"] .cloud-tag:hover {
+  background: color-mix(in srgb, var(--tag-accent, var(--accent)) 24%, #fffdf4);
+}
+
+/* Text inputs get the island select cursor */
+[data-theme="island"] input,
+[data-theme="island"] textarea {
+  cursor: url("./assets/island/select-cursor.svg") 4 0, text !important;
+}
+
+/* Yellow stitched divider under the topbar */
+[data-theme="island"] .topbar {
+  border-bottom: none;
+  background:
+    url("./assets/island/divider-line-yellow.svg") left bottom / auto 6px repeat-x,
+    linear-gradient(180deg, #fffdf4 0%, #f8f8f0 100%);
+}
+
+/* Team badges: dark-stroked capsule so light team colors stay readable on cream */
+[data-theme="island"] .team-mark {
+  color: color-mix(in srgb, var(--team, var(--accent)) 50%, #3d2e1e);
+  background: color-mix(in srgb, var(--team, var(--accent)) 18%, #fffdf4);
+  border: 1.5px solid color-mix(in srgb, var(--team, var(--accent)) 55%, #3d2e1e);
+  border-radius: 999px;
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255, 253, 244, 0.8);
+}
+
+/* Dashboard hero: Tom Nook twins + tree-line strip along the bottom */
+[data-theme="island"] .dash-hero {
+  position: relative;
+  overflow: hidden;
+  padding-right: 240px;
+  padding-bottom: 46px;
+  background:
+    url("./assets/island/footer-tree.webp") left bottom / auto 22px repeat-x,
+    radial-gradient(900px 300px at 110% -40%, rgba(25, 200, 185, 0.08), transparent 60%),
+    var(--bg-panel);
+}
+
+[data-theme="island"] .dash-hero::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  bottom: 22px;
+  width: 210px;
+  height: 140px;
+  background: url("./assets/island/animal-icon.png") right bottom / contain no-repeat;
+  pointer-events: none;
+}
+
+/* Empty states get the Nook bells bag instead of the dashed circle */
+[data-theme="island"] .empty-state-glyph {
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 0;
+  background: url("./assets/island/item-bells-bag.png") center / contain no-repeat;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="island"] .rail-item.active::after,
+  [data-theme="island"] .topbar-status.is-loading {
+    animation: none;
+  }
+}

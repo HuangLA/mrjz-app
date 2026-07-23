@@ -9,6 +9,7 @@ import {
   type MobileData,
 } from "./api";
 import type { AppRoute, MatchData, PlayerProfile, StageKey, TeamProfile } from "./data";
+import { applyTheme, readTheme, type ThemeName } from "./theme";
 import { DashboardPage } from "./pages/DashboardPage";
 import { StagePage } from "./pages/StagePage";
 import { SchedulePage } from "./pages/SchedulePage";
@@ -170,6 +171,11 @@ export function App() {
   const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [tournamentMenuOpen, setTournamentMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeName>(() => readTheme());
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   const routeHistoryRef = useRef<AppRouteSnapshot[]>([]);
   const loadingKeysRef = useRef(new Set<string>());
@@ -754,6 +760,29 @@ export function App() {
             <i aria-hidden="true" />
             {loading ? "同步中" : viewData.source === "api" ? "API 在线" : "离线"}
           </span>
+          <button
+            className="ghost-button theme-toggle"
+            type="button"
+            onClick={() => setTheme((current) => (current === "island" ? "default" : "island"))}
+            aria-pressed={theme === "island"}
+            title={theme === "island" ? "切回默认皮肤" : "切换到海岛皮肤"}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 19C5 9 12 4 20 4c0 8-5 15-15 15Z" />
+              <path d="M5 19c3-5 7-9 11-11" />
+            </svg>
+            {theme === "island" ? "默认皮肤" : "海岛皮肤"}
+          </button>
           <button
             className="ghost-button"
             type="button"
