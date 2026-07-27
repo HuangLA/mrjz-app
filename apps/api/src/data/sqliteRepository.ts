@@ -5653,6 +5653,7 @@ export class SqliteTournamentRepository {
         radiantTeamId,
         direTeamId,
       });
+      this.linkUnlinkedBracketNodeToSeries(stageId, id, radiantTeamId, direTeamId);
       this.recalculateStageStandings(stageId);
       this.database.exec("COMMIT;");
     } catch (error) {
@@ -6988,13 +6989,54 @@ export class SqliteTournamentRepository {
     return id;
   }
 
+  private linkUnlinkedBracketNodeToSeries(
+    stageId: string,
+    seriesId: string,
+    radiantTeamId: string,
+    direTeamId: string,
+  ): void {
+    const row = this.database
+      .prepare(
+        `
+          SELECT id
+          FROM bracket_nodes
+          WHERE stage_id = ?
+            AND winner_team_id IS NULL
+            AND series_id IS NULL
+            AND (
+              (radiant_team_id = ? AND dire_team_id = ?)
+              OR (radiant_team_id = ? AND dire_team_id = ?)
+            )
+          ORDER BY round_number ASC, position ASC
+          LIMIT 1
+        `,
+      )
+      .get(stageId, radiantTeamId, direTeamId, direTeamId, radiantTeamId);
+
+    if (row === undefined) {
+      return;
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE bracket_nodes
+          SET
+            series_id = ?,
+            status = 'scheduled',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE id = ?
+        `,
+      )
+      .run(seriesId, text(row, "id"));
+  }
+
   private createReadyBracketSeries(
     stageId: string,
     boType: SeriesSummary["boType"],
     scheduledAt: string,
     roundIds?: Map<string, string>,
-  ): void {
-    const rows = this.database
+  ): void {    const rows = this.database
       .prepare(
         `
           SELECT id, bracket_group, round_number, round_name, radiant_team_id, dire_team_id, series_id
