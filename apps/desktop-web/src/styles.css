@@ -3971,11 +3971,10 @@ button.series-game-row:hover {
 }
 
 .hero-match-row {
-  display: grid;
-  grid-template-columns: 150px 1fr 200px 70px 44px;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 12px;
   text-align: left;
   border-bottom: 1px solid var(--line);
   transition: background 0.12s;
@@ -3990,55 +3989,77 @@ button.series-game-row:hover {
   background: var(--bg-hover);
 }
 
-.hero-match-time b,
-.hero-match-teams b {
-  display: block;
-  color: var(--text);
-  font-size: 12px;
-}
-
-.hero-match-time small,
-.hero-match-teams small {
-  color: var(--text-3);
-  font-size: 10px;
-}
-
-.hero-match-stats {
+.hero-match-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   min-width: 0;
 }
 
-.hero-match-stats b {
-  display: block;
-  color: var(--text);
+.hero-match-line-main {
   font-size: 12px;
+  color: var(--text);
+}
+
+.hero-match-time {
+  flex: none;
+  width: 170px;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-.hero-match-stats small {
-  display: block;
+.hero-match-time small {
+  margin-left: 6px;
   color: var(--text-3);
   font-size: 10px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-variant-numeric: tabular-nums;
 }
 
 .hero-match-teams {
+  flex: 1;
   min-width: 0;
-}
-
-.hero-match-teams b {
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .hero-match-score {
+  flex: none;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text-2);
-  text-align: right;
+}
+
+.hero-match-line-main .status-tag {
+  flex: none;
+}
+
+.hero-match-line-sub {
+  font-size: 10.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.hero-match-player {
+  flex: none;
+  max-width: 46%;
+  color: var(--text-2);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-match-kda {
+  flex: none;
+  color: var(--text-2);
+}
+
+.hero-match-economy {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ============================================================
