@@ -545,6 +545,13 @@ export type HeroStatsMatchEntry = {
   side: TeamSide;
   playerName: string;
   result: "win" | "loss" | "unknown";
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
+  goldPerMin: number | null;
+  xpPerMin: number | null;
+  netWorth: number | null;
+  heroDamage: number | null;
 };
 
 export type HeroStatsItem = {
@@ -2844,6 +2851,13 @@ export class SqliteTournamentRepository {
             player.name?.trim() ||
             `玩家 ${player.player_slot}`,
           result: didWin === null ? "unknown" : didWin ? "win" : "loss",
+          kills: typeof player.kills === "number" ? player.kills : null,
+          deaths: typeof player.deaths === "number" ? player.deaths : null,
+          assists: typeof player.assists === "number" ? player.assists : null,
+          goldPerMin: typeof player.gold_per_min === "number" ? player.gold_per_min : null,
+          xpPerMin: typeof player.xp_per_min === "number" ? player.xp_per_min : null,
+          netWorth: typeof player.net_worth === "number" ? player.net_worth : null,
+          heroDamage: typeof player.hero_damage === "number" ? player.hero_damage : null,
         });
       }
 
