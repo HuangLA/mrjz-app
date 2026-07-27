@@ -27,6 +27,7 @@ import {
   type ListAdminTagPlayersInput,
   type ListAdminTagsInput,
   type TournamentHeroLeaderboardsView,
+  type TournamentHeroStatsView,
   type OpenDotaMatchListItem,
   type LeagueOption,
   type OpenDotaMatchCache,
@@ -108,6 +109,7 @@ type Repository = {
   listTournamentTeams(tournamentId: string): TournamentTeamListItem[] | undefined;
   listTournamentPlayers(tournamentId: string): TournamentPlayerListItem[] | undefined;
   listTournamentHeroLeaderboards(tournamentId: string): TournamentHeroLeaderboardsView | undefined;
+  listTournamentHeroStats(tournamentId: string): TournamentHeroStatsView | undefined;
   getPlayerAvatarUrlByAccountId(accountId: number): string | null;
   getTournamentTeamDetail(tournamentId: string, teamId: string): TournamentTeamDetail | undefined;
   getTournamentPlayerDetail(
@@ -279,6 +281,10 @@ export function listTournamentPlayers(tournamentId: string) {
 
 export function listTournamentHeroLeaderboards(tournamentId: string) {
   return repository.listTournamentHeroLeaderboards(tournamentId);
+}
+
+export function listTournamentHeroStats(tournamentId: string) {
+  return repository.listTournamentHeroStats(tournamentId);
 }
 
 export function getPlayerAvatarUrlByAccountId(accountId: number) {

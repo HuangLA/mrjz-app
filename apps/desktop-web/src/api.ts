@@ -7,6 +7,9 @@ import type {
   ComparisonMetric,
   DraftStep,
   HeroPickSummary,
+  HeroStatsItem,
+  HeroStatsMatchEntry,
+  HeroStatsView,
   HeroLeaderboardCandidate,
   HeroLeaderboardItem,
   HeroLeaderboardsView,
@@ -66,6 +69,7 @@ export type MobileData = {
   tournamentRecentRecords: Record<string, MatchRecord[]>;
   acknowledgements: AcknowledgementItem[];
   heroLeaderboards: HeroLeaderboardsView;
+  heroStats: HeroStatsView;
   players: PlayerDirectoryItem[];
   teams: TeamDirectoryItem[];
   featuredMatch: MatchData;
@@ -114,6 +118,39 @@ type ApiHeroPickSummary = {
   heroId?: number;
   picks?: number;
   wins?: number;
+};
+
+type ApiHeroStatsMatchEntry = {
+  matchId?: number;
+  startTime?: string | null;
+  durationText?: string | null;
+  radiantTeamName?: string;
+  direTeamName?: string;
+  radiantScore?: number | null;
+  direScore?: number | null;
+  radiantWin?: boolean | null;
+  side?: TeamSide;
+  playerName?: string;
+  result?: "win" | "loss" | "unknown";
+};
+
+type ApiHeroStatsItem = {
+  heroId?: number;
+  picks?: number;
+  wins?: number;
+  losses?: number;
+  bans?: number;
+  winRate?: number | null;
+  pickRate?: number | null;
+  banRate?: number | null;
+  matches?: ApiHeroStatsMatchEntry[];
+};
+
+type ApiHeroStatsView = {
+  tournamentId?: string;
+  tournamentName?: string;
+  totalMatches?: number;
+  heroes?: ApiHeroStatsItem[];
 };
 
 type ApiPlayerDirectoryItem = {
@@ -735,6 +772,7 @@ export async function loadMobileData(tournamentId?: string): Promise<MobileData>
     tournamentRecentRecords,
     acknowledgements,
     heroLeaderboards,
+    heroStats: emptyHeroStatsView("", tournament.name),
     players,
     teams,
     featuredMatch: match,
@@ -921,6 +959,21 @@ export async function loadTournamentTeams(
   return teams.map((team) => normalizeTeamDirectoryItem(team, apiBaseUrl));
 }
 
+export async function loadTournamentHeroStats(
+  apiBaseUrl: string,
+  tournamentId: string,
+): Promise<HeroStatsView> {
+  const [view] = await Promise.all([
+    fetchApi<ApiHeroStatsView>(
+      apiBaseUrl,
+      `/tournaments/${encodeURIComponent(tournamentId)}/hero-stats`,
+    ),
+    loadDotaConstants(),
+  ]);
+
+  return normalizeHeroStatsView(view, tournamentId);
+}
+
 export async function loadAcknowledgements(apiBaseUrl: string): Promise<AcknowledgementItem[]> {
   const acknowledgements = await fetchApi<ApiAcknowledgementItem[]>(
     apiBaseUrl,
@@ -1009,6 +1062,7 @@ function emptyMobileData(
       minMatches: 5,
       leaderboards: [],
     },
+    heroStats: emptyHeroStatsView(selectedTournamentId, "暂无真实赛事"),
     players: [],
     teams: [],
     featuredMatch: emptyMatchData(),
@@ -1307,6 +1361,61 @@ function normalizeHeroPickSummary(hero: ApiHeroPickSummary): HeroPickSummary {
     portrait: heroPortrait(heroId),
     picks: hero.picks ?? 0,
     wins: hero.wins ?? 0,
+  };
+}
+
+function emptyHeroStatsView(tournamentId: string, tournamentName: string): HeroStatsView {
+  return {
+    tournamentId,
+    tournamentName,
+    totalMatches: 0,
+    heroes: [],
+  };
+}
+
+function normalizeHeroStatsView(view: ApiHeroStatsView, tournamentId: string): HeroStatsView {
+  return {
+    tournamentId: view.tournamentId ?? tournamentId,
+    tournamentName: view.tournamentName ?? "未命名赛事",
+    totalMatches: view.totalMatches ?? 0,
+    heroes: (view.heroes ?? [])
+      .map(normalizeHeroStatsItem)
+      .filter((hero) => hero.heroId > 0),
+  };
+}
+
+function normalizeHeroStatsItem(item: ApiHeroStatsItem): HeroStatsItem {
+  const heroId = item.heroId ?? 0;
+
+  return {
+    heroId,
+    hero: heroLabel(heroId),
+    icon: heroIcon(heroId),
+    portrait: heroPortrait(heroId),
+    picks: item.picks ?? 0,
+    wins: item.wins ?? 0,
+    losses: item.losses ?? 0,
+    bans: item.bans ?? 0,
+    winRate: item.winRate ?? null,
+    pickRate: item.pickRate ?? null,
+    banRate: item.banRate ?? null,
+    matches: (item.matches ?? []).map(normalizeHeroStatsMatch),
+  };
+}
+
+function normalizeHeroStatsMatch(match: ApiHeroStatsMatchEntry): HeroStatsMatchEntry {
+  return {
+    matchId: String(match.matchId ?? "-"),
+    startTime: formatMaybeDateTime(match.startTime) ?? "时间待定",
+    duration: match.durationText ?? "--:--",
+    radiantTeamName: match.radiantTeamName ?? "天辉",
+    direTeamName: match.direTeamName ?? "夜魇",
+    radiantScore: match.radiantScore ?? null,
+    direScore: match.direScore ?? null,
+    radiantWin: match.radiantWin ?? null,
+    side: match.side === "dire" ? "dire" : "radiant",
+    playerName: match.playerName?.trim() || "未知玩家",
+    result: match.result ?? "unknown",
   };
 }
 

@@ -533,6 +533,39 @@ export type TournamentHeroLeaderboardsView = {
   leaderboards: HeroLeaderboardItem[];
 };
 
+export type HeroStatsMatchEntry = {
+  matchId: number;
+  startTime: string | null;
+  durationText: string | null;
+  radiantTeamName: string;
+  direTeamName: string;
+  radiantScore: number | null;
+  direScore: number | null;
+  radiantWin: boolean | null;
+  side: TeamSide;
+  playerName: string;
+  result: "win" | "loss" | "unknown";
+};
+
+export type HeroStatsItem = {
+  heroId: number;
+  picks: number;
+  wins: number;
+  losses: number;
+  bans: number;
+  winRate: number | null;
+  pickRate: number | null;
+  banRate: number | null;
+  matches: HeroStatsMatchEntry[];
+};
+
+export type TournamentHeroStatsView = {
+  tournamentId: string;
+  tournamentName: string;
+  totalMatches: number;
+  heroes: HeroStatsItem[];
+};
+
 export type ProfileMatchSummary = {
   matchId: number;
   startTime: string | null;
@@ -2749,6 +2782,105 @@ export class SqliteTournamentRepository {
           candidates,
         };
       }),
+    };
+  }
+
+  listTournamentHeroStats(tournamentId: string): TournamentHeroStatsView | undefined {
+    const target = this.getLeagueSyncTargetByTournamentId(tournamentId);
+
+    if (target === undefined) {
+      return undefined;
+    }
+
+    const matchRows = this.matchRowsForLeague(target.league.opendotaLeagueId);
+    const heroes = new Map<
+      number,
+      { picks: number; wins: number; bans: number; matches: HeroStatsMatchEntry[] }
+    >();
+
+    const ensureHero = (heroId: number) => {
+      const existing = heroes.get(heroId);
+
+      if (existing !== undefined) {
+        return existing;
+      }
+
+      const created = { picks: 0, wins: 0, bans: 0, matches: [] as HeroStatsMatchEntry[] };
+      heroes.set(heroId, created);
+      return created;
+    };
+
+    for (const match of matchRows) {
+      const raw = match.raw;
+      const radiantWin = typeof raw.radiant_win === "boolean" ? raw.radiant_win : null;
+
+      for (const player of raw.players ?? []) {
+        if (typeof player.hero_id !== "number" || player.hero_id <= 0) {
+          continue;
+        }
+
+        const side = sideFromPlayer(player);
+        const didWin = playerWon(raw, side);
+        const entry = ensureHero(player.hero_id);
+        entry.picks += 1;
+
+        if (didWin === true) {
+          entry.wins += 1;
+        }
+
+        entry.matches.push({
+          matchId: raw.match_id,
+          startTime: matchStartTime(raw),
+          durationText: typeof raw.duration === "number" ? formatDuration(raw.duration) : null,
+          radiantTeamName: stringOr(raw.radiant_name, "天辉"),
+          direTeamName: stringOr(raw.dire_name, "夜魇"),
+          radiantScore: typeof raw.radiant_score === "number" ? raw.radiant_score : null,
+          direScore: typeof raw.dire_score === "number" ? raw.dire_score : null,
+          radiantWin,
+          side,
+          playerName:
+            player.personaname?.trim() ||
+            player.player_name?.trim() ||
+            player.name?.trim() ||
+            `玩家 ${player.player_slot}`,
+          result: didWin === null ? "unknown" : didWin ? "win" : "loss",
+        });
+      }
+
+      for (const action of raw.picks_bans ?? []) {
+        if (action.is_pick === false && typeof action.hero_id === "number" && action.hero_id > 0) {
+          ensureHero(action.hero_id).bans += 1;
+        }
+      }
+    }
+
+    const totalMatches = matchRows.length;
+    const heroItems = [...heroes.entries()]
+      .map(([heroId, entry]): HeroStatsItem => {
+        const losses = entry.picks - entry.wins;
+
+        return {
+          heroId,
+          picks: entry.picks,
+          wins: entry.wins,
+          losses,
+          bans: entry.bans,
+          winRate: entry.picks > 0 ? round1((entry.wins / entry.picks) * 100) : null,
+          pickRate: totalMatches > 0 ? round1((entry.picks / totalMatches) * 100) : null,
+          banRate: totalMatches > 0 ? round1((entry.bans / totalMatches) * 100) : null,
+          matches: entry.matches,
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.picks + right.bans - (left.picks + left.bans) || left.heroId - right.heroId,
+      );
+
+    return {
+      tournamentId: target.tournamentId,
+      tournamentName: target.tournamentName,
+      totalMatches,
+      heroes: heroItems,
     };
   }
 

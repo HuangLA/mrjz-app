@@ -74,6 +74,14 @@ export function CommandPalette({
         target: { kind: "route", route: "leaderboard" },
       },
       {
+        id: "route:heroes",
+        group: "导航",
+        kindLabel: "页面",
+        title: "英雄数据",
+        sub: "Ban/Pick 与胜率统计",
+        target: { kind: "route", route: "heroes" },
+      },
+      {
         id: "route:players",
         group: "导航",
         kindLabel: "页面",
