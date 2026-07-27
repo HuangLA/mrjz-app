@@ -54,6 +54,13 @@ export interface HeroStatsMatchEntry {
   side: TeamSide;
   playerName: string;
   result: "win" | "loss" | "unknown";
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
+  goldPerMin: number | null;
+  xpPerMin: number | null;
+  netWorth: number | null;
+  heroDamage: number | null;
 }
 
 export interface HeroStatsItem {

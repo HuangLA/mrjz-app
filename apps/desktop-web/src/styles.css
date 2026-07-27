@@ -3972,7 +3972,7 @@ button.series-game-row:hover {
 
 .hero-match-row {
   display: grid;
-  grid-template-columns: 150px 1fr 70px 44px;
+  grid-template-columns: 150px 1fr 200px 70px 44px;
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
@@ -4001,6 +4001,27 @@ button.series-game-row:hover {
 .hero-match-teams small {
   color: var(--text-3);
   font-size: 10px;
+}
+
+.hero-match-stats {
+  min-width: 0;
+}
+
+.hero-match-stats b {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-match-stats small {
+  display: block;
+  color: var(--text-3);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 
 .hero-match-teams {

@@ -318,6 +318,18 @@ function HeroMatchList({
           match.radiantScore === null || match.direScore === null
             ? "-:-"
             : `${match.radiantScore}:${match.direScore}`;
+        const kda =
+          match.kills === null || match.deaths === null || match.assists === null
+            ? "-/-/-"
+            : `${match.kills}/${match.deaths}/${match.assists}`;
+        const economy = [
+          match.goldPerMin === null ? null : `GPM ${match.goldPerMin}`,
+          match.xpPerMin === null ? null : `XPM ${match.xpPerMin}`,
+          match.netWorth === null ? null : `经济 ${compactNumber(match.netWorth)}`,
+          match.heroDamage === null ? null : `伤害 ${compactNumber(match.heroDamage)}`,
+        ]
+          .filter((part) => part !== null)
+          .join(" · ");
 
         return (
           <button
@@ -341,6 +353,10 @@ function HeroMatchList({
                 {match.playerName} · {heroTeamName}（{match.side === "radiant" ? "天辉" : "夜魇"}）
               </small>
             </span>
+            <span className="hero-match-stats">
+              <b>{kda}</b>
+              <small>{economy || "暂无数据"}</small>
+            </span>
             <span className="hero-match-score">{score}</span>
             <span
               className={`status-tag ${
@@ -354,4 +370,8 @@ function HeroMatchList({
       })}
     </div>
   );
+}
+
+function compactNumber(value: number): string {
+  return value >= 10000 ? `${(value / 1000).toFixed(1)}k` : String(value);
 }

@@ -132,6 +132,13 @@ type ApiHeroStatsMatchEntry = {
   side?: TeamSide;
   playerName?: string;
   result?: "win" | "loss" | "unknown";
+  kills?: number | null;
+  deaths?: number | null;
+  assists?: number | null;
+  goldPerMin?: number | null;
+  xpPerMin?: number | null;
+  netWorth?: number | null;
+  heroDamage?: number | null;
 };
 
 type ApiHeroStatsItem = {
@@ -1416,6 +1423,13 @@ function normalizeHeroStatsMatch(match: ApiHeroStatsMatchEntry): HeroStatsMatchE
     side: match.side === "dire" ? "dire" : "radiant",
     playerName: match.playerName?.trim() || "未知玩家",
     result: match.result ?? "unknown",
+    kills: match.kills ?? null,
+    deaths: match.deaths ?? null,
+    assists: match.assists ?? null,
+    goldPerMin: match.goldPerMin ?? null,
+    xpPerMin: match.xpPerMin ?? null,
+    netWorth: match.netWorth ?? null,
+    heroDamage: match.heroDamage ?? null,
   };
 }
 
