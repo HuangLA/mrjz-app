@@ -47,6 +47,7 @@ import {
   listLeagueSyncTargets,
   listPlayerTags,
   listTournamentHeroLeaderboards,
+  listTournamentHeroStats,
   listTournamentOpenDotaMatches,
   listTournamentPlayers,
   listTournamentTeams,
@@ -104,6 +105,7 @@ const READ_CACHE_TTL = {
   teams: 60_000,
   players: 60_000,
   heroLeaderboards: 120_000,
+  heroStats: 120_000,
   officialSchedule: 20_000,
   stage: 20_000,
   matchDetail: 120_000,
@@ -545,6 +547,18 @@ export function createApiRouter(getHealthStatus: () => HealthStatus): Router {
     }
 
     return ok(leaderboards);
+  });
+
+  router.get("/api/tournaments/:id/hero-stats", ({ params }) => {
+    const heroStats = cached(`hero-stats:${params.id ?? ""}`, READ_CACHE_TTL.heroStats, () =>
+      listTournamentHeroStats(params.id ?? ""),
+    );
+
+    if (heroStats === undefined) {
+      return fail(404, "TOURNAMENT_NOT_FOUND", "Tournament not found");
+    }
+
+    return ok(heroStats);
   });
 
   router.get("/api/tournaments/:id/players/:playerId", ({ params }) => {
@@ -1374,6 +1388,7 @@ const PUBLIC_GET_PATTERNS = new Set([
   "/api/tournaments/:id/teams/:teamId",
   "/api/tournaments/:id/players",
   "/api/tournaments/:id/hero-leaderboards",
+  "/api/tournaments/:id/hero-stats",
   "/api/tournaments/:id/players/:playerId",
   "/api/tournaments/:id/players/:playerId/tags",
   "/api/tournaments/:id/official-schedule",

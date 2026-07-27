@@ -930,6 +930,12 @@ export function emptyMobileData(): MobileData {
       minMatches: 5,
       leaderboards: [],
     },
+    heroStats: {
+      tournamentId: "",
+      tournamentName: "MRJZ",
+      totalMatches: 0,
+      heroes: [],
+    },
     players: [],
     teams: [],
     featuredMatch: emptyMatchData(),
@@ -1007,6 +1013,7 @@ export const routeOptions: Array<{ key: AppRoute; label: string; kicker: string 
   { key: "records", label: "比赛记录", kicker: "RECORDS" },
   { key: "match", label: "比赛详情", kicker: "MATCH" },
   { key: "leaderboard", label: "英雄榜", kicker: "AWARDS" },
+  { key: "heroes", label: "英雄数据", kicker: "HEROES" },
   { key: "players", label: "选手", kicker: "PLAYERS" },
   { key: "teams", label: "队伍", kicker: "TEAMS" },
 ];

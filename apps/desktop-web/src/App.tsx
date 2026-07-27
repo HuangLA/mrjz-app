@@ -4,6 +4,7 @@ import {
   loadMobileData,
   loadPlayerProfile,
   loadTeamProfile,
+  loadTournamentHeroStats,
   loadTournamentPlayers,
   loadTournamentTeams,
   type MobileData,
@@ -15,6 +16,7 @@ import { StagePage } from "./pages/StagePage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { RecordsWorkspace } from "./pages/RecordsWorkspace";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
+import { HeroesPage } from "./pages/HeroesPage";
 import { PlayersPage } from "./pages/PlayersPage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { PlayerProfileContent, TeamProfileContent } from "./pages/ProfilePages";
@@ -115,6 +117,22 @@ const railItems: Array<{ key: AppRoute; label: string; icon: React.ReactNode }> 
       >
         <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z" />
         <path d="M7 6H4a2 2 0 0 0 2 4h1M17 6h3a2 2 0 0 1-2 4h-1" />
+      </svg>
+    ),
+  },
+  {
+    key: "heroes",
+    label: "英雄数据",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" />
       </svg>
     ),
   },
@@ -439,6 +457,41 @@ export function App() {
     }
   }, [data]);
 
+  const ensureHeroStatsLoaded = useCallback(async () => {
+    const snapshot = data;
+    const key = "heroStats";
+
+    if (
+      !snapshot ||
+      snapshot.heroStats.tournamentId === snapshot.selectedTournamentId ||
+      loadingKeysRef.current.has(key)
+    ) {
+      return;
+    }
+
+    loadingKeysRef.current.add(key);
+    setProfileLoading((previous) => ({ ...previous, [key]: true }));
+    setProfileErrors((previous) => withoutKey(previous, key));
+
+    try {
+      const heroStats = await loadTournamentHeroStats(
+        snapshot.apiBaseUrl,
+        snapshot.selectedTournamentId,
+      );
+      setData((previous) =>
+        previous && previous.selectedTournamentId === snapshot.selectedTournamentId
+          ? { ...previous, heroStats }
+          : previous,
+      );
+    } catch (error) {
+      console.error(error);
+      setProfileErrors((previous) => ({ ...previous, [key]: "读取失败" }));
+    } finally {
+      loadingKeysRef.current.delete(key);
+      setProfileLoading((previous) => withoutKey(previous, key));
+    }
+  }, [data]);
+
   const ensurePlayerProfileLoaded = useCallback(
     async (playerId: string) => {
       const snapshot = data;
@@ -510,6 +563,10 @@ export function App() {
       void ensureTeamsLoaded();
     }
 
+    if (route === "heroes") {
+      void ensureHeroStatsLoaded();
+    }
+
     const playerId = route === "player" ? profileId : null;
 
     if (route === "player" && playerId) {
@@ -526,6 +583,7 @@ export function App() {
     profileId,
     ensurePlayerProfileLoaded,
     ensurePlayersLoaded,
+    ensureHeroStatsLoaded,
     ensureTeamProfileLoaded,
     ensureTeamsLoaded,
   ]);
@@ -667,6 +725,18 @@ export function App() {
       break;
     case "leaderboard":
       routeView = <LeaderboardPage data={viewData} loading={loading} onNavigate={navigateTo} />;
+      break;
+    case "heroes":
+      routeView = (
+        <HeroesPage
+          data={viewData}
+          loading={loading}
+          profileLoading={profileLoading}
+          profileErrors={profileErrors}
+          onNavigate={navigateTo}
+          onOpenMatch={openMatch}
+        />
+      );
       break;
     case "players":
       routeView = (

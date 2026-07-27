@@ -5,6 +5,7 @@ export type AppRoute =
   | "records"
   | "match"
   | "leaderboard"
+  | "heroes"
   | "players"
   | "teams"
   | "player"
@@ -39,6 +40,42 @@ export interface HeroPickSummary {
   portrait: string;
   picks: number;
   wins: number;
+}
+
+export interface HeroStatsMatchEntry {
+  matchId: string;
+  startTime: string;
+  duration: string;
+  radiantTeamName: string;
+  direTeamName: string;
+  radiantScore: number | null;
+  direScore: number | null;
+  radiantWin: boolean | null;
+  side: TeamSide;
+  playerName: string;
+  result: "win" | "loss" | "unknown";
+}
+
+export interface HeroStatsItem {
+  heroId: number;
+  hero: string;
+  icon: string;
+  portrait: string;
+  picks: number;
+  wins: number;
+  losses: number;
+  bans: number;
+  winRate: number | null;
+  pickRate: number | null;
+  banRate: number | null;
+  matches: HeroStatsMatchEntry[];
+}
+
+export interface HeroStatsView {
+  tournamentId: string;
+  tournamentName: string;
+  totalMatches: number;
+  heroes: HeroStatsItem[];
 }
 
 export interface PlayerTag {
