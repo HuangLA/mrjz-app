@@ -341,29 +341,29 @@ function HeroMatchList({
               onOpenMatch(match.matchId);
             }}
           >
-            <span className="hero-match-time">
-              <b>{match.startTime}</b>
-              <small>{match.duration}</small>
-            </span>
-            <span className="hero-match-teams">
-              <b>
+            <span className="hero-match-line hero-match-line-main">
+              <span className="hero-match-time">
+                {match.startTime}
+                <small>{match.duration}</small>
+              </span>
+              <span className="hero-match-teams">
                 {match.radiantTeamName} vs {match.direTeamName}
-              </b>
-              <small>
+              </span>
+              <span className="hero-match-score">{score}</span>
+              <span
+                className={`status-tag ${
+                  match.result === "win" ? "green" : match.result === "loss" ? "red" : "blue"
+                }`}
+              >
+                {match.result === "win" ? "胜" : match.result === "loss" ? "负" : "未知"}
+              </span>
+            </span>
+            <span className="hero-match-line hero-match-line-sub">
+              <span className="hero-match-player">
                 {match.playerName} · {heroTeamName}（{match.side === "radiant" ? "天辉" : "夜魇"}）
-              </small>
-            </span>
-            <span className="hero-match-stats">
-              <b>{kda}</b>
-              <small>{economy || "暂无数据"}</small>
-            </span>
-            <span className="hero-match-score">{score}</span>
-            <span
-              className={`status-tag ${
-                match.result === "win" ? "green" : match.result === "loss" ? "red" : "blue"
-              }`}
-            >
-              {match.result === "win" ? "胜" : match.result === "loss" ? "负" : "未知"}
+              </span>
+              <span className="hero-match-kda">KDA {kda}</span>
+              <span className="hero-match-economy">{economy || "暂无经济数据"}</span>
             </span>
           </button>
         );
