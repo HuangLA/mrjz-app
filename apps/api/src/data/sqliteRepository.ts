@@ -6,6 +6,7 @@ import { normalizeOpenDotaMatchDetail } from "../opendota/normalizers/matchDetai
 import { accountIdToSteamId64, steamId64ToAccountId } from "../opendota/steamClient.js";
 import type { OpenDotaMatchDetail, OpenDotaMatchPlayer } from "../opendota/types.js";
 import { resolveSeriesGameWinnerTeamId } from "./seriesGameWinner.js";
+import { shouldAutoAdvanceBracketNode } from "./bracketByeAdvance.js";
 import type {
   BracketNode,
   OfficialScheduleLogEntry,
@@ -905,7 +906,7 @@ export type SteamPlayerProfileInput = {
 export type CreateTournamentInput = {
   name: string;
   seasonName?: string;
-  opendotaLeagueId: number;
+  opendotaLeagueId?: number | null;
   startsAt?: string;
   status?: TournamentLifecycleStatus;
 };
@@ -1772,12 +1773,15 @@ export class SqliteTournamentRepository {
 
   createTournament(input: CreateTournamentInput): TournamentDetail {
     const name = requiredString(input.name, "name");
-    const opendotaLeagueId = requiredPositiveInteger(input.opendotaLeagueId, "opendotaLeagueId");
+    const opendotaLeagueId =
+      input.opendotaLeagueId === null || input.opendotaLeagueId === undefined
+        ? null
+        : requiredPositiveInteger(input.opendotaLeagueId, "opendotaLeagueId");
     const status = input.status ?? "upcoming";
     const startsAt = input.startsAt ?? new Date().toISOString();
     const slug = this.uniqueSlug(name, opendotaLeagueId);
     const seasonName = input.seasonName?.trim() || name;
-    const leagueId = uniqueId("league", `${slug}-${opendotaLeagueId}`);
+    const leagueId = uniqueId("league", `${slug}-${opendotaLeagueId ?? "manual"}`);
     const seasonId = uniqueId("season", seasonName);
     const tournamentId = uniqueId("tournament", slug);
     const stageId = uniqueId("stage", `${slug}-records`);
@@ -2531,7 +2535,7 @@ export class SqliteTournamentRepository {
       .map((row) => ({
         id: text(row, "id"),
         name: text(row, "name"),
-        opendotaLeagueId: numberValue(row, "opendota_league_id"),
+        opendotaLeagueId: nullableNumber(row, "opendota_league_id"),
         tournamentCount: numberValue(row, "tournament_count"),
         latestTournamentId: nullableText(row, "latest_tournament_id"),
       }));
@@ -2571,7 +2575,7 @@ export class SqliteTournamentRepository {
     const statusFilter =
       statuses === undefined || statuses.length === 0
         ? ""
-        : `WHERE t.status IN (${statuses.map(() => "?").join(", ")})`;
+        : `AND t.status IN (${statuses.map(() => "?").join(", ")})`;
 
     return this.database
       .prepare(
@@ -2587,6 +2591,7 @@ export class SqliteTournamentRepository {
             l.opendota_league_id
           FROM tournaments t
           JOIN leagues l ON l.id = t.league_id
+          WHERE l.opendota_league_id IS NOT NULL
           ${statusFilter}
           ORDER BY t.starts_at ASC, t.id ASC
         `,
@@ -2601,7 +2606,7 @@ export class SqliteTournamentRepository {
         league: {
           id: text(row, "league_id"),
           name: text(row, "league_name"),
-          opendotaLeagueId: numberValue(row, "opendota_league_id"),
+          opendotaLeagueId: nullableNumber(row, "opendota_league_id"),
         },
       }));
   }
@@ -7103,7 +7108,7 @@ export class SqliteTournamentRepository {
             WHERE stage_id = ?
             GROUP BY bracket_group
           )
-          SELECT bn.id, bn.radiant_team_id, bn.dire_team_id
+          SELECT bn.id, bn.bracket_group, bn.round_number, bn.radiant_team_id, bn.dire_team_id
           FROM bracket_nodes bn
           JOIN opening_rounds op
             ON op.bracket_group = bn.bracket_group
@@ -7111,6 +7116,7 @@ export class SqliteTournamentRepository {
           WHERE bn.stage_id = ?
             AND bn.winner_team_id IS NULL
             AND bn.series_id IS NULL
+            AND bn.bracket_group <> 'grand_final'
             AND (
               (bn.radiant_team_id IS NOT NULL AND bn.dire_team_id IS NULL)
               OR (bn.radiant_team_id IS NULL AND bn.dire_team_id IS NOT NULL)
@@ -7120,20 +7126,38 @@ export class SqliteTournamentRepository {
       )
       .all(stageId, stageId);
 
+    if (rows.length === 0) {
+      return;
+    }
+
+    const incomingSlotKeys = this.bracketIncomingSlotKeys(stageId);
+
     for (const row of rows) {
       const winnerTeamId =
         nullableText(row, "radiant_team_id") ?? nullableText(row, "dire_team_id");
 
-      if (winnerTeamId !== null) {
-        this.completeBracketNode(
-          text(row, "id"),
-          winnerTeamId,
-          boType,
-          scheduledAt,
-          roundIds,
-          false,
-        );
+      if (winnerTeamId === null) {
+        continue;
       }
+
+      if (!shouldAutoAdvanceBracketNode({
+        nodeId: text(row, "id"),
+        bracketGroup: text(row, "bracket_group"),
+        radiantTeamId: nullableText(row, "radiant_team_id"),
+        direTeamId: nullableText(row, "dire_team_id"),
+        incomingSlotKeys,
+      })) {
+        continue;
+      }
+
+      this.completeBracketNode(
+        text(row, "id"),
+        winnerTeamId,
+        boType,
+        scheduledAt,
+        roundIds,
+        false,
+      );
     }
   }
 
@@ -7464,6 +7488,36 @@ export class SqliteTournamentRepository {
     return this.database.prepare("SELECT * FROM bracket_nodes WHERE id = ?").get(nodeId);
   }
 
+  private bracketIncomingSlotKeys(stageId: string): Set<string> {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT next_node_id, next_slot, loser_next_node_id, loser_next_slot
+          FROM bracket_nodes
+          WHERE stage_id = ?
+        `,
+      )
+      .all(stageId);
+    const keys = new Set<string>();
+
+    for (const row of rows) {
+      const nextNodeId = nullableText(row, "next_node_id");
+      const nextSlot = nullableText(row, "next_slot");
+      const loserNextNodeId = nullableText(row, "loser_next_node_id");
+      const loserNextSlot = nullableText(row, "loser_next_slot");
+
+      if (nextNodeId !== null && (nextSlot === "radiant" || nextSlot === "dire")) {
+        keys.add(bracketSlotKey(nextNodeId, nextSlot));
+      }
+
+      if (loserNextNodeId !== null && (loserNextSlot === "radiant" || loserNextSlot === "dire")) {
+        keys.add(bracketSlotKey(loserNextNodeId, loserNextSlot));
+      }
+    }
+
+    return keys;
+  }
+
   private stageConfigJson(stageId: string): string {
     const row = this.database.prepare("SELECT config_json FROM stages WHERE id = ?").get(stageId);
 
@@ -7504,8 +7558,8 @@ export class SqliteTournamentRepository {
     return row === undefined ? null : text(row, "id");
   }
 
-  private uniqueSlug(name: string, opendotaLeagueId: number): string {
-    const base = slugify(name) || `league-${opendotaLeagueId}`;
+  private uniqueSlug(name: string, opendotaLeagueId: number | null): string {
+    const base = slugify(name) || (opendotaLeagueId === null ? "tournament" : `league-${opendotaLeagueId}`);
     let slug = base;
     let suffix = 2;
 
@@ -8443,12 +8497,16 @@ export class SqliteTournamentRepository {
       league: {
         id: text(row, "league_id"),
         name: text(row, "league_name"),
-        opendotaLeagueId: numberValue(row, "opendota_league_id"),
+        opendotaLeagueId: nullableNumber(row, "opendota_league_id"),
       },
     };
   }
 
-  private matchRowsForLeague(leagueId: number): ParsedOpenDotaMatchRow[] {
+  private matchRowsForLeague(leagueId: number | null): ParsedOpenDotaMatchRow[] {
+    if (leagueId === null) {
+      return [];
+    }
+
     const cachedRows = this.matchRowsCache.get(leagueId);
 
     if (cachedRows !== undefined) {
@@ -8864,7 +8922,7 @@ export class SqliteTournamentRepository {
       league: {
         id: text(row, "league_id"),
         name: text(row, "league_name"),
-        opendotaLeagueId: numberValue(row, "opendota_league_id"),
+        opendotaLeagueId: nullableNumber(row, "opendota_league_id"),
       },
     };
   }
@@ -8994,7 +9052,7 @@ export class SqliteTournamentRepository {
     const league: LeagueBrief = {
       id: text(row, "league_id"),
       name: text(row, "league_name"),
-      opendotaLeagueId: numberValue(row, "opendota_league_id"),
+      opendotaLeagueId: nullableNumber(row, "opendota_league_id"),
     };
     const tournament: TournamentBrief = {
       id: text(row, "tournament_id"),
@@ -9071,13 +9129,13 @@ export class SqliteTournamentRepository {
       league: {
         id: text(row, "league_id"),
         name: text(row, "league_name"),
-        opendotaLeagueId: numberValue(row, "opendota_league_id"),
+        opendotaLeagueId: nullableNumber(row, "opendota_league_id"),
       },
       currentStage,
       startsAt: text(row, "starts_at"),
       endsAt: nullableText(row, "ends_at"),
       teamCount: this.countTournamentTeams(text(row, "id")),
-      matchCount: this.countTournamentMatches(numberValue(row, "opendota_league_id")),
+      matchCount: this.countTournamentMatches(nullableNumber(row, "opendota_league_id")),
     };
   }
 
@@ -9141,7 +9199,11 @@ export class SqliteTournamentRepository {
     return numberValue(row ?? {}, "count");
   }
 
-  private countTournamentMatches(opendotaLeagueId: number): number {
+  private countTournamentMatches(opendotaLeagueId: number | null): number {
+    if (opendotaLeagueId === null) {
+      return 0;
+    }
+
     return this.matchRowsForLeague(opendotaLeagueId).length;
   }
 
@@ -10382,6 +10444,10 @@ function doubleEliminationNodeDrafts(
 
 function bracketRoundKey(group: BracketNode["bracketGroup"], roundNumber: number): string {
   return `${group}:${roundNumber}`;
+}
+
+function bracketSlotKey(nodeId: string, slot: BracketSlot): string {
+  return `${nodeId}:${slot}`;
 }
 
 function bracketNodeKey(

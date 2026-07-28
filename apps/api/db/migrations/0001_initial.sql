@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 CREATE TABLE IF NOT EXISTS leagues (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  opendota_league_id INTEGER NOT NULL UNIQUE,
+  opendota_league_id INTEGER UNIQUE,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 ) STRICT;

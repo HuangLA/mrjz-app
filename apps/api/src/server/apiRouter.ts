@@ -1631,7 +1631,7 @@ function bodyToCreateTournamentInput(body: Record<string, unknown>) {
   return withoutUndefined({
     name: stringField(body, "name"),
     seasonName: optionalStringField(body, "seasonName"),
-    opendotaLeagueId: numberField(body, "opendotaLeagueId"),
+    opendotaLeagueId: optionalPositiveIntegerOrNullField(body, "opendotaLeagueId"),
     startsAt: optionalStringField(body, "startsAt"),
     status,
   }) as Parameters<typeof createTournament>[0];
@@ -2309,6 +2309,23 @@ function optionalNumberOrNullField(
   }
 
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function optionalPositiveIntegerOrNullField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): number | null | undefined {
+  const value = optionalNumberOrNullField(body, fieldName);
+
+  if (value === undefined || value === null) {
+    return value;
+  }
+
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${fieldName} must be a positive integer`);
+  }
+
+  return value;
 }
 
 function optionalBooleanField(

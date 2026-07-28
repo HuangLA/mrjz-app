@@ -14,7 +14,7 @@ export type TeamBrief = {
 export type LeagueBrief = {
   id: string;
   name: string;
-  opendotaLeagueId: number;
+  opendotaLeagueId: number | null;
 };
 
 export type TournamentBrief = {
