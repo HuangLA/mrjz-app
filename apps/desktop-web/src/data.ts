@@ -63,6 +63,21 @@ export interface HeroStatsMatchEntry {
   heroDamage: number | null;
 }
 
+export interface HeroBanMatchEntry {
+  matchId: string;
+  startTime: string;
+  duration: string;
+  radiantTeamName: string;
+  direTeamName: string;
+  radiantScore: number | null;
+  direScore: number | null;
+  radiantWin: boolean | null;
+  bannedBySide: TeamSide | null;
+  bannedByTeamName: string;
+  bannedByResult: "win" | "loss" | "unknown";
+  draftOrder: number | null;
+}
+
 export interface HeroStatsItem {
   heroId: number;
   hero: string;
@@ -76,6 +91,7 @@ export interface HeroStatsItem {
   pickRate: number | null;
   banRate: number | null;
   matches: HeroStatsMatchEntry[];
+  banMatches: HeroBanMatchEntry[];
 }
 
 export interface HeroStatsView {

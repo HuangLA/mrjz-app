@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { MobileData } from "../api";
-import type { HeroStatsItem, HeroStatsMatchEntry } from "../data";
+import type { HeroBanMatchEntry, HeroStatsItem, HeroStatsMatchEntry } from "../data";
 import {
   DataNotice,
   EmptyState,
@@ -231,6 +231,7 @@ function HeroTableRow({
 }) {
   const presenceRate =
     totalMatches > 0 ? ((hero.picks + hero.bans) / totalMatches) * 100 : null;
+  const [activeTab, setActiveTab] = useState<"picks" | "bans">(hero.picks > 0 ? "picks" : "bans");
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -291,7 +292,37 @@ function HeroTableRow({
       {expanded ? (
         <tr className="hero-matches-row">
           <td colSpan={8}>
-            <HeroMatchList matches={hero.matches} onOpenMatch={onOpenMatch} />
+            <div className="hero-match-tabs" role="tablist" aria-label={`${hero.hero} 场次切换`}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "picks"}
+                className={activeTab === "picks" ? "is-active" : ""}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActiveTab("picks");
+                }}
+              >
+                出场场次<small>{hero.picks}</small>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "bans"}
+                className={activeTab === "bans" ? "is-active" : ""}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActiveTab("bans");
+                }}
+              >
+                被禁场次<small>{hero.bans}</small>
+              </button>
+            </div>
+            {activeTab === "picks" ? (
+              <HeroMatchList matches={hero.matches} onOpenMatch={onOpenMatch} />
+            ) : (
+              <HeroBanMatchList matches={hero.banMatches} onOpenMatch={onOpenMatch} />
+            )}
           </td>
         </tr>
       ) : null}
@@ -364,6 +395,67 @@ function HeroMatchList({
               </span>
               <span className="hero-match-kda">KDA {kda}</span>
               <span className="hero-match-economy">{economy || "暂无经济数据"}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function HeroBanMatchList({
+  matches,
+  onOpenMatch,
+}: {
+  matches: HeroBanMatchEntry[];
+  onOpenMatch: (matchId: string) => void;
+}) {
+  if (matches.length === 0) {
+    return <EmptyState text="该英雄本届没有被禁用记录" />;
+  }
+
+  return (
+    <div className="hero-match-list">
+      {matches.map((match, index) => {
+        const score =
+          match.radiantScore === null || match.direScore === null
+            ? "-:-"
+            : `${match.radiantScore}:${match.direScore}`;
+        const sideText = match.bannedBySide === "radiant" ? "天辉" : match.bannedBySide === "dire" ? "夜魇" : null;
+        const orderText = match.draftOrder === null ? "" : `第 ${match.draftOrder} 手`;
+
+        return (
+          <button
+            key={`${match.matchId}-${match.bannedBySide ?? "unknown"}-${index}`}
+            type="button"
+            className="hero-match-row"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenMatch(match.matchId);
+            }}
+          >
+            <span className="hero-match-line hero-match-line-main">
+              <span className="hero-match-time">
+                {match.startTime}
+                <small>{match.duration}</small>
+              </span>
+              <span className="hero-match-teams">
+                {match.radiantTeamName} vs {match.direTeamName}
+              </span>
+              <span className="hero-match-score">{score}</span>
+              <span
+                className={`status-tag ${
+                  match.bannedByResult === "win" ? "green" : match.bannedByResult === "loss" ? "red" : "blue"
+                }`}
+              >
+                {match.bannedByResult === "win" ? "该队胜" : match.bannedByResult === "loss" ? "该队负" : "未知"}
+              </span>
+            </span>
+            <span className="hero-match-line hero-match-line-sub">
+              <span className="hero-match-player">
+                被 {match.bannedByTeamName} 禁用{sideText ? `（${sideText}）` : ""}
+              </span>
+              {orderText ? <span className="hero-match-kda">{orderText}</span> : null}
             </span>
           </button>
         );

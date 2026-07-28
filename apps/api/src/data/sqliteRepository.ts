@@ -555,6 +555,21 @@ export type HeroStatsMatchEntry = {
   heroDamage: number | null;
 };
 
+export type HeroBanMatchEntry = {
+  matchId: number;
+  startTime: string | null;
+  durationText: string | null;
+  radiantTeamName: string;
+  direTeamName: string;
+  radiantScore: number | null;
+  direScore: number | null;
+  radiantWin: boolean | null;
+  bannedBySide: TeamSide | null;
+  bannedByTeamName: string;
+  bannedByResult: "win" | "loss" | "unknown";
+  draftOrder: number | null;
+};
+
 export type HeroStatsItem = {
   heroId: number;
   picks: number;
@@ -565,6 +580,7 @@ export type HeroStatsItem = {
   pickRate: number | null;
   banRate: number | null;
   matches: HeroStatsMatchEntry[];
+  banMatches: HeroBanMatchEntry[];
 };
 
 export type TournamentHeroStatsView = {
@@ -2807,7 +2823,7 @@ export class SqliteTournamentRepository {
     const matchRows = this.matchRowsForLeague(target.league.opendotaLeagueId);
     const heroes = new Map<
       number,
-      { picks: number; wins: number; bans: number; matches: HeroStatsMatchEntry[] }
+      { picks: number; wins: number; bans: number; matches: HeroStatsMatchEntry[]; banMatches: HeroBanMatchEntry[] }
     >();
 
     const ensureHero = (heroId: number) => {
@@ -2817,7 +2833,7 @@ export class SqliteTournamentRepository {
         return existing;
       }
 
-      const created = { picks: 0, wins: 0, bans: 0, matches: [] as HeroStatsMatchEntry[] };
+      const created = { picks: 0, wins: 0, bans: 0, matches: [] as HeroStatsMatchEntry[], banMatches: [] as HeroBanMatchEntry[] };
       heroes.set(heroId, created);
       return created;
     };
@@ -2868,7 +2884,29 @@ export class SqliteTournamentRepository {
 
       for (const action of raw.picks_bans ?? []) {
         if (action.is_pick === false && typeof action.hero_id === "number" && action.hero_id > 0) {
-          ensureHero(action.hero_id).bans += 1;
+          const entry = ensureHero(action.hero_id);
+          entry.bans += 1;
+          const bannedBySide: TeamSide | null = action.team === 0 ? "radiant" : action.team === 1 ? "dire" : null;
+          const bannedByTeamName = bannedBySide === "radiant"
+            ? stringOr(raw.radiant_name, "天辉")
+            : bannedBySide === "dire"
+              ? stringOr(raw.dire_name, "夜魇")
+              : "未知队伍";
+          const bannedByWon = bannedBySide === null ? null : bannedBySide === "radiant" ? radiantWin : radiantWin === null ? null : !radiantWin;
+          entry.banMatches.push({
+            matchId: raw.match_id,
+            startTime: matchStartTime(raw),
+            durationText: typeof raw.duration === "number" ? formatDuration(raw.duration) : null,
+            radiantTeamName: stringOr(raw.radiant_name, "天辉"),
+            direTeamName: stringOr(raw.dire_name, "夜魇"),
+            radiantScore: typeof raw.radiant_score === "number" ? raw.radiant_score : null,
+            direScore: typeof raw.dire_score === "number" ? raw.dire_score : null,
+            radiantWin,
+            bannedBySide,
+            bannedByTeamName,
+            bannedByResult: bannedByWon === null ? "unknown" : bannedByWon ? "win" : "loss",
+            draftOrder: typeof action.order === "number" ? action.order + 1 : null,
+          });
         }
       }
     }
@@ -2888,6 +2926,9 @@ export class SqliteTournamentRepository {
           pickRate: totalMatches > 0 ? round1((entry.picks / totalMatches) * 100) : null,
           banRate: totalMatches > 0 ? round1((entry.bans / totalMatches) * 100) : null,
           matches: entry.matches,
+          banMatches: [...entry.banMatches].sort(
+            (left, right) => dateSortValue(right.startTime) - dateSortValue(left.startTime),
+          ),
         };
       })
       .sort(
