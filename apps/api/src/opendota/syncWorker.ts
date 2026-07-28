@@ -389,6 +389,10 @@ async function discoverMatchIds(
   const ids = new Set<number>();
   const leagueId = target.league.opendotaLeagueId;
 
+  if (leagueId === null) {
+    return [];
+  }
+
   try {
     for (const matchId of uniqueNumberIds(await client.getLeagueMatchIds(leagueId))) {
       ids.add(matchId);

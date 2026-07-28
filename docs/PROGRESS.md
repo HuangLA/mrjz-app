@@ -1,6 +1,6 @@
 # 项目进度追踪
 
-最后更新：2026-07-19
+最后更新：2026-07-28
 
 ## 当前状态
 
@@ -24,6 +24,9 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 | M7 上线准备           | 进行中 | API、H5 和 Web Admin 已部署到云服务器并完成第一轮安全加固；真机、审核、合规继续推进                                                                               |
 
 ## 已完成
+
+- 修复淘汰赛撤回赛果导致决赛异常的后端 bug（同 `feature/admin-ui-rebuild` 分支）：`autoAdvanceBracketByes` 只按“组内首轮 + 单队占位”就把节点当轮空自动判胜，未检查空槽位是否有上游来路；撤回胜者组决赛后重新判胜时，只有单队的总决赛节点被误判为轮空——无对手、无 series 直接 completed，表现为“决赛无法正常显示”。修复：抽出纯函数 `shouldAutoAdvanceBracketNode`（`apps/api/src/data/bracketByeAdvance.ts`），空槽位存在上游 incoming 边（其它节点的 next / loser_next 指向该槽）时绝不自动晋级，且 `grand_final` 组永不自动晋级；真实轮空（空槽无任何上游来路）行为不变。新增单元测试 5 条（真轮空放行、有上游等待、总决赛豁免、双队/空队不放行、占用槽有边不误伤），API 测试 9/9 通过；并用本地库副本完整模拟“全部判胜 → 撤回胜者组决赛 → 换边重判 → 败者组决赛 → 总决赛判胜”，每步 bracket 状态均正确（总决赛始终等齐双方并重建 series 后才可判胜）。另核实 match_id 在发布、生成对阵图、瑞士轮确认、判胜等全部流程中均非必填，不会卡住比赛进程。注意：线上若已存在被误判胜的总决赛节点，部署后在 Admin 对该节点执行一次“撤销胜者”即可恢复待判状态。
+- Web Admin 全量重构与两处流程修正（`feature/admin-ui-rebuild` 分支）：①取消“修改前必须先撤回发布”的限制——经全量核查后端从未拦截已发布状态下的赛程写入（series CRUD、分组、瑞士轮、对阵图、手动排名、match_id 绑定均无 schedule 状态守卫），该限制纯属旧前端 `requireEditableSchedule` 约定；新前端发布后展示“已发布 · 修改即时生效”横幅，所有编辑直接可用，撤回仅保留为 H5 整页下线的独立动作。②创建届次不再强制 OpenDota `league_id`——后端 `createTournament` 改为可空（leagues 表迁移移除 NOT NULL，保留 UNIQUE；无 league_id 的届次不进 OpenDota 同步目标、`matchRowsForLeague(null)` 返回空、slug 回退 tournament 前缀），前端创建表单可留空并跳过自动同步。UI 全面重写：9000 行单文件 `main.tsx` 拆分为 `app/`（shell + 数据层 + 领域逻辑）、`components/`（基础组件）与 `views/`（赛事管理 / 战队 / 鸣谢 / 标签 / 比赛结果库 / 同步任务）模块化结构，全新设计系统 `admin.css`；交互从拖拽为主改为点击优先（名单勾选、分组下拉移入、对阵图槽位下拉填入、入围名单上下移排序），仅积分榜手动排名保留 dnd-kit；赛事管理收敛为“届次头卡 + 基础设置（名单 / 赛制 / 发布）+ 阶段画布（分组 / 瑞士轮 / 对阵图）+ 阶段赛程（快捷比分、时间、match_id、行内编辑）+ 积分榜”线性结构，删除全部指引条 / 嵌套抽屉 / 焦点跳转 hack；比赛结果库和同步任务从占位列表重做为带统计、状态 / 关联 / 类型筛选和搜索的完整只读表格；对阵加赛补充“加赛”标识。新增 `apps/admin/vite.config.ts` 本地 `/api` 代理便于开发。全 workspace typecheck、API 测试（4/4）、admin build 通过；本地真实库 Playwright 冒烟覆盖登录、六个页面渲染、发布状态下创建加赛 / 录赛果 / 删除 / 编辑对阵、无 league_id 创建届次全流程。文档同步：`ADMIN_WEB_SPEC.md` 与 `TOURNAMENT_MANAGEMENT_SPEC.md` 已改为“发布不锁编辑、league_id 可空”。
 
 - 修复总决赛无法设置对阵时间的问题（`fix/bracket-series-relink` 分支）：第四届双败淘汰赛总决赛节点双方（烈焰焚天 vs 马车）已就位但 bracket node 无 series，根因是该节点的 series 曾被 `deleteSeries` 删除，节点保留双方队伍却无对阵记录可编辑。后端 `createSeries` 新增自愈：手动创建 series 后自动回链同阶段、同对阵（不限方位）、未分胜负且未关联 series 的 bracket node 并置为 scheduled。已在云端库副本验证后部署 API（备份 `dist.before-bracket-relink-20260727-235500`），并在生产库补建总决赛 BO3 series（建库前备份 `mrjz-before-grand-final-series-20260727-235500.sqlite`），公网 bracket 接口确认节点已关联 series，Admin 现可正常设置总决赛对阵时间。
 - 英雄数据页展开场次改为两行式布局（`feat/hero-match-row-layout` 分支）：主行显示时间 + 时长、对阵双方、比分、胜负标签；副行显示使用者 · 所属队（天辉/夜魇）、KDA、GPM · XPM · 经济 · 伤害，解决单行五列网格下经济数据被截断的问题；Playwright 双主题截图复验通过。已合并 main 并部署桌面端（备份 `/var/www/backups/mrjz-desktop-before-hero-row-layout-20260727-221713`），desktop.dota2mrjz.icu 200。

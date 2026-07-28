@@ -110,6 +110,7 @@ function applyMigrations(): void {
   }
 
   ensureTeamsAllowDuplicateOpenDotaTeamIds();
+  ensureLeaguesAllowMissingOpenDotaLeagueId();
 }
 
 function applySchemaPatches(): void {
@@ -231,6 +232,62 @@ function rebuildTeamsTableWithoutOpenDotaTeamIdUnique(): void {
 
   if (foreignKeyViolations.length > 0) {
     throw new Error("teams table migration left foreign key violations");
+  }
+}
+
+function ensureLeaguesAllowMissingOpenDotaLeagueId(): void {
+  const columns = database.prepare("PRAGMA table_info(leagues)").all() as DbRow[];
+  const leagueIdColumn = columns.find((column) => textFromRow(column, "name") === "opendota_league_id");
+
+  if (leagueIdColumn === undefined || numberFromRow(leagueIdColumn, "notnull") !== 1) {
+    return;
+  }
+
+  database.exec("PRAGMA foreign_keys = OFF;");
+  database.exec("BEGIN;");
+
+  try {
+    database.exec(`
+      DROP TABLE IF EXISTS leagues_nullable_opendota;
+
+      CREATE TABLE leagues_nullable_opendota (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        opendota_league_id INTEGER UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+
+      INSERT INTO leagues_nullable_opendota (
+        id,
+        name,
+        opendota_league_id,
+        created_at,
+        updated_at
+      )
+      SELECT
+        id,
+        name,
+        opendota_league_id,
+        created_at,
+        updated_at
+      FROM leagues;
+
+      DROP TABLE leagues;
+      ALTER TABLE leagues_nullable_opendota RENAME TO leagues;
+    `);
+    database.exec("COMMIT;");
+  } catch (error) {
+    database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    database.exec("PRAGMA foreign_keys = ON;");
+  }
+
+  const foreignKeyViolations = database.prepare("PRAGMA foreign_key_check").all();
+
+  if (foreignKeyViolations.length > 0) {
+    throw new Error("leagues table migration left foreign key violations");
   }
 }
 
