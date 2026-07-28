@@ -7,6 +7,7 @@ import type {
   ComparisonMetric,
   DraftStep,
   HeroPickSummary,
+  HeroBanMatchEntry,
   HeroStatsItem,
   HeroStatsMatchEntry,
   HeroStatsView,
@@ -141,6 +142,21 @@ type ApiHeroStatsMatchEntry = {
   heroDamage?: number | null;
 };
 
+type ApiHeroBanMatchEntry = {
+  matchId?: number;
+  startTime?: string | null;
+  durationText?: string | null;
+  radiantTeamName?: string;
+  direTeamName?: string;
+  radiantScore?: number | null;
+  direScore?: number | null;
+  radiantWin?: boolean | null;
+  bannedBySide?: TeamSide | null;
+  bannedByTeamName?: string;
+  bannedByResult?: "win" | "loss" | "unknown";
+  draftOrder?: number | null;
+};
+
 type ApiHeroStatsItem = {
   heroId?: number;
   picks?: number;
@@ -151,6 +167,7 @@ type ApiHeroStatsItem = {
   pickRate?: number | null;
   banRate?: number | null;
   matches?: ApiHeroStatsMatchEntry[];
+  banMatches?: ApiHeroBanMatchEntry[];
 };
 
 type ApiHeroStatsView = {
@@ -1407,6 +1424,24 @@ function normalizeHeroStatsItem(item: ApiHeroStatsItem): HeroStatsItem {
     pickRate: item.pickRate ?? null,
     banRate: item.banRate ?? null,
     matches: (item.matches ?? []).map(normalizeHeroStatsMatch),
+    banMatches: (item.banMatches ?? []).map(normalizeHeroBanMatch),
+  };
+}
+
+function normalizeHeroBanMatch(match: ApiHeroBanMatchEntry): HeroBanMatchEntry {
+  return {
+    matchId: String(match.matchId ?? "-"),
+    startTime: formatMaybeDateTime(match.startTime) ?? "时间待定",
+    duration: match.durationText ?? "--:--",
+    radiantTeamName: match.radiantTeamName ?? "天辉",
+    direTeamName: match.direTeamName ?? "夜魇",
+    radiantScore: match.radiantScore ?? null,
+    direScore: match.direScore ?? null,
+    radiantWin: match.radiantWin ?? null,
+    bannedBySide: match.bannedBySide === "radiant" || match.bannedBySide === "dire" ? match.bannedBySide : null,
+    bannedByTeamName: match.bannedByTeamName?.trim() || "未知队伍",
+    bannedByResult: match.bannedByResult ?? "unknown",
+    draftOrder: match.draftOrder ?? null,
   };
 }
 
