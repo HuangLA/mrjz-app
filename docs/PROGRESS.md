@@ -25,6 +25,7 @@ M2 用户与权限体系目标已固化到 `docs/goals/M2_USER_AUTH_AND_ADMIN_GO
 
 ## 已完成
 
+- 修正 KS 称号文案（`fix/ks-legs-description` 分支，已合并 main 并部署）：KS 的达成条件是选择脚多的英雄（育母蜘蛛 8 脚、沙王蝎子、司夜刺客甲虫），不是隐身系；description 改为“选择脚多的英雄最多的选手（育母蜘蛛、沙王、司夜刺客）”。部署前备份生产库 `mrjz-before-ks-desc-20260730-233955.sqlite` 与 API dist，重启后公网接口已返回新文案。
 - 英雄榜 5 个隐藏称号达成条件公开（`feat/visible-leaderboard-descriptions` 分支，已合并 main 并部署）：老毒物、止痛药、化龙、老阴B、KS 五条定义移除 `publicDescription: "触发条件隐藏"`，description 润色为“条件 + 括号列英雄”格式（如老阴B → “选择隐身英雄最多的选手（力丸、赏金猎人、司夜刺客、骷髅射手、沙王、圣堂刺客、祈求者、编织者、树精卫士、月之女祭司、凯）”）；三个前端（desktop-web / H5 / 小程序）均直接渲染 API description，无需发版。部署前备份生产库 `mrjz-before-leaderboard-reveal-20260730-233620.sqlite`（integrity ok）与 API dist；`mrjz-api.service` 重启后 active，公网 hero-leaderboards 已返回全部可见文案且各榜 winner 正常计算，数据库内容未变（4 届 / 49 series）。
 - 第四届总决赛改为 BO5（`feat/series-botype-edit` 分支，已合并 main 并部署）：`updateSeries` 新增 `reconcileSeriesGameSlots`——boType 变更时自动补齐缺失单局槽位，收缩时只删除仍为空（无 match_id、无比分）的多余槽位，已绑定比赛或有比分的槽位永远保留；Admin 对阵编辑器新增 BO1/BO2/BO3/BO5 选择（创建与编辑均可用）。部署前备份生产库 `mrjz-before-gf-bo5-20260730-111337.sqlite`（integrity ok）、API dist 与 Admin 目录；部署后通过 Admin API 将第四届总决赛 series（烈焰焚天 vs 马车）PATCH 为 BO5，单局槽位自动补齐为 G1-G5，对阵时间 2026-07-30 11:30 保持不变，公网 bracket 接口已返回 BO5；本地库副本验证 BO3→BO5 加槽、BO5→BO3 删空槽、有 match_id 槽位保留三种路径正确。
 
