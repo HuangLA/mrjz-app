@@ -77,7 +77,6 @@ type HeroLeaderboardAccumulator = {
 };
 
 const HERO_LEADERBOARD_MIN_MATCHES = 5;
-const HIDDEN_HERO_LEADERBOARD_DESCRIPTION = "触发条件隐藏";
 const OLD_POISON_HERO_IDS = new Set([40, 47, 79]);
 const DRAGON_FORM_HERO_IDS = new Set([49, 112, 47, 64, 13]);
 const SNEAKY_B_HERO_IDS = new Set([32, 62, 88, 56, 16, 46, 74, 63, 83, 9, 145]);
@@ -299,8 +298,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "oldPoison",
     title: "老毒物",
-    description: "剧毒术士、冥界亚龙、暗影恶魔选择次数最多",
-    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    description: "选择剧毒系英雄最多的选手（剧毒术士、冥界亚龙、暗影恶魔）",
     metricLabel: "触发次数",
     unit: "次",
     precision: 0,
@@ -311,8 +309,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "painkiller",
     title: "止痛药",
-    description: "击杀痛苦魔方最多",
-    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    description: "击杀痛苦魔方最多的选手",
     metricLabel: "击杀",
     unit: "次",
     precision: 0,
@@ -323,8 +320,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "dragonForm",
     title: "化龙",
-    description: "龙骑士、寒冰飞龙、冥界亚龙、杰奇洛、帕克选择次数最多",
-    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    description: "选择龙系英雄最多的选手（龙骑士、寒冰飞龙、冥界亚龙、杰奇洛、帕克）",
     metricLabel: "触发次数",
     unit: "次",
     precision: 0,
@@ -336,8 +332,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     key: "sneakyB",
     title: "老阴B",
     description:
-      "力丸、赏金猎人、司夜刺客、骷髅射手、沙王、圣堂刺客、祈求者、编织者、树精卫士、月之女祭司、凯选择次数最多",
-    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+      "选择隐身英雄最多的选手（力丸、赏金猎人、司夜刺客、骷髅射手、沙王、圣堂刺客、祈求者、编织者、树精卫士、月之女祭司、凯）",
     metricLabel: "触发次数",
     unit: "次",
     precision: 0,
@@ -348,8 +343,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "ks",
     title: "KS",
-    description: "育母蜘蛛、沙王、司夜刺客选择次数最多",
-    publicDescription: HIDDEN_HERO_LEADERBOARD_DESCRIPTION,
+    description: "选择隐身系英雄最多的选手（育母蜘蛛、沙王、司夜刺客）",
     metricLabel: "触发次数",
     unit: "次",
     precision: 0,
