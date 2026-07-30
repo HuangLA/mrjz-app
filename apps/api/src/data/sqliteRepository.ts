@@ -5797,6 +5797,11 @@ export class SqliteTournamentRepository {
           direTeamId,
           seriesId,
         );
+
+      if (input.boType !== undefined && input.boType !== existing.boType) {
+        this.reconcileSeriesGameSlots(seriesId, gameCountForBo(input.boType));
+      }
+
       this.recalculateStageStandings(stageId);
       this.database.exec("COMMIT;");
     } catch (error) {
@@ -7033,6 +7038,39 @@ export class SqliteTournamentRepository {
     }
 
     return id;
+  }
+
+  private reconcileSeriesGameSlots(seriesId: string, targetGameCount: number): void {
+    const existingIndexes = this.database
+      .prepare("SELECT game_index FROM series_games WHERE series_id = ?")
+      .all(seriesId)
+      .map((row) => numberValue(row, "game_index"));
+
+    const insert = this.database.prepare(`
+      INSERT INTO series_games (id, series_id, game_index)
+      VALUES (?, ?, ?)
+    `);
+
+    for (let gameIndex = 1; gameIndex <= targetGameCount; gameIndex += 1) {
+      if (!existingIndexes.includes(gameIndex)) {
+        insert.run(`${seriesId}_g${gameIndex}`, seriesId, gameIndex);
+      }
+    }
+
+    // Only surplus slots that are still empty may be dropped; a slot holding a
+    // bound match or a recorded score is always preserved.
+    this.database
+      .prepare(
+        `
+          DELETE FROM series_games
+          WHERE series_id = ?
+            AND game_index > ?
+            AND match_id IS NULL
+            AND radiant_score IS NULL
+            AND dire_score IS NULL
+        `,
+      )
+      .run(seriesId, targetGameCount);
   }
 
   private linkUnlinkedBracketNodeToSeries(

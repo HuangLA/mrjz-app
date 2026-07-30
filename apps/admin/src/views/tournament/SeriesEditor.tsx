@@ -15,6 +15,7 @@ export interface SeriesDraftValue {
   groupId: string;
   seriesKind: "regular" | "tiebreaker";
   scheduledAt: string;
+  boType: string;
 }
 
 export const emptySeriesDraft: SeriesDraftValue = {
@@ -25,6 +26,7 @@ export const emptySeriesDraft: SeriesDraftValue = {
   groupId: "",
   seriesKind: "regular",
   scheduledAt: "",
+  boType: "BO2",
 };
 
 export function TeamSelect({ teams, value, excludeId, onChange, placeholder, disabled }: {
@@ -69,6 +71,7 @@ export function SeriesEditorPanel({ ctx, stage, groups, rounds, editingSeries, s
         groupId: editingSeries.groupId ?? "",
         seriesKind: editingSeries.seriesKind === "tiebreaker" ? "tiebreaker" : "regular",
         scheduledAt: toDatetimeLocalInput(editingSeries.scheduledAt),
+        boType: editingSeries.boType || "BO2",
       });
       return;
     }
@@ -117,6 +120,7 @@ export function SeriesEditorPanel({ ctx, stage, groups, rounds, editingSeries, s
           roundId: draft.roundId,
           groupId: isGroupStage ? selectedGroupId || null : null,
           seriesKind: isGroupStage ? draft.seriesKind : "regular",
+          boType: draft.boType || undefined,
           scheduledAt: draft.scheduledAt ? serializeDatetimeLocal(draft.scheduledAt) : "",
           radiantTeamId: draft.radiantTeamId,
           direTeamId: draft.direTeamId,
@@ -150,7 +154,7 @@ export function SeriesEditorPanel({ ctx, stage, groups, rounds, editingSeries, s
         roundId,
         groupId: isGroupStage ? selectedGroupId || null : null,
         seriesKind: isGroupStage ? draft.seriesKind : "regular",
-        boType: "BO2",
+        boType: draft.boType || "BO2",
         status: "draft",
         scheduledAt: draft.scheduledAt ? serializeDatetimeLocal(draft.scheduledAt) : "",
         radiantTeamId: draft.radiantTeamId,
@@ -200,6 +204,11 @@ export function SeriesEditorPanel({ ctx, stage, groups, rounds, editingSeries, s
           <Field label="计划时间">
             <input type="datetime-local" value={draft.scheduledAt} onChange={(event) => patch({ scheduledAt: event.target.value })} disabled={submitting} />
           </Field>
+          <Field label="BO">
+            <select value={draft.boType} onChange={(event) => patch({ boType: event.target.value })} disabled={submitting}>
+              {["BO1", "BO2", "BO3", "BO5"].map((bo) => <option key={bo} value={bo}>{bo}</option>)}
+            </select>
+          </Field>
           {isGroupStage ? (
             <Field label="类型">
               <select value={draft.seriesKind} onChange={(event) => patch({ seriesKind: event.target.value as "regular" | "tiebreaker" })} disabled={submitting}>
@@ -220,7 +229,7 @@ export function SeriesEditorPanel({ ctx, stage, groups, rounds, editingSeries, s
         {isEdit ? <button type="button" className="btn btn-ghost" onClick={onDone} disabled={submitting}><X size={14} /> 取消</button> : null}
         <button type="button" className="btn btn-primary" onClick={() => void submit()} disabled={!canSubmit}>
           {submitting ? <Spinner size={14} /> : isEdit ? <Check size={14} /> : <Plus size={14} />}
-          {isEdit ? "保存修改" : "创建 BO2 对阵"}
+          {isEdit ? "保存修改" : `创建 ${draft.boType || "BO2"} 对阵`}
         </button>
       </div>
     </div>
