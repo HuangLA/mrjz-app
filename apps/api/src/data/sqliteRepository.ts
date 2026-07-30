@@ -343,7 +343,7 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
     key: "ks",
     title: "KS",
-    description: "选择隐身系英雄最多的选手（育母蜘蛛、沙王、司夜刺客）",
+    description: "选择脚多的英雄最多的选手（育母蜘蛛、沙王、司夜刺客）",
     metricLabel: "触发次数",
     unit: "次",
     precision: 0,
