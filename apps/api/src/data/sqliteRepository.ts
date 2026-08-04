@@ -73,6 +73,7 @@ type HeroLeaderboardAccumulator = {
   teams: TeamBrief[];
   matches: number;
   totals: Record<HeroLeaderboardMetricKey, number>;
+  completedAt: Record<HeroLeaderboardMetricKey, number>;
   heroIds: Set<number>;
 };
 
@@ -2771,6 +2772,7 @@ export class SqliteTournamentRepository {
               player,
               total,
               average,
+              completedAt: player.completedAt[definition.key],
             };
           })
           .filter((candidate) => candidate.average > 0)
@@ -2778,6 +2780,8 @@ export class SqliteTournamentRepository {
             (left, right) =>
               compareHeroLeaderboardValue(left.average, right.average, definition.rankDirection) ||
               right.total - left.total ||
+              (left.completedAt || Number.MAX_SAFE_INTEGER) -
+                (right.completedAt || Number.MAX_SAFE_INTEGER) ||
               right.player.matches - left.player.matches ||
               left.player.player.displayName.localeCompare(
                 right.player.player.displayName,
@@ -8633,7 +8637,9 @@ export class SqliteTournamentRepository {
   ): Map<number, HeroLeaderboardAccumulator> {
     const players = new Map<number, HeroLeaderboardAccumulator>();
 
-    for (const match of this.matchRowsForLeague(target.league.opendotaLeagueId)) {
+    const matchesAscending = [...this.matchRowsForLeague(target.league.opendotaLeagueId)].reverse();
+
+    for (const match of matchesAscending) {
       for (const rawPlayer of match.raw.players ?? []) {
         const accountId =
           typeof rawPlayer.account_id === "number" && rawPlayer.account_id > 0
@@ -8661,18 +8667,29 @@ export class SqliteTournamentRepository {
               teams: this.getPlayerTeamsForTournament(target.tournamentId, tournamentPlayer.id),
               matches: 0,
               totals: emptyHeroLeaderboardTotals(),
+              completedAt: emptyHeroLeaderboardTotals(),
               heroIds: new Set<number>(),
             };
           })();
 
         accumulator.matches += 1;
 
+        const matchStartTime = positiveNumber(match.raw.start_time);
+
         if (typeof rawPlayer.hero_id === "number" && rawPlayer.hero_id > 0) {
+          const heroCount = accumulator.heroIds.size;
           accumulator.heroIds.add(rawPlayer.hero_id);
+          if (accumulator.heroIds.size > heroCount && matchStartTime > 0) {
+            accumulator.completedAt.uniqueHeroes = matchStartTime;
+          }
         }
 
         for (const definition of HERO_LEADERBOARD_DEFINITIONS) {
-          accumulator.totals[definition.key] += definition.value?.(rawPlayer, match.raw) ?? 0;
+          const contribution = definition.value?.(rawPlayer, match.raw) ?? 0;
+          accumulator.totals[definition.key] += contribution;
+          if (contribution > 0 && matchStartTime > 0) {
+            accumulator.completedAt[definition.key] = matchStartTime;
+          }
         }
 
         players.set(accountId, accumulator);
