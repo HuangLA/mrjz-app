@@ -198,7 +198,6 @@ score =
 | 鬼王宗宗主 | `players[].deaths` | 场均阵亡 |
 | 老吴 | `players[].damage_taken` | 字段为对象时先求和再按场均 |
 | 战争机器 | `players[].hero_damage` | 场均英雄伤害 |
-| 助攻王 | `players[].assists` | 场均助攻 |
 | 马斯克 | `players[].net_worth`，缺失时降级到 `total_gold` / `gold` | 场均财产 |
 | 拆迁队队长 | `players[].tower_damage` | 场均建筑伤害 |
 | 喝茶散步 | `players[].gold_per_min` | 场均 GPM 最低，按低值优先排名 |
@@ -208,6 +207,7 @@ score =
 | 剑心犹在 | `players[].purchase.rapier`，缺失时降级到 `purchase_log[].key = rapier` | 本届购买圣剑最多 |
 | 郎朗 | `players[].actions_per_min` | 场均 APM 最高 |
 | 斯托克顿 | `players[].assists` | 场均助攻最高 |
+| 辅王 | `players[].purchase.ward_sentry` / `dust` / `smoke_of_deceit` / `gem`（缺失时降级到 `purchase_log`） | 按售价 50 / 80 / 50 / 900 折算金额，场均辅助道具消费金额最高 |
 | 暴虐成狂 | `players[].multi_kills["5"]` | 本届完成暴走次数最多 |
 | 反侦察科科长 | `players[].observer_kills` | 场均排掉观察守卫最多，岗哨守卫不计入，数值单位显示为“个” |
 | 动物园园长 | `players[].camps_stacked` | 场均屯野最多，数值单位显示为“波” |

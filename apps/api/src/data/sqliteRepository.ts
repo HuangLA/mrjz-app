@@ -81,6 +81,12 @@ const OLD_POISON_HERO_IDS = new Set([40, 47, 79]);
 const DRAGON_FORM_HERO_IDS = new Set([49, 112, 47, 64, 13]);
 const SNEAKY_B_HERO_IDS = new Set([32, 62, 88, 56, 16, 46, 74, 63, 83, 9, 145]);
 const KS_HERO_IDS = new Set([61, 16, 88]);
+const SUPPORT_ITEM_GOLD_COSTS: Readonly<Record<string, number>> = {
+  ward_sentry: 50,
+  dust: 80,
+  smoke_of_deceit: 50,
+  gem: 900,
+};
 
 const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
   {
@@ -164,16 +170,6 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     value: (player) => positiveNumber(player.hero_damage),
   },
   {
-    key: "assists",
-    title: "助攻王",
-    description: "场均助攻最高",
-    metricLabel: "场均助攻",
-    unit: "助",
-    precision: 1,
-    rankDirection: "desc",
-    value: (player) => positiveNumber(player.assists),
-  },
-  {
     key: "netWorth",
     title: "马斯克",
     description: "场均财产最高",
@@ -253,6 +249,16 @@ const HERO_LEADERBOARD_DEFINITIONS: HeroLeaderboardDefinition[] = [
     precision: 0,
     rankDirection: "desc",
     value: (player) => positiveNumber(player.actions_per_min),
+  },
+  {
+    key: "supportGold",
+    title: "辅王",
+    description: "场均辅助道具消费金额最高（岗哨守卫、显隐之尘、诡计之雾、真视宝石）",
+    metricLabel: "场均辅助消费",
+    unit: "",
+    precision: 0,
+    rankDirection: "desc",
+    value: supportItemGoldSpent,
   },
   {
     key: "stocktonAssists",
@@ -480,7 +486,6 @@ export type HeroLeaderboardMetricKey =
   | "deaths"
   | "damageTaken"
   | "heroDamage"
-  | "assists"
   | "netWorth"
   | "towerDamage"
   | "lowGpm"
@@ -489,6 +494,7 @@ export type HeroLeaderboardMetricKey =
   | "uniqueHeroes"
   | "rapierPurchases"
   | "langLangApm"
+  | "supportGold"
   | "stocktonAssists"
   | "rampages"
   | "observerWardKills"
@@ -11108,6 +11114,13 @@ function heroSelectionCount(player: OpenDotaMatchPlayer, heroIds: Set<number>): 
 
 function rapierPurchaseCount(player: OpenDotaMatchPlayer): number {
   return purchaseCount(player, "rapier");
+}
+
+function supportItemGoldSpent(player: OpenDotaMatchPlayer): number {
+  return Object.entries(SUPPORT_ITEM_GOLD_COSTS).reduce(
+    (total, [itemKey, cost]) => total + purchaseCount(player, itemKey) * cost,
+    0,
+  );
 }
 
 function purchaseCount(player: OpenDotaMatchPlayer, itemKey: string): number {
